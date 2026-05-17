@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swag Stree | Elite Pro</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+    <style>
+        /* 1. THEME VARIABLES */
+        :root { 
+            --gold: #FFD700; 
+            --bg: #000; 
+            --card: #111; 
+            --border: #222; 
+            --red: #ff4757; 
+        }
+
+        /* 2. BASE STYLES */
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; padding-bottom: 90px; overflow-x: hidden; }
+        
+        /* 3. HEADER & NAVIGATION */
+        .header { display: flex; align-items: center; padding: 12px 15px; background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid var(--border); gap: 12px; }
+        .logo-img { height: 35px; width: auto; object-fit: contain; }
+        .brand { font-size: 14px; font-weight: 900; color: var(--gold); letter-spacing: 2px; flex: 1; }
+        .social-tools { display: flex; gap: 14px; align-items: center; padding-right: 12px; border-right: 1px solid #333; height: 24px; }
+        .social-tools a { color: #fff; font-size: 16px; text-decoration: none; transition: 0.3s; }
+        .fa-instagram { color: #E1306C; } .fa-whatsapp { color: #25D366; } .fa-facebook { color: #1877F2; }
+        .cart-trigger { position: relative; cursor: pointer; padding-left: 5px; }
+
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; background: #000; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid var(--border); z-index: 1500; }
+        .nav-item { text-align: center; font-size: 10px; color: #555; flex: 1; cursor: pointer; }
+        .nav-item.active { color: var(--gold); }
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 4px; }
+
+        /* 4. PRODUCT GRID & CARDS */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 15px; }
+        .card { background: var(--card); border-radius: 20px; overflow: hidden; position: relative; border: 1px solid var(--border); }
+        .wish-btn { position: absolute; top: 10px; right: 10px; z-index: 100; background: rgba(0,0,0,0.5); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; cursor: pointer; }
+        .wish-btn.active { color: var(--red); background: rgba(255, 71, 87, 0.1); }
+        .share-btn { position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.5); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; cursor: pointer; }
+        .quick-add { position: absolute; bottom: 65px; right: 10px; z-index: 100; background: var(--gold); color: #000; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        
+        .carousel-box { aspect-ratio: 1/1; background: #1a1a1a; position: relative; overflow: hidden; }
+        .carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 100%; scrollbar-width: none; }
+        .carousel::-webkit-scrollbar { display: none; }
+        .carousel img { width: 100%; height: 100%; object-fit: cover; flex-shrink: 0; scroll-snap-align: center; }
+        .indicators { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; }
+        .dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: 0.3s; }
+        .dot.active { background: var(--gold); width: 12px; border-radius: 4px; }
+
+        /* 5. FORMS & UI ELEMENTS */
+        .chip-group { display: flex; gap: 8px; margin: 10px 0 20px; flex-wrap: wrap; }
+        .chip { padding: 8px 16px; border: 1px solid #333; border-radius: 10px; font-size: 12px; cursor: pointer; color: #fff; }
+        .chip.active { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,0.1); }
+        
+        input, textarea, select { width: 100%; padding: 15px; background: #121212; border: 1px solid #282828; color: white; border-radius: 12px; box-sizing: border-box; margin-bottom: 12px; font-size: 14px; }
+        .btn-gold { width: 100%; padding: 16px; background: var(--gold); color: black; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; text-transform: uppercase; }
+        
+        /* 6. OVERLAYS & MODALS */
+        #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #fff; color: #000; padding: 12px 25px; border-radius: 50px; font-weight: bold; z-index: 9999; display: none; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
+        .modal-box { background: #0a0a0a; width: 100%; max-width: 450px; padding: 25px; border-radius: 24px; border: 1px solid #333; max-height: 85vh; overflow-y: auto; }
+        
+        #filter-slider { position: fixed; top: 0; right: -70%; width: 70%; height: 100%; background: #0a0a0a; z-index: 6000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 25px; box-sizing: border-box; border-left: 1px solid #333; }
+        #filter-slider.active { right: 0; }
+        .filter-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 5999; display: none; backdrop-filter: blur(4px); }
+
+        /* 7. DASHBOARD & SPECIFIC UI */
+        .section { display: none; }
+        .section.active { display: block; }
+        .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
+        .thumb-wrap { position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
+        .thumb-del { position: absolute; top: 2px; right: 2px; background: rgba(255,0,0,0.8); color: white; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; cursor: pointer; font-weight: bold; }
+        .dash-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 25px; }
+        .user-info-box { flex: 1; min-width: 0; }
+        #dash-name { font-size: 16px; margin: 0; word-break: break-all; line-height: 1.4; color: #fff; }
+        .qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 5px 10px; border-radius: 8px; }
+        .qty-btn { color: var(--gold); font-weight: bold; cursor: pointer; font-size: 18px; }
+    </style>
+</head>
+<body>
+
+<div id="toast">Message</div>
+<div class="filter-overlay" onclick="toggleFilter()"></div>
+
+<div id="filter-slider">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px">
+        <h3 style="margin:0; color:var(--gold)">Filter</h3>
+        <i class="fa fa-times" onclick="toggleFilter()" style="font-size:20px; color:#555"></i>
+    </div>
+    
+    <label style="font-size:11px; color:#666">SORT PRICE</label>
+    <select id="sort-logic" onchange="applySortAndFilter()">
+        <option value="none">Default</option>
+        <option value="low">Low to High</option>
+        <option value="high">High to Low</option>
+    </select>
+
+    <label style="font-size:11px; color:#666">SIZE</label>
+    <div class="chip-group" id="filter-sizes">
+        <div class="chip" onclick="setFilterSize(this)">S</div>
+        <div class="chip" onclick="setFilterSize(this)">M</div>
+        <div class="chip" onclick="setFilterSize(this)">L</div>
+        <div class="chip" onclick="setFilterSize(this)">XL</div>
+    </div>
+
+    <button class="btn-gold" style="position:absolute; bottom:25px; left:25px; width:calc(100% - 50px)" onclick="toggleFilter()">Apply</button>
+</div>
+
+<header class="header">
+    <img src="logo.png" class="logo-img" onerror="this.style.display='none'">
+    <div class="brand">SWAG STREE</div>
+    
+    <div class="social-tools">
+        <a href="https://instagram.com/swag_stree" target="_blank"><i class="fab fa-instagram"></i></a>
+        <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank"><i class="fab fa-whatsapp"></i></a>
+        <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank"><i class="fab fa-facebook"></i></a>
+        <i class="fa fa-sliders" onclick="toggleFilter()" style="color:var(--gold); cursor:pointer; font-size:18px"></i>
+    </div>
+
+    <div class="cart-trigger" onclick="openCart()">
+        <i class="fa fa-shopping-bag" style="font-size:22px"></i>
+        <span id="cart-badge" style="position:absolute; top:-6px; right:-6px; background:var(--red); font-size:10px; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-weight:bold">0</span>
+    </div>
+</header>
+
+<div id="home-view" class="section active">
+    <div style="padding:15px">
+        <div style="opacity: 0; position: absolute; top: 0; left: 0; height: 0; width: 0; z-index: -1; overflow: hidden;">
+            <input type="text" name="email" tabindex="-1">
+            <input type="password" name="password" tabindex="-1">
+        </div>
+        <input type="text" id="app_search_339" name="swag_v9_search" placeholder="Search products..." 
+               oninput="searchHandler()" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
+    </div>
+    <div id="product-grid" class="grid"></div>
+</div>
+
+<div id="wish-view" class="section">
+    <h3 style="padding:15px;">Wishlist</h3>
+    <div id="wish-grid" class="grid"></div>
+</div>
+
+<div id="user-view" class="section">
+    <div id="auth-ui" style="padding:30px; max-width:400px; margin:auto">
+        <h2 id="auth-title">Welcome</h2>
+        <div id="reg-extra" style="display:none"><input id="au-name" placeholder="Full Name"></div>
+        <input id="au-id" placeholder="Mobile or Email" oninput="handleSmartAuthUI()" autocomplete="email">
+        <div id="pass-area"><input id="au-pass" type="password" placeholder="Password" autocomplete="current-password"></div>
+        <div id="otp-area" style="display:none"><div id="recaptcha-container"></div><input id="au-otp" placeholder="Enter OTP"></div>
+        <button class="btn-gold" id="au-btn" onclick="handleMainAuth()">Continue</button>
+        <p onclick="toggleAuthMode()" id="toggle-text" style="text-align:center; color:var(--gold); cursor:pointer; margin-top:20px; font-size:13px">New here? Register</p>
+    </div>
+    <div id="dash-ui" style="display:none; padding:20px">
+        <div class="dash-header">
+            <div class="user-info-box">
+                <h3 id="dash-name">User</h3>
+            </div>
+            <button onclick="auth.signOut()" style="background:none; border:1px solid #333; color:white; padding:8px 15px; border-radius:10px; font-size:12px; white-space:nowrap;">Logout</button>
+        </div>
+        <h4 style="margin-top:30px; color:var(--gold)">ORDERS</h4>
+        <div id="order-history"></div>
+    </div>
+</div>
+
+<div id="admin-view" class="section">
+    <div style="padding:20px; display:flex; justify-content:space-between">
+        <h3>Admin Tools</h3>
+        <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+    </div>
+    <div id="admin-list" style="padding:0 20px"></div>
+</div>
+
+<div id="detail-view" style="position:fixed; inset:0; background:#000; z-index:2000; display:none; overflow-y:auto">
+    <div style="padding:15px; display:flex; justify-content:space-between; align-items:center">
+        <i class="fa fa-chevron-left" onclick="closeDetail()" style="font-size:20px; padding:10px"></i>
+        <span style="font-weight:bold; letter-spacing:2px; font-size:11px">DETAILS</span>
+        <div style="width:40px"></div>
+    </div>
+    <div id="det-box" class="carousel-box" style="height:400px">
+        <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
+        <div id="det-indicators" class="indicators"></div>
+    </div>
+    <div style="padding:25px">
+        <h2 id="det-name" style="margin:0;"></h2>
+        <div id="det-price" style="color:var(--gold); font-size:24px; font-weight:800; margin:10px 0"></div>
+        <p style="font-size:11px; color:#666">SELECT SIZE</p>
+        <div class="chip-group" id="size-selector">
+            <div class="chip active" onclick="selectChip(this, 'size')">S</div>
+            <div class="chip" onclick="selectChip(this, 'size')">M</div>
+            <div class="chip" onclick="selectChip(this, 'size')">L</div>
+            <div class="chip" onclick="selectChip(this, 'size')">XL</div>
+        </div>
+        <p style="font-size:11px; color:#666">DESCRIPTION</p>
+        <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:30px"></p>
+        <button class="btn-gold" id="det-btn">ADD TO BAG</button>
+    </div>
+</div>
+
+<div id="prod-modal" class="modal"><div class="modal-box">
+    <h3>Product Details</h3>
+    <input id="m-name" placeholder="Name">
+    <input id="m-price" type="number" placeholder="Price">
+    <textarea id="m-desc" placeholder="Description"></textarea>
+    <p style="font-size:10px; color:#666; margin-bottom:5px">IMAGES (TAP × TO REMOVE)</p>
+    <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
+    <input type="file" id="m-files" multiple accept="image/*" onchange="handleFileSelect(this)">
+    <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
+    <button onclick="closeModal('prod-modal')" style="width:100%; margin-top:15px; background:none; color:#555; border:none">Cancel</button>
+</div></div>
+
+<div id="cart-modal" class="modal"><div class="modal-box">
+    <h3>Checkout</h3>
+    <div id="cart-items" style="max-height: 250px; overflow-y: auto;"></div>
+    <div style="display:flex; justify-content:space-between; margin:20px 0; font-weight:bold; font-size:18px">
+        <span>Total</span><span id="cart-total" style="color:var(--gold)">₹0</span>
+    </div>
+    <input id="c-name" placeholder="Recipient Name" autocomplete="name">
+    <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
+    <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
+    <button class="btn-gold" id="btn-checkout" onclick="placeOrder()">Place Order</button>
+    <button onclick="closeModal('cart-modal')" style="width:100%; margin-top:10px; background:none; color:#555; border:none">Back</button>
+</div></div>
+
+<nav class="bottom-nav">
+    <div class="nav-item active" onclick="nav('home', this)"><i class="fa fa-house"></i>Home</div>
+    <div class="nav-item" onclick="nav('wish', this)"><i class="fa fa-heart"></i>Wish</div>
+    <div id="nav-adm" class="nav-item" style="display:none" onclick="nav('admin', this)"><i class="fa fa-gear"></i>Admin</div>
+    <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
+</nav>
+
+<script>
+    // 1. CONFIGURATION
+    emailjs.init("k0dMkc3ECEKI5SBkW");
+    const firebaseConfig = { apiKey: "AIzaSyAKXSFKuhQXMGvmtjh0CHnz48vbYz9a_4A", authDomain: "swagstree-web.firebaseapp.com", projectId: "swagstree-web" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore(), auth = firebase.auth();
+    const CLOUD_NAME = "mysharecloud", PRESET = "swagstree_upload";
+
+    // 2. STATE MANAGEMENT
+    let products = [], cart = [], wishlist = [], currentUser = null, isAdmin = false, editingId = null, isRegMode = false, confirmationResult = null;
+    let selectedSize = 'S', currentProductFiles = [], existingImageUrls = [], filterActiveSize = null;
+
+    window.onload = () => { 
+        const s = document.getElementById('app_search_339');
+        if(s) { s.value = ""; s.setAttribute('readonly', 'true'); setTimeout(() => { s.value = ""; }, 500); }
+    };
+
+    // 3. FILTER LOGIC
+    function toggleFilter() {
+        const slider = document.getElementById('filter-slider');
+        const overlay = document.querySelector('.filter-overlay');
+        slider.classList.toggle('active');
+        overlay.style.display = slider.classList.contains('active') ? 'block' : 'none';
+    }
+    function setFilterSize(el) {
+        document.querySelectorAll('#filter-sizes .chip').forEach(c => c.classList.remove('active'));
+        if(filterActiveSize === el.innerText) filterActiveSize = null;
+        else { filterActiveSize = el.innerText; el.classList.add('active'); }
+        applySortAndFilter();
+    }
+    function applySortAndFilter() {
+        const sort = document.getElementById('sort-logic').value;
+        let filtered = [...products];
+        if(sort === 'low') filtered.sort((a,b) => a.price - b.price);
+        if(sort === 'high') filtered.sort((a,b) => b.price - a.price);
+        renderProducts(filtered, 'product-grid');
+    }
+
+    // 4. CART & ORDER LOGIC
+    function addToBag(id) { 
+        const p = products.find(x => x.id === id);
+        const existing = cart.find(item => item.id === id && item.variantSize === selectedSize);
+        if(existing) existing.qty++;
+        else cart.push({...p, variantSize: selectedSize, qty: 1});
+        updateCartUI();
+        showToast("Added to Bag"); 
+    }
+
+    function updateCartUI() {
+        document.getElementById('cart-badge').innerText = cart.reduce((s,i) => s + i.qty, 0);
+    }
+
+    function changeQty(idx, delta) {
+        cart[idx].qty += delta;
+        if(cart[idx].qty <= 0) cart.splice(idx, 1);
+        openCart();
+        updateCartUI();
+    }
+
+    function openCart() {
+        let h = ""; cart.forEach((it, idx) => {
+            h += `<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; background:#111; padding:10px; border-radius:15px; border:1px solid #222">
+                <img src="${it.images[0]}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
+                <div style="flex:1"><div style="font-size:13px; font-weight:600">${it.name}</div><div style="font-size:11px; color:var(--gold)">${it.variantSize} • ₹${it.price}</div></div>
+                <div class="qty-ctrl">
+                    <span class="qty-btn" onclick="changeQty(${idx},-1)">-</span>
+                    <span style="font-size:14px; width:20px; text-align:center">${it.qty}</span>
+                    <span class="qty-btn" onclick="changeQty(${idx},1)">+</span>
+                </div>
+            </div>`;
+        });
+        document.getElementById('cart-items').innerHTML = h || `<p style="text-align:center; color:#555">Bag is empty</p>`;
+        document.getElementById('cart-total').innerText = `₹${cart.reduce((s,i)=>s+(i.price*i.qty),0)}`;
+        updateCartUI();
+        document.getElementById('cart-modal').style.display = 'flex';
+    }
+
+    async function placeOrder() {
+        const n = document.getElementById('c-name').value, p = document.getElementById('c-phone').value, a = document.getElementById('c-addr').value;
+        if(!n || p.length < 10 || a.length < 5) return showToast("Details incomplete");
+        if(cart.length === 0) return showToast("Bag is empty");
+        if(!currentUser) return showToast("Please login to order");
+        const btn = document.getElementById('btn-checkout'); btn.disabled = true; btn.innerText = "Placing...";
+        const total = cart.reduce((s,i)=>s+(i.price*i.qty),0), orderId = Math.random().toString(36).toUpperCase().substring(2, 10);
+
+        let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Size</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px; display: flex; align-items: center;"><img src="${it.images[0]}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px;" alt="product"><span style="font-size: 14px;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${it.variantSize}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">₹${it.price * it.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #000; padding-top: 10px;"><span style="font-size: 18px; font-weight: bold;">Grand Total: ₹${total}</span></div></div><div style="background: #f9f9f9; padding: 15px; text-align: center; font-size: 11px; color: #888;">This is an automatically generated digital invoice.</div></div>`;
+
+        try {
+            await db.collection("orders").add({ orderId: orderId, uid: currentUser.uid, recipient: n, phone: p, address: a, items: cart, total: total, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            await emailjs.send("service_kur7gle", "template_3g1oy0z", { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total });
+            showToast("Success! Order Placed."); cart = []; updateCartUI(); closeModal('cart-modal');
+        } catch(e) { console.error("Order Error:", e); showToast("Failed to place order"); }
+        btn.disabled = false; btn.innerText = "Place Order";
+    }
+
+    // 5. AUTHENTICATION & PROFILE
+    auth.onAuthStateChanged(user => { 
+        currentUser = user; 
+        isAdmin = (user && user.email === "admin@swagstree.com"); 
+        document.getElementById('nav-adm').style.display = isAdmin ? 'block' : 'none'; 
+        if(user) { 
+            db.collection("users").doc(user.uid).onSnapshot(doc => { wishlist = doc.exists ? doc.data().wishlist || [] : []; renderStore(); }); 
+            document.getElementById('dash-name').innerText = user.email || user.phoneNumber; 
+            document.getElementById('auth-ui').style.display = 'none'; 
+            document.getElementById('dash-ui').style.display = 'block'; 
+            loadOrders(); 
+        } else { 
+            document.getElementById('auth-ui').style.display = 'block'; 
+            document.getElementById('dash-ui').style.display = 'none'; 
+            wishlist = []; renderStore(); 
+        } 
+        loadData(); 
+    });
+
+    async function handleMainAuth() { 
+        const id = document.getElementById('au-id').value.trim(), pass = document.getElementById('au-pass').value; 
+        try { 
+            const isPhone = /^(\+|[0-9])/.test(id) && !id.includes('@');
+            if(isPhone) { 
+                let phoneId = id;
+                if (/^\d/.test(phoneId)) phoneId = '+91' + phoneId;
+                if(!confirmationResult) { 
+                    window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {size:'invisible'}); 
+                    confirmationResult = await auth.signInWithPhoneNumber(phoneId, window.recaptchaVerifier); 
+                    document.getElementById('otp-area').style.display = 'block'; 
+                    document.getElementById('au-btn').innerText = "Verify OTP";
+                } else { await confirmationResult.confirm(document.getElementById('au-otp').value); } 
+            } else { 
+                if(isRegMode) await auth.createUserWithEmailAndPassword(id, pass); 
+                else await auth.signInWithEmailAndPassword(id, pass); 
+            } 
+        } catch(e) { console.error(e); showToast("Auth Error: " + (e.message || "Failed")); } 
+    }
+
+    function toggleAuthMode() { isRegMode = !isRegMode; document.getElementById('reg-extra').style.display = isRegMode ? 'block' : 'none'; handleSmartAuthUI(); }
+    function handleSmartAuthUI() { 
+        const inp = document.getElementById('au-id'), btn = document.getElementById('au-btn'); 
+        let val = inp.value.trim(); 
+        const isPhone = /^(\+|[0-9])/.test(val) && !val.includes('@');
+        if (isPhone) { 
+            document.getElementById('pass-area').style.display = 'none'; 
+            btn.innerText = confirmationResult ? "Verify OTP" : "Send OTP"; 
+        } else { 
+            document.getElementById('pass-area').style.display = 'block'; 
+            btn.innerText = isRegMode ? "Register" : "Login"; 
+        } 
+    }
+
+    // 6. STORE RENDERING & UI
+    function loadData() { db.collection("products").onSnapshot(snap => { products = snap.docs.map(doc => ({...doc.data(), id:doc.id})); renderStore(); if(isAdmin) renderAdmin(); }); }
+    function renderStore() { renderProducts(products, 'product-grid'); renderProducts(products.filter(p => wishlist.includes(p.id)), 'wish-grid'); }
+    function renderProducts(items, targetId) { 
+        const container = document.getElementById(targetId); 
+        container.innerHTML = items.map(p => { 
+            const isFav = wishlist.includes(p.id); 
+            return `<div class="card"> <div class="wish-btn ${isFav?'active':''}" onclick="event.stopPropagation(); toggleWish('${p.id}')"><i class="fa${isFav?'s':'r'} fa-heart"></i></div> <div class="share-btn" onclick="event.stopPropagation(); shareProduct('${p.id}')"><i class="fa fa-share-alt"></i></div> <div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')"><i class="fa fa-plus"></i></div> <div class="carousel-box" onclick="showDetail('${p.id}')"> <div class="carousel" onscroll="updateDots(this)">${p.images.map(img => `<img src="${img}" loading="lazy">`).join('')}</div> <div class="indicators">${p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('')}</div> </div> <div style="padding:12px" onclick="showDetail('${p.id}')"> <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> </div> </div>`; 
+        }).join(''); 
+    }
+
+    function showDetail(id) { 
+        const p = products.find(x => x.id === id); 
+        document.getElementById('det-name').innerText = p.name; 
+        document.getElementById('det-price').innerText = `₹${p.price}`; 
+        document.getElementById('det-desc').innerText = p.description || "Premium Quality."; 
+        document.getElementById('det-gallery').innerHTML = p.images.map(img => `<img src="${img}">`).join(''); 
+        document.getElementById('det-indicators').innerHTML = p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join(''); 
+        document.getElementById('det-btn').onclick = () => { addToBag(id); closeDetail(); }; 
+        document.getElementById('detail-view').style.display = 'block'; 
+    }
+
+    function toggleWish(id) { if(!currentUser) return showToast("Login first"); let newWish = wishlist.includes(id) ? wishlist.filter(x => x !== id) : [...wishlist, id]; db.collection("users").doc(currentUser.uid).set({ wishlist: newWish }, { merge: true }); }
+    async function shareProduct(id) { const p = products.find(x => x.id === id); const shareUrl = `${window.location.origin}${window.location.pathname}?id=${id}`; if (navigator.share) { try { await navigator.share({ title: 'Swag Stree', text: p ? `Check out ${p.name}` : 'Look!', url: shareUrl }); } catch (err) {} } else { copyToClipboard(shareUrl); } }
+    function copyToClipboard(text) { const dummy = document.createElement("input"); document.body.appendChild(dummy); dummy.value = text; dummy.select(); document.execCommand("copy"); document.body.removeChild(dummy); showToast("Link copied!"); }
+    function searchHandler() { const q = document.getElementById('app_search_339').value.toLowerCase(); renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid'); }
+    function updateDots(el) { const idx = Math.round(el.scrollLeft / el.offsetWidth); const dots = el.parentElement.querySelectorAll('.dot'); dots.forEach((d, i) => d.classList.toggle('active', i === idx)); }
+    function nav(id, el) { document.querySelectorAll('.section').forEach(s => s.classList.remove('active')); document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); document.getElementById(id + '-view').classList.add('active'); el.classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function closeDetail() { document.getElementById('detail-view').style.display = 'none'; }
+    function showToast(m) { const t = document.getElementById('toast'); t.innerText = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2000); }
+    function selectChip(el, type) { el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); selectedSize = el.innerText; }
+
+    // 7. ADMIN FUNCTIONS
+    function renderAdmin() { document.getElementById('admin-list').innerHTML = products.map(p => `<div style="display:flex; align-items:center; gap:12px; background:#111; padding:12px; border-radius:15px; margin-bottom:12px; border:1px solid #222"><img src="${p.images[0]}" style="width:40px;height:40px;border-radius:5px;object-fit:cover"><div style="flex:1"><b>${p.name}</b></div><div style="display:flex; gap:15px"><i class="fa fa-edit" style="color:var(--gold)" onclick="openEdit('${p.id}')"></i><i class="fa fa-trash" style="color:var(--red)" onclick="if(confirm('Delete?'))db.collection('products').doc('${p.id}').delete()"></i></div></div>`).join(''); }
+    function openEdit(id) { editingId = id; const p = products.find(x => x.id === id); document.getElementById('m-name').value = p.name; document.getElementById('m-price').value = p.price; document.getElementById('m-desc').value = p.description || ""; existingImageUrls = [...(p.images || [])]; currentProductFiles = []; renderImagePreviews(); document.getElementById('prod-modal').style.display = 'flex'; }
+    function openAdd() { editingId = null; existingImageUrls = []; currentProductFiles = []; document.getElementById('m-name').value = ""; document.getElementById('m-price').value = ""; renderImagePreviews(); document.getElementById('prod-modal').style.display = 'flex'; }
+    function handleFileSelect(input) { const files = Array.from(input.files); currentProductFiles = [...currentProductFiles, ...files]; renderImagePreviews(); input.value = ""; }
+    function renderImagePreviews() { const container = document.getElementById('m-preview'); container.innerHTML = ""; existingImageUrls.forEach((url, i) => { const wrap = document.createElement('div'); wrap.className = 'thumb-wrap'; wrap.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del">×</div>`; wrap.querySelector('.thumb-del').onclick = () => { existingImageUrls.splice(i, 1); renderImagePreviews(); }; container.appendChild(wrap); }); currentProductFiles.forEach((file, i) => { const wrap = document.createElement('div'); wrap.className = 'thumb-wrap'; wrap.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del">×</div>`; wrap.querySelector('.thumb-del').onclick = () => { currentProductFiles.splice(i, 1); renderImagePreviews(); }; container.appendChild(wrap); }); }
+    async function saveProduct() { const n = document.getElementById('m-name').value, pr = document.getElementById('m-price').value; if(!n || !pr) return showToast("Fields missing"); const btn = document.getElementById('m-save'); btn.disabled = true; btn.innerText = "Processing..."; try { const upPromises = currentProductFiles.map(async f => { const fd = new FormData(); fd.append("file", f); fd.append("upload_preset", PRESET); const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); const d = await r.json(); return d.secure_url; }); const newUrls = await Promise.all(upPromises); const data = { name:n, price:Number(pr), description:document.getElementById('m-desc').value, images:[...existingImageUrls, ...newUrls] }; if(editingId) await db.collection("products").doc(editingId).update(data); else await db.collection("products").add(data); showToast("Saved!"); closeModal('prod-modal'); } catch(e) { showToast("Error"); } btn.disabled = false; btn.innerText = "Save Product"; }
+    function loadOrders() { const container = document.getElementById('order-history'); if (!currentUser) return; container.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">Syncing orders...</p>`; let ordersRef = db.collection("orders"); let query = isAdmin ? ordersRef.orderBy("timestamp", "desc") : ordersRef.where("uid", "==", currentUser.uid).orderBy("timestamp", "desc"); query.onSnapshot(snap => { if (snap.empty) { container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders found.</p>`; return; } container.innerHTML = snap.docs.map(doc => { const o = doc.data(); return `<div class="order-card"><div style="display:flex; justify-content:space-between; font-size:10px; color:#666; margin-bottom:8px"><span>#${doc.id.slice(-6).toUpperCase()}</span><span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString() : 'New'}</span></div>${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} (${o.phone || 'N/A'})</div>` : ''}${o.items.map(i => `<div style="display:flex; align-items:center; gap:10px; margin-bottom:5px"><img src="${i.images ? i.images[0] : ''}" style="width:35px;height:35px;object-fit:cover;border-radius:4px"><span style="font-size:12px">${i.name} (${i.variantSize || 'N/A'}) x${i.qty||1}</span></div>`).join('')}<div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right">₹${o.total}</div></div>`; }).join(''); }); }
+</script>
+</body>
+</html>
