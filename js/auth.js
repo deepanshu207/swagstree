@@ -149,6 +149,32 @@ async function handleMainAuth() {
     }
 }
 
+// ── Forgot Password ─────────────────────────────────────────────────────────
+async function forgotPassword() {
+    const email = document.getElementById('au-id').value.trim();
+    const btn = document.getElementById('au-btn');
+
+    if (!email) return showToast("Please enter your email.");
+
+    btn.disabled = true;
+    btn.innerText = "Sending...";
+
+    try {
+        await auth.sendPasswordResetEmail(email);
+        showToast("📧 Password reset email sent! Check your inbox.");
+    } catch (e) {
+        console.error("Forgot password error:", e);
+        const msgs = {
+            'auth/user-not-found': "No account found with this email.",
+            'auth/invalid-email': "Please enter a valid email address.",
+        };
+        showToast(msgs[e.code] || "Failed to send reset email. Try again.");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = isRegMode ? "Create Account" : "Login";
+    }
+}
+
 // ── Save Profile (Name & Phone) ─────────────────────────────────────────────
 async function saveProfile() {
     if (!currentUser) return showToast("Please login first.");
@@ -224,5 +250,56 @@ async function changeEmail() {
         showToast(msgs[e.code] || "Failed to change email. Try again.");
     } finally {
         if (changeBtn) { changeBtn.disabled = false; changeBtn.innerHTML = '<i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change'; }
+    }
+}
+
+// ── Change Password (with re-auth) ──────────────────────────────────────────
+async function changePassword() {
+    if (!currentUser) return showToast("Please login first.");
+    if (!currentUser.email) return showToast("Password change is only available for email/password accounts.");
+
+    const currPass = document.getElementById('prof-pass-current').value;
+    const newPass = document.getElementById('prof-pass-new').value;
+    const confirmPass = document.getElementById('prof-pass-confirm').value;
+
+    if (!currPass) return showToast("Please enter your current password.");
+    if (!newPass) return showToast("Please enter your new password.");
+    if (!confirmPass) return showToast("Please confirm your new password.");
+    if (newPass !== confirmPass) return showToast("New passwords do not match.");
+    if (newPass.length < 6) return showToast("Password should be at least 6 characters.");
+
+    const changeBtn = document.querySelector('[onclick="changePassword()"]');
+    if (changeBtn) { changeBtn.disabled = true; changeBtn.innerText = "Updating..."; }
+
+    try {
+        // Step 1: Re-authenticate the user (required by Firebase before sensitive ops)
+        const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, currPass);
+        await currentUser.reauthenticateWithCredential(credential);
+
+        // Step 2: Update password
+        await currentUser.updatePassword(newPass);
+
+        // Step 3: Update email in Firestore after successful password change (if needed)
+        // This ensures email consistency in Firestore after password change
+        await db.collection("users").doc(currentUser.uid).set({
+            email: currentUser.email
+        }, { merge: true });
+
+        // Clear the fields
+        document.getElementById('prof-pass-current').value = '';
+        document.getElementById('prof-pass-new').value = '';
+        document.getElementById('prof-pass-confirm').value = '';
+
+        showToast("🔐 Password updated successfully!");
+    } catch (e) {
+        console.error("Password change error:", e);
+        const msgs = {
+            'auth/wrong-password': "Incorrect current password.",
+            'auth/weak-password': "New password should be at least 6 characters.",
+            'auth/requires-recent-login': "Please log out and log back in before changing password.",
+        };
+        showToast(msgs[e.code] || "Failed to change password. Try again.");
+    } finally {
+        if (changeBtn) { changeBtn.disabled = false; changeBtn.innerHTML = '<i class="fa fa-lock"></i> &nbsp;Change Password'; }
     }
 }

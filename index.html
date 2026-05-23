@@ -120,6 +120,7 @@
 
         <button class="btn-gold" id="au-btn" onclick="handleMainAuth()">Continue</button>
         <p onclick="toggleAuthMode()" id="toggle-text" style="text-align:center; color:var(--gold); cursor:pointer; margin-top:20px; font-size:13px">New here? Register</p>
+        <p onclick="forgotPassword()" style="text-align:center; color:#666; cursor:pointer; margin-top:10px; font-size:13px">Forgot Password?</p>
 
         <!-- Google Login -->
         <div style="text-align:center; margin: 20px 0; color: #666; font-size: 12px; display:flex; align-items:center; gap:10px;">
@@ -179,6 +180,25 @@
 
             <button class="btn-gold" onclick="changeEmail()" style="background:#222; border:1px solid #555; color:#fff;">
                 <i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change
+            </button>
+        </div>
+
+        <!-- Change Password (with re-auth) -->
+        <div class="profile-section">
+            <h4 class="section-label"><i class="fa fa-lock"></i> Change Password</h4>
+            <p style="font-size:12px; color:#888; margin:0 0 12px;">For security, please enter your current password to set a new one.</p>
+
+            <label class="field-label">Current Password</label>
+            <input id="prof-pass-current" type="password" placeholder="Your current password">
+
+            <label class="field-label">New Password</label>
+            <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)">
+
+            <label class="field-label">Confirm New Password</label>
+            <input id="prof-pass-confirm" type="password" placeholder="Confirm new password">
+
+            <button class="btn-gold" onclick="changePassword()" style="background:#222; border:1px solid #555; color:#fff;">
+                <i class="fa fa-lock"></i> &nbsp;Change Password
             </button>
         </div>
 
