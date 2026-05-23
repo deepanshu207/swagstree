@@ -102,7 +102,9 @@ async function placeOrder() {
     let total = subtotal - discount;
     const orderId = Math.random().toString(36).toUpperCase().substring(2, 10);
 
-    let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}<br><strong>Payment:</strong> ${paymentMethod.toUpperCase()}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Size</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px; display: flex; align-items: center;"><img src="${it.images[0]}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px;" alt="product"><span style="font-size: 14px;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${it.variantSize}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">₹${it.price * it.qty}</td></tr>`).join('')}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #000; padding-top: 10px;"><span style="font-size: 18px; font-weight: bold;">Grand Total: ₹${total}</span></div></div></div>`;
+    const promoLine = activePromo ? `<br><strong>Promo Code:</strong> ${activePromo.code} (${Math.round(activePromo.discount * 100)}% OFF)` : '';
+    const discountLine = discount > 0 ? `<tr><td colspan="3" style="padding:8px 5px; text-align:right; color:#888;">Discount (${activePromo ? activePromo.code : ''})</td><td style="padding:8px 5px; text-align:right; color:#e74c3c;">-₹${discount}</td></tr><tr><td colspan="3" style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">Subtotal</td><td style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">₹${subtotal}</td></tr>` : '';
+    let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}<br><strong>Payment:</strong> ${paymentMethod.toUpperCase()}${promoLine}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Size</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><img src="${it.images ? it.images[0] : ''}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px; vertical-align:middle;" alt="product"><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${it.variantSize}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">₹${it.price * it.qty}</td></tr>`).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: ₹${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, contact us on <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" style="color:#25D366">WhatsApp</a></div></div>`;
 
     try {
         await db.collection("orders").add({ 
@@ -142,26 +144,47 @@ function loadOrders() {
     
     container.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">Syncing orders...</p>`; 
     let ordersRef = db.collection("orders"); 
-    let query = isAdmin ? ordersRef.orderBy("timestamp", "desc") : ordersRef.where("uid", "==", currentUser.uid).orderBy("timestamp", "desc"); 
+    
+    // NOTE: For user-specific queries, we avoid .orderBy() to prevent the need for a Firestore
+    // composite index. We instead fetch all matching docs and sort client-side.
+    let query = isAdmin 
+        ? ordersRef.orderBy("timestamp", "desc") 
+        : ordersRef.where("uid", "==", currentUser.uid); 
     
     query.onSnapshot(snap => { 
         if (snap.empty) { 
-            container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders found.</p>`; 
+            container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
             return; 
         } 
-        container.innerHTML = snap.docs.map(doc => { 
+        
+        // Sort client-side by timestamp for user queries
+        let docs = snap.docs;
+        if (!isAdmin) {
+            docs = docs.sort((a, b) => {
+                const tsA = a.data().timestamp ? a.data().timestamp.toMillis() : 0;
+                const tsB = b.data().timestamp ? b.data().timestamp.toMillis() : 0;
+                return tsB - tsA;
+            });
+        }
+        
+        container.innerHTML = docs.map(doc => { 
             const o = doc.data(); 
+            const promoInfo = o.discount > 0 ? `<div style="font-size:11px; color:#e74c3c; margin-bottom:5px;">Discount: -₹${o.discount}</div>` : '';
             return `
             <div class="order-card">
                 <div style="display:flex; justify-content:space-between; font-size:10px; color:#666; margin-bottom:8px">
-                    <span>#${doc.id.slice(-6).toUpperCase()}</span>
-                    <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString() : 'New'}</span>
+                    <span>#${o.orderId || doc.id.slice(-6).toUpperCase()}</span>
+                    <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString('en-IN') : 'New'}</span>
                 </div>
-                ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} (${o.phone || 'N/A'})</div>` : ''}
-                <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Method: ${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</div>
-                ${o.items.map(i => `<div style="display:flex; align-items:center; gap:10px; margin-bottom:5px"><img src="${i.images ? i.images[0] : ''}" style="width:35px;height:35px;object-fit:cover;border-radius:4px"><span style="font-size:12px">${i.name} (${i.variantSize || 'N/A'}) x${i.qty||1}</span></div>`).join('')}
-                <div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right">₹${o.total}</div>
+                ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b></div>
+                ${(o.items || []).map(i => `<div style="display:flex; align-items:center; gap:10px; margin-bottom:5px"><img src="${i.images ? i.images[0] : ''}" style="width:40px;height:40px;object-fit:cover;border-radius:6px" onerror="this.style.display='none'"><span style="font-size:12px">${i.name} <span style="color:#666">(${i.variantSize || 'N/A'})</span> ×${i.qty||1}</span><span style="margin-left:auto; font-size:12px; color:var(--gold)">₹${i.price * (i.qty||1)}</span></div>`).join('')}
+                ${promoInfo}
+                <div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right; font-size:16px;">Total: ₹${o.total || 0}</div>
             </div>`; 
         }).join(''); 
+    }, error => {
+        console.error("Orders load error:", error);
+        container.innerHTML = `<p style="text-align:center;color:#e74c3c;font-size:12px;">Error loading orders. Please try again.</p>`;
     }); 
 }

@@ -50,19 +50,40 @@ function toggleAuthMode() {
 function handleSmartAuthUI() { 
     const inp = document.getElementById('au-id');
     const btn = document.getElementById('au-btn'); 
-    let val = inp.value; 
+    let val = inp.value.trim(); 
+    const otpArea = document.getElementById('otp-area');
     
-    // Auto-format phone numbers
-    if (/^\d/.test(val)) { 
-        if (!val.startsWith('+91')) {
-            inp.value = '+91' + val.replace('+91', ''); 
+    // Detect phone number: starts with + or a digit
+    if (/^(\+?\d)/.test(val)) { 
+        // Auto-prepend +91 if not already there
+        if (!val.startsWith('+91') && !val.startsWith('+')) {
+            inp.value = '+91' + val; 
         }
         document.getElementById('pass-area').style.display = 'none'; 
-        btn.innerText = (confirmationResult || mockWhatsAppOtp) ? "Verify Code" : "Send OTP via WhatsApp"; 
+        otpArea.style.display = mockWhatsAppOtp ? 'block' : 'none';
+        btn.innerText = mockWhatsAppOtp ? "Verify OTP" : "Send OTP"; 
     } else { 
+        // Email mode: show password, hide OTP
         document.getElementById('pass-area').style.display = 'block'; 
+        otpArea.style.display = 'none';
+        mockWhatsAppOtp = null; // Reset OTP state when switching to email
         btn.innerText = isRegMode ? "Register" : "Login"; 
     } 
+}
+
+async function handleGoogleLogin() {
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        await auth.signInWithPopup(provider);
+        showToast("Google Login Successful!");
+    } catch(error) {
+        console.error("Google Auth Error:", error);
+        if (error.code === 'auth/operation-not-allowed') {
+            showToast("Google Login not enabled in Firebase Console");
+        } else {
+            showToast("Google Login Failed.");
+        }
+    }
 }
 
 async function handleMainAuth() { 
@@ -77,28 +98,27 @@ async function handleMainAuth() {
                 // Generate a mock 4-digit code
                 mockWhatsAppOtp = Math.floor(1000 + Math.random() * 9000).toString();
                 
-                // In production, this would call a backend endpoint to send a WhatsApp message via Twilio/MSG91
-                console.log(`[PRODUCTION MOCK] Sending WhatsApp OTP to ${id}: ${mockWhatsAppOtp}`);
+                // In production, call your backend to send WhatsApp message via MSG91/Twilio
+                console.log(`[MOCK] WhatsApp OTP for ${id}: ${mockWhatsAppOtp}`);
                 
                 // Show the OTP field
                 document.getElementById('otp-area').style.display = 'block'; 
+                btn.innerText = "Verify OTP";
                 
-                // Simulate WhatsApp API success
-                showToast(`OTP Sent to WhatsApp (Mock code: ${mockWhatsAppOtp})`);
-                btn.innerText = "Verify Code";
+                showToast(`📱 OTP Sent! (Mock: ${mockWhatsAppOtp})`);
             } else { 
                 // Verify OTP
-                const enteredOtp = document.getElementById('au-otp').value;
+                const enteredOtp = document.getElementById('au-otp').value.trim();
                 if (enteredOtp === mockWhatsAppOtp) {
-                    showToast("WhatsApp OTP Verified!");
-                    // Mock login (Since we can't mint custom tokens on client side, we use email/pass mock or anonymous for demo)
-                    // For demo, we just login anonymously and link phone number visually.
+                    btn.innerText = "Verifying...";
+                    // Use anonymous auth as placeholder for WhatsApp users
                     const cred = await auth.signInAnonymously();
-                    currentUser = cred.user; // Overwrite UI
-                    showToast("Login Successful!");
+                    // Store phone number in Firestore user profile
+                    await db.collection("users").doc(cred.user.uid).set({ phone: id, loginMethod: 'whatsapp' }, { merge: true });
+                    showToast("✅ Login Successful!");
                     mockWhatsAppOtp = null;
                 } else {
-                    showToast("Invalid OTP. Try again.");
+                    showToast("❌ Invalid OTP. Try again.");
                 }
             } 
         } else { 
