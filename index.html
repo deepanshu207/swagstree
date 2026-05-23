@@ -94,28 +94,39 @@
 
 <!-- SECTION: User Profile & Auth -->
 <div id="user-view" class="section">
+
+    <!-- Login / Register Form -->
     <div id="auth-ui" style="padding:30px; max-width:400px; margin:auto">
-        <h2>Welcome</h2>
-        <div id="reg-extra" style="display:none"><input id="au-name" placeholder="Full Name"></div>
-        <input id="au-id" placeholder="Mobile (+91) or Email" oninput="handleSmartAuthUI()" autocomplete="email">
-        <div id="pass-area"><input id="au-pass" type="password" placeholder="Password" autocomplete="current-password"></div>
-        
-        <!-- Mock OTP Area -->
-        <div id="otp-area" style="display:none">
-            <div id="recaptcha-container"></div>
-            <input id="au-otp" placeholder="Enter WhatsApp OTP">
+        <h2 style="margin-bottom:5px;">Welcome</h2>
+        <p style="color:#666; font-size:13px; margin-top:0;">Login or create your account</p>
+
+        <!-- Name (register only) -->
+        <div id="reg-name-field" style="display:none">
+            <input id="au-name" placeholder="Full Name *" autocomplete="name">
         </div>
-        
+
+        <!-- Email -->
+        <input id="au-id" type="email" placeholder="Email Address" autocomplete="email">
+
+        <!-- Password -->
+        <div id="pass-area">
+            <input id="au-pass" type="password" placeholder="Password" autocomplete="current-password">
+        </div>
+
+        <!-- Optional Phone (register only) -->
+        <div id="reg-phone-field" style="display:none">
+            <input id="au-phone" type="tel" placeholder="Phone Number (Optional, e.g. +919XXXXXXXXX)" autocomplete="tel">
+        </div>
+
         <button class="btn-gold" id="au-btn" onclick="handleMainAuth()">Continue</button>
         <p onclick="toggleAuthMode()" id="toggle-text" style="text-align:center; color:var(--gold); cursor:pointer; margin-top:20px; font-size:13px">New here? Register</p>
-        
-        <!-- Google Login Divider & Button -->
+
+        <!-- Google Login -->
         <div style="text-align:center; margin: 20px 0; color: #666; font-size: 12px; display:flex; align-items:center; gap:10px;">
             <div style="flex:1; height:1px; background:#333;"></div>
             OR
             <div style="flex:1; height:1px; background:#333;"></div>
         </div>
-        
         <button class="btn-gold" style="background:#fff; color:#000; display:flex; align-items:center; justify-content:center; gap:10px; font-weight:600;" onclick="handleGoogleLogin()">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="width:20px;height:20px;flex-shrink:0">
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -126,16 +137,56 @@
             Continue with Google
         </button>
     </div>
-    
-    <div id="dash-ui" style="display:none; padding:20px">
-        <div class="dash-header">
-            <div class="user-info-box">
-                <h3 id="dash-name">User</h3>
+
+    <!-- Logged-in Dashboard -->
+    <div id="dash-ui" style="display:none; padding:20px; max-width:500px; margin:auto">
+
+        <!-- Profile Card -->
+        <div class="profile-card">
+            <div class="profile-avatar" id="profile-avatar">U</div>
+            <div style="flex:1">
+                <div id="profile-email-display" style="font-size:12px; color:#888; word-break:break-all;"></div>
+                <div id="profile-name-display" style="font-size:16px; font-weight:700; margin-top:2px;">User</div>
             </div>
-            <button onclick="auth.signOut()" style="background:none; border:1px solid #333; color:white; padding:8px 15px; border-radius:10px; font-size:12px; cursor:pointer;">Logout</button>
+            <button onclick="auth.signOut()" class="btn-logout"><i class="fa fa-sign-out-alt"></i> Logout</button>
         </div>
-        <h4 style="margin-top:30px; color:var(--gold)">MY ORDERS</h4>
-        <div id="order-history"></div>
+
+        <!-- Edit Profile Form -->
+        <div class="profile-section">
+            <h4 class="section-label"><i class="fa fa-user-edit"></i> Edit Profile</h4>
+
+            <label class="field-label">Display Name</label>
+            <input id="prof-name" placeholder="Your full name" autocomplete="name">
+
+            <label class="field-label">Phone Number</label>
+            <input id="prof-phone" type="tel" placeholder="+91XXXXXXXXXX" autocomplete="tel">
+
+            <button class="btn-gold" onclick="saveProfile()" style="margin-top:5px;">
+                <i class="fa fa-save"></i> &nbsp;Save Changes
+            </button>
+        </div>
+
+        <!-- Change Email (with verification) -->
+        <div class="profile-section">
+            <h4 class="section-label"><i class="fa fa-envelope"></i> Change Email</h4>
+            <p style="font-size:12px; color:#888; margin:0 0 12px;">A verification link will be sent to your new email before it takes effect.</p>
+
+            <label class="field-label">New Email Address</label>
+            <input id="prof-new-email" type="email" placeholder="New email address" autocomplete="email">
+
+            <label class="field-label">Current Password (to confirm)</label>
+            <input id="prof-curr-pass" type="password" placeholder="Your current password">
+
+            <button class="btn-gold" onclick="changeEmail()" style="background:#222; border:1px solid #555; color:#fff;">
+                <i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change
+            </button>
+        </div>
+
+        <!-- My Orders -->
+        <div class="profile-section">
+            <h4 class="section-label"><i class="fa fa-box"></i> My Orders</h4>
+            <div id="order-history"></div>
+        </div>
     </div>
 </div>
 

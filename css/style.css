@@ -128,11 +128,77 @@ input, textarea, select { width: 100%; padding: 15px; background: #121212; borde
 .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
 .thumb-wrap { position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
 .thumb-del { position: absolute; top: 2px; right: 2px; background: rgba(255,0,0,0.8); color: white; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; cursor: pointer; font-weight: bold; }
-.dash-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 25px; }
-.user-info-box { flex: 1; min-width: 0; }
-#dash-name { font-size: 16px; margin: 0; word-break: break-all; line-height: 1.4; color: #fff; }
 .qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 5px 10px; border-radius: 8px; }
 .qty-btn { color: var(--gold); font-weight: bold; cursor: pointer; font-size: 18px; }
+
+/* 8. PROFILE DASHBOARD */
+.profile-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(135deg, #111 0%, #1a1a0a 100%);
+    border: 1px solid #2a2a15;
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.profile-avatar {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold), #b8860b);
+    color: #000;
+    font-size: 22px;
+    font-weight: 900;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    letter-spacing: 0;
+    box-shadow: 0 4px 15px rgba(255,215,0,0.3);
+}
+.btn-logout {
+    background: none;
+    border: 1px solid #333;
+    color: #aaa;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: 0.2s;
+    flex-shrink: 0;
+}
+.btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+.profile-section {
+    background: #0d0d0d;
+    border: 1px solid #222;
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+.section-label {
+    margin: 0 0 18px;
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #1a1a1a;
+    padding-bottom: 12px;
+}
+.field-label {
+    display: block;
+    font-size: 11px;
+    color: #666;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    margin-top: 4px;
+}
 
 /* Payment Options */
 .payment-options { display: flex; gap: 10px; margin-bottom: 20px; }
