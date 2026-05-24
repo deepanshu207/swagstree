@@ -10,6 +10,12 @@ if (typeof activeProductId === 'undefined') window.activeProductId = null;
 if (typeof isAdmin === 'undefined') window.isAdmin = false;
 if (typeof products === 'undefined') window.products = [];
 
+if (typeof displayedProductsLimit === 'undefined') window.displayedProductsLimit = 20;
+if (typeof displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = 20;
+if (typeof displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = 20;
+if (typeof ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
+if (typeof deepLinkHandled === 'undefined') window.deepLinkHandled = false;
+
 if (typeof formatColorName === 'undefined') {
     window.formatColorName = function(col) {
         if (!col) return '';
@@ -34,13 +40,44 @@ if (typeof formatColorName === 'undefined') {
     };
 }
 
+// ── Deep Link Handler ────────────────────────────────────────────────────────
+// Called once after products first load. Reads ?id= from the URL and opens
+// the matching product. The black overlay (shown since page load) hides first
+// so there is zero home-screen flash. URL is kept intact in the address bar.
+function checkDeepLink() {
+    if (deepLinkHandled) return;
+    deepLinkHandled = true;
+
+    const overlay = document.getElementById('deep-link-overlay');
+
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+
+    if (!id) {
+        if (overlay) overlay.style.display = 'none';
+        return;
+    }
+
+    const p = products.find(x => x.id === id);
+    if (!p) {
+        if (overlay) overlay.style.display = 'none';
+        showToast('Product not found.');
+        return;
+    }
+
+    // Hide overlay then open product — no flash, URL stays as share link
+    if (overlay) overlay.style.display = 'none';
+    showDetail(id);
+}
+
 // 1. DATA LOADING
 function loadData() { 
     db.collection("products").onSnapshot(snap => { 
         products = snap.docs.map(doc => ({...doc.data(), id:doc.id})); 
         renderStore(); 
         renderFilters();
-        if(isAdmin && typeof renderAdmin === "function") renderAdmin(); 
+        if(isAdmin && typeof renderAdmin === "function") renderAdmin();
+        checkDeepLink(); // open shared product link if present
     }, error => {
         console.error("Firestore products onSnapshot error:", error);
     }); 
@@ -52,42 +89,97 @@ function renderStore() {
 }
 
 // 2. RENDERING LOGIC
+function productCardHtml(p) {
+    const isFav = wishlist.includes(p.id); 
+    return `
+    <div class="card"> 
+        <div class="wish-btn ${isFav?'active':''}" onclick="event.stopPropagation(); toggleWish('${p.id}')">
+            <i class="fa${isFav?'s':'r'} fa-heart"></i>
+        </div> 
+        <div class="share-btn" onclick="event.stopPropagation(); shareProduct('${p.id}')">
+            <i class="fa fa-share-alt"></i>
+        </div> 
+        <div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')">
+            <i class="fa fa-plus"></i>
+        </div> 
+        <div class="carousel-box" onclick="showDetail('${p.id}')"> 
+            <div class="carousel" onscroll="updateDots(this)">
+                ${p.images ? p.images.map(img => `<img src="${img}" loading="lazy">`).join('') : ''}
+            </div> 
+            <div class="indicators">
+                ${p.images ? p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''}
+            </div> 
+        </div> 
+        <div style="padding:12px" onclick="showDetail('${p.id}')"> 
+            <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> 
+            <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> 
+        </div> 
+    </div>`;
+}
+
 function renderProducts(items, targetId) { 
     const container = document.getElementById(targetId); 
     if(!container) return;
     
-    if(items.length === 0) {
-        container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
-        return;
+    if (targetId === 'product-grid') {
+        const loadMoreBtnContainer = document.getElementById('load-more-container');
+        const countContainer = document.getElementById('product-count');
+        if (items.length === 0) {
+            container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+            if (countContainer) countContainer.innerHTML = '0 Products';
+            return;
+        }
+        
+        let itemsToRender = items;
+        if (items.length > displayedProductsLimit) {
+            itemsToRender = items.slice(0, displayedProductsLimit);
+            if (loadMoreBtnContainer) {
+                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreProducts()">Show More</button>`;
+            }
+        } else {
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+        }
+        
+        if (countContainer) {
+            const visible = Math.min(items.length, displayedProductsLimit);
+            countContainer.innerHTML = `Showing ${visible} of ${items.length} Products`;
+        }
+        
+        container.innerHTML = itemsToRender.map(productCardHtml).join(''); 
+    } else if (targetId === 'wish-grid') {
+        const loadMoreBtnContainer = document.getElementById('wish-load-more-container');
+        const countContainer = document.getElementById('wish-count');
+        if (items.length === 0) {
+            container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+            if (countContainer) countContainer.innerHTML = '0 Items';
+            return;
+        }
+        
+        let itemsToRender = items;
+        if (items.length > displayedWishlistLimit) {
+            itemsToRender = items.slice(0, displayedWishlistLimit);
+            if (loadMoreBtnContainer) {
+                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreWishlist()">Show More</button>`;
+            }
+        } else {
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+        }
+        
+        if (countContainer) {
+            const visible = Math.min(items.length, displayedWishlistLimit);
+            countContainer.innerHTML = `Showing ${visible} of ${items.length} Items`;
+        }
+        
+        container.innerHTML = itemsToRender.map(productCardHtml).join(''); 
+    } else {
+        if(items.length === 0) {
+            container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
+            return;
+        }
+        container.innerHTML = items.map(productCardHtml).join(''); 
     }
-    
-    container.innerHTML = items.map(p => { 
-        const isFav = wishlist.includes(p.id); 
-        return `
-        <div class="card"> 
-            <div class="wish-btn ${isFav?'active':''}" onclick="event.stopPropagation(); toggleWish('${p.id}')">
-                <i class="fa${isFav?'s':'r'} fa-heart"></i>
-            </div> 
-            <div class="share-btn" onclick="event.stopPropagation(); shareProduct('${p.id}')">
-                <i class="fa fa-share-alt"></i>
-            </div> 
-            <div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')">
-                <i class="fa fa-plus"></i>
-            </div> 
-            <div class="carousel-box" onclick="showDetail('${p.id}')"> 
-                <div class="carousel" onscroll="updateDots(this)">
-                    ${p.images ? p.images.map(img => `<img src="${img}" loading="lazy">`).join('') : ''}
-                </div> 
-                <div class="indicators">
-                    ${p.images ? p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''}
-                </div> 
-            </div> 
-            <div style="padding:12px" onclick="showDetail('${p.id}')"> 
-                <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> 
-                <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> 
-            </div> 
-        </div>`; 
-    }).join(''); 
 }
 
 // 3. PRODUCT DETAILS
@@ -225,17 +317,21 @@ function toggleWish(id) {
 
 async function shareProduct(id) { 
     const p = products.find(x => x.id === id); 
-    const shareUrl = `${window.location.origin}${window.location.pathname}?id=${id}`; 
+    if (!p) return;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?id=${id}`;
+    const shareText = `👗 *${p.name}*\n💰 ₹${p.price}\n\n🛍️ Shop now on Swag Stree:\n${shareUrl}`;
     if (navigator.share) { 
         try { 
-            await navigator.share({ title: 'Swag Stree', text: p ? `Check out ${p.name}` : 'Look!', url: shareUrl }); 
+            await navigator.share({ title: p.name, text: shareText });
         } catch (err) {} 
     } else { 
-        copyToClipboard(shareUrl); 
+        copyToClipboard(shareUrl);
+        showToast('Link copied to clipboard!');
     } 
 }
 
 function searchHandler() { 
+    displayedProductsLimit = 20;
     const q = document.getElementById('app_search').value.toLowerCase(); 
     renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid'); 
 }
@@ -261,6 +357,7 @@ function toggleFilter() {
 }
 
 function setFilterSize(el, sz) {
+    displayedProductsLimit = 20;
     document.querySelectorAll('#filter-sizes .size-chip').forEach(c => c.classList.remove('active'));
     if(filterActiveSize === sz) filterActiveSize = null;
     else { filterActiveSize = sz; el.classList.add('active'); }
@@ -268,6 +365,7 @@ function setFilterSize(el, sz) {
 }
 
 function setFilterColor(el, col) {
+    displayedProductsLimit = 20;
     document.querySelectorAll('#filter-colors .color-chip').forEach(c => c.classList.remove('active'));
     if(filterActiveColor === col) filterActiveColor = null;
     else { filterActiveColor = col; el.classList.add('active'); }
@@ -307,6 +405,7 @@ function renderFilters() {
 }
 
 function resetFilters() {
+    displayedProductsLimit = 20;
     filterActiveSize = null;
     filterActiveColor = null;
     const sortLogic = document.getElementById('sort-logic');
@@ -330,4 +429,24 @@ function applySortAndFilter() {
     if(sort === 'low') filtered.sort((a,b) => a.price - b.price);
     if(sort === 'high') filtered.sort((a,b) => b.price - a.price);
     renderProducts(filtered, 'product-grid');
+}
+
+function changeSortLogic() {
+    displayedProductsLimit = 20;
+    applySortAndFilter();
+}
+
+function loadMoreProducts() {
+    displayedProductsLimit += 20;
+    const q = document.getElementById('app_search').value.toLowerCase(); 
+    if (q) {
+        renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
+    } else {
+        applySortAndFilter();
+    }
+}
+
+function loadMoreWishlist() {
+    displayedWishlistLimit += 20;
+    renderStore();
 }

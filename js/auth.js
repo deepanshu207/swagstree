@@ -68,7 +68,10 @@ auth.onAuthStateChanged(user => {
         document.getElementById('auth-ui').style.display = 'none';
         document.getElementById('dash-ui').style.display = 'block';
 
-        if (typeof loadOrders === "function") loadOrders();
+        if (typeof loadOrders === "function") {
+            displayedOrdersLimit = 20;
+            loadOrders();
+        }
     } else {
         isRegMode = false;
         const nameField = document.getElementById('reg-name-field');

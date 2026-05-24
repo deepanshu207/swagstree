@@ -193,28 +193,67 @@ function loadOrders() {
     if (!currentUser) return; 
     
     container.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">Syncing orders...</p>`; 
+    
+    // Unsubscribe from old listener to prevent memory leaks on limit changes
+    if (ordersUnsubscribe) {
+        ordersUnsubscribe();
+        ordersUnsubscribe = null;
+    }
+    
     let ordersRef = db.collection("orders"); 
     
-    // NOTE: For user-specific queries, we avoid .orderBy() to prevent the need for a Firestore
-    // composite index. We instead fetch all matching docs and sort client-side.
+    // Admin query is sorted and limited on Firestore side.
+    // User query fetches all matching docs to avoid composite index requirement, and paginates client-side.
     let query = isAdmin 
-        ? ordersRef.orderBy("timestamp", "desc") 
+        ? ordersRef.orderBy("timestamp", "desc").limit(displayedOrdersLimit + 1) 
         : ordersRef.where("uid", "==", currentUser.uid); 
     
-    query.onSnapshot(snap => { 
+    ordersUnsubscribe = query.onSnapshot(snap => { 
+        const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
+        const countContainer = document.getElementById('orders-count');
         if (snap.empty) { 
             container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+            if (countContainer) countContainer.innerHTML = '0 Orders';
             return; 
         } 
         
-        // Sort client-side by timestamp for user queries
         let docs = snap.docs;
-        if (!isAdmin) {
+        let showLoadMore = false;
+        
+        if (isAdmin) {
+            if (docs.length > displayedOrdersLimit) {
+                showLoadMore = true;
+                docs = docs.slice(0, displayedOrdersLimit);
+            }
+        } else {
+            // Sort user orders client-side by timestamp desc
             docs = docs.sort((a, b) => {
                 const tsA = a.data().timestamp ? a.data().timestamp.toMillis() : 0;
                 const tsB = b.data().timestamp ? b.data().timestamp.toMillis() : 0;
                 return tsB - tsA;
             });
+            if (docs.length > displayedOrdersLimit) {
+                showLoadMore = true;
+                docs = docs.slice(0, displayedOrdersLimit);
+            }
+        }
+        
+        // Show/hide Load More button and update count display
+        const visibleCount = docs.length;
+        if (loadMoreBtnContainer) {
+            if (showLoadMore) {
+                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;" onclick="loadMoreOrders()">LOAD MORE ORDERS</button>`;
+            } else {
+                loadMoreBtnContainer.innerHTML = '';
+            }
+        }
+        if (countContainer) {
+            if (isAdmin) {
+                countContainer.innerHTML = showLoadMore ? `Showing ${visibleCount}+ Orders` : `${visibleCount} Orders`;
+            } else {
+                countContainer.innerHTML = `Showing ${visibleCount} of ${snap.docs.length} Orders`;
+            }
         }
         
         container.innerHTML = docs.map(doc => { 
@@ -248,4 +287,9 @@ function loadOrders() {
         console.error("Orders load error:", error);
         container.innerHTML = `<p style="text-align:center;color:#e74c3c;font-size:12px;">Error loading orders. Please try again.</p>`;
     }); 
+}
+
+function loadMoreOrders() {
+    displayedOrdersLimit += 20;
+    loadOrders();
 }

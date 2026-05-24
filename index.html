@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Swag Stree | Elite Pro</title>
+    <title>Swag Stree</title>
     <script>
-        window.onerror = function(message, source, lineno, colno, error) {
+        window.onerror = function (message, source, lineno, colno, error) {
             const div = document.createElement('div');
             div.style.position = 'fixed';
             div.style.top = '10px';
@@ -23,7 +24,7 @@
             document.body.appendChild(div);
             return false;
         };
-        window.onunhandledrejection = function(event) {
+        window.onunhandledrejection = function (event) {
             const div = document.createElement('div');
             div.style.position = 'fixed';
             div.style.top = '10px';
@@ -41,379 +42,477 @@
             document.body.appendChild(div);
         };
     </script>
-    
+
     <!-- External Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=1.4">
+    <link rel="stylesheet" href="css/style.css?v=2.3">
 </head>
+
 <body>
 
-<div id="toast">Message</div>
-<div class="filter-overlay" onclick="toggleFilter()"></div>
+    <div id="toast">Message</div>
+    <div class="filter-overlay" onclick="toggleFilter()"></div>
 
-<!-- Slide-out Filter Menu -->
-<div id="filter-slider">
-    <div class="filter-header">
-        <div class="filter-title-wrap">
-            <h3>Filters</h3>
-            <p class="filter-subtitle">Refine Your Style</p>
+    <!-- Deep Link Loading Overlay — shown instantly when ?id= is in the URL -->
+    <div id="deep-link-overlay"
+        style="display:none; position:fixed; inset:0; background:#000; z-index:99999; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
+        <div
+            style="width:44px; height:44px; border:3px solid #222; border-top-color:var(--gold); border-radius:50%; animation:dlSpin 0.75s linear infinite;">
         </div>
-        <div class="filter-header-actions">
-            <span class="clear-all-btn" onclick="resetFilters()">Clear All</span>
-            <div class="close-filter-btn" onclick="toggleFilter()">
-                <i class="fa fa-times"></i>
+        <p style="color:#888; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; margin:0;">Loading
+            product…</p>
+    </div>
+
+    <!-- Slide-out Filter Menu -->
+    <div id="filter-slider">
+        <div class="filter-header">
+            <div class="filter-title-wrap">
+                <h3>Filters</h3>
+                <p class="filter-subtitle">Refine Your Style</p>
+            </div>
+            <div class="filter-header-actions">
+                <span class="clear-all-btn" onclick="resetFilters()">Clear All</span>
+                <div class="close-filter-btn" onclick="toggleFilter()">
+                    <i class="fa fa-times"></i>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <div class="filter-group">
-        <label class="filter-section-title">Sort Price</label>
-        <div class="select-wrapper">
-            <select id="sort-logic" class="premium-select" onchange="applySortAndFilter()">
-                <option value="none">Default Sorting</option>
-                <option value="low">Price: Low to High</option>
-                <option value="high">Price: High to Low</option>
-            </select>
-        </div>
-    </div>
 
-    <div class="filter-group">
-        <label class="filter-section-title">Size</label>
-        <div class="chip-group" id="filter-sizes"></div>
-    </div>
-
-    <div class="filter-group">
-        <label class="filter-section-title">Color</label>
-        <div class="chip-group" id="filter-colors"></div>
-    </div>
-
-    <div class="filter-footer">
-        <button class="btn-apply-filter" onclick="toggleFilter()">Apply Filters</button>
-    </div>
-</div>
-
-<!-- Main Header -->
-<header class="header">
-    <img src="assets/logo.png" class="logo-img" onerror="this.src='https://i.ibb.co/3mN5SgN/1000591447.png'" alt="Swag Stree Logo">
-    <div class="brand">SWAG STREE</div>
-    
-    <!-- Desktop Navigation -->
-    <div class="desktop-nav">
-        <div class="nav-item active" onclick="nav('home', this)">Home</div>
-        <div class="nav-item" onclick="nav('wish', this)">Wishlist</div>
-        <div id="nav-adm-desktop" class="nav-item" style="display:none" onclick="nav('admin', this)">Admin</div>
-        <div class="nav-item" onclick="nav('user', this)">Profile & Orders</div>
-    </div>
-
-    <!-- Socials & Cart -->
-    <div class="social-tools">
-        <a href="https://instagram.com/swag_stree" target="_blank"><i class="fab fa-instagram"></i></a>
-        <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank"><i class="fab fa-whatsapp"></i></a>
-        <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank"><i class="fab fa-facebook"></i></a>
-        <i class="fa fa-sliders" onclick="toggleFilter()" style="color:var(--gold); cursor:pointer; font-size:18px"></i>
-    </div>
-
-    <div class="cart-trigger" onclick="openCart()">
-        <i class="fa fa-shopping-bag" style="font-size:22px"></i>
-        <span id="cart-badge" style="position:absolute; top:-6px; right:-6px; background:var(--red); font-size:10px; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-weight:bold">0</span>
-    </div>
-</header>
-
-<!-- SECTION: Home / Products -->
-<div id="home-view" class="section active">
-    <div style="padding:15px">
-        <!-- Hidden auth fields to prevent browser auto-fill bugs -->
-        <div style="opacity: 0; position: absolute; top: 0; left: 0; height: 0; width: 0; z-index: -1; overflow: hidden;">
-            <input type="text" name="email" tabindex="-1">
-            <input type="password" name="password" tabindex="-1">
-        </div>
-        <input type="text" id="app_search" placeholder="Search products..." 
-               oninput="searchHandler()" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
-    </div>
-    <div id="product-grid" class="grid"></div>
-</div>
-
-<!-- SECTION: Wishlist -->
-<div id="wish-view" class="section">
-    <h3 style="padding:15px;">Wishlist</h3>
-    <div id="wish-grid" class="grid"></div>
-</div>
-
-<!-- SECTION: User Profile & Auth -->
-<div id="user-view" class="section">
-
-    <!-- Login / Register Form -->
-    <div id="auth-ui" style="padding:30px; max-width:400px; margin:auto">
-        <h2 style="margin-bottom:5px;">Welcome</h2>
-        <p style="color:#666; font-size:13px; margin-top:0;">Login or create your account</p>
-
-        <!-- Name (register only) -->
-        <div id="reg-name-field" style="display:none">
-            <input id="au-name" placeholder="Full Name *" autocomplete="name">
-        </div>
-
-        <!-- Email -->
-        <input id="au-id" type="email" placeholder="Email Address" autocomplete="email">
-
-        <!-- Password -->
-        <div id="pass-area">
-            <input id="au-pass" type="password" placeholder="Password" autocomplete="current-password">
-        </div>
-
-        <!-- Optional Phone (register only) -->
-        <div id="reg-phone-field" style="display:none">
-            <input id="au-phone" type="tel" placeholder="Phone Number (Optional, e.g. +919XXXXXXXXX)" autocomplete="tel">
-        </div>
-
-        <button class="btn-gold" id="au-btn" onclick="handleMainAuth()">Continue</button>
-        <p onclick="toggleAuthMode()" id="toggle-text" style="text-align:center; color:var(--gold); cursor:pointer; margin-top:20px; font-size:13px">New here? Register</p>
-        <p onclick="forgotPassword()" style="text-align:center; color:#666; cursor:pointer; margin-top:10px; font-size:13px">Forgot Password?</p>
-
-        <!-- Google Login -->
-        <div style="text-align:center; margin: 20px 0; color: #666; font-size: 12px; display:flex; align-items:center; gap:10px;">
-            <div style="flex:1; height:1px; background:#333;"></div>
-            OR
-            <div style="flex:1; height:1px; background:#333;"></div>
-        </div>
-        <button class="btn-gold" style="background:#fff; color:#000; display:flex; align-items:center; justify-content:center; gap:10px; font-weight:600;" onclick="handleGoogleLogin()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="width:20px;height:20px;flex-shrink:0">
-                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            </svg>
-            Continue with Google
-        </button>
-    </div>
-
-    <!-- Logged-in Dashboard -->
-    <div id="dash-ui" style="display:none; padding:20px; max-width:500px; margin:auto">
-
-        <!-- Profile Card -->
-        <div class="profile-card">
-            <div class="profile-avatar" id="profile-avatar">U</div>
-            <div style="flex:1">
-                <div id="profile-email-display" style="font-size:12px; color:#888; word-break:break-all;"></div>
-                <div id="profile-name-display" style="font-size:16px; font-weight:700; margin-top:2px;">User</div>
+        <div class="filter-group">
+            <label class="filter-section-title">Sort Price</label>
+            <div class="select-wrapper">
+                <select id="sort-logic" class="premium-select" onchange="changeSortLogic()">
+                    <option value="none">Default Sorting</option>
+                    <option value="low">Price: Low to High</option>
+                    <option value="high">Price: High to Low</option>
+                </select>
             </div>
-            <button onclick="auth.signOut()" class="btn-logout"><i class="fa fa-sign-out-alt"></i> Logout</button>
         </div>
 
-        <!-- Edit Profile Form -->
-        <div class="profile-section">
-            <h4 class="section-label"><i class="fa fa-user-edit"></i> Edit Profile</h4>
+        <div class="filter-group">
+            <label class="filter-section-title">Size</label>
+            <div class="chip-group" id="filter-sizes"></div>
+        </div>
 
-            <label class="field-label">Display Name</label>
-            <input id="prof-name" placeholder="Your full name" autocomplete="name">
+        <div class="filter-group">
+            <label class="filter-section-title">Color</label>
+            <div class="chip-group" id="filter-colors"></div>
+        </div>
 
-            <label class="field-label">Phone Number</label>
-            <input id="prof-phone" type="tel" placeholder="+91XXXXXXXXXX" autocomplete="tel">
+        <div class="filter-footer">
+            <button class="btn-apply-filter" onclick="toggleFilter()">Apply Filters</button>
+        </div>
+    </div>
 
-            <button class="btn-gold" onclick="saveProfile()" style="margin-top:5px;">
-                <i class="fa fa-save"></i> &nbsp;Save Changes
+    <!-- Main Header -->
+    <header class="header">
+        <img src="assets/logo.png" class="logo-img" onerror="this.src='https://i.ibb.co/3mN5SgN/1000591447.png'"
+            alt="Swag Stree Logo">
+        <div class="brand">SWAG STREE</div>
+
+        <!-- Desktop Navigation -->
+        <div class="desktop-nav">
+            <div class="nav-item active" onclick="nav('home', this)">Home</div>
+            <div class="nav-item" onclick="nav('wish', this)">Wishlist</div>
+            <div id="nav-adm-desktop" class="nav-item" style="display:none" onclick="nav('admin', this)">Admin</div>
+            <div class="nav-item" onclick="nav('user', this)">Profile & Orders</div>
+        </div>
+
+        <!-- Socials & Cart -->
+        <div class="social-tools">
+            <a href="https://instagram.com/swag_stree" target="_blank"><i class="fab fa-instagram"></i></a>
+            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank"><i
+                    class="fab fa-whatsapp"></i></a>
+            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank"><i class="fab fa-facebook"></i></a>
+            <i class="fa fa-sliders" onclick="toggleFilter()"
+                style="color:var(--gold); cursor:pointer; font-size:18px"></i>
+        </div>
+
+        <div class="cart-trigger" onclick="openCart()">
+            <i class="fa fa-shopping-bag" style="font-size:22px"></i>
+            <span id="cart-badge"
+                style="position:absolute; top:-6px; right:-6px; background:var(--red); font-size:10px; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-weight:bold">0</span>
+        </div>
+    </header>
+
+    <!-- SECTION: Home / Products -->
+    <div id="home-view" class="section active">
+        <div style="padding:15px">
+            <!-- Hidden auth fields to prevent browser auto-fill bugs -->
+            <div
+                style="opacity: 0; position: absolute; top: 0; left: 0; height: 0; width: 0; z-index: -1; overflow: hidden;">
+                <input type="text" name="email" tabindex="-1">
+                <input type="password" name="password" tabindex="-1">
+            </div>
+            <input type="text" id="app_search" placeholder="Search products..." oninput="searchHandler()"
+                autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
+        </div>
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center;">
+            <span id="product-count" class="count-badge"></span>
+        </div>
+        <div id="product-grid" class="grid"></div>
+        <div id="load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
+    </div>
+
+    <!-- SECTION: Wishlist -->
+    <div id="wish-view" class="section">
+        <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center;">
+            <span id="wish-count" class="count-badge">0 Items</span>
+        </div>
+        <div id="wish-grid" class="grid"></div>
+        <div id="wish-load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
+    </div>
+
+    <!-- SECTION: User Profile & Auth -->
+    <div id="user-view" class="section">
+
+        <!-- Login / Register Form -->
+        <div id="auth-ui" style="padding:30px; max-width:400px; margin:auto">
+            <h2 style="margin-bottom:5px;">Welcome</h2>
+            <p style="color:#666; font-size:13px; margin-top:0;">Login or create your account</p>
+
+            <!-- Name (register only) -->
+            <div id="reg-name-field" style="display:none">
+                <input id="au-name" placeholder="Full Name *" autocomplete="name">
+            </div>
+
+            <!-- Email -->
+            <input id="au-id" type="email" placeholder="Email Address" autocomplete="email">
+
+            <!-- Password -->
+            <div id="pass-area">
+                <input id="au-pass" type="password" placeholder="Password" autocomplete="current-password">
+            </div>
+
+            <!-- Optional Phone (register only) -->
+            <div id="reg-phone-field" style="display:none">
+                <input id="au-phone" type="tel" placeholder="Phone Number (Optional, e.g. +919XXXXXXXXX)"
+                    autocomplete="tel">
+            </div>
+
+            <button class="btn-gold" id="au-btn" onclick="handleMainAuth()">Continue</button>
+            <p onclick="toggleAuthMode()" id="toggle-text"
+                style="text-align:center; color:var(--gold); cursor:pointer; margin-top:20px; font-size:13px">New here?
+                Register</p>
+            <p onclick="forgotPassword()"
+                style="text-align:center; color:#666; cursor:pointer; margin-top:10px; font-size:13px">Forgot Password?
+            </p>
+
+            <!-- Google Login -->
+            <div
+                style="text-align:center; margin: 20px 0; color: #666; font-size: 12px; display:flex; align-items:center; gap:10px;">
+                <div style="flex:1; height:1px; background:#333;"></div>
+                OR
+                <div style="flex:1; height:1px; background:#333;"></div>
+            </div>
+            <button class="btn-gold"
+                style="background:#fff; color:#000; display:flex; align-items:center; justify-content:center; gap:10px; font-weight:600;"
+                onclick="handleGoogleLogin()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"
+                    style="width:20px;height:20px;flex-shrink:0">
+                    <path fill="#EA4335"
+                        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                    <path fill="#4285F4"
+                        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                    <path fill="#FBBC05"
+                        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                    <path fill="#34A853"
+                        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                </svg>
+                Continue with Google
             </button>
         </div>
 
-        <!-- Change Email (with verification) -->
-        <div class="profile-section">
-            <h4 class="section-label"><i class="fa fa-envelope"></i> Change Email</h4>
-            <p style="font-size:12px; color:#888; margin:0 0 12px;">A verification link will be sent to your new email before it takes effect.</p>
+        <!-- Logged-in Dashboard -->
+        <div id="dash-ui" style="display:none; padding:20px; max-width:500px; margin:auto">
 
-            <label class="field-label">New Email Address</label>
-            <input id="prof-new-email" type="email" placeholder="New email address" autocomplete="email">
-
-            <label class="field-label">Current Password (to confirm)</label>
-            <input id="prof-curr-pass" type="password" placeholder="Your current password">
-
-            <button class="btn-gold" onclick="changeEmail()" style="background:#222; border:1px solid #555; color:#fff;">
-                <i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change
-            </button>
-        </div>
-
-        <!-- Change Password (with re-auth) -->
-        <div class="profile-section">
-            <h4 class="section-label"><i class="fa fa-lock"></i> Change Password</h4>
-            <p style="font-size:12px; color:#888; margin:0 0 12px;">For security, please enter your current password to set a new one.</p>
-
-            <label class="field-label">Current Password</label>
-            <input id="prof-pass-current" type="password" placeholder="Your current password">
-
-            <label class="field-label">New Password</label>
-            <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)">
-
-            <label class="field-label">Confirm New Password</label>
-            <input id="prof-pass-confirm" type="password" placeholder="Confirm new password">
-
-            <button class="btn-gold" onclick="changePassword()" style="background:#222; border:1px solid #555; color:#fff;">
-                <i class="fa fa-lock"></i> &nbsp;Change Password
-            </button>
-        </div>
-
-        <!-- My Orders -->
-        <div class="profile-section">
-            <h4 class="section-label"><i class="fa fa-box"></i> My Orders</h4>
-            <div id="order-history"></div>
-        </div>
-    </div>
-</div>
-
-<!-- SECTION: Admin -->
-<div id="admin-view" class="section">
-    <div style="padding:20px; display:flex; justify-content:space-between">
-        <h3>Admin Tools</h3>
-        <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
-    </div>
-    <div id="admin-list" style="padding:0 20px"></div>
-</div>
-
-<!-- MODAL: Product Details -->
-<div id="detail-view" style="position:fixed; inset:0; background:#000; z-index:2000; display:none; overflow-y:auto">
-    <div style="padding:15px; display:flex; justify-content:space-between; align-items:center">
-        <i class="fa fa-chevron-left" onclick="closeDetail()" style="font-size:20px; padding:10px; cursor:pointer;"></i>
-        <span style="font-weight:bold; letter-spacing:2px; font-size:11px">DETAILS</span>
-        <div style="width:40px"></div>
-    </div>
-    <div id="det-box" class="carousel-box" style="height:400px">
-        <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
-        <div id="det-indicators" class="indicators"></div>
-    </div>
-    <div style="padding:25px">
-        <h2 id="det-name" style="margin:0;"></h2>
-        <div id="det-price" style="color:var(--gold); font-size:24px; font-weight:800; margin:10px 0"></div>
-        
-        <div id="det-sizes-container">
-            <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT SIZE</p>
-            <div class="chip-group" id="detail-size-selector"></div>
-        </div>
-        
-        <div id="det-colors-container" style="margin-top:15px">
-            <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT COLOR</p>
-            <div class="chip-group" id="detail-color-selector"></div>
-        </div>
-        
-        <p style="font-size:11px; color:#666">DESCRIPTION</p>
-        <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:30px"></p>
-        
-        <button class="btn-gold" id="det-btn">ADD TO BAG</button>
-    </div>
-</div>
-
-<!-- MODAL: Admin Edit Product -->
-<div id="prod-modal" class="modal">
-    <div class="modal-box">
-        <h3>Product Details</h3>
-        <input id="m-name" placeholder="Name">
-        <input id="m-price" type="number" placeholder="Price">
-        <textarea id="m-desc" placeholder="Description"></textarea>
-        
-        <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Sizes & Colors Mapping</p>
-        <div id="m-sizes-colors" style="background:#121212; border: 1px solid #282828; border-radius: 12px; padding: 15px; margin-bottom: 12px;">
-            <!-- S Size -->
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <label style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
-                    <input type="checkbox" id="m-size-S" style="width:auto; margin:0;" onchange="toggleSizeInput('S')"> S
-                </label>
-                <input id="m-colors-S" placeholder="Colors: e.g. Black, Red, White" disabled style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+            <!-- Profile Card -->
+            <div class="profile-card">
+                <div class="profile-avatar" id="profile-avatar">U</div>
+                <div style="flex:1">
+                    <div id="profile-email-display" style="font-size:12px; color:#888; word-break:break-all;"></div>
+                    <div id="profile-name-display" style="font-size:16px; font-weight:700; margin-top:2px;">User</div>
+                </div>
+                <button onclick="auth.signOut()" class="btn-logout"><i class="fa fa-sign-out-alt"></i> Logout</button>
             </div>
-            <!-- M Size -->
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <label style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
-                    <input type="checkbox" id="m-size-M" style="width:auto; margin:0;" onchange="toggleSizeInput('M')"> M
-                </label>
-                <input id="m-colors-M" placeholder="Colors: e.g. Black, Red, White" disabled style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+
+            <!-- Edit Profile Form -->
+            <div class="profile-section">
+                <h4 class="section-label"><i class="fa fa-user-edit"></i> Edit Profile</h4>
+
+                <label class="field-label">Display Name</label>
+                <input id="prof-name" placeholder="Your full name" autocomplete="name">
+
+                <label class="field-label">Phone Number</label>
+                <input id="prof-phone" type="tel" placeholder="+91XXXXXXXXXX" autocomplete="tel">
+
+                <button class="btn-gold" onclick="saveProfile()" style="margin-top:5px;">
+                    <i class="fa fa-save"></i> &nbsp;Save Changes
+                </button>
             </div>
-            <!-- L Size -->
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <label style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
-                    <input type="checkbox" id="m-size-L" style="width:auto; margin:0;" onchange="toggleSizeInput('L')"> L
-                </label>
-                <input id="m-colors-L" placeholder="Colors: e.g. Black, Red, White" disabled style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+
+            <!-- Change Email (with verification) -->
+            <div class="profile-section">
+                <h4 class="section-label"><i class="fa fa-envelope"></i> Change Email</h4>
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">A verification link will be sent to your new
+                    email before it takes effect.</p>
+
+                <label class="field-label">New Email Address</label>
+                <input id="prof-new-email" type="email" placeholder="New email address" autocomplete="email">
+
+                <label class="field-label">Current Password (to confirm)</label>
+                <input id="prof-curr-pass" type="password" placeholder="Your current password">
+
+                <button class="btn-gold" onclick="changeEmail()"
+                    style="background:#222; border:1px solid #555; color:#fff;">
+                    <i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change
+                </button>
             </div>
-            <!-- XL Size -->
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <label style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
-                    <input type="checkbox" id="m-size-XL" style="width:auto; margin:0;" onchange="toggleSizeInput('XL')"> XL
-                </label>
-                <input id="m-colors-XL" placeholder="Colors: e.g. Black, Red, White" disabled style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+
+            <!-- Change Password (with re-auth) -->
+            <div class="profile-section">
+                <h4 class="section-label"><i class="fa fa-lock"></i> Change Password</h4>
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">For security, please enter your current password
+                    to set a new one.</p>
+
+                <label class="field-label">Current Password</label>
+                <input id="prof-pass-current" type="password" placeholder="Your current password">
+
+                <label class="field-label">New Password</label>
+                <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)">
+
+                <label class="field-label">Confirm New Password</label>
+                <input id="prof-pass-confirm" type="password" placeholder="Confirm new password">
+
+                <button class="btn-gold" onclick="changePassword()"
+                    style="background:#222; border:1px solid #555; color:#fff;">
+                    <i class="fa fa-lock"></i> &nbsp;Change Password
+                </button>
             </div>
-            <!-- XXL Size -->
-            <div style="display:flex; align-items:center; gap:10px;">
-                <label style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
-                    <input type="checkbox" id="m-size-XXL" style="width:auto; margin:0;" onchange="toggleSizeInput('XXL')"> XXL
-                </label>
-                <input id="m-colors-XXL" placeholder="Colors: e.g. Black, Red, White" disabled style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+
+            <!-- My Orders -->
+            <div class="profile-section">
+                <h4 class="section-label" style="display:flex; justify-content:space-between; align-items:center;"><span
+                        style="display:flex; align-items:center; gap:8px;"><i class="fa fa-box"></i> My Orders</span>
+                    <span id="orders-count" class="count-badge">0 Orders</span></h4>
+                <div id="order-history"></div>
+                <div id="orders-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
             </div>
         </div>
-        <p style="font-size:10px; color:#666; margin-bottom:5px">IMAGES (TAP × TO REMOVE)</p>
-        <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
-        <input type="file" id="m-files" multiple accept="image/*" onchange="handleFileSelect(this)">
-        <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
-        <button onclick="closeModal('prod-modal')" style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
     </div>
-</div>
 
-<!-- MODAL: Cart & Checkout -->
-<div id="cart-modal" class="modal">
-    <div class="modal-box" style="padding-top: 15px;">
-        <h3 style="margin-top:0;">Checkout</h3>
-        <div id="cart-items" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
-        
-        <!-- Promo Code -->
-        <div style="display:flex; gap:10px; margin-bottom: 15px;">
-            <input id="promo-code" placeholder="Promo Code (e.g. SWAG10)" style="margin-bottom:0; flex:1;">
-            <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
+    <!-- SECTION: Admin -->
+    <div id="admin-view" class="section">
+        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
+                    class="count-badge">0 Products</span></h3>
+            <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
         </div>
-        
-        <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 20px; font-size: 14px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Subtotal</span><span id="cart-subtotal">₹0</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px; color:var(--red);"><span>Discount</span><span id="cart-discount">₹0</span></div>
-            <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;">
-                <span>Total</span><span id="cart-total" style="color:var(--gold)">₹0</span>
+
+        <!-- Bulk Operations -->
+        <div
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:flex; gap:15px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div>
+                <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; letter-spacing:0.5px;">Bulk Catalog
+                    Actions</h4>
+                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export or batch update/import products Excel
+                    (.xlsx)</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn-gold" style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px;"
+                    onclick="exportProducts()">Export Excel</button>
+                <button class="btn-gold"
+                    style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px; background:#222; border:1px solid #444; color:#fff;"
+                    onclick="triggerImport()">Import Excel</button>
+                <input type="file" id="import-file-input" accept=".xlsx, .xls" style="display:none;"
+                    onchange="importProducts(this)">
             </div>
         </div>
-        
-        <input id="c-name" placeholder="Recipient Name" autocomplete="name">
-        <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
-        <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
-        
-        <!-- Payment Methods -->
-        <p style="font-size:11px; color:#666; margin-bottom:10px;">PAYMENT METHOD</p>
-        <div class="payment-options">
-            <div class="payment-chip active" id="pay-cod" data-method="cod" onclick="selectPayment('cod')">Cash on Delivery</div>
-            <div class="payment-chip" id="pay-upi" data-method="upi" onclick="selectPayment('upi')">UPI / QR Code</div>
-        </div>
-        
-        <!-- UPI QR Box -->
-        <div id="upi-payment-box" style="display:none; background:#1a1a1a; padding:15px; border-radius:12px; margin-bottom:15px; text-align:center;">
-            <img src="assets/qr.png" alt="Scan to Pay" style="width:150px; height:150px; border-radius:8px; margin-bottom:10px; background:#fff; padding:5px;">
-            <p style="font-size:12px; color:#aaa; margin:0;">Scan with PhonePe, GPay, or Paytm.<br>Upload screenshot on WhatsApp after order!</p>
-        </div>
-        
-        <button class="btn-gold" id="btn-checkout" onclick="placeOrder()">Place Order</button>
-        <button onclick="closeModal('cart-modal')" style="width:100%; margin-top:10px; background:none; color:#555; border:none; cursor:pointer;">Back</button>
+
+        <div id="admin-list" style="padding:0 20px"></div>
+        <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
     </div>
-</div>
 
-<!-- Mobile Bottom Navigation -->
-<nav class="bottom-nav">
-    <div class="nav-item active" onclick="nav('home', this)"><i class="fa fa-house"></i>Home</div>
-    <div class="nav-item" onclick="nav('wish', this)"><i class="fa fa-heart"></i>Wish</div>
-    <div id="nav-adm" class="nav-item" style="display:none" onclick="nav('admin', this)"><i class="fa fa-gear"></i>Admin</div>
-    <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
-</nav>
+    <!-- MODAL: Product Details -->
+    <div id="detail-view" style="position:fixed; inset:0; background:#000; z-index:2000; display:none; overflow-y:auto">
+        <div style="padding:15px; display:flex; justify-content:space-between; align-items:center">
+            <i class="fa fa-chevron-left" onclick="closeDetail()"
+                style="font-size:20px; padding:10px; cursor:pointer;"></i>
+            <span style="font-weight:bold; letter-spacing:2px; font-size:11px">DETAILS</span>
+            <div style="width:40px"></div>
+        </div>
+        <div id="det-box" class="carousel-box" style="height:400px">
+            <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
+            <div id="det-indicators" class="indicators"></div>
+        </div>
+        <div style="padding:25px">
+            <h2 id="det-name" style="margin:0;"></h2>
+            <div id="det-price" style="color:var(--gold); font-size:24px; font-weight:800; margin:10px 0"></div>
 
-<!-- Scripts -->
-<script src="js/app.js?v=1.4"></script>
-<script src="js/store.js?v=1.4"></script>
-<script src="js/checkout.js?v=1.4"></script>
-<script src="js/auth.js?v=1.4"></script>
-<script src="js/admin.js?v=1.4"></script>
+            <div id="det-sizes-container">
+                <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT SIZE</p>
+                <div class="chip-group" id="detail-size-selector"></div>
+            </div>
+
+            <div id="det-colors-container" style="margin-top:15px">
+                <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT COLOR</p>
+                <div class="chip-group" id="detail-color-selector"></div>
+            </div>
+
+            <p style="font-size:11px; color:#666">DESCRIPTION</p>
+            <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:30px"></p>
+
+            <button class="btn-gold" id="det-btn">ADD TO BAG</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Admin Edit Product -->
+    <div id="prod-modal" class="modal">
+        <div class="modal-box">
+            <h3>Product Details</h3>
+            <input id="m-name" placeholder="Name">
+            <input id="m-price" type="number" placeholder="Price">
+            <textarea id="m-desc" placeholder="Description"></textarea>
+
+            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Sizes & Colors Mapping
+            </p>
+            <div id="m-sizes-colors"
+                style="background:#121212; border: 1px solid #282828; border-radius: 12px; padding: 15px; margin-bottom: 12px;">
+                <!-- S Size -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <label
+                        style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
+                        <input type="checkbox" id="m-size-S" style="width:auto; margin:0;"
+                            onchange="toggleSizeInput('S')"> S
+                    </label>
+                    <input id="m-colors-S" placeholder="Colors: e.g. Black, Red, White" disabled
+                        style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+                </div>
+                <!-- M Size -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <label
+                        style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
+                        <input type="checkbox" id="m-size-M" style="width:auto; margin:0;"
+                            onchange="toggleSizeInput('M')"> M
+                    </label>
+                    <input id="m-colors-M" placeholder="Colors: e.g. Black, Red, White" disabled
+                        style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+                </div>
+                <!-- L Size -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <label
+                        style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
+                        <input type="checkbox" id="m-size-L" style="width:auto; margin:0;"
+                            onchange="toggleSizeInput('L')"> L
+                    </label>
+                    <input id="m-colors-L" placeholder="Colors: e.g. Black, Red, White" disabled
+                        style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+                </div>
+                <!-- XL Size -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <label
+                        style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
+                        <input type="checkbox" id="m-size-XL" style="width:auto; margin:0;"
+                            onchange="toggleSizeInput('XL')"> XL
+                    </label>
+                    <input id="m-colors-XL" placeholder="Colors: e.g. Black, Red, White" disabled
+                        style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+                </div>
+                <!-- XXL Size -->
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <label
+                        style="display:flex; align-items:center; gap:5px; width:60px; font-weight:bold; cursor:pointer; font-size:13px; margin-bottom:0;">
+                        <input type="checkbox" id="m-size-XXL" style="width:auto; margin:0;"
+                            onchange="toggleSizeInput('XXL')"> XXL
+                    </label>
+                    <input id="m-colors-XXL" placeholder="Colors: e.g. Black, Red, White" disabled
+                        style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+                </div>
+            </div>
+            <p style="font-size:10px; color:#666; margin-bottom:5px">IMAGES (TAP × TO REMOVE)</p>
+            <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
+            <input type="file" id="m-files" multiple accept="image/*" onchange="handleFileSelect(this)">
+            <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
+            <button onclick="closeModal('prod-modal')"
+                style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Cart & Checkout -->
+    <div id="cart-modal" class="modal">
+        <div class="modal-box" style="padding-top: 15px;">
+            <h3 style="margin-top:0;">Checkout</h3>
+            <div id="cart-items" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
+
+            <!-- Promo Code -->
+            <div style="display:flex; gap:10px; margin-bottom: 15px;">
+                <input id="promo-code" placeholder="Promo Code (e.g. SWAG10)" style="margin-bottom:0; flex:1;">
+                <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
+            </div>
+
+            <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 20px; font-size: 14px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Subtotal</span><span
+                        id="cart-subtotal">₹0</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; color:var(--red);">
+                    <span>Discount</span><span id="cart-discount">₹0</span></div>
+                <div
+                    style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;">
+                    <span>Total</span><span id="cart-total" style="color:var(--gold)">₹0</span>
+                </div>
+            </div>
+
+            <input id="c-name" placeholder="Recipient Name" autocomplete="name">
+            <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
+            <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
+
+            <!-- Payment Methods -->
+            <p style="font-size:11px; color:#666; margin-bottom:10px;">PAYMENT METHOD</p>
+            <div class="payment-options">
+                <div class="payment-chip active" id="pay-cod" data-method="cod" onclick="selectPayment('cod')">Cash on
+                    Delivery</div>
+                <div class="payment-chip" id="pay-upi" data-method="upi" onclick="selectPayment('upi')">UPI / QR Code
+                </div>
+            </div>
+
+            <!-- UPI QR Box -->
+            <div id="upi-payment-box"
+                style="display:none; background:#1a1a1a; padding:15px; border-radius:12px; margin-bottom:15px; text-align:center;">
+                <img src="assets/qr.png" alt="Scan to Pay"
+                    style="width:150px; height:150px; border-radius:8px; margin-bottom:10px; background:#fff; padding:5px;">
+                <p style="font-size:12px; color:#aaa; margin:0;">Scan with PhonePe, GPay, or Paytm.<br>Upload screenshot
+                    on WhatsApp after order!</p>
+            </div>
+
+            <button class="btn-gold" id="btn-checkout" onclick="placeOrder()">Place Order</button>
+            <button onclick="closeModal('cart-modal')"
+                style="width:100%; margin-top:10px; background:none; color:#555; border:none; cursor:pointer;">Back</button>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="nav('home', this)"><i class="fa fa-house"></i>Home</div>
+        <div class="nav-item" onclick="nav('wish', this)"><i class="fa fa-heart"></i>Wish</div>
+        <div id="nav-adm" class="nav-item" style="display:none" onclick="nav('admin', this)"><i
+                class="fa fa-gear"></i>Admin</div>
+        <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
+    </nav>
+
+    <!-- Scripts -->
+    <script src="js/app.js?v=2.2"></script>
+    <script src="js/store.js?v=2.4"></script>
+    <script src="js/checkout.js?v=2.1"></script>
+    <script src="js/auth.js?v=2.1"></script>
+    <script src="js/admin.js?v=2.1"></script>
 
 </body>
+
 </html>

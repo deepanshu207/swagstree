@@ -33,6 +33,10 @@ let existingImageUrls = [];
 let filterActiveSize = null;
 let filterActiveColor = null;
 let confirmationResult = null; // Used for SMS OTP fallback
+let displayedProductsLimit = 20;
+let displayedWishlistLimit = 20;
+let displayedOrdersLimit = 20;
+let ordersUnsubscribe = null;
 
 // 3. UTILITIES
 function showToast(m) { 
@@ -92,6 +96,12 @@ function nav(id, el) {
     
     if(el) el.classList.add('active'); 
 
+    // Reset wishlist page limit when navigating to wishlist
+    if (id === 'wish') {
+        displayedWishlistLimit = 20;
+        if (typeof renderStore === 'function') renderStore();
+    }
+
     // Render admin list on navigation to admin view
     if (id === 'admin' && typeof renderAdmin === 'function') {
         renderAdmin();
@@ -105,5 +115,13 @@ window.onload = () => {
         searchInput.value = ""; 
         searchInput.setAttribute('readonly', 'true'); 
         setTimeout(() => { searchInput.value = ""; }, 500); 
+    }
+
+    // If a shared product link was opened, show loading overlay immediately
+    // so the home screen never flashes before the product opens.
+    const deepId = new URLSearchParams(window.location.search).get('id');
+    if (deepId) {
+        const overlay = document.getElementById('deep-link-overlay');
+        if (overlay) overlay.style.display = 'flex';
     }
 };
