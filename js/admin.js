@@ -352,3 +352,34 @@ async function importProducts(input) {
     };
     reader.readAsArrayBuffer(file);
 }
+
+// ── COD Settings ────────────────────────────────────────────────────────────
+
+async function loadCodSettings() {
+    try {
+        const snap = await db.collection('settings').doc('cod').get();
+        const val = snap.exists && typeof snap.data().minPayment === 'number'
+            ? snap.data().minPayment
+            : 100;
+        const inp = document.getElementById('admin-cod-min-payment');
+        if (inp) inp.value = val;
+        if (typeof codMinPayment !== 'undefined') codMinPayment = val;
+    } catch(e) {
+        console.error('loadCodSettings error:', e);
+    }
+}
+
+async function saveCodSettings() {
+    const inp = document.getElementById('admin-cod-min-payment');
+    if (!inp) return;
+    const val = Number(inp.value);
+    if (isNaN(val) || val < 0) return showToast('Enter a valid amount (0 or more)');
+    try {
+        await db.collection('settings').doc('cod').set({ minPayment: val }, { merge: true });
+        if (typeof codMinPayment !== 'undefined') codMinPayment = val;
+        showToast('COD minimum payment saved: \u20b9' + val);
+    } catch(e) {
+        console.error('saveCodSettings error:', e);
+        showToast('Failed to save COD settings');
+    }
+}

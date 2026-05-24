@@ -75,7 +75,7 @@
         <div class="filter-header">
             <div class="filter-title-wrap">
                 <h3>Filters</h3>
-                <p class="filter-subtitle">Refine Your Style</p>
+                <!-- <p class="filter-subtitle">Refine Your Style</p> -->
             </div>
             <div class="filter-header-actions">
                 <span class="clear-all-btn" onclick="resetFilters()">Clear All</span>
@@ -302,7 +302,8 @@
             <div class="profile-section">
                 <h4 class="section-label" style="display:flex; justify-content:space-between; align-items:center;"><span
                         style="display:flex; align-items:center; gap:8px;"><i class="fa fa-box"></i> My Orders</span>
-                    <span id="orders-count" class="count-badge">0 Orders</span></h4>
+                    <span id="orders-count" class="count-badge">0 Orders</span>
+                </h4>
                 <div id="order-history"></div>
                 <div id="orders-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
             </div>
@@ -334,6 +335,29 @@
                     onclick="triggerImport()">Import Excel</button>
                 <input type="file" id="import-file-input" accept=".xlsx, .xls" style="display:none;"
                     onchange="importProducts(this)">
+            </div>
+        </div>
+
+        <!-- COD Settings -->
+        <div id="admin-cod-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-truck" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">COD Advance Payment</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Minimum UPI payment required to confirm a COD
+                        order</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <span
+                        style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:700; font-size:14px; pointer-events:none;">&#8377;</span>
+                    <input id="admin-cod-min-payment" type="number" min="0" step="10" value="100"
+                        style="padding-left:30px; margin:0;" placeholder="Min amount (default 100)">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveCodSettings()">Save</button>
             </div>
         </div>
 
@@ -454,7 +478,7 @@
 
             <!-- Promo Code -->
             <div style="display:flex; gap:10px; margin-bottom: 15px;">
-                <input id="promo-code" placeholder="Promo Code (e.g. SWAG10)" style="margin-bottom:0; flex:1;">
+                <input id="promo-code" placeholder="Promo Code" style="margin-bottom:0; flex:1;">
                 <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
             </div>
 
@@ -462,7 +486,8 @@
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Subtotal</span><span
                         id="cart-subtotal">₹0</span></div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px; color:var(--red);">
-                    <span>Discount</span><span id="cart-discount">₹0</span></div>
+                    <span>Discount</span><span id="cart-discount">₹0</span>
+                </div>
                 <div
                     style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;">
                     <span>Total</span><span id="cart-total" style="color:var(--gold)">₹0</span>
@@ -475,25 +500,93 @@
 
             <!-- Payment Methods -->
             <p style="font-size:11px; color:#666; margin-bottom:10px;">PAYMENT METHOD</p>
-            <div class="payment-options">
-                <div class="payment-chip active" id="pay-cod" data-method="cod" onclick="selectPayment('cod')">Cash on
-                    Delivery</div>
-                <div class="payment-chip" id="pay-upi" data-method="upi" onclick="selectPayment('upi')">UPI / QR Code
+            <!-- Row 1: COD -->
+            <div class="payment-options" style="flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+                <div class="payment-chip cod-chip active" id="pay-cod" data-method="cod" onclick="selectPayment('cod')">
+                    <i class="fa fa-truck" style="margin-right:6px;"></i>Cash on Delivery
+                </div>
+            </div>
+            <!-- Row 2: UPI Options -->
+            <p style="font-size:10px; color:#555; margin:0 0 8px; letter-spacing:1px;">UPI / DIGITAL PAYMENT</p>
+            <div class="payment-options" style="flex-wrap:wrap; gap:8px; margin-bottom:15px;">
+                <div class="payment-chip paytm-chip" id="pay-paytm" data-method="paytm"
+                    onclick="selectPayment('paytm')">
+                    <span style="font-size:15px; margin-right:4px;">&#x1F4B3;</span>Paytm
+                </div>
+                <div class="payment-chip phonepe-chip" id="pay-phonepe" data-method="phonepe"
+                    onclick="selectPayment('phonepe')">
+                    <span style="font-size:15px; margin-right:4px;">&#x1F4F1;</span>PhonePe
+                </div>
+                <div class="payment-chip upi-chip" id="pay-upi" data-method="upi" onclick="selectPayment('upi')">
+                    <span style="font-size:15px; margin-right:4px;">&#x1F4F7;</span>UPI / QR
                 </div>
             </div>
 
-            <!-- UPI QR Box -->
+            <!-- UPI QR Box (shown for Paytm, PhonePe, UPI) -->
             <div id="upi-payment-box"
-                style="display:none; background:#1a1a1a; padding:15px; border-radius:12px; margin-bottom:15px; text-align:center;">
+                style="display:none; background:linear-gradient(135deg,#0d0d0d,#1a1a1a); padding:18px; border-radius:16px; margin-bottom:15px; text-align:center; border:1px solid #2a2a2a;">
+                <div id="upi-brand-header"
+                    style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px; font-size:14px;">
+                </div>
                 <img src="assets/qr.png" alt="Scan to Pay"
-                    style="width:150px; height:150px; border-radius:8px; margin-bottom:10px; background:#fff; padding:5px;">
-                <p style="font-size:12px; color:#aaa; margin:0;">Scan with PhonePe, GPay, or Paytm.<br>Upload screenshot
-                    on WhatsApp after order!</p>
+                    style="width:160px; height:160px; border-radius:10px; background:#fff; padding:6px; box-shadow:0 4px 20px rgba(255,215,0,0.15);">
+                <p id="upi-brand-hint" style="font-size:12px; color:#aaa; margin:10px 0 0;"></p>
+            </div>
+
+            <!-- COD Advance Payment Notice (shown when COD is active) -->
+            <div id="cod-info-box"
+                style="display:flex; align-items:flex-start; gap:10px; background:rgba(230,126,34,0.08); border:1px solid rgba(230,126,34,0.3); border-radius:12px; padding:12px 14px; margin-bottom:15px;">
+                <i class="fa fa-circle-info" style="color:#e67e22; margin-top:2px; flex-shrink:0;"></i>
+                <p style="margin:0; font-size:12px; color:#e0a060; line-height:1.6;">
+                    A minimum advance of <strong id="cod-notice-amt" style="color:#e67e22;">&#8377;100</strong> is
+                    required via UPI to confirm your COD order.
+                    You will be asked to confirm before placing.
+                </p>
             </div>
 
             <button class="btn-gold" id="btn-checkout" onclick="placeOrder()">Place Order</button>
             <button onclick="closeModal('cart-modal')"
                 style="width:100%; margin-top:10px; background:none; color:#555; border:none; cursor:pointer;">Back</button>
+        </div>
+    </div>
+
+    <!-- MODAL: COD Advance Payment Confirmation -->
+    <div id="cod-confirm-modal" class="modal" style="display:none; z-index:6000;">
+        <div class="modal-box" style="max-width:400px; text-align:center;">
+            <!-- Icon -->
+            <div
+                style="width:64px; height:64px; border-radius:50%; background:rgba(230,126,34,0.15); border:2px solid rgba(230,126,34,0.4); display:grid; place-items:center; margin:0 auto 18px;">
+                <i class="fa fa-truck" style="color:#e67e22; font-size:26px;"></i>
+            </div>
+            <h3 style="margin:0 0 8px; font-size:18px;">Cash on Delivery</h3>
+            <p style="color:#888; font-size:13px; margin:0 0 20px; line-height:1.7;">
+                To confirm your order, a minimum advance payment of
+                <br><span id="cod-min-amount-display"
+                    style="color:#e67e22; font-size:22px; font-weight:900;">&#8377;100</span><br>
+                is required via UPI <strong>before delivery</strong>.
+                <br><br>
+                Please scan the QR code (Paytm / PhonePe / Any UPI) and upload the screenshot on WhatsApp after placing
+                the order.
+            </p>
+
+            <!-- QR Preview -->
+            <div
+                style="background:#fff; border-radius:12px; padding:8px; display:inline-block; margin-bottom:18px; box-shadow:0 4px 20px rgba(255,215,0,0.15);">
+                <img src="assets/qr.png" alt="Pay via UPI"
+                    style="width:130px; height:130px; border-radius:6px; display:block;">
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button class="btn-gold" id="btn-confirm-cod" onclick="confirmCodOrder()">
+                    <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Agree — Place COD Order
+                </button>
+                <button onclick="codSwitchToUpi()"
+                    style="width:100%; padding:14px; background:#1a1a1a; color:var(--gold); border:1px solid var(--gold); border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
+                    <i class="fa fa-qrcode" style="margin-right:8px;"></i>Pay via UPI / QR Instead
+                </button>
+                <button onclick="closeCodConfirmModal()"
+                    style="width:100%; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -507,11 +600,11 @@
     </nav>
 
     <!-- Scripts -->
-    <script src="js/app.js?v=2.2"></script>
+    <script src="js/app.js?v=2.3"></script>
     <script src="js/store.js?v=2.4"></script>
-    <script src="js/checkout.js?v=2.1"></script>
+    <script src="js/checkout.js?v=3.0"></script>
     <script src="js/auth.js?v=2.1"></script>
-    <script src="js/admin.js?v=2.1"></script>
+    <script src="js/admin.js?v=2.2"></script>
 
 </body>
 

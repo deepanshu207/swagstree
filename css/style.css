@@ -223,8 +223,27 @@ input, textarea, select { width: 100%; padding: 15px; background: #121212; borde
 
 /* Payment Options */
 .payment-options { display: flex; gap: 10px; margin-bottom: 20px; }
-.payment-chip { flex: 1; text-align: center; padding: 12px; border: 1px solid #333; border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: bold; }
+.payment-chip { flex: 1; text-align: center; padding: 12px; border: 1px solid #333; border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.25s ease; }
+.payment-chip:hover { border-color: #555; background: rgba(255,255,255,0.04); }
 .payment-chip.active { border-color: var(--gold); background: rgba(255,215,0,0.1); color: var(--gold); }
+
+/* COD chip */
+.cod-chip.active { border-color: #e67e22; background: rgba(230,126,34,0.12); color: #e67e22; }
+.cod-chip:hover { border-color: rgba(230,126,34,0.5); }
+
+/* Paytm chip */
+.paytm-chip.active { border-color: #00BAF2; background: rgba(0,186,242,0.1); color: #00BAF2; }
+.paytm-chip:hover { border-color: rgba(0,186,242,0.5); }
+
+/* PhonePe chip */
+.phonepe-chip.active { border-color: #6739B7; background: rgba(103,57,183,0.12); color: #a67ff0; }
+.phonepe-chip:hover { border-color: rgba(103,57,183,0.5); }
+
+/* Generic UPI chip */
+.upi-chip.active { border-color: var(--gold); background: rgba(255,215,0,0.1); color: var(--gold); }
+
+/* COD info notice box */
+#cod-info-box { transition: opacity 0.3s ease; }
 
 /* ==========================================
    9. PREMIUM FILTERS & SELECTORS (OUTLAW THEME)

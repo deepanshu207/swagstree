@@ -105,6 +105,7 @@ function nav(id, el) {
     // Render admin list on navigation to admin view
     if (id === 'admin' && typeof renderAdmin === 'function') {
         renderAdmin();
+        if (typeof loadCodSettings === 'function') loadCodSettings();
     }
 }
 

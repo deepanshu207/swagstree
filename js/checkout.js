@@ -11,6 +11,68 @@ if (typeof isAdmin === 'undefined') window.isAdmin = false;
 if (typeof currentUser === 'undefined') window.currentUser = null;
 
 let activePromo = null;
+let codMinPayment = 100; // Default, loaded from Firestore
+let _pendingOrderArgs = null;
+
+// ── UPI Configuration ──────────────────────────────────────────────────────
+const UPI_ID   = '7683020636@pthdfc';
+const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
+// ───────────────────────────────────────────────────────────────────────────
+
+(function loadCodMinPayment() {
+    if (typeof db === 'undefined') return;
+    db.collection('settings').doc('cod').get().then(doc => {
+        if (doc.exists && typeof doc.data().minPayment === 'number') {
+            codMinPayment = doc.data().minPayment;
+        }
+    }).catch(() => {});
+})();
+
+// Returns the current cart grand total (after promo)
+function _getCartTotal() {
+    const subtotal = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+    const discount = activePromo ? Math.floor(subtotal * activePromo.discount) : 0;
+    return subtotal - discount;
+}
+
+// Build a standard UPI intent URL
+function _buildUpiUrl(amount, note) {
+    const amt   = encodeURIComponent(amount.toFixed(2));
+    const tn    = encodeURIComponent(note || 'Swag Stree Order');
+    return `upi://pay?pa=${UPI_ID}&pn=${UPI_NAME}&am=${amt}&cu=INR&tn=${tn}`;
+}
+
+// Open UPI app — uses app-specific scheme first, falls back to generic upi://
+function openUpiApp(app) {
+    const total  = _getCartTotal();
+    if (total <= 0) { showToast('Add items to bag first'); return; }
+
+    const note   = 'Swag Stree Order';
+    const base   = _buildUpiUrl(total, note);
+
+    // App-specific intent deep links (Android); generic upi:// as fallback
+    const links = {
+        paytm:   `paytmmp://pay?pa=${UPI_ID}&pn=${UPI_NAME}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`,
+        gpay:    `gpay://upi/pay?pa=${UPI_ID}&pn=${UPI_NAME}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`,
+        phonepe: `phonepe://pay?pa=${UPI_ID}&pn=${UPI_NAME}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`,
+        upi:     base
+    };
+
+    const url = links[app] || base;
+
+    // Try to open the app. If the scheme isn't installed the browser will
+    // silently fail or show an error — we show the QR as a fallback hint.
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.click();
+
+    // After a short delay check if we're still on the page (app didn't open)
+    // and nudge the user toward the QR code
+    setTimeout(() => {
+        const qrFallback = document.getElementById('upi-qr-fallback');
+        if (qrFallback) qrFallback.style.display = 'block';
+    }, 1800);
+}
 
 function addToBag(id) { 
     const p = products.find(x => x.id === id);
@@ -73,14 +135,116 @@ function applyPromo() {
 
 function selectPayment(method) {
     document.querySelectorAll('.payment-chip').forEach(c => c.classList.remove('active'));
-    document.getElementById(`pay-${method}`).classList.add('active');
-    
-    const upiBox = document.getElementById('upi-payment-box');
-    if (method === 'upi') {
-        upiBox.style.display = 'block';
-    } else {
-        upiBox.style.display = 'none';
+    const chip = document.getElementById('pay-' + method);
+    if (chip) chip.classList.add('active');
+
+    const upiBox     = document.getElementById('upi-payment-box');
+    const upiContent = document.getElementById('upi-box-content');
+    const codInfoBox = document.getElementById('cod-info-box');
+    const qrFallback = document.getElementById('upi-qr-fallback');
+    if (qrFallback) qrFallback.style.display = 'none'; // reset fallback
+
+    // Show/hide COD advance payment notice
+    if (codInfoBox) {
+        if (method === 'cod') {
+            codInfoBox.style.display = 'flex';
+            const noticeAmt = document.getElementById('cod-notice-amt');
+            if (noticeAmt) noticeAmt.innerHTML = '&#8377;' + codMinPayment;
+        } else {
+            codInfoBox.style.display = 'none';
+        }
     }
+
+    if (method === 'cod') {
+        upiBox.style.display = 'none';
+        return;
+    }
+
+    // All UPI options show the box
+    upiBox.style.display = 'block';
+
+    const total = _getCartTotal();
+    const amtLabel = total > 0 ? '\u20b9' + total : '(add items first)';
+
+    const configs = {
+        paytm: {
+            label:   'Paytm',
+            color:   '#00BAF2',
+            bg:      'rgba(0,186,242,0.08)',
+            border:  'rgba(0,186,242,0.3)',
+            icon:    '&#x1F4B3;',
+            btnBg:   'linear-gradient(135deg,#00BAF2,#0080b3)',
+            appKey:  'paytm',
+            hint:    'Opens Paytm app with amount pre-filled'
+        },
+        gpay: {
+            label:   'Google Pay',
+            color:   '#4285F4',
+            bg:      'rgba(66,133,244,0.08)',
+            border:  'rgba(66,133,244,0.3)',
+            icon:    '&#x1F4B0;',
+            btnBg:   'linear-gradient(135deg,#4285F4,#1a5dc8)',
+            appKey:  'gpay',
+            hint:    'Opens Google Pay with amount pre-filled'
+        },
+        phonepe: {
+            label:   'PhonePe',
+            color:   '#7B45D8',
+            bg:      'rgba(123,69,216,0.08)',
+            border:  'rgba(123,69,216,0.3)',
+            icon:    '&#x1F4F1;',
+            btnBg:   'linear-gradient(135deg,#7B45D8,#4b2090)',
+            appKey:  'phonepe',
+            hint:    'Opens PhonePe app with amount pre-filled'
+        },
+        upi: {
+            label:   'Any UPI App',
+            color:   '#FFD700',
+            bg:      'rgba(255,215,0,0.06)',
+            border:  'rgba(255,215,0,0.25)',
+            icon:    '&#x1F4F7;',
+            btnBg:   'linear-gradient(135deg,#FFD700,#b8860b)',
+            appKey:  'upi',
+            hint:    'Opens your default UPI app'
+        }
+    };
+
+    const cfg = configs[method];
+    if (!cfg || !upiContent) return;
+
+    upiContent.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
+            <span style="font-size:22px;">${cfg.icon}</span>
+            <span style="color:${cfg.color}; font-weight:800; font-size:15px; letter-spacing:1px;">${cfg.label}</span>
+        </div>
+
+        <!-- Amount display -->
+        <div style="background:${cfg.bg}; border:1px solid ${cfg.border}; border-radius:12px; padding:10px 14px; margin-bottom:14px; text-align:center;">
+            <div style="font-size:11px; color:#777; letter-spacing:1px; margin-bottom:2px;">PAYING</div>
+            <div style="font-size:26px; font-weight:900; color:${cfg.color};">${amtLabel}</div>
+            <div style="font-size:10px; color:#555; margin-top:2px;">to Swag Stree &bull; ${UPI_ID}</div>
+        </div>
+
+        <!-- PAY NOW button -->
+        <button onclick="openUpiApp('${cfg.appKey}')"
+            style="width:100%; padding:15px; border:none; border-radius:12px; background:${cfg.btnBg}; color:#fff; font-weight:800; font-size:14px; cursor:pointer; letter-spacing:0.5px; margin-bottom:12px; box-shadow:0 4px 15px rgba(0,0,0,0.4);">
+            &#x26A1; Open ${cfg.label} &amp; Pay ${amtLabel}
+        </button>
+
+        <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
+            ${cfg.hint}. After paying,<br>place the order and upload screenshot on WhatsApp.
+        </p>
+
+        <!-- QR fallback (shown if app didn't open) -->
+        <div id="upi-qr-fallback" style="display:none; border-top:1px solid #222; padding-top:12px; text-align:center;">
+            <p style="font-size:11px; color:#777; margin:0 0 8px;">App not installed? Scan QR instead:</p>
+            <div style="background:#fff; border-radius:10px; padding:6px; display:inline-block;">
+                <img src="assets/qr.png" alt="UPI QR Code"
+                    style="width:140px; height:140px; border-radius:6px; display:block;">
+            </div>
+            <p style="font-size:10px; color:#555; margin:6px 0 0;">UPI ID: <b style="color:#fff;">${UPI_ID}</b></p>
+        </div>
+    `;
 }
 
 function openCart() {
@@ -120,23 +284,84 @@ function openCart() {
     document.getElementById('cart-total').innerText = `₹${total}`;
     
     updateCartUI();
+
+    // Refresh COD notice with current minimum payment amount
+    const codInfoBox = document.getElementById('cod-info-box');
+    const noticeAmt = document.getElementById('cod-notice-amt');
+    const activeChip = document.querySelector('.payment-chip.active');
+    const currentMethod = activeChip ? activeChip.dataset.method : 'cod';
+    if (codInfoBox) {
+        codInfoBox.style.display = currentMethod === 'cod' ? 'flex' : 'none';
+    }
+    if (noticeAmt) noticeAmt.innerHTML = '&#8377;' + codMinPayment;
+
     document.getElementById('cart-modal').style.display = 'flex';
 }
 
 async function placeOrder() {
-    const n = document.getElementById('c-name').value;
-    const p = document.getElementById('c-phone').value;
-    const a = document.getElementById('c-addr').value;
-    const paymentMethod = document.querySelector('.payment-chip.active').dataset.method;
-    
-    if(!n || p.length < 10 || a.length < 5) return showToast("Details incomplete");
-    if(cart.length === 0) return showToast("Bag is empty");
-    if(!currentUser) return showToast("Please login to order");
-    
-    const btn = document.getElementById('btn-checkout'); 
-    btn.disabled = true; 
-    btn.innerText = "Placing...";
-    
+    const n = document.getElementById('c-name').value.trim();
+    const p = document.getElementById('c-phone').value.trim();
+    const a = document.getElementById('c-addr').value.trim();
+    const activeChip = document.querySelector('.payment-chip.active');
+    if (!activeChip) return showToast("Select a payment method");
+    const paymentMethod = activeChip.dataset.method;
+
+    if (!n || p.length < 10 || a.length < 5) return showToast("Details incomplete");
+    if (cart.length === 0) return showToast("Bag is empty");
+    if (!currentUser) return showToast("Please login to order");
+
+    // ── COD Gate: show advance-payment confirmation modal ──────────────────────
+    if (paymentMethod === 'cod') {
+        try {
+            const snap = await db.collection('settings').doc('cod').get();
+            if (snap.exists && typeof snap.data().minPayment === 'number') {
+                codMinPayment = snap.data().minPayment;
+            }
+        } catch(e) { /* use cached value */ }
+        _pendingOrderArgs = { n, p, a, paymentMethod };
+        _showCodConfirmModal(codMinPayment);
+        return;
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
+    await _executeOrder({ n, p, a, paymentMethod });
+}
+
+// Called from COD confirmation modal "Confirm & Place Order"
+async function confirmCodOrder() {
+    document.getElementById('cod-confirm-modal').style.display = 'none';
+    if (!_pendingOrderArgs) return;
+    const args = { ..._pendingOrderArgs, codMinAmount: codMinPayment, codAdvancePaid: false };
+    _pendingOrderArgs = null;
+    await _executeOrder(args);
+}
+
+// Called from COD confirmation modal "Pay via UPI Instead"
+function codSwitchToUpi() {
+    document.getElementById('cod-confirm-modal').style.display = 'none';
+    _pendingOrderArgs = null;
+    selectPayment('upi');
+    showToast('Switched to UPI — scan the QR code to pay');
+}
+
+// Called from COD confirmation modal close/cancel
+function closeCodConfirmModal() {
+    document.getElementById('cod-confirm-modal').style.display = 'none';
+    _pendingOrderArgs = null;
+}
+
+function _showCodConfirmModal(minAmt) {
+    const modal = document.getElementById('cod-confirm-modal');
+    if (!modal) return;
+    const amtEl = document.getElementById('cod-min-amount-display');
+    if (amtEl) amtEl.textContent = '₹' + minAmt;
+    modal.style.display = 'flex';
+}
+
+async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvancePaid }) {
+    const btn = document.getElementById('btn-checkout');
+    if (btn) { btn.disabled = true; btn.innerText = 'Placing...'; }
+
     let subtotal = cart.reduce((s,i) => s + (i.price * i.qty), 0);
     let discount = activePromo ? Math.floor(subtotal * activePromo.discount) : 0;
     let total = subtotal - discount;
@@ -144,48 +369,48 @@ async function placeOrder() {
 
     const promoLine = activePromo ? `<br><strong>Promo Code:</strong> ${activePromo.code} (${Math.round(activePromo.discount * 100)}% OFF)` : '';
     const discountLine = discount > 0 ? `<tr><td colspan="3" style="padding:8px 5px; text-align:right; color:#888;">Discount (${activePromo ? activePromo.code : ''})</td><td style="padding:8px 5px; text-align:right; color:#e74c3c;">-₹${discount}</td></tr><tr><td colspan="3" style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">Subtotal</td><td style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">₹${subtotal}</td></tr>` : '';
-    let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}<br><strong>Payment:</strong> ${paymentMethod.toUpperCase()}${promoLine}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Variant</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => {
+    const codNote = (paymentMethod === 'cod' && codMinAmount) ? `<br><span style="color:#e67e22;"><strong>COD Advance:</strong> &#8377;${codMinAmount} to be paid via UPI before delivery</span>` : '';
+    let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}<br><strong>Payment:</strong> ${paymentMethod.toUpperCase()}${promoLine}${codNote}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Variant</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => {
         const specs = [];
-        if (it.variantSize && it.variantSize !== 'Standard') {
-            specs.push(it.variantSize);
-        }
-        if (it.variantColor) {
-            specs.push(formatColorName(it.variantColor));
-        }
+        if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
+        if (it.variantColor) specs.push(formatColorName(it.variantColor));
         const variantDesc = specs.length > 0 ? specs.join(' / ') : '-';
-        return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><img src="${it.images && it.images.length ? it.images[0] : ''}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px; vertical-align:middle;" alt="product"><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">₹${it.price * it.qty}</td></tr>`;
-    }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: ₹${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, contact us on <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" style="color:#25D366">WhatsApp</a></div></div>`;
+        return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><img src="${it.images && it.images.length ? it.images[0] : ''}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px; vertical-align:middle;" alt="product"><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
+    }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: &#8377;${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, contact us on <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" style="color:#25D366">WhatsApp</a></div></div>`;
+
+    const orderDoc = {
+        orderId,
+        uid: currentUser.uid,
+        recipient: n,
+        phone: p,
+        address: a,
+        items: cart,
+        subtotal,
+        discount,
+        total,
+        paymentMethod,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (paymentMethod === 'cod') {
+        orderDoc.codMinAmount = codMinAmount || codMinPayment;
+        orderDoc.codAdvancePaid = codAdvancePaid || false;
+    }
 
     try {
-        await db.collection("orders").add({ 
-            orderId: orderId, 
-            uid: currentUser.uid, 
-            recipient: n, 
-            phone: p, 
-            address: a, 
-            items: cart, 
-            subtotal: subtotal,
-            discount: discount,
-            total: total, 
-            paymentMethod: paymentMethod,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp() 
-        });
-        
-        await emailjs.send("service_kur7gle", "template_3g1oy0z", { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total });
-        
-        showToast("Success! Order Placed."); 
-        cart = []; 
+        await db.collection('orders').add(orderDoc);
+        await emailjs.send('service_kur7gle', 'template_3g1oy0z', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total });
+        showToast('Success! Order Placed.');
+        cart = [];
         activePromo = null;
-        updateCartUI(); 
+        updateCartUI();
         closeModal('cart-modal');
         loadOrders();
-    } catch(e) { 
-        console.error("Order Error:", e); 
-        showToast("Failed to place order"); 
+    } catch(e) {
+        console.error('Order Error:', e);
+        showToast('Failed to place order');
     }
-    
-    btn.disabled = false; 
-    btn.innerText = "Place Order";
+
+    if (btn) { btn.disabled = false; btn.innerText = 'Place Order'; }
 }
 
 function loadOrders() { 
@@ -266,7 +491,7 @@ function loadOrders() {
                     <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString('en-IN') : 'New'}</span>
                 </div>
                 ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
-                <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b></div>
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
                 ${(o.items || []).map(i => {
                     const specs = [];
                     if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') {
