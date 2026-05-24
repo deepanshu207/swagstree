@@ -32,6 +32,8 @@ auth.onAuthStateChanged(user => {
         // Render admin list if admin
         if (isAdmin && typeof renderAdmin === 'function') {
             renderAdmin();
+            if (typeof loadAdminPromoSettings === 'function') loadAdminPromoSettings();
+            if (typeof loadCodSettings === 'function') loadCodSettings();
         }
 
         // Sync wishlist from Firestore
@@ -115,8 +117,12 @@ function toggleAuthMode() {
 async function handleGoogleLogin() {
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
-        await auth.signInWithPopup(provider);
-        showToast("✅ Google Login Successful!");
+        if (window.innerWidth < 768) {
+            await auth.signInWithRedirect(provider);
+        } else {
+            await auth.signInWithPopup(provider);
+            showToast("✅ Google Login Successful!");
+        }
     } catch (error) {
         console.error("Google Auth Error:", error);
         if (error.code === 'auth/operation-not-allowed') {
@@ -126,6 +132,16 @@ async function handleGoogleLogin() {
         }
     }
 }
+
+// Handle redirect result for mobile Google Login
+auth.getRedirectResult().then(result => {
+    if (result.user) {
+        showToast("✅ Google Login Successful!");
+    }
+}).catch(error => {
+    console.error("Redirect Auth Error:", error);
+    showToast("Google Login Failed. Try again.");
+});
 
 // ── Email / Password Auth ───────────────────────────────────────────────────
 async function handleMainAuth() {

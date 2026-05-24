@@ -61,17 +61,10 @@ function openUpiApp(app) {
     const url = links[app] || base;
 
     // Try to open the app. If the scheme isn't installed the browser will
-    // silently fail or show an error — we show the QR as a fallback hint.
+    // silently fail or show an error.
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.click();
-
-    // After a short delay check if we're still on the page (app didn't open)
-    // and nudge the user toward the QR code
-    setTimeout(() => {
-        const qrFallback = document.getElementById('upi-qr-fallback');
-        if (qrFallback) qrFallback.style.display = 'block';
-    }, 1800);
 }
 
 function addToBag(id) { 
@@ -121,14 +114,35 @@ function changeQty(idx, delta) {
     updateCartUI();
 }
 
+// Array to hold active promos loaded from Firestore
+let activePromosList = [];
+
+async function loadPromos() {
+    try {
+        const snap = await db.collection('settings').doc('promos').get();
+        if (snap.exists) {
+            activePromosList = snap.data().list || [];
+        }
+    } catch(e) {
+        console.error("Failed to load promos", e);
+    }
+}
+
+// Ensure promos are loaded early
+loadPromos();
+
 function applyPromo() {
-    const code = document.getElementById('promo-code').value.toUpperCase().trim();
-    if(code === "SWAG10") {
-        activePromo = { code: "SWAG10", discount: 0.10 }; // 10% off
-        showToast("Promo Code Applied: 10% OFF!");
+    const code = document.getElementById('promo-code').value.trim().toUpperCase();
+    if (!code) return;
+    
+    const promo = activePromosList.find(p => p.code === code);
+    
+    if (promo) {
+        activePromo = { code: promo.code, discount: promo.discount / 100 }; // Convert % to decimal
+        showToast("Promo Applied: " + promo.discount + "% OFF");
     } else {
         activePromo = null;
-        showToast("Invalid Promo Code");
+        showToast("Invalid or Expired Promo Code");
     }
     openCart(); // refresh totals
 }
@@ -139,12 +153,10 @@ function selectPayment(method) {
     if (chip) chip.classList.add('active');
 
     const upiBox     = document.getElementById('upi-payment-box');
-    const upiContent = document.getElementById('upi-box-content');
     const codInfoBox = document.getElementById('cod-info-box');
     const qrFallback = document.getElementById('upi-qr-fallback');
-    if (qrFallback) qrFallback.style.display = 'none'; // reset fallback
+    if (qrFallback) qrFallback.style.display = 'none';
 
-    // Show/hide COD advance payment notice
     if (codInfoBox) {
         if (method === 'cod') {
             codInfoBox.style.display = 'flex';
@@ -160,7 +172,6 @@ function selectPayment(method) {
         return;
     }
 
-    // All UPI options show the box
     upiBox.style.display = 'block';
 
     const total = _getCartTotal();
@@ -187,64 +198,118 @@ function selectPayment(method) {
             appKey:  'gpay',
             hint:    'Opens Google Pay with amount pre-filled'
         },
-        phonepe: {
-            label:   'PhonePe',
-            color:   '#7B45D8',
-            bg:      'rgba(123,69,216,0.08)',
-            border:  'rgba(123,69,216,0.3)',
-            icon:    '&#x1F4F1;',
-            btnBg:   'linear-gradient(135deg,#7B45D8,#4b2090)',
-            appKey:  'phonepe',
-            hint:    'Opens PhonePe app with amount pre-filled'
-        },
         upi: {
-            label:   'Any UPI App',
+            label:   'UPI Scanner',
             color:   '#FFD700',
             bg:      'rgba(255,215,0,0.06)',
             border:  'rgba(255,215,0,0.25)',
             icon:    '&#x1F4F7;',
             btnBg:   'linear-gradient(135deg,#FFD700,#b8860b)',
             appKey:  'upi',
-            hint:    'Opens your default UPI app'
+            hint:    'Scan the QR code below to pay'
         }
     };
 
     const cfg = configs[method];
-    if (!cfg || !upiContent) return;
+    if (!cfg) return;
 
-    upiContent.innerHTML = `
+    let upiContent = document.getElementById('upi-brand-header');
+    if (!upiContent) return; // If upi-brand-header was cleared out or changed, we'll replace the inner HTML of the upiBox
+    
+    let html = `
         <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
             <span style="font-size:22px;">${cfg.icon}</span>
             <span style="color:${cfg.color}; font-weight:800; font-size:15px; letter-spacing:1px;">${cfg.label}</span>
         </div>
 
-        <!-- Amount display -->
         <div style="background:${cfg.bg}; border:1px solid ${cfg.border}; border-radius:12px; padding:10px 14px; margin-bottom:14px; text-align:center;">
             <div style="font-size:11px; color:#777; letter-spacing:1px; margin-bottom:2px;">PAYING</div>
             <div style="font-size:26px; font-weight:900; color:${cfg.color};">${amtLabel}</div>
             <div style="font-size:10px; color:#555; margin-top:2px;">to Swag Stree &bull; ${UPI_ID}</div>
         </div>
-
-        <!-- PAY NOW button -->
-        <button onclick="openUpiApp('${cfg.appKey}')"
-            style="width:100%; padding:15px; border:none; border-radius:12px; background:${cfg.btnBg}; color:#fff; font-weight:800; font-size:14px; cursor:pointer; letter-spacing:0.5px; margin-bottom:12px; box-shadow:0 4px 15px rgba(0,0,0,0.4);">
-            &#x26A1; Open ${cfg.label} &amp; Pay ${amtLabel}
-        </button>
-
-        <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
-            ${cfg.hint}. After paying,<br>place the order and upload screenshot on WhatsApp.
-        </p>
-
-        <!-- QR fallback (shown if app didn't open) -->
-        <div id="upi-qr-fallback" style="display:none; border-top:1px solid #222; padding-top:12px; text-align:center;">
-            <p style="font-size:11px; color:#777; margin:0 0 8px;">App not installed? Scan QR instead:</p>
-            <div style="background:#fff; border-radius:10px; padding:6px; display:inline-block;">
-                <img src="assets/qr.png" alt="UPI QR Code"
-                    style="width:140px; height:140px; border-radius:6px; display:block;">
-            </div>
-            <p style="font-size:10px; color:#555; margin:6px 0 0;">UPI ID: <b style="color:#fff;">${UPI_ID}</b></p>
-        </div>
     `;
+
+    if (method === 'upi') {
+        html += `
+            <div style="background:#fff; border-radius:10px; padding:6px; display:inline-block; margin-bottom:12px;">
+                <img src="assets/qr.png" alt="UPI QR Code" style="width:160px; height:160px; border-radius:6px; display:block;">
+            </div>
+            <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
+                ${cfg.hint}. After paying,<br>place the order and upload screenshot on WhatsApp.
+            </p>
+        `;
+    } else {
+        html += `
+            <button onclick="openUpiApp('${cfg.appKey}')"
+                style="width:100%; padding:15px; border:none; border-radius:12px; background:${cfg.btnBg}; color:#fff; font-weight:800; font-size:14px; cursor:pointer; letter-spacing:0.5px; margin-bottom:12px; box-shadow:0 4px 15px rgba(0,0,0,0.4);">
+                &#x26A1; Open ${cfg.label} &amp; Pay ${amtLabel}
+            </button>
+            <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
+                ${cfg.hint}. After paying,<br>place the order and upload screenshot on WhatsApp.
+            </p>
+            <div id="upi-qr-fallback" style="display:none; border-top:1px solid #222; padding-top:12px; text-align:center;">
+                <p style="font-size:11px; color:#777; margin:0 0 8px;">App not installed? Scan QR instead:</p>
+                <div style="background:#fff; border-radius:10px; padding:6px; display:inline-block;">
+                    <img src="assets/qr.png" alt="UPI QR Code" style="width:140px; height:140px; border-radius:6px; display:block;">
+                </div>
+                <p style="font-size:10px; color:#555; margin:6px 0 0;">UPI ID: <b style="color:#fff;">${UPI_ID}</b></p>
+            </div>
+        `;
+    }
+    
+    upiBox.innerHTML = html;
+}
+
+function payCodAdvance(method) {
+    if (method === 'upi') {
+        const box = document.getElementById('cod-qr-box');
+        if(box) box.style.display = 'block';
+        const confirmBtn = document.getElementById('btn-confirm-cod');
+        if (confirmBtn) confirmBtn.style.display = 'block';
+    } else {
+        const note = 'Swag Stree COD Advance';
+        const base = _buildUpiUrl(codMinPayment, note);
+        const links = {
+            paytm:   `paytmmp://pay?pa=${UPI_ID}&pn=${UPI_NAME}&am=${codMinPayment.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`,
+            gpay:    `gpay://upi/pay?pa=${UPI_ID}&pn=${UPI_NAME}&am=${codMinPayment.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`
+        };
+        const url = links[method] || base;
+        
+        const configs = {
+            paytm: { label: 'Paytm', color: '#00BAF2', bg: 'rgba(0,186,242,0.08)', border: 'rgba(0,186,242,0.3)', icon: '&#x1F4B3;', btnBg: 'linear-gradient(135deg,#00BAF2,#0080b3)' },
+            gpay: { label: 'Google Pay', color: '#4285F4', bg: 'rgba(66,133,244,0.08)', border: 'rgba(66,133,244,0.3)', icon: '&#x1F4B0;', btnBg: 'linear-gradient(135deg,#4285F4,#1a5dc8)' }
+        };
+        const cfg = configs[method];
+        const container = document.getElementById('cod-advance-payment-options');
+        
+        if (cfg && container) {
+            container.innerHTML = `
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
+                    <span style="font-size:22px;">${cfg.icon}</span>
+                    <span style="color:${cfg.color}; font-weight:800; font-size:15px; letter-spacing:1px;">${cfg.label}</span>
+                </div>
+
+                <div style="background:${cfg.bg}; border:1px solid ${cfg.border}; border-radius:12px; padding:10px 14px; margin-bottom:14px; text-align:center;">
+                    <div style="font-size:11px; color:#777; letter-spacing:1px; margin-bottom:2px;">PAYING ADVANCE</div>
+                    <div style="font-size:26px; font-weight:900; color:${cfg.color};">&#8377;${codMinPayment}</div>
+                    <div style="font-size:10px; color:#555; margin-top:2px;">to Swag Stree &bull; ${UPI_ID}</div>
+                </div>
+
+                <button onclick="window.location.href='${url}'"
+                    style="width:100%; padding:15px; border:none; border-radius:12px; background:${cfg.btnBg}; color:#fff; font-weight:800; font-size:14px; cursor:pointer; letter-spacing:0.5px; margin-bottom:12px; box-shadow:0 4px 15px rgba(0,0,0,0.4);">
+                    &#x26A1; Open ${cfg.label} &amp; Pay &#8377;${codMinPayment}
+                </button>
+                <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
+                    After paying the advance via ${cfg.label},<br>click the confirmation button below.
+                </p>
+                <div style="height:1px; background:#333; margin: 10px 0;"></div>
+                <button class="btn-gold" id="btn-confirm-cod" onclick="confirmCodOrder()" style="display:block; margin-bottom:10px;">
+                    <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Paid — Place COD Order
+                </button>
+                <button onclick="closeCodConfirmModal()" style="width:100%; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
+            `;
+        }
+    }
 }
 
 function openCart() {
@@ -262,7 +327,7 @@ function openCart() {
         const infoLine = variantText ? `${variantText} • ${priceText}` : priceText;
         
         h += `<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; background:#111; padding:10px; border-radius:15px; border:1px solid #222">
-            <img src="${it.images && it.images.length ? it.images[0] : ''}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
+            <img src="${it.images && it.images.length ? it.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
             <div style="flex:1"><div style="font-size:13px; font-weight:600">${it.name}</div><div style="font-size:11px; color:var(--gold)">${infoLine}</div></div>
             <div class="qty-ctrl">
                 <span class="qty-btn" onclick="changeQty(${idx},-1)">-</span>
@@ -294,6 +359,23 @@ function openCart() {
         codInfoBox.style.display = currentMethod === 'cod' ? 'flex' : 'none';
     }
     if (noticeAmt) noticeAmt.innerHTML = '&#8377;' + codMinPayment;
+
+    // Render available promos
+    const promosContainer = document.getElementById('active-promos-display');
+    if (promosContainer) {
+        if (activePromosList && activePromosList.length > 0) {
+            promosContainer.innerHTML = activePromosList.map(p => `
+                <div onclick="document.getElementById('promo-code').value='${p.code}'; applyPromo();" 
+                     style="background:rgba(255,215,0,0.1); border:1px dashed var(--gold); padding:6px 12px; border-radius:20px; font-size:11px; color:var(--gold); cursor:pointer; font-weight:bold; transition:0.2s;"
+                     onmouseover="this.style.background='rgba(255,215,0,0.2)'"
+                     onmouseout="this.style.background='rgba(255,215,0,0.1)'">
+                    ${p.code} <span style="color:#aaa; font-weight:normal; margin-left:4px;">(-${p.discount}%)</span>
+                </div>
+            `).join('');
+        } else {
+            promosContainer.innerHTML = '';
+        }
+    }
 
     document.getElementById('cart-modal').style.display = 'flex';
 }

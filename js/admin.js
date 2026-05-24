@@ -35,7 +35,7 @@ function renderAdmin() {
     
     container.innerHTML = itemsToRender.map(p => `
         <div style="display:flex; align-items:center; gap:12px; background:#111; padding:12px; border-radius:15px; margin-bottom:12px; border:1px solid #222">
-            <img src="${p.images && p.images.length ? p.images[0] : ''}" style="width:40px;height:40px;border-radius:5px;object-fit:cover">
+            <img src="${p.images && p.images.length ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'}" style="width:40px;height:40px;border-radius:5px;object-fit:cover">
             <div style="flex:1"><b>${p.name}</b></div>
             <div style="display:flex; gap:15px; align-items:center;">
                 <i class="fa fa-copy" style="color:#aaa; cursor:pointer;" title="Copy Product" onclick="copyProduct('${p.id}')"></i>
@@ -220,6 +220,7 @@ async function saveProduct() {
 // Render admin list on load if already authenticated as admin
 if (isAdmin) {
     renderAdmin();
+    loadAdminPromoSettings();
 }
 
 // ── Admin Copy / Import / Export ───────────────────────────────────────────
@@ -381,5 +382,86 @@ async function saveCodSettings() {
     } catch(e) {
         console.error('saveCodSettings error:', e);
         showToast('Failed to save COD settings');
+    }
+}
+
+// ── Promo Code Settings ─────────────────────────────────────────────────────
+let adminPromoList = [];
+
+async function loadAdminPromoSettings() {
+    try {
+        const snap = await db.collection('settings').doc('promos').get();
+        if (snap.exists) {
+            adminPromoList = snap.data().list || [];
+        }
+        renderAdminPromoList();
+    } catch(e) {
+        console.error('loadAdminPromoSettings error:', e);
+    }
+}
+
+function renderAdminPromoList() {
+    const listEl = document.getElementById('admin-promo-list');
+    if (!listEl) return;
+    
+    if (adminPromoList.length === 0) {
+        listEl.innerHTML = '<div style="font-size:11px; color:#555;">No active promo codes.</div>';
+        return;
+    }
+    
+    listEl.innerHTML = adminPromoList.map((p, index) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:10px; border-radius:10px; border:1px dashed #444;">
+            <div>
+                <span style="color:var(--gold); font-weight:bold; font-size:13px; letter-spacing:1px;">${p.code}</span>
+                <span style="color:#aaa; font-size:11px; margin-left:8px;">${p.discount}% OFF</span>
+            </div>
+            <i class="fa fa-trash" style="color:#ff4444; font-size:12px; cursor:pointer; padding:5px;" onclick="removePromoCode(${index})"></i>
+        </div>
+    `).join('');
+}
+
+async function addPromoCode() {
+    const codeInput = document.getElementById('admin-promo-code');
+    const discInput = document.getElementById('admin-promo-discount');
+    const code = codeInput.value.trim().toUpperCase();
+    const discount = Number(discInput.value);
+    
+    if (!code) return showToast('Enter a promo code');
+    if (isNaN(discount) || discount < 1 || discount > 100) return showToast('Enter valid discount % (1-100)');
+    
+    // Check if it already exists
+    if (adminPromoList.find(p => p.code === code)) {
+        return showToast('Promo code already exists');
+    }
+    
+    adminPromoList.push({ code, discount });
+    await saveAdminPromoSettings();
+    
+    codeInput.value = '';
+    discInput.value = '';
+    showToast('Promo code added: ' + code);
+}
+
+async function removePromoCode(index) {
+    if (index >= 0 && index < adminPromoList.length) {
+        const removed = adminPromoList[index].code;
+        adminPromoList.splice(index, 1);
+        await saveAdminPromoSettings();
+        showToast('Removed promo: ' + removed);
+    }
+}
+
+async function saveAdminPromoSettings() {
+    try {
+        await db.collection('settings').doc('promos').set({ list: adminPromoList }, { merge: true });
+        renderAdminPromoList();
+        
+        // Also update the global list in checkout.js if it's currently loaded in the same window
+        if (typeof activePromosList !== 'undefined') {
+            activePromosList = adminPromoList;
+        }
+    } catch(e) {
+        console.error('saveAdminPromoSettings error:', e);
+        showToast('Failed to save promo settings');
     }
 }

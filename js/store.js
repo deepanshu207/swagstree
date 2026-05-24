@@ -104,10 +104,10 @@ function productCardHtml(p) {
         </div> 
         <div class="carousel-box" onclick="showDetail('${p.id}')"> 
             <div class="carousel" onscroll="updateDots(this)">
-                ${p.images ? p.images.map(img => `<img src="${img}" loading="lazy">`).join('') : ''}
+                ${p.images && p.images.length ? p.images.map(img => `<img src="${img}" loading="lazy">`).join('') : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">'}
             </div> 
             <div class="indicators">
-                ${p.images ? p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''}
+                ${p.images && p.images.length > 1 ? p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''}
             </div> 
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
@@ -193,8 +193,8 @@ function showDetail(id) {
     document.getElementById('det-price').innerText = `₹${p.price}`; 
     document.getElementById('det-desc').innerText = p.description || "Premium Quality."; 
     
-    document.getElementById('det-gallery').innerHTML = p.images ? p.images.map(img => `<img src="${img}">`).join('') : ''; 
-    document.getElementById('det-indicators').innerHTML = p.images ? p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''; 
+    document.getElementById('det-gallery').innerHTML = p.images && p.images.length ? p.images.map(img => `<img src="${img}">`).join('') : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">'; 
+    document.getElementById('det-indicators').innerHTML = p.images && p.images.length > 1 ? p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''; 
     
     // Set up available sizes
     const sizes = (p.sizes && Array.isArray(p.sizes)) ? p.sizes : [];
@@ -374,11 +374,19 @@ function setFilterColor(el, col) {
 
 function renderFilters() {
     const allSizes = new Set(['S', 'M', 'L', 'XL', 'XXL']);
-    const allColors = new Set();
+    const allColors = new Map(); // displayName -> hex/value
     
     products.forEach(p => {
-        if (p.sizes && Array.isArray(p.sizes)) p.sizes.forEach(s => allSizes.add(s));
-        if (p.colors && Array.isArray(p.colors)) p.colors.forEach(c => allColors.add(c));
+        if (p.sizes && Array.isArray(p.sizes)) p.sizes.forEach(s => allSizes.add(s.trim().toUpperCase()));
+        if (p.colors && Array.isArray(p.colors)) {
+            p.colors.forEach(c => {
+                const cleanValue = c.trim().toLowerCase();
+                const displayName = formatColorName(c);
+                if (displayName && !allColors.has(displayName)) {
+                    allColors.set(displayName, cleanValue);
+                }
+            });
+        }
     });
     
     const sizesContainer = document.getElementById('filter-sizes');
@@ -390,14 +398,13 @@ function renderFilters() {
     
     const colorsContainer = document.getElementById('filter-colors');
     if (colorsContainer) {
-        colorsContainer.innerHTML = Array.from(allColors).map(col => {
-            const cleanColor = col.trim();
-            const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
+        colorsContainer.innerHTML = Array.from(allColors.entries()).map(([displayName, value]) => {
+            const isWhite = value === '#ffffff' || value === 'white';
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
-            const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
+            const colorPreview = `<span class="color-indicator" style="background:${value}; border:${indicatorBorder};"></span>`;
             return `
-                <div class="color-chip ${filterActiveColor === col ? 'active' : ''}" onclick="setFilterColor(this, '${col}')">
-                    ${colorPreview}<span>${formatColorName(col)}</span>
+                <div class="color-chip ${filterActiveColor === displayName ? 'active' : ''}" onclick="setFilterColor(this, '${displayName}')">
+                    ${colorPreview}<span>${displayName}</span>
                 </div>
             `;
         }).join('');
@@ -419,11 +426,11 @@ function applySortAndFilter() {
     let filtered = [...products];
     
     if(filterActiveSize) {
-        filtered = filtered.filter(p => p.sizes && Array.isArray(p.sizes) && p.sizes.includes(filterActiveSize));
+        filtered = filtered.filter(p => p.sizes && Array.isArray(p.sizes) && p.sizes.some(s => s.trim().toUpperCase() === filterActiveSize));
     }
     
     if(filterActiveColor) {
-        filtered = filtered.filter(p => p.colors && Array.isArray(p.colors) && p.colors.includes(filterActiveColor));
+        filtered = filtered.filter(p => p.colors && Array.isArray(p.colors) && p.colors.some(c => formatColorName(c) === filterActiveColor));
     }
     
     if(sort === 'low') filtered.sort((a,b) => a.price - b.price);

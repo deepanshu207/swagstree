@@ -237,9 +237,9 @@
             <!-- Profile Card -->
             <div class="profile-card">
                 <div class="profile-avatar" id="profile-avatar">U</div>
-                <div style="flex:1">
-                    <div id="profile-email-display" style="font-size:12px; color:#888; word-break:break-all;"></div>
-                    <div id="profile-name-display" style="font-size:16px; font-weight:700; margin-top:2px;">User</div>
+                <div style="flex:1; min-width:0;">
+                    <div id="profile-email-display" style="font-size:12px; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
+                    <div id="profile-name-display" style="font-size:16px; font-weight:700; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">User</div>
                 </div>
                 <button onclick="auth.signOut()" class="btn-logout"><i class="fa fa-sign-out-alt"></i> Logout</button>
             </div>
@@ -361,6 +361,31 @@
             </div>
         </div>
 
+        <!-- Promo Code Settings -->
+        <div id="admin-promo-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+                </div>
+            </div>
+            
+            <div id="admin-promo-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
+                <!-- Promo items render here -->
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center; background:#1a1a1a; padding:10px; border-radius:12px; border:1px solid #333;">
+                <input id="admin-promo-code" type="text" placeholder="Code (e.g. SWAG10)" style="margin:0; flex:1; font-size:12px; text-transform:uppercase;">
+                <div style="position:relative; width:90px;">
+                    <input id="admin-promo-discount" type="number" min="1" max="100" placeholder="%" style="margin:0; padding-right:25px; font-size:12px;">
+                    <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#aaa; font-size:12px; pointer-events:none;">%</span>
+                </div>
+                <button class="btn-gold" style="width:auto; padding:12px 15px; font-size:12px; white-space:nowrap;" onclick="addPromoCode()">+ Add</button>
+            </div>
+        </div>
+
         <div id="admin-list" style="padding:0 20px"></div>
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
     </div>
@@ -377,7 +402,7 @@
             <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
             <div id="det-indicators" class="indicators"></div>
         </div>
-        <div style="padding:25px">
+        <div style="padding:25px; padding-bottom:80px;">
             <h2 id="det-name" style="margin:0;"></h2>
             <div id="det-price" style="color:var(--gold); font-size:24px; font-weight:800; margin:10px 0"></div>
 
@@ -477,10 +502,11 @@
             <div id="cart-items" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
 
             <!-- Promo Code -->
-            <div style="display:flex; gap:10px; margin-bottom: 15px;">
+            <div style="display:flex; gap:10px; margin-bottom: 10px;">
                 <input id="promo-code" placeholder="Promo Code" style="margin-bottom:0; flex:1;">
                 <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
             </div>
+            <div id="active-promos-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px;"></div>
 
             <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 20px; font-size: 14px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Subtotal</span><span
@@ -500,25 +526,18 @@
 
             <!-- Payment Methods -->
             <p style="font-size:11px; color:#666; margin-bottom:10px;">PAYMENT METHOD</p>
-            <!-- Row 1: COD -->
-            <div class="payment-options" style="flex-wrap:wrap; gap:8px; margin-bottom:8px;">
-                <div class="payment-chip cod-chip active" id="pay-cod" data-method="cod" onclick="selectPayment('cod')">
-                    <i class="fa fa-truck" style="margin-right:6px;"></i>Cash on Delivery
+            <div class="payment-options" style="flex-direction:column; gap:8px; margin-bottom:15px;">
+                <div class="payment-chip cod-chip active" id="pay-cod" data-method="cod" onclick="selectPayment('cod')" style="text-align:left; display:flex; align-items:center;">
+                    <i class="fa fa-truck" style="margin-right:10px; font-size:18px;"></i>Cash on Delivery
                 </div>
-            </div>
-            <!-- Row 2: UPI Options -->
-            <p style="font-size:10px; color:#555; margin:0 0 8px; letter-spacing:1px;">UPI / DIGITAL PAYMENT</p>
-            <div class="payment-options" style="flex-wrap:wrap; gap:8px; margin-bottom:15px;">
-                <div class="payment-chip paytm-chip" id="pay-paytm" data-method="paytm"
-                    onclick="selectPayment('paytm')">
-                    <span style="font-size:15px; margin-right:4px;">&#x1F4B3;</span>Paytm
+                <div class="payment-chip upi-chip" id="pay-upi" data-method="upi" onclick="selectPayment('upi')" style="text-align:left; display:flex; align-items:center;">
+                    <span style="font-size:18px; margin-right:10px;">&#x1F4F7;</span>UPI / QR Scanner
                 </div>
-                <div class="payment-chip phonepe-chip" id="pay-phonepe" data-method="phonepe"
-                    onclick="selectPayment('phonepe')">
-                    <span style="font-size:15px; margin-right:4px;">&#x1F4F1;</span>PhonePe
+                <div class="payment-chip paytm-chip" id="pay-paytm" data-method="paytm" onclick="selectPayment('paytm')" style="text-align:left; display:flex; align-items:center;">
+                    <span style="font-size:18px; margin-right:10px;">&#x1F4B3;</span>Paytm
                 </div>
-                <div class="payment-chip upi-chip" id="pay-upi" data-method="upi" onclick="selectPayment('upi')">
-                    <span style="font-size:15px; margin-right:4px;">&#x1F4F7;</span>UPI / QR
+                <div class="payment-chip gpay-chip" id="pay-gpay" data-method="gpay" onclick="selectPayment('gpay')" style="text-align:left; display:flex; align-items:center;">
+                    <span style="font-size:18px; margin-right:10px;">&#x1F4B0;</span>Google Pay
                 </div>
             </div>
 
@@ -554,38 +573,40 @@
     <div id="cod-confirm-modal" class="modal" style="display:none; z-index:6000;">
         <div class="modal-box" style="max-width:400px; text-align:center;">
             <!-- Icon -->
-            <div
-                style="width:64px; height:64px; border-radius:50%; background:rgba(230,126,34,0.15); border:2px solid rgba(230,126,34,0.4); display:grid; place-items:center; margin:0 auto 18px;">
+            <div style="width:64px; height:64px; border-radius:50%; background:rgba(230,126,34,0.15); border:2px solid rgba(230,126,34,0.4); display:grid; place-items:center; margin:0 auto 18px;">
                 <i class="fa fa-truck" style="color:#e67e22; font-size:26px;"></i>
             </div>
             <h3 style="margin:0 0 8px; font-size:18px;">Cash on Delivery</h3>
             <p style="color:#888; font-size:13px; margin:0 0 20px; line-height:1.7;">
                 To confirm your order, a minimum advance payment of
-                <br><span id="cod-min-amount-display"
-                    style="color:#e67e22; font-size:22px; font-weight:900;">&#8377;100</span><br>
+                <br><span id="cod-min-amount-display" style="color:#e67e22; font-size:22px; font-weight:900;">&#8377;100</span><br>
                 is required via UPI <strong>before delivery</strong>.
                 <br><br>
-                Please scan the QR code (Paytm / PhonePe / Any UPI) and upload the screenshot on WhatsApp after placing
-                the order.
+                Please choose a payment method below to pay the advance amount.
             </p>
 
-            <!-- QR Preview -->
-            <div
-                style="background:#fff; border-radius:12px; padding:8px; display:inline-block; margin-bottom:18px; box-shadow:0 4px 20px rgba(255,215,0,0.15);">
-                <img src="assets/qr.png" alt="Pay via UPI"
-                    style="width:130px; height:130px; border-radius:6px; display:block;">
-            </div>
+            <div id="cod-advance-payment-options" style="display:flex; flex-direction:column; gap:10px;">
+                <button onclick="payCodAdvance('upi')" style="width:100%; padding:14px; background:#1a1a1a; color:#FFD700; border:1px solid #FFD700; border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
+                    &#x1F4F7; Pay Advance via Scanner (QR)
+                </button>
+                <button onclick="payCodAdvance('paytm')" style="width:100%; padding:14px; background:#1a1a1a; color:#00BAF2; border:1px solid #00BAF2; border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
+                    &#x1F4B3; Pay Advance via Paytm
+                </button>
+                <button onclick="payCodAdvance('gpay')" style="width:100%; padding:14px; background:#1a1a1a; color:#4285F4; border:1px solid #4285F4; border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
+                    &#x1F4B0; Pay Advance via Google Pay
+                </button>
+                
+                <div id="cod-qr-box" style="display:none; background:#fff; border-radius:12px; padding:8px; margin:10px auto; width:max-content; box-shadow:0 4px 20px rgba(255,215,0,0.15);">
+                    <img src="assets/qr.png" alt="Scan QR" style="width:130px; height:130px; border-radius:6px; display:block;">
+                </div>
 
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <button class="btn-gold" id="btn-confirm-cod" onclick="confirmCodOrder()">
-                    <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Agree — Place COD Order
+                <div style="height:1px; background:#333; margin: 10px 0;"></div>
+                
+                <button class="btn-gold" id="btn-confirm-cod" onclick="confirmCodOrder()" style="display:none;">
+                    <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Paid — Place COD Order
                 </button>
-                <button onclick="codSwitchToUpi()"
-                    style="width:100%; padding:14px; background:#1a1a1a; color:var(--gold); border:1px solid var(--gold); border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
-                    <i class="fa fa-qrcode" style="margin-right:8px;"></i>Pay via UPI / QR Instead
-                </button>
-                <button onclick="closeCodConfirmModal()"
-                    style="width:100%; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
+
+                <button onclick="closeCodConfirmModal()" style="width:100%; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
             </div>
         </div>
     </div>
@@ -600,11 +621,11 @@
     </nav>
 
     <!-- Scripts -->
-    <script src="js/app.js?v=2.3"></script>
-    <script src="js/store.js?v=2.4"></script>
-    <script src="js/checkout.js?v=3.0"></script>
-    <script src="js/auth.js?v=2.1"></script>
-    <script src="js/admin.js?v=2.2"></script>
+    <script src="js/app.js?v=3.1"></script>
+    <script src="js/store.js?v=3.1"></script>
+    <script src="js/checkout.js?v=3.1"></script>
+    <script src="js/auth.js?v=3.1"></script>
+    <script src="js/admin.js?v=3.1"></script>
 
 </body>
 
