@@ -26,9 +26,12 @@ let editingId = null;
 // UI State
 let isRegMode = false;
 let selectedSize = 'S';
+let selectedColor = '';
+let activeProductId = null;
 let currentProductFiles = [];
 let existingImageUrls = [];
 let filterActiveSize = null;
+let filterActiveColor = null;
 let confirmationResult = null; // Used for SMS OTP fallback
 
 // 3. UTILITIES
@@ -66,6 +69,11 @@ function nav(id, el) {
     if (bottomNavs.length) bottomNavs[0].classList.add('active');
     
     if(el) el.classList.add('active'); 
+
+    // Render admin list on navigation to admin view
+    if (id === 'admin' && typeof renderAdmin === 'function') {
+        renderAdmin();
+    }
 }
 
 // Initialize on load

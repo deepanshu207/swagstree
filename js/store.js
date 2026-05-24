@@ -2,12 +2,23 @@
 // SWAG STREE | STORE & PRODUCT RENDERING
 // ==========================================
 
+// Global variables fallback definition to prevent browser cache mismatch crashes
+if (typeof filterActiveColor === 'undefined') window.filterActiveColor = null;
+if (typeof filterActiveSize === 'undefined') window.filterActiveSize = null;
+if (typeof selectedColor === 'undefined') window.selectedColor = '';
+if (typeof activeProductId === 'undefined') window.activeProductId = null;
+if (typeof isAdmin === 'undefined') window.isAdmin = false;
+if (typeof products === 'undefined') window.products = [];
+
 // 1. DATA LOADING
 function loadData() { 
     db.collection("products").onSnapshot(snap => { 
         products = snap.docs.map(doc => ({...doc.data(), id:doc.id})); 
         renderStore(); 
+        renderFilters();
         if(isAdmin && typeof renderAdmin === "function") renderAdmin(); 
+    }, error => {
+        console.error("Firestore products onSnapshot error:", error);
     }); 
 }
 
@@ -60,6 +71,8 @@ function showDetail(id) {
     const p = products.find(x => x.id === id); 
     if(!p) return;
     
+    activeProductId = id; // Track active product ID
+    
     document.getElementById('det-name').innerText = p.name; 
     document.getElementById('det-price').innerText = `₹${p.price}`; 
     document.getElementById('det-desc').innerText = p.description || "Premium Quality."; 
@@ -67,8 +80,104 @@ function showDetail(id) {
     document.getElementById('det-gallery').innerHTML = p.images ? p.images.map(img => `<img src="${img}">`).join('') : ''; 
     document.getElementById('det-indicators').innerHTML = p.images ? p.images.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''; 
     
-    document.getElementById('det-btn').onclick = () => { addToBag(id); closeDetail(); }; 
+    // Set up available sizes
+    const sizes = (p.sizes && Array.isArray(p.sizes)) ? p.sizes : [];
+    const sizeSelector = document.getElementById('detail-size-selector');
+    const sizesContainer = document.getElementById('det-sizes-container');
+    
+    if (sizes.length === 0) {
+        sizesContainer.style.display = 'none';
+        selectedSize = 'Standard';
+    } else {
+        sizesContainer.style.display = 'block';
+        selectedSize = sizes[0]; // Default to first available size
+        
+        sizeSelector.innerHTML = sizes.map(sz => `
+            <div class="chip ${sz === selectedSize ? 'active' : ''}" onclick="selectDetailSize('${sz}', this)">${sz}</div>
+        `).join('');
+    }
+
+    // Render colors for default selected size
+    renderDetailColors(p);
+
+    document.getElementById('det-btn').onclick = () => { 
+        if (p.sizes && Array.isArray(p.sizes) && p.sizes.length > 0 && !selectedSize) {
+            return showToast("Please select a size");
+        }
+        const colors = (p.sizeColorMap && Array.isArray(p.sizeColorMap[selectedSize])) ? p.sizeColorMap[selectedSize] : [];
+        if (colors.length > 0 && !selectedColor) {
+            return showToast("Please select a color");
+        }
+        addToBagWithSelection(id, selectedSize, selectedColor); 
+        closeDetail(); 
+    }; 
+    
     document.getElementById('detail-view').style.display = 'block'; 
+}
+
+function selectDetailSize(sz, el) {
+    selectedSize = sz;
+    el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    
+    const p = products.find(x => x.id === activeProductId);
+    if (p) {
+        renderDetailColors(p);
+    }
+}
+
+function selectDetailColor(col, el) {
+    selectedColor = col;
+    el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    
+    const p = products.find(x => x.id === activeProductId);
+    if (p) {
+        updateAddToCartButtonText(p);
+    }
+}
+
+function renderDetailColors(p) {
+    const colorsContainer = document.getElementById('det-colors-container');
+    const colorSelector = document.getElementById('detail-color-selector');
+    
+    if (!colorsContainer || !colorSelector) return;
+    
+    const colors = (p.sizeColorMap && Array.isArray(p.sizeColorMap[selectedSize])) ? p.sizeColorMap[selectedSize] : [];
+    
+    if (colors.length === 0) {
+        colorsContainer.style.display = 'none';
+        selectedColor = '';
+    } else {
+        colorsContainer.style.display = 'block';
+        selectedColor = colors[0]; // Default to first available color
+        
+        colorSelector.innerHTML = colors.map(col => `
+            <div class="chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">${col}</div>
+        `).join('');
+    }
+    
+    updateAddToCartButtonText(p);
+}
+
+function updateAddToCartButtonText(p) {
+    const btn = document.getElementById('det-btn');
+    if (!btn) return;
+    
+    let label = "ADD TO BAG";
+    const specs = [];
+    if (p.sizes && Array.isArray(p.sizes) && p.sizes.length > 0 && selectedSize) {
+        specs.push(`Size: ${selectedSize}`);
+    }
+    if (selectedColor) {
+        specs.push(`Color: ${selectedColor}`);
+    }
+    
+    if (specs.length > 0) {
+        label += ` (${specs.join(', ')})`;
+    }
+    
+    btn.innerText = label;
 }
 
 function closeDetail() { 
@@ -119,11 +228,35 @@ function toggleFilter() {
     overlay.style.display = slider.classList.contains('active') ? 'block' : 'none';
 }
 
-function setFilterSize(el) {
-    document.querySelectorAll('#filter-sizes .chip').forEach(c => c.classList.remove('active'));
-    if(filterActiveSize === el.innerText) filterActiveSize = null;
-    else { filterActiveSize = el.innerText; el.classList.add('active'); }
+function setFilterColor(el) {
+    document.querySelectorAll('#filter-colors .chip').forEach(c => c.classList.remove('active'));
+    if(filterActiveColor === el.innerText) filterActiveColor = null;
+    else { filterActiveColor = el.innerText; el.classList.add('active'); }
     applySortAndFilter();
+}
+
+function renderFilters() {
+    const allSizes = new Set(['S', 'M', 'L', 'XL', 'XXL']);
+    const allColors = new Set();
+    
+    products.forEach(p => {
+        if (p.sizes && Array.isArray(p.sizes)) p.sizes.forEach(s => allSizes.add(s));
+        if (p.colors && Array.isArray(p.colors)) p.colors.forEach(c => allColors.add(c));
+    });
+    
+    const sizesContainer = document.getElementById('filter-sizes');
+    if (sizesContainer) {
+        sizesContainer.innerHTML = Array.from(allSizes).map(sz => `
+            <div class="chip ${filterActiveSize === sz ? 'active' : ''}" onclick="setFilterSize(this)">${sz}</div>
+        `).join('');
+    }
+    
+    const colorsContainer = document.getElementById('filter-colors');
+    if (colorsContainer) {
+        colorsContainer.innerHTML = Array.from(allColors).map(col => `
+            <div class="chip ${filterActiveColor === col ? 'active' : ''}" onclick="setFilterColor(this)">${col}</div>
+        `).join('');
+    }
 }
 
 function applySortAndFilter() {
@@ -131,8 +264,11 @@ function applySortAndFilter() {
     let filtered = [...products];
     
     if(filterActiveSize) {
-        // In a real app with inventory, you'd filter by available size. Here we mock it.
-        // For now we just pretend all sizes exist or skip real filtering if data lacks it.
+        filtered = filtered.filter(p => p.sizes && Array.isArray(p.sizes) && p.sizes.includes(filterActiveSize));
+    }
+    
+    if(filterActiveColor) {
+        filtered = filtered.filter(p => p.colors && Array.isArray(p.colors) && p.colors.includes(filterActiveColor));
     }
     
     if(sort === 'low') filtered.sort((a,b) => a.price - b.price);

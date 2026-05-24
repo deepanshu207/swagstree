@@ -15,6 +15,25 @@ auth.onAuthStateChanged(user => {
     if (admDesktop) admDesktop.style.display = isAdmin ? 'block' : 'none';
 
     if (user) {
+        // Sync email to Firestore
+        if (user.email) {
+            db.collection("users").doc(user.uid).set({
+                email: user.email
+            }, { merge: true }).catch(e => console.error("Error syncing email:", e));
+        }
+
+        // Toggle visibility of email/password controls based on provider type
+        const isPasswordUser = user.providerData && user.providerData.some(p => p.providerId === 'password');
+        const emailSec = document.getElementById('profile-email-section');
+        const passSec = document.getElementById('profile-pass-section');
+        if (emailSec) emailSec.style.display = isPasswordUser ? 'block' : 'none';
+        if (passSec) passSec.style.display = isPasswordUser ? 'block' : 'none';
+
+        // Render admin list if admin
+        if (isAdmin && typeof renderAdmin === 'function') {
+            renderAdmin();
+        }
+
         // Sync wishlist from Firestore
         db.collection("users").doc(user.uid).onSnapshot(doc => {
             const data = doc.exists ? doc.data() : {};
@@ -51,6 +70,19 @@ auth.onAuthStateChanged(user => {
 
         if (typeof loadOrders === "function") loadOrders();
     } else {
+        isRegMode = false;
+        const nameField = document.getElementById('reg-name-field');
+        const phoneField = document.getElementById('reg-phone-field');
+        const toggleText = document.getElementById('toggle-text');
+        const btn = document.getElementById('au-btn');
+        const forgotLink = document.getElementById('forgot-password-link');
+
+        if (nameField) nameField.style.display = 'none';
+        if (phoneField) phoneField.style.display = 'none';
+        if (toggleText) toggleText.innerText = "New here? Register";
+        if (btn) btn.innerText = "Login";
+        if (forgotLink) forgotLink.style.display = 'block';
+
         document.getElementById('auth-ui').style.display = 'block';
         document.getElementById('dash-ui').style.display = 'none';
         wishlist = [];
@@ -67,11 +99,13 @@ function toggleAuthMode() {
     const phoneField = document.getElementById('reg-phone-field');
     const toggleText = document.getElementById('toggle-text');
     const btn = document.getElementById('au-btn');
+    const forgotLink = document.getElementById('forgot-password-link');
 
     if (nameField) nameField.style.display = isRegMode ? 'block' : 'none';
     if (phoneField) phoneField.style.display = isRegMode ? 'block' : 'none';
     if (toggleText) toggleText.innerText = isRegMode ? "Already have an account? Login" : "New here? Register";
     if (btn) btn.innerText = isRegMode ? "Create Account" : "Login";
+    if (forgotLink) forgotLink.style.display = isRegMode ? 'none' : 'block';
 }
 
 // ── Google Login ────────────────────────────────────────────────────────────

@@ -2,6 +2,13 @@
 // SWAG STREE | ADMIN TOOLS
 // ==========================================
 
+// Global variables fallback definition to prevent browser cache mismatch crashes
+if (typeof isAdmin === 'undefined') window.isAdmin = false;
+if (typeof products === 'undefined') window.products = [];
+if (typeof editingId === 'undefined') window.editingId = null;
+if (typeof existingImageUrls === 'undefined') window.existingImageUrls = [];
+if (typeof currentProductFiles === 'undefined') window.currentProductFiles = [];
+
 function renderAdmin() { 
     const container = document.getElementById('admin-list');
     if(!container) return;
@@ -27,6 +34,27 @@ function openEdit(id) {
     existingImageUrls = [...(p.images || [])]; 
     currentProductFiles = []; 
     renderImagePreviews(); 
+    
+    // Load sizes and colors mapping
+    const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+    const map = p.sizeColorMap || {};
+    sizes.forEach(sz => {
+        const checkbox = document.getElementById(`m-size-${sz}`);
+        const input = document.getElementById(`m-colors-${sz}`);
+        if (checkbox && input) {
+            if (sz in map || (p.sizes && Array.isArray(p.sizes) && p.sizes.includes(sz))) {
+                checkbox.checked = true;
+                input.disabled = false;
+                const colors = map[sz] || [];
+                input.value = colors.join(', ');
+            } else {
+                checkbox.checked = false;
+                input.disabled = true;
+                input.value = '';
+            }
+        }
+    });
+
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -37,8 +65,31 @@ function openAdd() {
     document.getElementById('m-name').value = ""; 
     document.getElementById('m-price').value = ""; 
     document.getElementById('m-desc').value = "";
+    
+    // Clear size and color checkboxes & inputs
+    const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+    sizes.forEach(sz => {
+        const checkbox = document.getElementById(`m-size-${sz}`);
+        const input = document.getElementById(`m-colors-${sz}`);
+        if (checkbox && input) {
+            checkbox.checked = false;
+            input.disabled = true;
+            input.value = '';
+        }
+    });
+
     renderImagePreviews(); 
     document.getElementById('prod-modal').style.display = 'flex'; 
+}
+
+function toggleSizeInput(sz) {
+    const checkbox = document.getElementById(`m-size-${sz}`);
+    const isChecked = checkbox ? checkbox.checked : false;
+    const input = document.getElementById(`m-colors-${sz}`);
+    if (input) {
+        input.disabled = !isChecked;
+        if (!isChecked) input.value = '';
+    }
 }
 
 function handleFileSelect(input) { 
@@ -96,11 +147,32 @@ async function saveProduct() {
         }); 
         const newUrls = await Promise.all(upPromises); 
         
+        // Parse sizeColorMap, sizes, colors
+        const sizeColorMap = {};
+        const activeSizes = [];
+        const allColors = new Set();
+        const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+        
+        sizes.forEach(sz => {
+            const checkbox = document.getElementById(`m-size-${sz}`);
+            const input = document.getElementById(`m-colors-${sz}`);
+            if (checkbox && checkbox.checked) {
+                activeSizes.push(sz);
+                const colorsVal = input.value.trim();
+                const colorsArr = colorsVal ? colorsVal.split(',').map(c => c.trim()).filter(c => c.length > 0) : [];
+                sizeColorMap[sz] = colorsArr;
+                colorsArr.forEach(c => allColors.add(c));
+            }
+        });
+
         const data = { 
             name: n, 
             price: Number(pr), 
             description: document.getElementById('m-desc').value, 
-            images: [...existingImageUrls, ...newUrls] 
+            images: [...existingImageUrls, ...newUrls],
+            sizes: activeSizes,
+            colors: Array.from(allColors),
+            sizeColorMap: sizeColorMap
         }; 
         
         if(editingId) {
@@ -117,4 +189,9 @@ async function saveProduct() {
     } 
     btn.disabled = false; 
     btn.innerText = "Save Product"; 
+}
+
+// Render admin list on load if already authenticated as admin
+if (isAdmin) {
+    renderAdmin();
 }
