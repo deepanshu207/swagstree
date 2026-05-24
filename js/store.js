@@ -10,6 +10,30 @@ if (typeof activeProductId === 'undefined') window.activeProductId = null;
 if (typeof isAdmin === 'undefined') window.isAdmin = false;
 if (typeof products === 'undefined') window.products = [];
 
+if (typeof formatColorName === 'undefined') {
+    window.formatColorName = function(col) {
+        if (!col) return '';
+        const clean = col.trim().toLowerCase();
+        const map = {
+            '#000000': 'Black',
+            '#ffffff': 'White',
+            '#ff0000': 'Red',
+            '#0000ff': 'Blue',
+            '#00ff00': 'Green',
+            '#ffff00': 'Yellow',
+            '#932a2a': 'Maroon',
+            '#808080': 'Grey',
+            '#ffc0cb': 'Pink',
+            '#ffa500': 'Orange',
+            '#800080': 'Purple',
+            '#a52a2a': 'Brown'
+        };
+        if (clean in map) return map[clean];
+        if (col.startsWith('#')) return col.toUpperCase();
+        return col.charAt(0).toUpperCase() + col.slice(1).toLowerCase();
+    };
+}
+
 // 1. DATA LOADING
 function loadData() { 
     db.collection("products").onSnapshot(snap => { 
@@ -93,7 +117,7 @@ function showDetail(id) {
         selectedSize = sizes[0]; // Default to first available size
         
         sizeSelector.innerHTML = sizes.map(sz => `
-            <div class="chip ${sz === selectedSize ? 'active' : ''}" onclick="selectDetailSize('${sz}', this)">${sz}</div>
+            <div class="size-chip ${sz === selectedSize ? 'active' : ''}" onclick="selectDetailSize('${sz}', this)">${sz}</div>
         `).join('');
     }
 
@@ -117,7 +141,7 @@ function showDetail(id) {
 
 function selectDetailSize(sz, el) {
     selectedSize = sz;
-    el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.parentElement.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     
     const p = products.find(x => x.id === activeProductId);
@@ -128,7 +152,7 @@ function selectDetailSize(sz, el) {
 
 function selectDetailColor(col, el) {
     selectedColor = col;
-    el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.parentElement.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     
     const p = products.find(x => x.id === activeProductId);
@@ -152,9 +176,17 @@ function renderDetailColors(p) {
         colorsContainer.style.display = 'block';
         selectedColor = colors[0]; // Default to first available color
         
-        colorSelector.innerHTML = colors.map(col => `
-            <div class="chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">${col}</div>
-        `).join('');
+        colorSelector.innerHTML = colors.map(col => {
+            const cleanColor = col.trim();
+            const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
+            const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
+            const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
+            return `
+                <div class="color-chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">
+                    ${colorPreview}<span>${formatColorName(col)}</span>
+                </div>
+            `;
+        }).join('');
     }
     
     updateAddToCartButtonText(p);
@@ -170,7 +202,7 @@ function updateAddToCartButtonText(p) {
         specs.push(`Size: ${selectedSize}`);
     }
     if (selectedColor) {
-        specs.push(`Color: ${selectedColor}`);
+        specs.push(`Color: ${formatColorName(selectedColor)}`);
     }
     
     if (specs.length > 0) {
@@ -228,10 +260,17 @@ function toggleFilter() {
     overlay.style.display = slider.classList.contains('active') ? 'block' : 'none';
 }
 
-function setFilterColor(el) {
-    document.querySelectorAll('#filter-colors .chip').forEach(c => c.classList.remove('active'));
-    if(filterActiveColor === el.innerText) filterActiveColor = null;
-    else { filterActiveColor = el.innerText; el.classList.add('active'); }
+function setFilterSize(el, sz) {
+    document.querySelectorAll('#filter-sizes .size-chip').forEach(c => c.classList.remove('active'));
+    if(filterActiveSize === sz) filterActiveSize = null;
+    else { filterActiveSize = sz; el.classList.add('active'); }
+    applySortAndFilter();
+}
+
+function setFilterColor(el, col) {
+    document.querySelectorAll('#filter-colors .color-chip').forEach(c => c.classList.remove('active'));
+    if(filterActiveColor === col) filterActiveColor = null;
+    else { filterActiveColor = col; el.classList.add('active'); }
     applySortAndFilter();
 }
 
@@ -247,16 +286,33 @@ function renderFilters() {
     const sizesContainer = document.getElementById('filter-sizes');
     if (sizesContainer) {
         sizesContainer.innerHTML = Array.from(allSizes).map(sz => `
-            <div class="chip ${filterActiveSize === sz ? 'active' : ''}" onclick="setFilterSize(this)">${sz}</div>
+            <div class="size-chip ${filterActiveSize === sz ? 'active' : ''}" onclick="setFilterSize(this, '${sz}')">${sz}</div>
         `).join('');
     }
     
     const colorsContainer = document.getElementById('filter-colors');
     if (colorsContainer) {
-        colorsContainer.innerHTML = Array.from(allColors).map(col => `
-            <div class="chip ${filterActiveColor === col ? 'active' : ''}" onclick="setFilterColor(this)">${col}</div>
-        `).join('');
+        colorsContainer.innerHTML = Array.from(allColors).map(col => {
+            const cleanColor = col.trim();
+            const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
+            const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
+            const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
+            return `
+                <div class="color-chip ${filterActiveColor === col ? 'active' : ''}" onclick="setFilterColor(this, '${col}')">
+                    ${colorPreview}<span>${formatColorName(col)}</span>
+                </div>
+            `;
+        }).join('');
     }
+}
+
+function resetFilters() {
+    filterActiveSize = null;
+    filterActiveColor = null;
+    const sortLogic = document.getElementById('sort-logic');
+    if (sortLogic) sortLogic.value = 'none';
+    document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
+    applySortAndFilter();
 }
 
 function applySortAndFilter() {

@@ -42,6 +42,28 @@ function showToast(m) {
     setTimeout(() => t.style.display = 'none', 2000); 
 }
 
+function formatColorName(col) {
+    if (!col) return '';
+    const clean = col.trim().toLowerCase();
+    const map = {
+        '#000000': 'Black',
+        '#ffffff': 'White',
+        '#ff0000': 'Red',
+        '#0000ff': 'Blue',
+        '#00ff00': 'Green',
+        '#ffff00': 'Yellow',
+        '#932a2a': 'Maroon',
+        '#808080': 'Grey',
+        '#ffc0cb': 'Pink',
+        '#ffa500': 'Orange',
+        '#800080': 'Purple',
+        '#a52a2a': 'Brown'
+    };
+    if (clean in map) return map[clean];
+    if (col.startsWith('#')) return col.toUpperCase();
+    return col.charAt(0).toUpperCase() + col.slice(1).toLowerCase();
+}
+
 function copyToClipboard(text) { 
     const dummy = document.createElement("input"); 
     document.body.appendChild(dummy); 

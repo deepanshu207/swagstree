@@ -50,7 +50,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=1.4">
 </head>
 <body>
 
@@ -59,25 +59,43 @@
 
 <!-- Slide-out Filter Menu -->
 <div id="filter-slider">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px">
-        <h3 style="margin:0; color:var(--gold)">Filter</h3>
-        <i class="fa fa-times" onclick="toggleFilter()" style="font-size:20px; color:#555; cursor:pointer;"></i>
+    <div class="filter-header">
+        <div class="filter-title-wrap">
+            <h3>Filters</h3>
+            <p class="filter-subtitle">Refine Your Style</p>
+        </div>
+        <div class="filter-header-actions">
+            <span class="clear-all-btn" onclick="resetFilters()">Clear All</span>
+            <div class="close-filter-btn" onclick="toggleFilter()">
+                <i class="fa fa-times"></i>
+            </div>
+        </div>
     </div>
     
-    <label style="font-size:11px; color:#666">SORT PRICE</label>
-    <select id="sort-logic" onchange="applySortAndFilter()">
-        <option value="none">Default</option>
-        <option value="low">Low to High</option>
-        <option value="high">High to Low</option>
-    </select>
+    <div class="filter-group">
+        <label class="filter-section-title">Sort Price</label>
+        <div class="select-wrapper">
+            <select id="sort-logic" class="premium-select" onchange="applySortAndFilter()">
+                <option value="none">Default Sorting</option>
+                <option value="low">Price: Low to High</option>
+                <option value="high">Price: High to Low</option>
+            </select>
+        </div>
+    </div>
 
-    <label style="font-size:11px; color:#666">SIZE</label>
-    <div class="chip-group" id="filter-sizes"></div>
+    <div class="filter-group">
+        <label class="filter-section-title">Size</label>
+        <div class="chip-group" id="filter-sizes"></div>
+    </div>
 
-    <label style="font-size:11px; color:#666; margin-top:15px; display:block;">COLOR</label>
-    <div class="chip-group" id="filter-colors"></div>
+    <div class="filter-group">
+        <label class="filter-section-title">Color</label>
+        <div class="chip-group" id="filter-colors"></div>
+    </div>
 
-    <button class="btn-gold" style="position:absolute; bottom:25px; left:25px; width:calc(100% - 50px)" onclick="toggleFilter()">Apply</button>
+    <div class="filter-footer">
+        <button class="btn-apply-filter" onclick="toggleFilter()">Apply Filters</button>
+    </div>
 </div>
 
 <!-- Main Header -->
@@ -391,11 +409,11 @@
 </nav>
 
 <!-- Scripts -->
-<script src="js/app.js?v=1.1"></script>
-<script src="js/store.js?v=1.1"></script>
-<script src="js/checkout.js?v=1.1"></script>
-<script src="js/auth.js?v=1.1"></script>
-<script src="js/admin.js?v=1.1"></script>
+<script src="js/app.js?v=1.4"></script>
+<script src="js/store.js?v=1.4"></script>
+<script src="js/checkout.js?v=1.4"></script>
+<script src="js/auth.js?v=1.4"></script>
+<script src="js/admin.js?v=1.4"></script>
 
 </body>
 </html>
