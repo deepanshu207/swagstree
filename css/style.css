@@ -119,10 +119,10 @@ input, textarea, select { width: 100%; padding: 15px; background: #121212; borde
 
 /* 6. OVERLAYS & MODALS */
 #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #fff; color: #000; padding: 12px 25px; border-radius: 50px; font-weight: bold; z-index: 9999; display: none; }
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
-.modal-box { background: #0a0a0a; width: 100%; max-width: 450px; padding: 25px; border-radius: 24px; border: 1px solid #333; max-height: 85vh; overflow-y: auto; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; padding-bottom: 90px; }
+.modal-box { background: #0a0a0a; width: 100%; max-width: 450px; padding: 25px; padding-bottom: 40px; border-radius: 24px; border: 1px solid #333; max-height: 85vh; overflow-y: auto; }
 
-#filter-slider { position: fixed; top: 0; right: -70%; width: 70%; height: 100%; background: #0a0a0a; z-index: 6000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 25px; padding-bottom: 100px; box-sizing: border-box; border-left: 1px solid #333; overflow-y: auto; }
+#filter-slider { position: fixed; top: 0; right: -70%; width: 70%; height: 100%; background: #0a0a0a; z-index: 6000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 25px; padding-bottom: 120px; box-sizing: border-box; border-left: 1px solid #333; overflow-y: auto; }
 #filter-slider.active { right: 0; }
 .filter-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 5999; display: none; backdrop-filter: blur(4px); }
 

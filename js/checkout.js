@@ -167,12 +167,16 @@ function selectPayment(method) {
         }
     }
 
+    const btnCheckout = document.getElementById('btn-checkout');
+
     if (method === 'cod') {
         upiBox.style.display = 'none';
+        if (btnCheckout) btnCheckout.style.display = 'block';
         return;
     }
 
     upiBox.style.display = 'block';
+    if (btnCheckout) btnCheckout.style.display = 'none';
 
     const total = _getCartTotal();
     const amtLabel = total > 0 ? '\u20b9' + total : '(add items first)';
@@ -212,9 +216,6 @@ function selectPayment(method) {
 
     const cfg = configs[method];
     if (!cfg) return;
-
-    let upiContent = document.getElementById('upi-brand-header');
-    if (!upiContent) return; // If upi-brand-header was cleared out or changed, we'll replace the inner HTML of the upiBox
     
     let html = `
         <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
@@ -231,12 +232,16 @@ function selectPayment(method) {
 
     if (method === 'upi') {
         html += `
-            <div style="background:#fff; border-radius:10px; padding:6px; display:inline-block; margin-bottom:12px;">
-                <img src="assets/qr.png" alt="UPI QR Code" style="width:160px; height:160px; border-radius:6px; display:block;">
-            </div>
             <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
-                ${cfg.hint}. After paying,<br>place the order and upload screenshot on WhatsApp.
+                ${cfg.hint}. After paying,<br>click the confirmation button below.
             </p>
+            <div style="background:transparent; border-radius:10px; display:flex; justify-content:center; margin-bottom:12px; width:100%;">
+                <img src="assets/qr.png" alt="UPI QR Code" style="max-width:200px; width:100%; height:auto; border-radius:6px; object-fit:contain;">
+            </div>
+            <div style="height:1px; background:#333; margin: 10px 0;"></div>
+            <button class="btn-gold" onclick="placeOrder()" style="display:block; margin-bottom:10px;">
+                <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Paid — Place Order
+            </button>
         `;
     } else {
         html += `
@@ -245,27 +250,67 @@ function selectPayment(method) {
                 &#x26A1; Open ${cfg.label} &amp; Pay ${amtLabel}
             </button>
             <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
-                ${cfg.hint}. After paying,<br>place the order and upload screenshot on WhatsApp.
+                After paying via ${cfg.label},<br>click the confirmation button below.
             </p>
-            <div id="upi-qr-fallback" style="display:none; border-top:1px solid #222; padding-top:12px; text-align:center;">
-                <p style="font-size:11px; color:#777; margin:0 0 8px;">App not installed? Scan QR instead:</p>
-                <div style="background:#fff; border-radius:10px; padding:6px; display:inline-block;">
-                    <img src="assets/qr.png" alt="UPI QR Code" style="width:140px; height:140px; border-radius:6px; display:block;">
-                </div>
-                <p style="font-size:10px; color:#555; margin:6px 0 0;">UPI ID: <b style="color:#fff;">${UPI_ID}</b></p>
-            </div>
+            <div style="height:1px; background:#333; margin: 10px 0;"></div>
+            <button class="btn-gold" onclick="placeOrder()" style="display:block; margin-bottom:10px;">
+                <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Paid — Place Order
+            </button>
         `;
     }
     
     upiBox.innerHTML = html;
 }
 
+let _initialCodOptionsHtml = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('cod-advance-payment-options');
+    if (container) {
+        _initialCodOptionsHtml = container.innerHTML;
+    }
+});
+
+function resetCodPaymentOptions() {
+    const container = document.getElementById('cod-advance-payment-options');
+    if (container && _initialCodOptionsHtml) {
+        container.innerHTML = _initialCodOptionsHtml;
+    }
+}
+
 function payCodAdvance(method) {
+    const container = document.getElementById('cod-advance-payment-options');
+    if (!container) return;
+
     if (method === 'upi') {
-        const box = document.getElementById('cod-qr-box');
-        if(box) box.style.display = 'block';
-        const confirmBtn = document.getElementById('btn-confirm-cod');
-        if (confirmBtn) confirmBtn.style.display = 'block';
+        container.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
+                <span style="font-size:22px;">&#x1F4F7;</span>
+                <span style="color:#FFD700; font-weight:800; font-size:15px; letter-spacing:1px;">UPI Scanner</span>
+            </div>
+
+            <div style="background:rgba(255,215,0,0.06); border:1px solid rgba(255,215,0,0.25); border-radius:12px; padding:10px 14px; margin-bottom:14px; text-align:center;">
+                <div style="font-size:11px; color:#777; letter-spacing:1px; margin-bottom:2px;">PAYING ADVANCE</div>
+                <div style="font-size:26px; font-weight:900; color:#FFD700;">&#8377;${codMinPayment}</div>
+                <div style="font-size:10px; color:#555; margin-top:2px;">to Swag Stree &bull; ${UPI_ID}</div>
+            </div>
+
+            <p style="font-size:11px; color:#666; margin:0 0 12px; text-align:center;">
+                Scan the QR code to pay.<br>After paying, click the confirmation button below.
+            </p>
+            <div style="background:transparent; border-radius:10px; display:flex; justify-content:center; margin-bottom:12px; width:100%;">
+                <img src="assets/qr.png" alt="UPI QR Code" style="max-width:200px; width:100%; height:auto; border-radius:6px; object-fit:contain;">
+            </div>
+
+            <div style="height:1px; background:#333; margin: 10px 0;"></div>
+            <button class="btn-gold" onclick="confirmCodOrder()" style="display:block; margin-bottom:10px;">
+                <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Paid — Place COD Order
+            </button>
+            <div style="display:flex; gap:10px;">
+                <button onclick="resetCodPaymentOptions()" style="flex:1; padding:10px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px;">Back</button>
+                <button onclick="closeCodConfirmModal()" style="flex:1; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
+            </div>
+        `;
     } else {
         const note = 'Swag Stree COD Advance';
         const base = _buildUpiUrl(codMinPayment, note);
@@ -280,9 +325,8 @@ function payCodAdvance(method) {
             gpay: { label: 'Google Pay', color: '#4285F4', bg: 'rgba(66,133,244,0.08)', border: 'rgba(66,133,244,0.3)', icon: '&#x1F4B0;', btnBg: 'linear-gradient(135deg,#4285F4,#1a5dc8)' }
         };
         const cfg = configs[method];
-        const container = document.getElementById('cod-advance-payment-options');
         
-        if (cfg && container) {
+        if (cfg) {
             container.innerHTML = `
                 <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
                     <span style="font-size:22px;">${cfg.icon}</span>
@@ -306,7 +350,10 @@ function payCodAdvance(method) {
                 <button class="btn-gold" id="btn-confirm-cod" onclick="confirmCodOrder()" style="display:block; margin-bottom:10px;">
                     <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Paid — Place COD Order
                 </button>
-                <button onclick="closeCodConfirmModal()" style="width:100%; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="resetCodPaymentOptions()" style="flex:1; padding:10px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px;">Back</button>
+                    <button onclick="closeCodConfirmModal()" style="flex:1; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
+                </div>
             `;
         }
     }
@@ -360,22 +407,7 @@ function openCart() {
     }
     if (noticeAmt) noticeAmt.innerHTML = '&#8377;' + codMinPayment;
 
-    // Render available promos
-    const promosContainer = document.getElementById('active-promos-display');
-    if (promosContainer) {
-        if (activePromosList && activePromosList.length > 0) {
-            promosContainer.innerHTML = activePromosList.map(p => `
-                <div onclick="document.getElementById('promo-code').value='${p.code}'; applyPromo();" 
-                     style="background:rgba(255,215,0,0.1); border:1px dashed var(--gold); padding:6px 12px; border-radius:20px; font-size:11px; color:var(--gold); cursor:pointer; font-weight:bold; transition:0.2s;"
-                     onmouseover="this.style.background='rgba(255,215,0,0.2)'"
-                     onmouseout="this.style.background='rgba(255,215,0,0.1)'">
-                    ${p.code} <span style="color:#aaa; font-weight:normal; margin-left:4px;">(-${p.discount}%)</span>
-                </div>
-            `).join('');
-        } else {
-            promosContainer.innerHTML = '';
-        }
-    }
+    // Promos display removed
 
     document.getElementById('cart-modal').style.display = 'flex';
 }
@@ -435,6 +467,10 @@ function closeCodConfirmModal() {
 function _showCodConfirmModal(minAmt) {
     const modal = document.getElementById('cod-confirm-modal');
     if (!modal) return;
+    
+    // Reset to the initial list of payment options
+    resetCodPaymentOptions();
+    
     const amtEl = document.getElementById('cod-min-amount-display');
     if (amtEl) amtEl.textContent = '₹' + minAmt;
     modal.style.display = 'flex';

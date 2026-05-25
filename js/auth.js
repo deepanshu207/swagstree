@@ -135,7 +135,7 @@ async function handleGoogleLogin() {
 
 // Handle redirect result for mobile Google Login
 auth.getRedirectResult().then(result => {
-    if (result.user) {
+    if (result && result.user) {
         showToast("✅ Google Login Successful!");
     }
 }).catch(error => {
@@ -191,6 +191,7 @@ async function handleMainAuth() {
             'auth/invalid-email': "Please enter a valid email address.",
             'auth/weak-password': "Password should be at least 6 characters.",
             'auth/too-many-requests': "Too many attempts. Try again later.",
+            'auth/invalid-credential': "Incorrect email or password.",
         };
         showToast(msgs[e.code] || "Authentication failed. Check your details.");
         btn.innerText = isRegMode ? "Create Account" : "Login";
