@@ -88,6 +88,17 @@ function nav(id, el) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); 
     document.getElementById(id + '-view').classList.add('active'); 
     
+    if (id === 'home' && new URLSearchParams(window.location.search).has('id')) {
+        window.location.href = window.location.pathname;
+        return;
+    }
+
+    // Close any open modals and detail overlays to ensure the main section is visible
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    const detailView = document.getElementById('detail-view');
+    if (detailView) detailView.style.display = 'none';
+    window.history.replaceState({}, '', window.location.pathname);
+    
     // Sync active state between desktop and mobile nav
     const desktopNavs = document.querySelectorAll(`.desktop-nav .nav-item[onclick="nav('${id}', this)"]`);
     const bottomNavs = document.querySelectorAll(`.bottom-nav .nav-item[onclick="nav('${id}', this)"]`);

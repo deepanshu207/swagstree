@@ -11,6 +11,35 @@ if (typeof currentProductFiles === 'undefined') window.currentProductFiles = [];
 
 if (typeof editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
 
+const ALL_SIZES = [
+    { id: 'XXS', label: 'XXS (Chest: 32")' },
+    { id: 'XS', label: 'XS (Chest: 34")' },
+    { id: 'S', label: 'S (Chest: 36")' },
+    { id: 'M', label: 'M (Chest: 38")' },
+    { id: 'L', label: 'L (Chest: 40")' },
+    { id: 'XL', label: 'XL (Chest: 42")' },
+    { id: 'XXL', label: 'XXL (Chest: 44")' },
+    { id: '3XL', label: '3XL (Chest: 46")' },
+    { id: '4XL', label: '4XL (Chest: 48")' },
+    { id: '5XL', label: '5XL (Chest: 50")' },
+    { id: '6XL', label: '6XL (Chest: 52")' },
+    { id: '7XL', label: '7XL (Chest: 54")' }
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('m-sizes-colors');
+    if (container && typeof ALL_SIZES !== 'undefined') {
+        container.innerHTML = ALL_SIZES.map(s => `
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <label style="display:flex; align-items:center; gap:5px; width:120px; font-weight:bold; cursor:pointer; font-size:12px; margin-bottom:0;">
+                    <input type="checkbox" id="m-size-${s.id}" style="width:auto; margin:0;" onchange="toggleSizeInput('${s.id}')"> ${s.label}
+                </label>
+                <input id="m-colors-${s.id}" placeholder="Colors: e.g. Black, Red, White" disabled style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+            </div>
+        `).join('');
+    }
+});
+
 function renderAdmin() { 
     const container = document.getElementById('admin-list');
     if(!container) return;
@@ -62,7 +91,7 @@ function openEdit(id) {
     renderImagePreviews(); 
     
     // Load sizes and colors mapping
-    const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+    const sizes = ALL_SIZES.map(s => s.id);
     const map = p.sizeColorMap || {};
     sizes.forEach(sz => {
         const checkbox = document.getElementById(`m-size-${sz}`);
@@ -93,7 +122,7 @@ function openAdd() {
     document.getElementById('m-desc').value = "";
     
     // Clear size and color checkboxes & inputs
-    const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+    const sizes = ALL_SIZES.map(s => s.id);
     sizes.forEach(sz => {
         const checkbox = document.getElementById(`m-size-${sz}`);
         const input = document.getElementById(`m-colors-${sz}`);
@@ -177,7 +206,7 @@ async function saveProduct() {
         const sizeColorMap = {};
         const activeSizes = [];
         const allColors = new Set();
-        const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+        const sizes = ALL_SIZES.map(s => s.id);
         
         sizes.forEach(sz => {
             const checkbox = document.getElementById(`m-size-${sz}`);
@@ -237,7 +266,7 @@ function copyProduct(id) {
     renderImagePreviews(); 
     
     // Load sizes and colors mapping
-    const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+    const sizes = ALL_SIZES.map(s => s.id);
     const map = p.sizeColorMap || {};
     sizes.forEach(sz => {
         const checkbox = document.getElementById(`m-size-${sz}`);

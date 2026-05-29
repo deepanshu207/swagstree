@@ -306,6 +306,7 @@ function updateAddToCartButtonText(p) {
 
 function closeDetail() { 
     document.getElementById('detail-view').style.display = 'none'; 
+    window.history.replaceState({}, '', window.location.pathname);
 }
 
 // 4. INTERACTIVITY
