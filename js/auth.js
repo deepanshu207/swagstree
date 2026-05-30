@@ -13,6 +13,9 @@ auth.onAuthStateChanged(user => {
     document.getElementById('nav-adm').style.display = isAdmin ? 'block' : 'none';
     const admDesktop = document.getElementById('nav-adm-desktop');
     if (admDesktop) admDesktop.style.display = isAdmin ? 'block' : 'none';
+    
+    const adminCust = document.getElementById('admin-customers-section');
+    if (adminCust) adminCust.style.display = isAdmin ? 'block' : 'none';
 
     if (user) {
         // Sync email to Firestore
@@ -32,8 +35,9 @@ auth.onAuthStateChanged(user => {
         // Render admin list if admin
         if (isAdmin && typeof renderAdmin === 'function') {
             renderAdmin();
-            if (typeof loadAdminPromoSettings === 'function') loadAdminPromoSettings();
             if (typeof loadCodSettings === 'function') loadCodSettings();
+            if (typeof loadMaxQtySettings === 'function') loadMaxQtySettings();
+            if (typeof loadPromoSettings === 'function') loadPromoSettings();
         }
 
         // Sync wishlist from Firestore
@@ -355,5 +359,51 @@ async function changePassword() {
         showToast(msgs[e.code] || "Failed to change password. Try again.");
     } finally {
         if (changeBtn) { changeBtn.disabled = false; changeBtn.innerHTML = '<i class="fa fa-lock"></i> &nbsp;Change Password'; }
+    }
+}
+
+async function loadAllCustomers() {
+    if (!isAdmin) return;
+    const container = document.getElementById('all-customers-list');
+    if (!container) return;
+    
+    container.innerHTML = `<div style="text-align:center; padding:20px;"><i class="fa fa-spinner fa-spin"></i> Loading customers...</div>`;
+    
+    try {
+        const snap = await db.collection("users").get();
+        if (snap.empty) {
+            container.innerHTML = `<p style="text-align:center; color:#555;">No customers found.</p>`;
+            return;
+        }
+        
+        let allUsers = [];
+        snap.forEach(doc => allUsers.push(doc.data()));
+        
+        allUsers.sort((a, b) => {
+            const tA = a.createdAt ? a.createdAt.toMillis() : 0;
+            const tB = b.createdAt ? b.createdAt.toMillis() : 0;
+            return tB - tA; // descending
+        });
+        
+        let html = '';
+        allUsers.forEach(data => {
+            const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
+            html += `
+                <div style="background:#111; padding:15px; border-radius:8px; border:1px solid #333; margin-top:10px; display:flex; align-items:center; gap:15px;">
+                    <div style="width:40px; height:40px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#FFD700;">
+                        ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-weight:bold; font-size:15px;">${data.displayName || 'Unnamed User'}</div>
+                        <div style="color:#aaa; font-size:13px;">${data.email || 'No email'} ${data.phone ? '• ' + data.phone : ''}</div>
+                        <div style="color:#666; font-size:11px; margin-top:4px;">Joined: ${date}</div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        console.error("Error loading customers:", e);
+        container.innerHTML = `<p style="text-align:center; color:#ff4444;">Failed to load customers.</p>`;
     }
 }

@@ -13,6 +13,7 @@ if (typeof currentUser === 'undefined') window.currentUser = null;
 let activePromo = null;
 let codMinPayment = 100; // Default, loaded from Firestore
 let _pendingOrderArgs = null;
+let globalMaxCartQty = 1;
 
 // ── UPI Configuration ──────────────────────────────────────────────────────
 const UPI_ID   = '7683020636@pthdfc';
@@ -76,20 +77,73 @@ function addToBag(id) {
     const colorList = (p.sizeColorMap && Array.isArray(p.sizeColorMap[size])) ? p.sizeColorMap[size] : [];
     const color = colorList.length > 0 ? colorList[0] : '';
     
-    addToBagWithSelection(id, size, color);
+    // We try to grab the first pattern from normalizedVariants if they exist
+    let pattern = '';
+    if (p.normalizedVariants) {
+        const matchingVariants = p.normalizedVariants.filter(v => v.size === size && v.color === color);
+        if (matchingVariants.length > 0 && matchingVariants[0].pattern) pattern = matchingVariants[0].pattern;
+    }
+    
+    addToBagWithSelection(id, size, color, pattern);
 }
 
-function addToBagWithSelection(id, size, color) {
+function getVariantDetails(p, size, color, pattern = '') {
+    if (p.variants && Array.isArray(p.variants)) {
+        let match = p.variants.find(v => v.size === size && v.color === color && (v.pattern || '') === pattern);
+        if (!match) match = p.variants.find(v => v.size === size && v.color === color);
+        if (!match) match = p.variants.find(v => v.size === size);
+        if (match) {
+            return {
+                price: match.price !== null && match.price !== undefined ? match.price : p.price,
+                image: (match.images && match.images.length > 0) ? match.images[0] : (p.images && p.images.length ? p.images[0] : 'https://placehold.co/400x400/111/111?text=+'),
+                trackStock: !!match.trackStock,
+                stockCount: match.stockCount || 0
+            };
+        }
+    }
+    return {
+        price: p.price,
+        image: p.images && p.images.length ? p.images[0] : 'https://placehold.co/400x400/111/111?text=+',
+        trackStock: false,
+        stockCount: 0
+    };
+}
+
+function addToBagWithSelection(id, size, color, pattern = '') {
     const p = products.find(x => x.id === id);
     if(!p) return;
     
-    const existing = cart.find(item => item.id === id && item.variantSize === size && item.variantColor === color);
+    const vDetails = getVariantDetails(p, size, color, pattern);
+    
+    const existing = cart.find(item => item.id === id && item.variantSize === size && item.variantColor === color && (item.variantPattern || '') === pattern);
+    
+    const desiredQty = existing ? existing.qty + 1 : 1;
+    if (vDetails.trackStock) {
+        if (desiredQty > vDetails.stockCount) return showToast(`Cannot add to bag. Only ${vDetails.stockCount} left in stock.`);
+    } else {
+        if (desiredQty > globalMaxCartQty) return showToast(`Maximum limit of ${globalMaxCartQty} items per order reached.`);
+    }
+
     if(existing) {
         existing.qty++;
+        existing.price = vDetails.price;
+        existing.variantImage = vDetails.image;
+        existing.trackStock = vDetails.trackStock;
+        existing.stockCount = vDetails.stockCount;
     } else {
-        cart.push({...p, variantSize: size, variantColor: color, qty: 1});
+        cart.push({...p, variantSize: size, variantColor: color, variantPattern: pattern, qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
     }
     updateCartUI();
+    
+    // Refresh storefront and product details
+    if (typeof renderProducts === 'function' && typeof products !== 'undefined') {
+        const grid = document.getElementById('product-grid');
+        if (grid && grid.innerHTML !== '') renderProducts(products, 'product-grid');
+    }
+    if (typeof updateVariantUI === 'function' && typeof activeProductId !== 'undefined') {
+        const p = typeof products !== 'undefined' ? products.find(x => x.id === activeProductId) : null;
+        if (p) updateVariantUI(p);
+    }
     
     const specs = [];
     if (size && size !== 'Standard') {
@@ -107,11 +161,53 @@ function updateCartUI() {
     if(badge) badge.innerText = cart.reduce((s,i) => s + i.qty, 0);
 }
 
+function updateVariantCartQty(id, size, color, pattern, delta) {
+    // If pattern was omitted (e.g. older storefront code), handle argument shift
+    if (typeof pattern === 'number') {
+        delta = pattern;
+        pattern = '';
+    }
+    
+    const idx = cart.findIndex(item => item.id === id && item.variantSize === size && item.variantColor === color && (item.variantPattern || '') === pattern);
+    if (idx !== -1) {
+        changeQty(idx, delta);
+    } else if (delta > 0) {
+        addToBagWithSelection(id, size, color, pattern);
+    }
+}
+
 function changeQty(idx, delta) {
-    cart[idx].qty += delta;
-    if(cart[idx].qty <= 0) cart.splice(idx, 1);
-    openCart();
+    const item = cart[idx];
+    const desiredQty = item.qty + delta;
+    
+    if (delta > 0) {
+        if (item.trackStock) {
+            if (desiredQty > item.stockCount) return showToast(`Cannot add more. Only ${item.stockCount} left in stock.`);
+        } else {
+            if (desiredQty > globalMaxCartQty) return showToast(`Maximum limit of ${globalMaxCartQty} items per order reached.`);
+        }
+    }
+    
+    item.qty += delta;
+    if(item.qty <= 0) cart.splice(idx, 1);
+    
+    // Only re-render cart contents if the cart sidebar is currently open
+    const cartModal = document.getElementById('cart-modal');
+    if (cartModal && cartModal.style.display === 'flex') {
+        openCart();
+    }
+    
     updateCartUI();
+    
+    // Attempt to refresh storefront and product details if functions exist
+    if (typeof renderProducts === 'function' && typeof products !== 'undefined') {
+        const grid = document.getElementById('product-grid');
+        if (grid && grid.innerHTML !== '') renderProducts(products, 'product-grid');
+    }
+    if (typeof updateVariantUI === 'function' && typeof activeProductId !== 'undefined') {
+        const p = typeof products !== 'undefined' ? products.find(x => x.id === activeProductId) : null;
+        if (p) updateVariantUI(p);
+    }
 }
 
 // Array to hold active promos loaded from Firestore
@@ -369,12 +465,15 @@ function openCart() {
         if (it.variantColor) {
             specs.push(formatColorName(it.variantColor));
         }
+        if (it.variantPattern) {
+            specs.push(it.variantPattern);
+        }
         const variantText = specs.length > 0 ? specs.join(' • ') : '';
         const priceText = `₹${it.price}`;
         const infoLine = variantText ? `${variantText} • ${priceText}` : priceText;
         
         h += `<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; background:#111; padding:10px; border-radius:15px; border:1px solid #222">
-            <img src="${it.images && it.images.length ? it.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
+            <img src="${it.variantImage || (it.images && it.images.length ? it.images[0] : 'https://placehold.co/400x400/111/111?text=+')}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
             <div style="flex:1"><div style="font-size:13px; font-weight:600">${it.name}</div><div style="font-size:11px; color:var(--gold)">${infoLine}</div></div>
             <div class="qty-ctrl">
                 <span class="qty-btn" onclick="changeQty(${idx},-1)">-</span>
@@ -488,10 +587,22 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
     const promoLine = activePromo ? `<br><strong>Promo Code:</strong> ${activePromo.code} (${Math.round(activePromo.discount * 100)}% OFF)` : '';
     const discountLine = discount > 0 ? `<tr><td colspan="3" style="padding:8px 5px; text-align:right; color:#888;">Discount (${activePromo ? activePromo.code : ''})</td><td style="padding:8px 5px; text-align:right; color:#e74c3c;">-₹${discount}</td></tr><tr><td colspan="3" style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">Subtotal</td><td style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">₹${subtotal}</td></tr>` : '';
     const codNote = (paymentMethod === 'cod' && codMinAmount) ? `<br><span style="color:#e67e22;"><strong>COD Advance:</strong> &#8377;${codMinAmount} to be paid via UPI before delivery</span>` : '';
+    
+    let msg = `*NEW ORDER (${orderId})*\n\n`;
+    cart.forEach(it => {
+        const specs = [];
+        if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
+        if (it.variantColor) specs.push(formatColorName(it.variantColor));
+        if (it.variantPattern) specs.push(it.variantPattern);
+        const specStr = specs.length > 0 ? ` [${specs.join(', ')}]` : '';
+        msg += `- ${it.qty}x ${it.name}${specStr} (₹${it.price * it.qty})\n`;
+    });
+
     let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}<br><strong>Payment:</strong> ${paymentMethod.toUpperCase()}${promoLine}${codNote}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Variant</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => {
         const specs = [];
         if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
         if (it.variantColor) specs.push(formatColorName(it.variantColor));
+        if (it.variantPattern) specs.push(it.variantPattern);
         const variantDesc = specs.length > 0 ? specs.join(' / ') : '-';
         return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><img src="${it.images && it.images.length ? it.images[0] : ''}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px; vertical-align:middle;" alt="product"><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
     }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: &#8377;${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, contact us on <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" style="color:#25D366">WhatsApp</a></div></div>`;
@@ -516,6 +627,47 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
 
     try {
         await db.collection('orders').add(orderDoc);
+        
+        // --- STOCK DEDUCTION LOGIC ---
+        for (const item of cart) {
+            if (item.trackStock) {
+                try {
+                    const pRef = db.collection('products').doc(item.id);
+                    const pSnap = await pRef.get();
+                    if (pSnap.exists) {
+                        const pData = pSnap.data();
+                        if (pData.variants && Array.isArray(pData.variants)) {
+                            let updated = false;
+                            const newVariants = pData.variants.map(v => {
+                                if (v.size === item.variantSize && v.color === item.variantColor) {
+                                    updated = true;
+                                    return { ...v, stockCount: Math.max(0, (v.stockCount || 0) - item.qty) };
+                                }
+                                return v;
+                            });
+                            
+                            // If exact match not found (e.g. no color), try size only
+                            if (!updated) {
+                                newVariants.forEach((v, index) => {
+                                    if (!updated && v.size === item.variantSize) {
+                                        newVariants[index] = { ...v, stockCount: Math.max(0, (v.stockCount || 0) - item.qty) };
+                                        updated = true;
+                                    }
+                                });
+                            }
+                            
+                            if (updated) {
+                                await pRef.update({ variants: newVariants });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to deduct stock for", item.id, err);
+                }
+            }
+        }
+        // -----------------------------
+        
         await emailjs.send('service_kur7gle', 'template_3g1oy0z', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total });
         showToast('Success! Order Placed.');
         cart = [];
@@ -523,6 +675,12 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         updateCartUI();
         closeModal('cart-modal');
         loadOrders();
+        
+        // Refresh grids if possible
+        if (typeof renderProducts === 'function' && typeof products !== 'undefined') {
+            const grid = document.getElementById('product-grid');
+            if (grid && grid.innerHTML !== '') renderProducts(products, 'product-grid');
+        }
     } catch(e) {
         console.error('Order Error:', e);
         showToast('Failed to place order');

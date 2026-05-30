@@ -114,9 +114,11 @@ function nav(id, el) {
     }
 
     // Render admin list on navigation to admin view
-    if (id === 'admin' && typeof renderAdmin === 'function') {
+    if (id === 'admin') {
         renderAdmin();
         if (typeof loadCodSettings === 'function') loadCodSettings();
+        if (typeof loadMaxQtySettings === 'function') loadMaxQtySettings();
+        if (typeof loadPromoSettings === 'function') loadPromoSettings();
     }
 }
 

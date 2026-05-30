@@ -26,19 +26,186 @@ const ALL_SIZES = [
     { id: '7XL', label: '7XL (Chest: 54")' }
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
-    const container = document.getElementById('m-sizes-colors');
-    if (container && typeof ALL_SIZES !== 'undefined') {
-        container.innerHTML = ALL_SIZES.map(s => `
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <label style="display:flex; align-items:center; gap:5px; width:120px; font-weight:bold; cursor:pointer; font-size:12px; margin-bottom:0;">
-                    <input type="checkbox" id="m-size-${s.id}" style="width:auto; margin:0;" onchange="toggleSizeInput('${s.id}')"> ${s.label}
-                </label>
-                <input id="m-colors-${s.id}" placeholder="Colors: e.g. Black, Red, White" disabled style="margin:0; padding:8px 12px; font-size:13px; flex:1;">
+const ALL_COLORS = [
+    'Red', 'Black', 'White', 'Navy Blue', 'Grey', 'Maroon', 'Olive Green', 
+    'Yellow', 'Pink', 'Purple', 'Brown', 'Beige', 'Sky Blue', 'Orange', 'Mustard', 'Teal'
+];
+
+const ALL_PATTERNS = [
+    'Solid', 'Striped', 'Floral', 'Checked', 'Polka Dot', 'Printed', 'Embroidered', 
+    'Abstract', 'Geometric', 'Tie-Dye', 'Camouflage', 'Animal Print'
+];
+
+let variantBlocks = [];
+
+function renderVariantBlocks() {
+    const container = document.getElementById('m-variants-container');
+    if (!container) return;
+    
+    container.innerHTML = variantBlocks.map(v => `
+        <div class="variant-block" id="${v.id}" style="background:#1a1a1a; padding:15px; border-radius:10px; border:1px solid #333; margin-bottom:15px; position:relative;">
+            <i class="fa fa-times" style="position:absolute; top:10px; right:15px; color:#666; cursor:pointer;" onclick="removeVariant('${v.id}')"></i>
+            
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:5px; margin-bottom:15px;">
+                <input list="size-options-${v.id}" id="v-size-${v.id}" placeholder="Size (Blank = Standard)" value="${v.size === 'Standard' ? '' : v.size}" oninput="updateVariant('${v.id}', 'size', this.value)" style="flex:1; min-width: 100px; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
+                <datalist id="size-options-${v.id}">
+                    ${ALL_SIZES.map(s => `<option value="${s.id}">`).join('')}
+                </datalist>
+                <input list="color-options-${v.id}" id="v-color-${v.id}" placeholder="Color" value="${v.color || ''}" oninput="updateVariant('${v.id}', 'color', this.value)" style="flex:1; min-width: 100px; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
+                <datalist id="color-options-${v.id}">
+                    ${ALL_COLORS.map(c => `<option value="${c}">`).join('')}
+                </datalist>
+                <input list="pattern-options-${v.id}" id="v-pattern-${v.id}" placeholder="Pattern (e.g. Floral)" value="${v.pattern || ''}" oninput="updateVariant('${v.id}', 'pattern', this.value)" style="flex:1; min-width: 100px; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
+                <datalist id="pattern-options-${v.id}">
+                    ${ALL_PATTERNS.map(p => `<option value="${p}">`).join('')}
+                </datalist>
             </div>
-        `).join('');
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+                <input id="v-price-${v.id}" type="number" placeholder="Custom Price (Blank = Base Price)" value="${v.price || ''}" oninput="updateVariant('${v.id}', 'price', this.value)" style="flex:1; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
+                <span title="Overrides default price. Leave blank to inherit base price." style="cursor:help; color:#aaa; font-size:14px; margin-left:-5px;">ⓘ</span>
+                <label style="flex:1; padding:8px; border-radius:5px; border:1px dashed #666; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px;">
+                    Upload Variant Images
+                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
+                </label>
+                <label style="flex:1; padding:8px; border-radius:5px; border:1px dashed #25D366; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px;">
+                    Upload Pattern/Color Swatch
+                    <input type="file" accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
+                </label>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:15px; margin-top:10px;">
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <input type="checkbox" id="v-active-${v.id}" ${v.isActive !== false ? 'checked' : ''} onchange="updateVariant('${v.id}', 'isActive', this.checked)">
+                    <label for="v-active-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Active <span title="Uncheck to hide this variant from the store" style="cursor:help; color:#aaa;">ⓘ</span></label>
+                </div>
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <input type="checkbox" id="v-include-${v.id}" ${v.includeBase === false ? 'checked' : ''} onchange="updateVariant('${v.id}', 'includeBase', !this.checked)">
+                    <label for="v-include-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Main Carousel Images</label>
+                </div>
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <input type="checkbox" id="v-track-${v.id}" ${v.trackStock ? 'checked' : ''} onchange="updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();">
+                    <label for="v-track-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Track Stock</label>
+                </div>
+                ${v.trackStock ? `<input type="number" placeholder="Stock Qty" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" style="width:80px; padding:6px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">` : ''}
+            </div>
+            <div id="v-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:10px;"></div>
+            <div id="v-swatch-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;"></div>
+        </div>
+    `).join('');
+
+    variantBlocks.forEach(v => {
+        renderImagePreviews(v.id);
+        renderSwatchPreview(v.id);
+    });
+}
+
+// Swap
+function swapArr(arr, index, newIdx, vId) {
+    const temp = arr[index];
+    arr[index] = arr[newIdx];
+    arr[newIdx] = temp;
+    
+    renderImagePreviews(vId);
+}
+
+function renderSwatchPreview(vId) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (!v) return;
+    const sContainer = document.getElementById(`v-swatch-${v.id}`);
+    if (!sContainer) return;
+    
+    sContainer.innerHTML = '';
+    
+    if (v.existingPreviewImage) {
+        sContainer.innerHTML = `
+            <div style="position:relative; width:40px; height:40px; border-radius:8px; overflow:hidden; border:2px solid var(--gold);">
+                <img src="${v.existingPreviewImage}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.5); padding:2px; border-radius:2px;" onclick="removeExistingSwatch('${v.id}')"></i>
+                <div style="position:absolute; bottom:0; width:100%; font-size:8px; background:rgba(0,0,0,0.7); text-align:center; color:#fff;">Swatch</div>
+            </div>
+        `;
+    } else if (v.currentPreviewFile) {
+        const url = URL.createObjectURL(v.currentPreviewFile);
+        sContainer.innerHTML = `
+            <div style="position:relative; width:40px; height:40px; border-radius:8px; overflow:hidden; border:2px dashed var(--gold);">
+                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.5); padding:2px; border-radius:2px;" onclick="removeNewSwatch('${v.id}')"></i>
+                <div style="position:absolute; bottom:0; width:100%; font-size:8px; background:rgba(0,0,0,0.7); text-align:center; color:#fff;">Swatch</div>
+            </div>
+        `;
     }
-});
+}
+
+function addVariantBlock() {
+    variantBlocks.push({
+        id: 'v_' + Math.random().toString(36).substr(2, 9),
+        size: 'Standard',
+        color: '',
+        pattern: '',
+        price: null,
+        includeBase: true,
+        isActive: true,
+        trackStock: false,
+        stockCount: 0,
+        existingImages: [],
+        currentFiles: [],
+        existingPreviewImage: '',
+        currentPreviewFile: null
+    });
+    renderVariantBlocks();
+}
+
+function handleFileSelect(input, vId) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (!v) return;
+    v.currentFiles.push(...Array.from(input.files));
+    renderImagePreviews(vId);
+}
+
+function handleSwatchSelect(input, vId) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (!v) return;
+    if (input.files && input.files.length > 0) {
+        v.currentPreviewFile = input.files[0];
+        v.existingPreviewImage = '';
+    }
+    renderSwatchPreview(vId);
+}
+
+function removeNewVariantImage(vId, index) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (!v) return;
+    v.currentFiles.splice(index, 1);
+    renderImagePreviews(vId);
+}
+
+function removeExistingVariantImage(vId, index) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (!v) return;
+    v.existingImages.splice(index, 1);
+    renderImagePreviews(vId);
+}
+
+function removeExistingSwatch(vId) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (v) v.existingPreviewImage = '';
+    renderSwatchPreview(vId);
+}
+
+function removeNewSwatch(vId) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (v) v.currentPreviewFile = null;
+    renderSwatchPreview(vId);
+}
+
+function updateVariant(id, field, value) {
+    const v = variantBlocks.find(x => x.id === id);
+    if (v) v[field] = value;
+}
+
+function removeVariant(id) {
+    variantBlocks = variantBlocks.filter(x => x.id !== id);
+    renderVariantBlocks();
+}
 
 function renderAdmin() { 
     const container = document.getElementById('admin-list');
@@ -62,9 +229,17 @@ function renderAdmin() {
         countContainer.innerHTML = products.length > 0 ? `Showing ${visible} of ${products.length} Products` : '0 Products';
     }
     
-    container.innerHTML = itemsToRender.map(p => `
+    container.innerHTML = itemsToRender.map(p => {
+        let thumbUrl = 'https://placehold.co/400x400/111/111?text=+';
+        if (p.images && p.images.length > 0) {
+            thumbUrl = p.images[0];
+        } else if (p.variants && Array.isArray(p.variants)) {
+            const vWithImg = p.variants.find(v => v.images && v.images.length > 0);
+            if (vWithImg) thumbUrl = vWithImg.images[0];
+        }
+        return `
         <div style="display:flex; align-items:center; gap:12px; background:#111; padding:12px; border-radius:15px; margin-bottom:12px; border:1px solid #222">
-            <img src="${p.images && p.images.length ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'}" style="width:40px;height:40px;border-radius:5px;object-fit:cover">
+            <img src="${thumbUrl}" style="width:40px;height:40px;border-radius:5px;object-fit:cover">
             <div style="flex:1"><b>${p.name}</b></div>
             <div style="display:flex; gap:15px; align-items:center;">
                 <i class="fa fa-copy" style="color:#aaa; cursor:pointer;" title="Copy Product" onclick="copyProduct('${p.id}')"></i>
@@ -72,7 +247,7 @@ function renderAdmin() {
                 <i class="fa fa-trash" style="color:var(--red); cursor:pointer" onclick="if(confirm('Delete?')) db.collection('products').doc('${p.id}').delete()"></i>
             </div>
         </div>
-    `).join(''); 
+    `}).join(''); 
 }
 
 function loadMoreAdminProducts() {
@@ -90,26 +265,69 @@ function openEdit(id) {
     currentProductFiles = []; 
     renderImagePreviews(); 
     
-    // Load sizes and colors mapping
-    const sizes = ALL_SIZES.map(s => s.id);
-    const map = p.sizeColorMap || {};
-    sizes.forEach(sz => {
-        const checkbox = document.getElementById(`m-size-${sz}`);
-        const input = document.getElementById(`m-colors-${sz}`);
-        if (checkbox && input) {
-            if (sz in map || (p.sizes && Array.isArray(p.sizes) && p.sizes.includes(sz))) {
-                checkbox.checked = true;
-                input.disabled = false;
-                const colors = map[sz] || [];
-                input.value = colors.join(', ');
+    // Load variants or fallback
+    if (p.variants && Array.isArray(p.variants)) {
+        variantBlocks = p.variants.map(v => ({
+            id: 'v_' + Math.random().toString(36).substr(2, 9),
+            size: v.size || 'Standard',
+            color: v.color || '',
+            pattern: v.pattern || '',
+            price: v.price || null,
+            includeBase: v.includeBase !== false,
+            isActive: v.isActive !== false,
+            trackStock: !!v.trackStock,
+            stockCount: v.stockCount || 0,
+            existingImages: [...(v.images || [])],
+            currentFiles: [],
+            existingPreviewImage: v.previewImage || '',
+            currentPreviewFile: null
+        }));
+    } else {
+        // Fallback for older products
+        variantBlocks = [];
+        const sizes = p.sizes || [];
+        const map = p.sizeColorMap || {};
+        sizes.forEach(sz => {
+            const colors = map[sz] || [];
+            if (colors.length > 0) {
+                colors.forEach(col => {
+                    variantBlocks.push({
+                        id: 'v_' + Math.random().toString(36).substr(2, 9),
+                        size: sz,
+                        color: col,
+                        pattern: '',
+                        price: null,
+                        includeBase: true,
+                        isActive: true,
+                        trackStock: false,
+                        stockCount: 0,
+                        existingImages: [],
+                        currentFiles: [],
+                        existingPreviewImage: '',
+                        currentPreviewFile: null
+                    });
+                });
             } else {
-                checkbox.checked = false;
-                input.disabled = true;
-                input.value = '';
+                variantBlocks.push({
+                    id: 'v_' + Math.random().toString(36).substr(2, 9),
+                    size: sz,
+                    color: '',
+                    price: null,
+                    includeBase: true,
+                    isActive: true,
+                    trackStock: false,
+                    stockCount: 0,
+                    existingImages: [],
+                    currentFiles: [],
+                    existingPreviewImage: '',
+                    currentPreviewFile: null
+                });
             }
-        }
-    });
+        });
+    }
 
+    renderImagePreviews('base'); 
+    renderVariantBlocks();
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -117,66 +335,35 @@ function openAdd() {
     editingId = null; 
     existingImageUrls = []; 
     currentProductFiles = []; 
+    variantBlocks = [];
     document.getElementById('m-name').value = ""; 
     document.getElementById('m-price').value = ""; 
     document.getElementById('m-desc').value = "";
     
-    // Clear size and color checkboxes & inputs
-    const sizes = ALL_SIZES.map(s => s.id);
-    sizes.forEach(sz => {
-        const checkbox = document.getElementById(`m-size-${sz}`);
-        const input = document.getElementById(`m-colors-${sz}`);
-        if (checkbox && input) {
-            checkbox.checked = false;
-            input.disabled = true;
-            input.value = '';
-        }
-    });
-
-    renderImagePreviews(); 
+    renderImagePreviews('base'); 
+    renderVariantBlocks();
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
-function toggleSizeInput(sz) {
-    const checkbox = document.getElementById(`m-size-${sz}`);
-    const isChecked = checkbox ? checkbox.checked : false;
-    const input = document.getElementById(`m-colors-${sz}`);
-    if (input) {
-        input.disabled = !isChecked;
-        if (!isChecked) input.value = '';
-    }
-}
-
-function handleFileSelect(input) { 
-    const files = Array.from(input.files); 
-    currentProductFiles = [...currentProductFiles, ...files]; 
-    renderImagePreviews(); 
-    input.value = ""; 
-}
-
-function renderImagePreviews() { 
-    const container = document.getElementById('m-preview'); 
+function renderImagePreviews(targetId = 'base') { 
+    const container = document.getElementById(targetId === 'base' ? 'm-preview' : `v-preview-${targetId}`); 
+    if(!container) return;
     container.innerHTML = ""; 
     
-    existingImageUrls.forEach((url, i) => { 
+    let exist = targetId === 'base' ? existingImageUrls : (variantBlocks.find(x => x.id === targetId)?.existingImages || []);
+    let curr = targetId === 'base' ? currentProductFiles : (variantBlocks.find(x => x.id === targetId)?.currentFiles || []);
+
+    exist.forEach((url, i) => { 
         const wrap = document.createElement('div'); 
         wrap.className = 'thumb-wrap'; 
-        wrap.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del">×</div>`; 
-        wrap.querySelector('.thumb-del').onclick = () => { 
-            existingImageUrls.splice(i, 1); 
-            renderImagePreviews(); 
-        }; 
+        wrap.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del" onclick="${targetId === 'base' ? `existingImageUrls.splice(${i},1);renderImagePreviews('base')` : `removeExistingVariantImage('${targetId}', ${i})`}">×</div>`; 
         container.appendChild(wrap); 
     }); 
     
-    currentProductFiles.forEach((file, i) => { 
+    curr.forEach((file, i) => { 
         const wrap = document.createElement('div'); 
         wrap.className = 'thumb-wrap'; 
-        wrap.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del">×</div>`; 
-        wrap.querySelector('.thumb-del').onclick = () => { 
-            currentProductFiles.splice(i, 1); 
-            renderImagePreviews(); 
-        }; 
+        wrap.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del" onclick="${targetId === 'base' ? `currentProductFiles.splice(${i},1);renderImagePreviews('base')` : `removeNewVariantImage('${targetId}', ${i})`}">×</div>`; 
         container.appendChild(wrap); 
     }); 
 }
@@ -191,7 +378,7 @@ async function saveProduct() {
     btn.innerText = "Processing..."; 
     
     try { 
-        // Upload new images to Cloudinary
+        // Upload new base images to Cloudinary
         const upPromises = currentProductFiles.map(async f => { 
             const fd = new FormData(); 
             fd.append("file", f); 
@@ -202,33 +389,70 @@ async function saveProduct() {
         }); 
         const newUrls = await Promise.all(upPromises); 
         
-        // Parse sizeColorMap, sizes, colors
-        const sizeColorMap = {};
-        const activeSizes = [];
-        const allColors = new Set();
-        const sizes = ALL_SIZES.map(s => s.id);
-        
-        sizes.forEach(sz => {
-            const checkbox = document.getElementById(`m-size-${sz}`);
-            const input = document.getElementById(`m-colors-${sz}`);
-            if (checkbox && checkbox.checked) {
-                activeSizes.push(sz);
-                const colorsVal = input.value.trim();
-                const colorsArr = colorsVal ? colorsVal.split(',').map(c => c.trim()).filter(c => c.length > 0) : [];
-                sizeColorMap[sz] = colorsArr;
-                colorsArr.forEach(c => allColors.add(c));
+        // Upload variant images
+        const parsedVariants = [];
+        for (let v of variantBlocks) {
+            const vUpPromises = v.currentFiles.map(async f => {
+                const fd = new FormData(); 
+                fd.append("file", f); 
+                fd.append("upload_preset", PRESET); 
+                const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
+                const d = await r.json(); 
+                return d.secure_url; 
+            });
+            const vNewUrls = await Promise.all(vUpPromises);
+            
+            let uploadedPreviewUrl = v.existingPreviewImage || '';
+            if (v.currentPreviewFile) {
+                const fd = new FormData(); 
+                fd.append("file", v.currentPreviewFile); 
+                fd.append("upload_preset", PRESET); 
+                const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
+                const d = await r.json(); 
+                uploadedPreviewUrl = d.secure_url;
             }
-        });
-
+            
+            let finalPatternName = v.pattern ? v.pattern.trim() : '';
+            if (!finalPatternName && uploadedPreviewUrl) {
+                finalPatternName = `Design-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+            }
+            
+            const colorValues = v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : [''];
+            colorValues.forEach(col => {
+                const parsedVariant = {
+                    size: v.size,
+                    color: col,
+                    pattern: finalPatternName,
+                    price: v.price ? Number(v.price) : null,
+                    includeBase: v.includeBase !== false,
+                    isActive: v.isActive !== false,
+                    trackStock: !!v.trackStock,
+                    stockCount: v.stockCount || 0,
+                    images: [...v.existingImages, ...vNewUrls],
+                    previewImage: uploadedPreviewUrl
+                };
+                parsedVariants.push(parsedVariant);
+            });
+        }
+        
         const data = { 
             name: n, 
             price: Number(pr), 
             description: document.getElementById('m-desc').value, 
             images: [...existingImageUrls, ...newUrls],
-            sizes: activeSizes,
-            colors: Array.from(allColors),
-            sizeColorMap: sizeColorMap
+            variants: parsedVariants,
+            // Fallback for older legacy UI code
+            sizes: [...new Set(parsedVariants.map(v => v.size))],
+            colors: [...new Set(parsedVariants.map(v => v.color).filter(c => c))],
+            sizeColorMap: {}
         }; 
+        
+        parsedVariants.forEach(v => {
+            if(!data.sizeColorMap[v.size]) data.sizeColorMap[v.size] = [];
+            if(v.color && !data.sizeColorMap[v.size].includes(v.color)) {
+                data.sizeColorMap[v.size].push(v.color);
+            }
+        });
         
         if(editingId) {
             await db.collection("products").doc(editingId).update(data); 
@@ -263,28 +487,63 @@ function copyProduct(id) {
     document.getElementById('m-desc').value = p.description || ""; 
     existingImageUrls = [...(p.images || [])]; 
     currentProductFiles = []; 
-    renderImagePreviews(); 
     
-    // Load sizes and colors mapping
-    const sizes = ALL_SIZES.map(s => s.id);
-    const map = p.sizeColorMap || {};
-    sizes.forEach(sz => {
-        const checkbox = document.getElementById(`m-size-${sz}`);
-        const input = document.getElementById(`m-colors-${sz}`);
-        if (checkbox && input) {
-            if (sz in map || (p.sizes && Array.isArray(p.sizes) && p.sizes.includes(sz))) {
-                checkbox.checked = true;
-                input.disabled = false;
-                const colors = map[sz] || [];
-                input.value = colors.join(', ');
+    // Load variants or fallback
+    if (p.variants && Array.isArray(p.variants)) {
+        variantBlocks = p.variants.map(v => ({
+            id: 'v_' + Math.random().toString(36).substr(2, 9),
+            size: v.size || 'Standard',
+            color: v.color || '',
+            pattern: v.pattern || '',
+            price: v.price || null,
+            includeBase: v.includeBase !== false,
+            isActive: v.isActive !== false,
+            trackStock: !!v.trackStock,
+            stockCount: v.stockCount || 0,
+            existingImages: [...(v.images || [])],
+            currentFiles: []
+        }));
+    } else {
+        // Fallback for older products
+        variantBlocks = [];
+        const sizes = p.sizes || [];
+        const map = p.sizeColorMap || {};
+        sizes.forEach(sz => {
+            const colors = map[sz] || [];
+            if (colors.length > 0) {
+                colors.forEach(col => {
+                    variantBlocks.push({
+                        id: 'v_' + Math.random().toString(36).substr(2, 9),
+                        size: sz,
+                        color: col,
+                        price: null,
+                        includeBase: true,
+                        isActive: true,
+                        trackStock: false,
+                        stockCount: 0,
+                        existingImages: [],
+                        currentFiles: []
+                    });
+                });
             } else {
-                checkbox.checked = false;
-                input.disabled = true;
-                input.value = '';
+                variantBlocks.push({
+                    id: 'v_' + Math.random().toString(36).substr(2, 9),
+                    size: sz,
+                    color: '',
+                    price: null,
+                    includeBase: true,
+                    isActive: true,
+                    trackStock: false,
+                    stockCount: 0,
+                    existingImages: [],
+                    currentFiles: []
+                });
             }
-        }
-    });
+        });
+    }
 
+    renderImagePreviews('base'); 
+    renderVariantBlocks();
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -411,6 +670,37 @@ async function saveCodSettings() {
     } catch(e) {
         console.error('saveCodSettings error:', e);
         showToast('Failed to save COD settings');
+    }
+}
+
+// ── Global Max Quantity Settings ─────────────────────────────────────────────
+async function loadMaxQtySettings() {
+    try {
+        const snap = await db.collection('settings').doc('cart').get();
+        if (snap.exists && typeof snap.data().globalMaxQty !== 'undefined') {
+            const val = snap.data().globalMaxQty;
+            const inp = document.getElementById('admin-max-cart-qty');
+            if (inp) inp.value = val;
+            if (typeof globalMaxCartQty !== 'undefined') globalMaxCartQty = val;
+        }
+    } catch(e) {
+        console.error('loadMaxQtySettings error:', e);
+    }
+}
+
+window.saveMaxQtySettings = async function() {
+    const inp = document.getElementById('admin-max-cart-qty');
+    if (!inp) return;
+    let val = parseInt(inp.value, 10);
+    if (isNaN(val) || val < 1) val = 1;
+    inp.value = val;
+    try {
+        await db.collection('settings').doc('cart').set({ globalMaxQty: val }, { merge: true });
+        if (typeof globalMaxCartQty !== 'undefined') globalMaxCartQty = val;
+        showToast('Global max cart quantity saved: ' + val);
+    } catch(e) {
+        console.error('saveMaxQtySettings error:', e);
+        showToast('Failed to save Max Qty settings');
     }
 }
 

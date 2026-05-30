@@ -106,6 +106,11 @@
             <div class="chip-group" id="filter-colors"></div>
         </div>
 
+        <div class="filter-group">
+            <label class="filter-section-title">Pattern</label>
+            <div class="chip-group" id="filter-patterns"></div>
+        </div>
+
         <div class="filter-footer">
             <button class="btn-apply-filter" onclick="toggleFilter()">Apply Filters</button>
         </div>
@@ -154,8 +159,12 @@
             <input type="text" id="app_search" placeholder="Search products..." oninput="searchHandler()"
                 autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
         </div>
-        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center;">
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
             <span id="product-count" class="count-badge"></span>
+            <a href="https://wa.me/918800467686" target="_blank" style="background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <i class="fa-brands fa-whatsapp" style="font-size:18px;"></i>
+                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
+            </a>
         </div>
         <div id="product-grid" class="grid"></div>
         <div id="load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
@@ -164,8 +173,12 @@
     <!-- SECTION: Wishlist -->
     <div id="wish-view" class="section">
         <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
-        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center;">
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
             <span id="wish-count" class="count-badge">0 Items</span>
+            <a href="https://wa.me/918800467686" target="_blank" style="background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <i class="fa-brands fa-whatsapp" style="font-size:18px;"></i>
+                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
+            </a>
         </div>
         <div id="wish-grid" class="grid"></div>
         <div id="wish-load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
@@ -307,6 +320,15 @@
                 <div id="order-history"></div>
                 <div id="orders-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
             </div>
+
+            <!-- Admin Customers (Visible only to admins) -->
+            <div class="profile-section" id="admin-customers-section" style="display:none; margin-top:20px;">
+                <h4 class="section-label" style="display:flex; justify-content:space-between; align-items:center; color:var(--gold);">
+                    <span style="display:flex; align-items:center; gap:8px;"><i class="fa fa-users"></i> All Customers</span>
+                    <button class="btn-gold" onclick="loadAllCustomers()" style="padding:4px 10px; font-size:12px;"><i class="fa fa-sync"></i> Refresh</button>
+                </h4>
+                <div id="all-customers-list"></div>
+            </div>
         </div>
     </div>
 
@@ -361,6 +383,26 @@
             </div>
         </div>
 
+        <!-- Global Max Quantity Settings -->
+        <div id="admin-max-qty-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-shopping-bag" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Global Max Cart Quantity</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Max allowed per item if stock tracking is OFF (default 1)</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <input id="admin-max-cart-qty" type="number" min="1" step="1" value="1"
+                        style="margin:0;" placeholder="Default is 1">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveMaxQtySettings()">Save</button>
+            </div>
+        </div>
+
         <!-- Promo Code Settings -->
         <div id="admin-promo-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
@@ -396,7 +438,9 @@
             <i class="fa fa-chevron-left" onclick="closeDetail()"
                 style="font-size:20px; padding:10px; cursor:pointer;"></i>
             <span style="font-weight:bold; letter-spacing:2px; font-size:11px">DETAILS</span>
-            <div style="width:40px"></div>
+            <div style="width:40px; display:flex; justify-content:flex-end;">
+                <i class="fa fa-share-alt" onclick="shareProduct(activeProductId)" style="font-size:18px; padding:10px; cursor:pointer;"></i>
+            </div>
         </div>
         <div id="det-box" class="carousel-box" style="height:400px">
             <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
@@ -416,7 +460,12 @@
                 <div class="chip-group" id="detail-color-selector"></div>
             </div>
 
-            <p style="font-size:11px; color:#666">DESCRIPTION</p>
+            <div id="det-patterns-container" style="margin-top:15px; display:none;">
+                <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT PATTERN</p>
+                <div class="chip-group" id="detail-pattern-selector"></div>
+            </div>
+
+            <p style="font-size:11px; color:#666; margin-top:20px;">DESCRIPTION</p>
             <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:30px"></p>
 
             <button class="btn-gold" id="det-btn">ADD TO BAG</button>
@@ -431,14 +480,17 @@
             <input id="m-price" type="number" placeholder="Price">
             <textarea id="m-desc" placeholder="Description"></textarea>
 
-            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Sizes & Colors Mapping
-            </p>
-            <div id="m-sizes-colors"
-                style="background:#121212; border: 1px solid #282828; border-radius: 12px; padding: 15px; margin-bottom: 12px; max-height: 250px; overflow-y: auto;">
+            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Product Variants <span title="Define specific prices and images for different sizes/colors" style="cursor:help; color:#aaa;">ⓘ</span></p>
+            <div id="m-variants-container" style="background:#121212; border: 1px solid #282828; border-radius: 12px; padding: 15px; margin-bottom: 12px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px;">
             </div>
-            <p style="font-size:10px; color:#666; margin-bottom:5px">IMAGES (TAP × TO REMOVE)</p>
+            <button onclick="addVariantBlock()" style="width:100%; padding:10px; background:#222; color:#fff; border:1px dashed #555; border-radius:8px; cursor:pointer; font-size:12px; margin-bottom: 15px;">+ Add Variant</button>
+
+            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Main Product Images / Home Preview <span title="These images appear on the home page and can be included in the variant galleries (e.g. Size Charts, Lifestyle shots)." style="cursor:help; color:#aaa;">ⓘ</span> (TAP × TO REMOVE)</p>
             <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
-            <input type="file" id="m-files" multiple accept="image/*" onchange="handleFileSelect(this)">
+            <label style="display:block; padding:10px; border-radius:8px; border:1px dashed #666; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px; margin-bottom: 15px;">
+                Upload Main Images
+                <input type="file" id="m-files" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'base')">
+            </label>
             <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
             <button onclick="closeModal('prod-modal')"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
@@ -571,11 +623,11 @@
     </nav>
 
     <!-- Scripts -->
-    <script src="js/app.js?v=3.6"></script>
-    <script src="js/store.js?v=3.6"></script>
-    <script src="js/checkout.js?v=3.6"></script>
-    <script src="js/auth.js?v=3.6"></script>
-    <script src="js/admin.js?v=3.6"></script>
+    <script src="js/app.js?v=4.28"></script>
+    <script src="js/store.js?v=4.28"></script>
+    <script src="js/checkout.js?v=4.28"></script>
+    <script src="js/auth.js?v=4.28"></script>
+    <script src="js/admin.js?v=4.28"></script>
 
 </body>
 
