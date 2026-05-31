@@ -95,7 +95,7 @@ function getVariantDetails(p, size, color, pattern = '') {
         if (match) {
             return {
                 price: match.price !== null && match.price !== undefined ? match.price : p.price,
-                image: (match.images && match.images.length > 0) ? match.images[0] : (p.images && p.images.length ? p.images[0] : 'https://placehold.co/400x400/111/111?text=+'),
+                image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
                 trackStock: !!match.trackStock,
                 stockCount: match.stockCount || 0
             };
@@ -103,7 +103,7 @@ function getVariantDetails(p, size, color, pattern = '') {
     }
     return {
         price: p.price,
-        image: p.images && p.images.length ? p.images[0] : 'https://placehold.co/400x400/111/111?text=+',
+        image: p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image',
         trackStock: false,
         stockCount: 0
     };
@@ -472,8 +472,9 @@ function openCart() {
         const priceText = `₹${it.price}`;
         const infoLine = variantText ? `${variantText} • ${priceText}` : priceText;
         
+        const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
         h += `<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; background:#111; padding:10px; border-radius:15px; border:1px solid #222">
-            <img src="${it.variantImage || (it.images && it.images.length ? it.images[0] : 'https://placehold.co/400x400/111/111?text=+')}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
+            <img src="${imgUrl}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
             <div style="flex:1"><div style="font-size:13px; font-weight:600">${it.name}</div><div style="font-size:11px; color:var(--gold)">${infoLine}</div></div>
             <div class="qty-ctrl">
                 <span class="qty-btn" onclick="changeQty(${idx},-1)">-</span>
@@ -604,7 +605,8 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         if (it.variantColor) specs.push(formatColorName(it.variantColor));
         if (it.variantPattern) specs.push(it.variantPattern);
         const variantDesc = specs.length > 0 ? specs.join(' / ') : '-';
-        return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><img src="${it.images && it.images.length ? it.images[0] : ''}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px; vertical-align:middle;" alt="product"><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
+        const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
+        return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><img src="${imgUrl}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px; vertical-align:middle;" alt="product"><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
     }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: &#8377;${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, contact us on <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" style="color:#25D366">WhatsApp</a></div></div>`;
 
     const orderDoc = {
@@ -668,7 +670,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         }
         // -----------------------------
         
-        await emailjs.send('service_kur7gle', 'template_3g1oy0z', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total });
+        await emailjs.send('service_pdnmeeb', 'template_pugghm5', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total });
         showToast('Success! Order Placed.');
         cart = [];
         activePromo = null;

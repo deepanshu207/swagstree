@@ -95,11 +95,29 @@ function productCardHtml(p) {
     
     const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
     
-    // Fallback to first variant images if no base images exist
-    let displayImages = p.images || [];
-    if (displayImages.length === 0 && activeVariants.length > 0) {
+    // Home Page Image Visibility Logic
+    let displayImages = [];
+    if (!p.hideMainCarousel) {
+        displayImages = [...(p.images || [])];
+    }
+    
+    // Add images from variants that opted-in to the home screen
+    activeVariants.filter(v => v.showInMainCarousel).forEach(v => {
+        if (v.images) displayImages = [...displayImages, ...v.images];
+    });
+    
+    // Remove duplicates and empty strings
+    displayImages = [...new Set(displayImages)].filter(img => img && img.trim() !== '');
+    
+    // Fallback if absolutely empty
+    if (displayImages.length === 0 && activeVariants.length > 0 && !p.hideNoImagePlaceholder) {
         const vWithImg = activeVariants.find(v => v.images && v.images.length > 0);
         if (vWithImg) displayImages = vWithImg.images;
+    }
+    
+    // If they strictly want to hide placeholder when hiding main carousel and there's no images
+    if (p.hideMainCarousel && p.hideNoImagePlaceholder) {
+        displayImages = [];
     }
     
     let isOutOfStock = false;
@@ -126,7 +144,7 @@ function productCardHtml(p) {
         <div class="carousel-box" onclick="showDetail('${p.id}')"> 
             ${isOutOfStock ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px 15px 0 0;"><span style="background:rgba(255,0,0,0.85); color:#fff; padding:6px 12px; border-radius:4px; font-weight:800; font-size:12px; letter-spacing:1px;">OUT OF STOCK</span></div>' : ''}
             <div class="carousel" onscroll="updateDots(this)">
-                ${displayImages.length ? displayImages.map(img => `<img src="${img}" loading="lazy">`).join('') : '<img src="https://placehold.co/400x400/111/111?text=+" loading="lazy">'}
+                ${displayImages.length ? displayImages.map(img => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">')}
             </div> 
             <div class="indicators">
                 ${displayImages.length > 1 ? displayImages.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''}
@@ -207,13 +225,40 @@ function renderProducts(items, targetId) {
 // 3. PRODUCT DETAILS
 function normalizeVariants(p) {
     if (p.variants && Array.isArray(p.variants) && p.variants.length > 0) {
+        const normalized = [];
         let fallbackIndex = 1;
-        return p.variants.filter(v => v.isActive !== false).map(v => {
-            if (!v.pattern && (v.previewImage || v.existingPreviewImage)) {
-                return { ...v, pattern: `Design-${fallbackIndex++}` };
-            }
-            return v;
+        p.variants.filter(v => v.isActive !== false).forEach(v => {
+            const sizeValues = v.size ? v.size.split(',').map(s => s.trim()).filter(s => s) : ['Standard'];
+            const colorValues = v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : [''];
+            const patternValues = v.pattern ? v.pattern.split(',').map(p => p.trim()).filter(p => p) : [''];
+            
+            sizeValues.forEach(sz => {
+                colorValues.forEach(col => {
+                    patternValues.forEach((pat, patIdx) => {
+                        let finalPatternName = pat;
+                        let patPreviewUrl = '';
+                        if (v.previewImages && v.previewImages.length > 0) {
+                            patPreviewUrl = v.previewImages[patIdx] || v.previewImages[0] || '';
+                        } else if (v.previewImage || v.existingPreviewImage) {
+                            patPreviewUrl = v.previewImage || v.existingPreviewImage;
+                        }
+                        
+                        if (!finalPatternName && patPreviewUrl) {
+                            finalPatternName = `Design-${fallbackIndex++}`;
+                        }
+                        
+                        normalized.push({
+                            ...v,
+                            size: sz,
+                            color: col,
+                            pattern: finalPatternName,
+                            previewImage: patPreviewUrl
+                        });
+                    });
+                });
+            });
         });
+        return normalized;
     }
     const variants = [];
     const sizes = p.sizes || [];
@@ -314,16 +359,10 @@ function renderDetailColors(p) {
         
         colorSelector.innerHTML = colors.map(col => {
             const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === col);
-            let colorPreview = '';
-            
-            if (v && v.previewImage) {
-                colorPreview = `<img src="${v.previewImage}" style="width:20px; height:20px; border-radius:4px; object-fit:cover; margin-right:6px; border:1px solid rgba(255,255,255,0.2);">`;
-            } else {
-                const cleanColor = col.trim();
-                const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
-                const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
-                colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
-            }
+            const cleanColor = col.trim();
+            const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
+            const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
+            const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
             
             return `
                 <div class="color-chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">
@@ -363,12 +402,17 @@ function renderDetailPatterns(p) {
             let patPreview = '';
             
             if (v && v.previewImage) {
-                patPreview = `<img src="${v.previewImage}" style="width:24px; height:24px; border-radius:4px; object-fit:cover; margin-right:6px; border:1px solid rgba(255,255,255,0.2); vertical-align:middle;">`;
+                patPreview = `<img src="${v.previewImage}" style="width:24px; height:24px; border-radius:4px; object-fit:cover; margin-right:0px; border:1px solid rgba(255,255,255,0.2); vertical-align:middle;">`;
+                return `
+                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px; border-radius:8px; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${pat}">
+                    ${patPreview}
+                </div>
+                `;
             }
             
             return `
-            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)">
-                ${patPreview}<span>${pat}</span>
+            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${pat}">
+                <span>${pat}</span>
             </div>
             `;
         }).join('');
@@ -383,17 +427,26 @@ function updateVariantUI(p) {
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
     
     // Update Images
-    let imagesToDisplay = p.images || [];
+    let imagesToDisplay = [];
+    
+    // 1. Variant Images
     if (v && v.images && v.images.length > 0) {
-        if (v.includeBase !== false) {
-            // Append base images, removing any duplicates
-            imagesToDisplay = [...new Set([...v.images, ...imagesToDisplay])];
-        } else {
-            imagesToDisplay = v.images;
+        if (!v.hideDetailsGallery) {
+            imagesToDisplay.push(...v.images);
         }
     }
     
-    document.getElementById('det-gallery').innerHTML = imagesToDisplay.length ? imagesToDisplay.map(img => `<img src="${img}">`).join('') : '<img src="https://placehold.co/400x400/111/111?text=+">'; 
+    // 2. Main Images
+    if (!p.hideMainDetailsCarousel) {
+        if (p.images && p.images.length > 0) {
+            imagesToDisplay.push(...p.images);
+        }
+    }
+    
+    // Remove duplicates
+    imagesToDisplay = [...new Set(imagesToDisplay)];
+    
+    document.getElementById('det-gallery').innerHTML = imagesToDisplay.length ? imagesToDisplay.map(img => `<img src="${img}">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">'); 
     document.getElementById('det-indicators').innerHTML = imagesToDisplay.length > 1 ? imagesToDisplay.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''; 
     
     // Update Button and Stock Info
@@ -608,11 +661,16 @@ function renderFilters() {
         patternsContainer.innerHTML = Array.from(allPatterns.entries()).map(([pat, previewUrl]) => {
             let patPreview = '';
             if (previewUrl) {
-                patPreview = `<img src="${previewUrl}" style="width:24px; height:24px; border-radius:4px; object-fit:cover; margin-right:6px; border:1px solid rgba(255,255,255,0.2); vertical-align:middle;">`;
+                patPreview = `<img src="${previewUrl}" style="width:24px; height:24px; border-radius:4px; object-fit:cover; margin-right:0px; border:1px solid rgba(255,255,255,0.2); vertical-align:middle;">`;
+                return `
+                <div class="size-chip color-chip ${filterActivePattern === pat ? 'active' : ''}" style="padding:6px; border-radius:8px; display:inline-flex; align-items:center;" onclick="setFilterPattern(this, '${pat}')" title="${pat}">
+                    ${patPreview}
+                </div>
+                `;
             }
             return `
-            <div class="size-chip color-chip ${filterActivePattern === pat ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="setFilterPattern(this, '${pat}')">
-                ${patPreview}<span>${pat}</span>
+            <div class="size-chip color-chip ${filterActivePattern === pat ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="setFilterPattern(this, '${pat}')" title="${pat}">
+                <span>${pat}</span>
             </div>
             `;
         }).join('');

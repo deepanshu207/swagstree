@@ -68,8 +68,8 @@ function renderVariantBlocks() {
                     <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
                 </label>
                 <label style="flex:1; padding:8px; border-radius:5px; border:1px dashed #25D366; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px;">
-                    Upload Pattern/Color Swatch
-                    <input type="file" accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
+                    Upload Pattern/Color Swatch(es)
+                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
                 </label>
             </div>
             <div style="display:flex; flex-wrap:wrap; align-items:center; gap:15px; margin-top:10px;">
@@ -78,8 +78,12 @@ function renderVariantBlocks() {
                     <label for="v-active-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Active <span title="Uncheck to hide this variant from the store" style="cursor:help; color:#aaa;">ⓘ</span></label>
                 </div>
                 <div style="display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" id="v-include-${v.id}" ${v.includeBase === false ? 'checked' : ''} onchange="updateVariant('${v.id}', 'includeBase', !this.checked)">
-                    <label for="v-include-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Main Carousel Images</label>
+                    <input type="checkbox" id="v-hidedet-${v.id}" ${v.hideDetailsGallery ? 'checked' : ''} onchange="updateVariant('${v.id}', 'hideDetailsGallery', this.checked)">
+                    <label for="v-hidedet-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Details Images In Details Gallery</label>
+                </div>
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <input type="checkbox" id="v-showmain-${v.id}" ${v.showInMainCarousel ? 'checked' : ''} onchange="updateVariant('${v.id}', 'showInMainCarousel', this.checked)">
+                    <label for="v-showmain-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Show in Home Screen</label>
                 </div>
                 <div style="display:flex; align-items:center; gap:5px;">
                     <input type="checkbox" id="v-track-${v.id}" ${v.trackStock ? 'checked' : ''} onchange="updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();">
@@ -92,10 +96,51 @@ function renderVariantBlocks() {
         </div>
     `).join('');
 
-    variantBlocks.forEach(v => {
+    variantBlocks.forEach((v, index) => {
         renderImagePreviews(v.id);
         renderSwatchPreview(v.id);
+        // Add sorting badge to variant block
+        const blockEl = document.getElementById(`v-block-${v.id}`);
+        if(blockEl) {
+            let badge = blockEl.querySelector('.sort-badge');
+            if(!badge) {
+                badge = document.createElement('div');
+                badge.className = 'sort-badge';
+                badge.style.cssText = 'position:absolute; top:-10px; left:-10px; background:var(--gold); color:#000; font-weight:bold; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; z-index:10; cursor:grab;';
+                blockEl.appendChild(badge);
+            }
+            badge.innerText = (index + 1);
+            
+            // Check for missing image warning
+            if ((!v.existingImages || v.existingImages.length === 0) && (!v.currentFiles || v.currentFiles.length === 0)) {
+                let warn = blockEl.querySelector('.warn-badge');
+                if(!warn) {
+                    warn = document.createElement('div');
+                    warn.className = 'warn-badge';
+                    warn.style.cssText = 'position:absolute; top:-10px; right:20px; background:var(--red); color:#fff; font-weight:bold; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; z-index:10; cursor:help;';
+                    warn.title = "Warning: No images uploaded for this variant!";
+                    warn.innerHTML = '⚠️';
+                    blockEl.appendChild(warn);
+                }
+            } else {
+                const warn = blockEl.querySelector('.warn-badge');
+                if(warn) warn.remove();
+            }
+        }
     });
+
+    if (window.Sortable) {
+        if (container._sortable) container._sortable.destroy();
+        container._sortable = Sortable.create(container, {
+            animation: 150,
+            handle: '.sort-badge',
+            onEnd: function (evt) {
+                const movedItem = variantBlocks.splice(evt.oldIndex, 1)[0];
+                variantBlocks.splice(evt.newIndex, 0, movedItem);
+                renderVariantBlocks();
+            }
+        });
+    }
 }
 
 // Swap
@@ -114,24 +159,50 @@ function renderSwatchPreview(vId) {
     if (!sContainer) return;
     
     sContainer.innerHTML = '';
+    const container = document.getElementById(`v-swatch-${vId}`);
+    if (!container) return;
     
-    if (v.existingPreviewImage) {
-        sContainer.innerHTML = `
-            <div style="position:relative; width:40px; height:40px; border-radius:8px; overflow:hidden; border:2px solid var(--gold);">
-                <img src="${v.existingPreviewImage}" style="width:100%; height:100%; object-fit:cover;">
-                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.5); padding:2px; border-radius:2px;" onclick="removeExistingSwatch('${v.id}')"></i>
-                <div style="position:absolute; bottom:0; width:100%; font-size:8px; background:rgba(0,0,0,0.7); text-align:center; color:#fff;">Swatch</div>
-            </div>
-        `;
-    } else if (v.currentPreviewFile) {
-        const url = URL.createObjectURL(v.currentPreviewFile);
-        sContainer.innerHTML = `
-            <div style="position:relative; width:40px; height:40px; border-radius:8px; overflow:hidden; border:2px dashed var(--gold);">
-                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.5); padding:2px; border-radius:2px;" onclick="removeNewSwatch('${v.id}')"></i>
-                <div style="position:absolute; bottom:0; width:100%; font-size:8px; background:rgba(0,0,0,0.7); text-align:center; color:#fff;">Swatch</div>
-            </div>
-        `;
+    let html = '';
+    
+    const eImgs = v.existingPreviewImages || [];
+    eImgs.forEach((url, i) => {
+        html += `<div data-type="existing" data-idx="${i}" style="position:relative; width:40px; height:40px; cursor:grab;">
+            <img src="${url}" style="width:100%; height:100%; object-fit:cover; border-radius:5px; border:1px solid #444;">
+            <div onclick="removeExistingSwatch('${vId}', ${i})" style="position:absolute; top:-5px; right:-5px; background:rgba(255,0,0,0.8); color:white; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer; font-weight:bold;">&times;</div>
+        </div>`;
+    });
+    
+    const cFiles = v.currentPreviewFiles || [];
+    cFiles.forEach((file, i) => {
+        const url = URL.createObjectURL(file);
+        html += `<div data-type="current" data-idx="${i}" style="position:relative; width:40px; height:40px; cursor:grab;">
+            <img src="${url}" style="width:100%; height:100%; object-fit:cover; border-radius:5px; border:2px dashed #25D366;">
+            <div onclick="removeNewSwatch('${vId}', ${i})" style="position:absolute; top:-5px; right:-5px; background:rgba(255,0,0,0.8); color:white; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer; font-weight:bold;">&times;</div>
+        </div>`;
+    });
+    
+    container.innerHTML = html;
+    
+    if (window.Sortable && container) {
+        if (container._sortable) container._sortable.destroy();
+        container._sortable = Sortable.create(container, {
+            animation: 150,
+            onEnd: function (evt) {
+                const newExisting = [];
+                const newCurrent = [];
+                Array.from(container.children).forEach(child => {
+                    const idx = parseInt(child.dataset.idx);
+                    if (child.dataset.type === 'existing') {
+                        newExisting.push(v.existingPreviewImages[idx]);
+                    } else if (child.dataset.type === 'current') {
+                        newCurrent.push(v.currentPreviewFiles[idx]);
+                    }
+                });
+                v.existingPreviewImages = newExisting;
+                v.currentPreviewFiles = newCurrent;
+                renderSwatchPreview(vId);
+            }
+        });
     }
 }
 
@@ -140,24 +211,31 @@ function addVariantBlock() {
         id: 'v_' + Math.random().toString(36).substr(2, 9),
         size: 'Standard',
         color: '',
-        pattern: '',
-        price: null,
-        includeBase: true,
+        price: '',
+        hideDetailsGallery: false,
+        showInMainCarousel: false,
         isActive: true,
         trackStock: false,
         stockCount: 0,
         existingImages: [],
         currentFiles: [],
-        existingPreviewImage: '',
-        currentPreviewFile: null
+        existingPreviewImages: [],
+        currentPreviewFiles: []
     });
     renderVariantBlocks();
 }
 
 function handleFileSelect(input, vId) {
-    const v = variantBlocks.find(x => x.id === vId);
-    if (!v) return;
-    v.currentFiles.push(...Array.from(input.files));
+    if(!input.files || input.files.length === 0) return;
+    const newFiles = Array.from(input.files);
+    
+    if (vId === 'base') {
+        currentProductFiles = [...currentProductFiles, ...newFiles];
+    } else {
+        const v = variantBlocks.find(x => x.id === vId);
+        if (!v) return;
+        v.currentFiles.push(...newFiles);
+    }
     renderImagePreviews(vId);
 }
 
@@ -165,8 +243,7 @@ function handleSwatchSelect(input, vId) {
     const v = variantBlocks.find(x => x.id === vId);
     if (!v) return;
     if (input.files && input.files.length > 0) {
-        v.currentPreviewFile = input.files[0];
-        v.existingPreviewImage = '';
+        v.currentPreviewFiles = [...(v.currentPreviewFiles || []), ...Array.from(input.files)];
     }
     renderSwatchPreview(vId);
 }
@@ -185,15 +262,15 @@ function removeExistingVariantImage(vId, index) {
     renderImagePreviews(vId);
 }
 
-function removeExistingSwatch(vId) {
+function removeExistingSwatch(vId, index) {
     const v = variantBlocks.find(x => x.id === vId);
-    if (v) v.existingPreviewImage = '';
+    if (v && v.existingPreviewImages) v.existingPreviewImages.splice(index, 1);
     renderSwatchPreview(vId);
 }
 
-function removeNewSwatch(vId) {
+function removeNewSwatch(vId, index) {
     const v = variantBlocks.find(x => x.id === vId);
-    if (v) v.currentPreviewFile = null;
+    if (v && v.currentPreviewFiles) v.currentPreviewFiles.splice(index, 1);
     renderSwatchPreview(vId);
 }
 
@@ -230,7 +307,7 @@ function renderAdmin() {
     }
     
     container.innerHTML = itemsToRender.map(p => {
-        let thumbUrl = 'https://placehold.co/400x400/111/111?text=+';
+        let thumbUrl = 'https://placehold.co/400x400/222/FFF?text=+';
         if (p.images && p.images.length > 0) {
             thumbUrl = p.images[0];
         } else if (p.variants && Array.isArray(p.variants)) {
@@ -261,6 +338,9 @@ function openEdit(id) {
     document.getElementById('m-name').value = p.name; 
     document.getElementById('m-price').value = p.price; 
     document.getElementById('m-desc').value = p.description || ""; 
+    document.getElementById('m-hide-main').checked = !!p.hideMainCarousel;
+    document.getElementById('m-hide-main-details').checked = !!p.hideMainDetailsCarousel;
+    document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])]; 
     currentProductFiles = []; 
     renderImagePreviews(); 
@@ -273,14 +353,15 @@ function openEdit(id) {
             color: v.color || '',
             pattern: v.pattern || '',
             price: v.price || null,
-            includeBase: v.includeBase !== false,
+            hideDetailsGallery: !!v.hideDetailsGallery,
+            showInMainCarousel: !!v.showInMainCarousel,
             isActive: v.isActive !== false,
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
             existingImages: [...(v.images || [])],
             currentFiles: [],
-            existingPreviewImage: v.previewImage || '',
-            currentPreviewFile: null
+            existingPreviewImages: v.previewImages || (v.previewImage ? [v.previewImage] : []),
+            currentPreviewFiles: []
         }));
     } else {
         // Fallback for older products
@@ -291,20 +372,25 @@ function openEdit(id) {
             const colors = map[sz] || [];
             if (colors.length > 0) {
                 colors.forEach(col => {
+                    let pImg = '';
+                    if (Array.isArray(p.previewImages)) pImg = p.previewImages[0];
+                    else if (p.previewImage) pImg = p.previewImage;
+
                     variantBlocks.push({
                         id: 'v_' + Math.random().toString(36).substr(2, 9),
                         size: sz,
                         color: col,
                         pattern: '',
                         price: null,
-                        includeBase: true,
+                        hideDetailsGallery: false,
+                        showInMainCarousel: false,
                         isActive: true,
                         trackStock: false,
                         stockCount: 0,
                         existingImages: [],
                         currentFiles: [],
-                        existingPreviewImage: '',
-                        currentPreviewFile: null
+                        existingPreviewImages: pImg ? [pImg] : [],
+                        currentPreviewFiles: []
                     });
                 });
             } else {
@@ -312,8 +398,9 @@ function openEdit(id) {
                     id: 'v_' + Math.random().toString(36).substr(2, 9),
                     size: sz,
                     color: '',
-                    price: null,
-                    includeBase: true,
+                    price: p.price,
+                    hideDetailsGallery: false,
+                    showInMainCarousel: false,
                     isActive: true,
                     trackStock: false,
                     stockCount: 0,
@@ -339,6 +426,8 @@ function openAdd() {
     document.getElementById('m-name').value = ""; 
     document.getElementById('m-price').value = ""; 
     document.getElementById('m-desc').value = "";
+    document.getElementById('m-hide-main').checked = false;
+    document.getElementById('m-hide-main-placeholder').checked = false;
     
     renderImagePreviews('base'); 
     renderVariantBlocks();
@@ -348,31 +437,113 @@ function openAdd() {
 function renderImagePreviews(targetId = 'base') { 
     const container = document.getElementById(targetId === 'base' ? 'm-preview' : `v-preview-${targetId}`); 
     if(!container) return;
-    container.innerHTML = ""; 
     
-    let exist = targetId === 'base' ? existingImageUrls : (variantBlocks.find(x => x.id === targetId)?.existingImages || []);
-    let curr = targetId === 'base' ? currentProductFiles : (variantBlocks.find(x => x.id === targetId)?.currentFiles || []);
+    let html = '';
+    if (targetId === 'base') {
+        html += (existingImageUrls || []).map((url, i) => `
+            <div data-type="existing" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px solid #444; cursor:grab;">
+                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
+                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="existingImageUrls.splice(${i},1);renderImagePreviews('base')"></i>
+            </div>
+        `).join('');
+        html += (currentProductFiles || []).map((f, i) => `
+            <div data-type="current" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px dashed #25D366; cursor:grab;">
+                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${(existingImageUrls || []).length + i + 1}</div>
+                <img src="${URL.createObjectURL(f)}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="currentProductFiles.splice(${i},1);renderImagePreviews('base')"></i>
+            </div>
+        `).join('');
+        container.innerHTML = html;
 
-    exist.forEach((url, i) => { 
-        const wrap = document.createElement('div'); 
-        wrap.className = 'thumb-wrap'; 
-        wrap.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del" onclick="${targetId === 'base' ? `existingImageUrls.splice(${i},1);renderImagePreviews('base')` : `removeExistingVariantImage('${targetId}', ${i})`}">×</div>`; 
-        container.appendChild(wrap); 
-    }); 
-    
-    curr.forEach((file, i) => { 
-        const wrap = document.createElement('div'); 
-        wrap.className = 'thumb-wrap'; 
-        wrap.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover"><div class="thumb-del" onclick="${targetId === 'base' ? `currentProductFiles.splice(${i},1);renderImagePreviews('base')` : `removeNewVariantImage('${targetId}', ${i})`}">×</div>`; 
-        container.appendChild(wrap); 
-    }); 
+        // Warning if no main images at all
+        let warnEl = document.getElementById('m-warn-badge');
+        if ((!existingImageUrls || existingImageUrls.length === 0) && (!currentProductFiles || currentProductFiles.length === 0)) {
+            if (!warnEl) {
+                warnEl = document.createElement('div');
+                warnEl.id = 'm-warn-badge';
+                warnEl.style.cssText = 'position:absolute; top:5px; right:100px; background:var(--red); color:#fff; font-weight:bold; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; z-index:10; cursor:help;';
+                warnEl.title = "Warning: No main images uploaded for this product!";
+                warnEl.innerHTML = '⚠️';
+                document.getElementById('prod-modal').querySelector('.modal-box').appendChild(warnEl);
+            }
+        } else if (warnEl) {
+            warnEl.remove();
+        }
+
+        if (window.Sortable && container) {
+            if (container._sortable) container._sortable.destroy();
+            container._sortable = Sortable.create(container, {
+                animation: 150,
+                onEnd: function (evt) {
+                    const newExisting = [];
+                    const newCurrent = [];
+                    Array.from(container.children).forEach(child => {
+                        const idx = parseInt(child.dataset.idx);
+                        if (child.dataset.type === 'existing') {
+                            newExisting.push(existingImageUrls[idx]);
+                        } else if (child.dataset.type === 'current') {
+                            newCurrent.push(currentProductFiles[idx]);
+                        }
+                    });
+                    existingImageUrls = newExisting;
+                    currentProductFiles = newCurrent;
+                    renderImagePreviews('base');
+                }
+            });
+        }
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if(!v) return;
+        let exist = v.existingImages || [];
+        let curr = v.currentFiles || [];
+
+        let html = '';
+        html += exist.map((url, i) => `
+            <div data-type="existing" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px solid #444; cursor:grab;">
+                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
+                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="removeExistingVariantImage('${targetId}', ${i})"></i>
+            </div>
+        `).join('');
+        html += curr.map((file, i) => `
+            <div data-type="current" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px dashed #25D366; cursor:grab;">
+                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${exist.length + i + 1}</div>
+                <img src="${URL.createObjectURL(file)}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="removeNewVariantImage('${targetId}', ${i})"></i>
+            </div>
+        `).join('');
+        container.innerHTML = html;
+
+        if (window.Sortable && container) {
+            if (container._sortable) container._sortable.destroy();
+            container._sortable = Sortable.create(container, {
+                animation: 150,
+                onEnd: function (evt) {
+                    const newExisting = [];
+                    const newCurrent = [];
+                    Array.from(container.children).forEach(child => {
+                        const idx = parseInt(child.dataset.idx);
+                        if (child.dataset.type === 'existing') {
+                            newExisting.push(v.existingImages[idx]);
+                        } else if (child.dataset.type === 'current') {
+                            newCurrent.push(v.currentFiles[idx]);
+                        }
+                    });
+                    v.existingImages = newExisting;
+                    v.currentFiles = newCurrent;
+                    renderImagePreviews(targetId);
+                }
+            });
+        }
+    }
 }
 
 async function saveProduct() { 
     const n = document.getElementById('m-name').value;
     const pr = document.getElementById('m-price').value; 
-    if(!n || !pr) return showToast("Fields missing"); 
-    
+    if(!n || !pr) return showToast("Fields missing");
+
     const btn = document.getElementById('m-save'); 
     btn.disabled = true; 
     btn.innerText = "Processing..."; 
@@ -402,45 +573,55 @@ async function saveProduct() {
             });
             const vNewUrls = await Promise.all(vUpPromises);
             
-            let uploadedPreviewUrl = v.existingPreviewImage || '';
-            if (v.currentPreviewFile) {
-                const fd = new FormData(); 
-                fd.append("file", v.currentPreviewFile); 
-                fd.append("upload_preset", PRESET); 
-                const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
-                const d = await r.json(); 
-                uploadedPreviewUrl = d.secure_url;
+            let uploadedPreviewUrls = [...(v.existingPreviewImages || [])];
+            if (v.currentPreviewFiles && v.currentPreviewFiles.length > 0) {
+                const pvUpPromises = v.currentPreviewFiles.map(async f => {
+                    const fd = new FormData(); 
+                    fd.append("file", f); 
+                    fd.append("upload_preset", PRESET); 
+                    const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
+                    const d = await r.json(); 
+                    return d.secure_url; 
+                });
+                const vNewPvUrls = await Promise.all(pvUpPromises);
+                uploadedPreviewUrls = [...uploadedPreviewUrls, ...vNewPvUrls];
             }
             
-            let finalPatternName = v.pattern ? v.pattern.trim() : '';
-            if (!finalPatternName && uploadedPreviewUrl) {
-                finalPatternName = `Design-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+            let finalSize = v.size || 'Standard';
+            let finalColor = v.color || '';
+            let finalPattern = v.pattern || '';
+            
+            if (finalSize === 'Standard' && !finalColor && !finalPattern && uploadedPreviewUrls.length === 0) {
+                continue;
             }
             
-            const colorValues = v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : [''];
-            colorValues.forEach(col => {
-                const parsedVariant = {
-                    size: v.size,
-                    color: col,
-                    pattern: finalPatternName,
-                    price: v.price ? Number(v.price) : null,
-                    includeBase: v.includeBase !== false,
-                    isActive: v.isActive !== false,
-                    trackStock: !!v.trackStock,
-                    stockCount: v.stockCount || 0,
-                    images: [...v.existingImages, ...vNewUrls],
-                    previewImage: uploadedPreviewUrl
-                };
-                parsedVariants.push(parsedVariant);
-            });
+            const parsedVariant = {
+                size: finalSize,
+                color: finalColor,
+                pattern: finalPattern,
+                price: v.price ? Number(v.price) : null,
+                hideDetailsGallery: !!v.hideDetailsGallery,
+                showInMainCarousel: !!v.showInMainCarousel,
+                isActive: v.isActive !== false,
+                trackStock: !!v.trackStock,
+                stockCount: v.stockCount || 0,
+                images: [...v.existingImages, ...vNewUrls],
+                previewImages: uploadedPreviewUrls
+            };
+            
+            parsedVariants.push(parsedVariant);
         }
         
         const data = { 
             name: n, 
             price: Number(pr), 
             description: document.getElementById('m-desc').value, 
+            hideMainCarousel: document.getElementById('m-hide-main').checked,
+            hideMainDetailsCarousel: document.getElementById('m-hide-main-details').checked,
+            hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
             images: [...existingImageUrls, ...newUrls],
             variants: parsedVariants,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             // Fallback for older legacy UI code
             sizes: [...new Set(parsedVariants.map(v => v.size))],
             colors: [...new Set(parsedVariants.map(v => v.color).filter(c => c))],

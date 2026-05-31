@@ -3,7 +3,7 @@
 // ==========================================
 
 // 1. CONFIGURATION
-emailjs.init("k0dMkc3ECEKI5SBkW");
+emailjs.init("k3l2JkCbjMs8WOAXg");
 const firebaseConfig = { 
     apiKey: "AIzaSyAKXSFKuhQXMGvmtjh0CHnz48vbYz9a_4A", 
     authDomain: "swagstree-web.firebaseapp.com", 
