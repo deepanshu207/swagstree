@@ -93,11 +93,18 @@ function getVariantDetails(p, size, color, pattern = '') {
         if (!match) match = p.variants.find(v => v.size === size && v.color === color);
         if (!match) match = p.variants.find(v => v.size === size);
         if (match) {
+            // Try to get the correct preview image for the chosen pattern
+            let patternImage = '';
+            if (p.normalizedVariants) {
+                const nv = p.normalizedVariants.find(v => v.size === size && v.color === color && v.pattern === pattern);
+                if (nv) patternImage = nv.previewImage || '';
+            }
             return {
                 price: match.price !== null && match.price !== undefined ? match.price : p.price,
                 image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
                 trackStock: !!match.trackStock,
-                stockCount: match.stockCount || 0
+                stockCount: match.stockCount || 0,
+                patternImage: patternImage
             };
         }
     }
@@ -105,7 +112,8 @@ function getVariantDetails(p, size, color, pattern = '') {
         price: p.price,
         image: p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image',
         trackStock: false,
-        stockCount: 0
+        stockCount: 0,
+        patternImage: ''
     };
 }
 
@@ -128,10 +136,11 @@ function addToBagWithSelection(id, size, color, pattern = '') {
         existing.qty++;
         existing.price = vDetails.price;
         existing.variantImage = vDetails.image;
+        existing.variantPatternImage = vDetails.patternImage || '';
         existing.trackStock = vDetails.trackStock;
         existing.stockCount = vDetails.stockCount;
     } else {
-        cart.push({...p, variantSize: size, variantColor: color, variantPattern: pattern, qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
+        cart.push({...p, variantSize: size, variantColor: color, variantPattern: pattern, variantPatternImage: vDetails.patternImage || '', qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
     }
     updateCartUI();
     
@@ -473,8 +482,16 @@ function openCart() {
         const infoLine = variantText ? `${variantText} • ${priceText}` : priceText;
         
         const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
+        
+        // Pattern swatch: shown as a small overlay badge on the product image when available
+        const patternSwatchHtml = it.variantPatternImage ? `
+            <div style="position:relative; width:50px; height:50px; flex-shrink:0;">
+                <img src="${imgUrl}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
+                <img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="position:absolute; bottom:-4px; right:-4px; width:22px; height:22px; border-radius:4px; object-fit:cover; border:2px solid #1a1a1a; box-shadow:0 1px 4px rgba(0,0,0,0.5);">
+            </div>` : `<img src="${imgUrl}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">`;
+        
         h += `<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; background:#111; padding:10px; border-radius:15px; border:1px solid #222">
-            <img src="${imgUrl}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
+            ${patternSwatchHtml}
             <div style="flex:1"><div style="font-size:13px; font-weight:600">${it.name}</div><div style="font-size:11px; color:var(--gold)">${infoLine}</div></div>
             <div class="qty-ctrl">
                 <span class="qty-btn" onclick="changeQty(${idx},-1)">-</span>
@@ -606,7 +623,9 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         if (it.variantPattern) specs.push(it.variantPattern);
         const variantDesc = specs.length > 0 ? specs.join(' / ') : '-';
         const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
-        return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><img src="${imgUrl}" width="50" height="50" style="border-radius: 4px; object-fit: cover; margin-right: 10px; vertical-align:middle;" alt="product"><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
+        // Show pattern swatch image in email (smaller, below product image)
+        const patternSwatchEmailHtml = it.variantPatternImage ? `<br><img src="${it.variantPatternImage}" width="30" height="30" title="Pattern: ${it.variantPattern || ''}" style="border-radius:4px; object-fit:cover; border:1px solid #ddd; margin-top:4px; vertical-align:middle;" alt="pattern swatch">` : '';
+        return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><div style="display:inline-block; vertical-align:middle; margin-right:10px; position:relative;"><img src="${imgUrl}" width="50" height="50" style="border-radius: 4px; object-fit: cover; display:block;" alt="product">${patternSwatchEmailHtml}</div><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
     }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: &#8377;${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, contact us on <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" style="color:#25D366">WhatsApp</a></div></div>`;
 
     const orderDoc = {
@@ -670,7 +689,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         }
         // -----------------------------
         
-        await emailjs.send('service_pdnmeeb', 'template_pugghm5', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total });
+        await emailjs.send('service_pdnmeeb', 'template_pugghm5', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total }, 'k3l2JkCbjMs8WOAXg');
         showToast('Success! Order Placed.');
         cart = [];
         activePromo = null;
@@ -685,7 +704,8 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         }
     } catch(e) {
         console.error('Order Error:', e);
-        showToast('Failed to place order');
+        const errMsg = e && e.text ? `Failed: ${e.text}` : 'Failed to place order';
+        showToast(errMsg);
     }
 
     if (btn) { btn.disabled = false; btn.innerText = 'Place Order'; }
@@ -780,7 +800,13 @@ function loadOrders() {
                     }
                     const variantDesc = specs.length > 0 ? specs.join(' • ') : '';
                     const descSuffix = variantDesc ? ` <span style="color:#666">(${variantDesc})</span>` : '';
-                    return `<div style="display:flex; align-items:center; gap:10px; margin-bottom:5px"><img src="${i.images && i.images.length ? i.images[0] : ''}" style="width:40px;height:40px;object-fit:cover;border-radius:6px" onerror="this.style.display='none'"><span style="font-size:12px">${i.name}${descSuffix} ×${i.qty||1}</span><span style="margin-left:auto; font-size:12px; color:var(--gold)">₹${i.price * (i.qty||1)}</span></div>`;
+                    const imgUrl = (i.images && i.images.length) ? i.images[0] : '';
+                    const patternOverlayHtml = i.variantPatternImage ? `
+                        <div style="position:relative; width:40px; height:40px; flex-shrink:0;">
+                            <img src="${imgUrl}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;">
+                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="position:absolute; bottom:-2px; right:-2px; width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; box-shadow:0 1px 3px rgba(0,0,0,0.5);">
+                        </div>` : `<img src="${imgUrl}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">`;
+                    return `<div style="display:flex; align-items:center; gap:10px; margin-bottom:5px">${patternOverlayHtml}<span style="font-size:12px">${i.name}${descSuffix} ×${i.qty||1}</span><span style="margin-left:auto; font-size:12px; color:var(--gold)">₹${i.price * (i.qty||1)}</span></div>`;
                 }).join('')}
                 ${promoInfo}
                 <div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right; font-size:16px;">Total: ₹${o.total || 0}</div>

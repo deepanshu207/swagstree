@@ -42,64 +42,128 @@ function renderVariantBlocks() {
     const container = document.getElementById('m-variants-container');
     if (!container) return;
     
-    container.innerHTML = variantBlocks.map(v => `
-        <div class="variant-block" id="${v.id}" style="background:#1a1a1a; padding:15px; border-radius:10px; border:1px solid #333; margin-bottom:15px; position:relative;">
-            <i class="fa fa-times" style="position:absolute; top:10px; right:15px; color:#666; cursor:pointer;" onclick="removeVariant('${v.id}')"></i>
-            
-            <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:5px; margin-bottom:15px;">
-                <input list="size-options-${v.id}" id="v-size-${v.id}" placeholder="Size (Blank = Standard)" value="${v.size === 'Standard' ? '' : v.size}" oninput="updateVariant('${v.id}', 'size', this.value)" style="flex:1; min-width: 100px; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
-                <datalist id="size-options-${v.id}">
-                    ${ALL_SIZES.map(s => `<option value="${s.id}">`).join('')}
-                </datalist>
-                <input list="color-options-${v.id}" id="v-color-${v.id}" placeholder="Color" value="${v.color || ''}" oninput="updateVariant('${v.id}', 'color', this.value)" style="flex:1; min-width: 100px; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
-                <datalist id="color-options-${v.id}">
-                    ${ALL_COLORS.map(c => `<option value="${c}">`).join('')}
-                </datalist>
-                <input list="pattern-options-${v.id}" id="v-pattern-${v.id}" placeholder="Pattern (e.g. Floral)" value="${v.pattern || ''}" oninput="updateVariant('${v.id}', 'pattern', this.value)" style="flex:1; min-width: 100px; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
-                <datalist id="pattern-options-${v.id}">
-                    ${ALL_PATTERNS.map(p => `<option value="${p}">`).join('')}
-                </datalist>
+    container.innerHTML = variantBlocks.map((v, idx) => {
+        const hasSwatches = v.previewImages && v.previewImages.length > 0;
+        const colorPreviewStyle = v.color ? `background:${v.color.trim()}; display:inline-block; width:14px; height:14px; border-radius:50%; border:1px solid #666; vertical-align:middle; margin-right:4px; flex-shrink:0;` : 'display:none;';
+
+        // Helper: styled toggle checkbox
+        const toggle = (id, checked, onChange, label, color) => `
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; min-width:0; flex:1;">
+                <div style="position:relative; width:38px; height:20px; flex-shrink:0;">
+                    <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} onchange="${onChange}" style="opacity:0; width:0; height:0; position:absolute;">
+                    <span onclick="document.getElementById('${id}').click()" style="position:absolute; inset:0; border-radius:20px; background:${checked ? (color||'#FFD700') : '#333'}; transition:0.2s; cursor:pointer;"></span>
+                    <span onclick="document.getElementById('${id}').click()" style="position:absolute; top:3px; left:${checked ? '20px' : '3px'}; width:14px; height:14px; border-radius:50%; background:#fff; transition:0.2s; cursor:pointer;"></span>
+                </div>
+                <span style="font-size:12px; color:${checked ? (color||'#FFD700') : '#777'}; line-height:1.3;">${label}</span>
+            </label>`;
+
+        return `
+        <div class="variant-block" id="v-block-${v.id}" style="background:#141414; border-radius:12px; border:1px solid #2a2a2a; margin-bottom:14px; overflow:hidden; position:relative;">
+
+            <!-- Header bar -->
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#1e1e1e; border-bottom:1px solid #2a2a2a; gap:8px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:#FFD700;">
+                    <span style="background:#2a2a2a; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:11px;">${idx + 1}</span>
+                    <span style="display:flex; align-items:center; gap:4px;">
+                        <span style="${colorPreviewStyle}"></span>
+                        ${v.colorName || (v.color ? v.color : '') || 'Variant'}
+                        ${v.size && v.size !== 'Standard' ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.size}</span>` : ''}
+                        ${v.pattern ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.pattern}</span>` : ''}
+                    </span>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <span style="font-size:11px; padding:3px 8px; border-radius:20px; background:${v.isActive !== false ? '#1a3a1a' : '#3a1a1a'}; color:${v.isActive !== false ? '#4caf50' : '#e57373'};">
+                        ${v.isActive !== false ? '● Active' : '○ Hidden'}
+                    </span>
+                    <button onclick="removeVariant('${v.id}')" title="Remove variant" style="background:none; border:1px solid #444; border-radius:6px; color:#666; cursor:pointer; padding:4px 8px; font-size:13px; line-height:1;">✕</button>
+                </div>
             </div>
-            <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
-                <input id="v-price-${v.id}" type="number" placeholder="Custom Price (Blank = Base Price)" value="${v.price || ''}" oninput="updateVariant('${v.id}', 'price', this.value)" style="flex:1; padding:8px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">
-                <span title="Overrides default price. Leave blank to inherit base price." style="cursor:help; color:#aaa; font-size:14px; margin-left:-5px;">ⓘ</span>
-                <label style="flex:1; padding:8px; border-radius:5px; border:1px dashed #666; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px;">
-                    Upload Variant Images
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
-                </label>
-                <label style="flex:1; padding:8px; border-radius:5px; border:1px dashed #25D366; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px;">
-                    Upload Pattern/Color Swatch(es)
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
-                </label>
+
+            <div style="padding:12px 14px; display:flex; flex-direction:column; gap:12px;">
+
+                <!-- Row 1: Size & Price -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div>
+                        <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Size</div>
+                        <input list="size-options-${v.id}" id="v-size-${v.id}" placeholder="e.g. S, M, XL, L" value="${v.size === 'Standard' ? '' : (v.size || '')}" oninput="updateVariant('${v.id}', 'size', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                        <datalist id="size-options-${v.id}">${ALL_SIZES.map(s => `<option value="${s.id}">`).join('')}</datalist>
+                    </div>
+                    <div>
+                        <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Custom Price <span style="color:#555; font-size:9px;">(blank = base)</span></div>
+                        <input id="v-price-${v.id}" type="number" placeholder="₹ Leave blank" value="${v.price || ''}" oninput="updateVariant('${v.id}', 'price', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                    </div>
+                </div>
+
+                <!-- Row 2: Color & Color Display Text -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div>
+                        <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Color Value <span style="color:#555; font-size:9px;">(hex or name)</span></div>
+                        <div style="position:relative;">
+                            ${v.color ? `<span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); width:14px; height:14px; border-radius:50%; background:${v.color.trim()}; border:1px solid #555; pointer-events:none;"></span>` : ''}
+                            <input list="color-options-${v.id}" id="v-color-${v.id}" placeholder="#FF0000, red…" value="${v.color || ''}" oninput="updateVariant('${v.id}', 'color', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px 9px ${v.color ? '30px' : '10px'}; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                            <datalist id="color-options-${v.id}">${ALL_COLORS.map(c => `<option value="${c}">`).join('')}</datalist>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:10px; color:#FFD700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Color Display Text <span style="color:#555; font-size:9px;">(optional)</span></div>
+                        <input id="v-colorname-${v.id}" placeholder="e.g. Sky Blue, Maroon" value="${v.colorName || ''}" oninput="updateVariant('${v.id}', 'colorName', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #444; background:#1e1e1e; color:#FFD700; font-size:13px;">
+                    </div>
+                </div>
+
+                <!-- Row 3: Pattern & Pattern Display Text -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div>
+                        <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Pattern <span style="color:#555; font-size:9px;">(comma-sep for multiple)</span></div>
+                        <input list="pattern-options-${v.id}" id="v-pattern-${v.id}" placeholder="e.g. Floral, p1, p2" value="${v.pattern || ''}" oninput="updateVariant('${v.id}', 'pattern', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                        <datalist id="pattern-options-${v.id}">${ALL_PATTERNS.map(p => `<option value="${p}">`).join('')}</datalist>
+                    </div>
+                    <div>
+                        <div style="font-size:10px; color:#25D366; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Pattern Display Text <span style="color:#555; font-size:9px;">(optional)</span></div>
+                        <input id="v-patternname-${v.id}" placeholder="e.g. Floral Print, Checks" value="${v.patternName || ''}" oninput="updateVariant('${v.id}', 'patternName', this.value)" title="Custom display names (comma-separated). Maps to each pattern key." style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #444; background:#1e1e1e; color:#25D366; font-size:13px;">
+                    </div>
+                </div>
+
+                <!-- Row 4: Upload buttons -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #444; background:#1a1a1a; color:#aaa; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
+                        <span style="font-size:18px;">🖼️</span>
+                        <span>Upload Variant Images</span>
+                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
+                    </label>
+                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #25D366; background:#1a1a1a; color:#25D366; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
+                        <span style="font-size:18px;">🎨</span>
+                        <span>Pattern / Color Swatch(es)</span>
+                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
+                    </label>
+                </div>
+
+                <!-- Image & Swatch previews -->
+                <div id="v-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
+                <div id="v-swatch-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
+
+                <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
+                    ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked)`, 'Active', '#4caf50')}
+                    ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
+                    ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
+                    ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
+                    ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();`, 'Track Stock', '#FFD700')}
+                    ${v.trackStock ? `
+                    <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a;">
+                        <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
+                        <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
+                    </div>` : ''}
+                </div>
+
             </div>
-            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:15px; margin-top:10px;">
-                <div style="display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" id="v-active-${v.id}" ${v.isActive !== false ? 'checked' : ''} onchange="updateVariant('${v.id}', 'isActive', this.checked)">
-                    <label for="v-active-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Active <span title="Uncheck to hide this variant from the store" style="cursor:help; color:#aaa;">ⓘ</span></label>
-                </div>
-                <div style="display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" id="v-hidedet-${v.id}" ${v.hideDetailsGallery ? 'checked' : ''} onchange="updateVariant('${v.id}', 'hideDetailsGallery', this.checked)">
-                    <label for="v-hidedet-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Details Images In Details Gallery</label>
-                </div>
-                <div style="display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" id="v-showmain-${v.id}" ${v.showInMainCarousel ? 'checked' : ''} onchange="updateVariant('${v.id}', 'showInMainCarousel', this.checked)">
-                    <label for="v-showmain-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Show in Home Screen</label>
-                </div>
-                <div style="display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" id="v-track-${v.id}" ${v.trackStock ? 'checked' : ''} onchange="updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();">
-                    <label for="v-track-${v.id}" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Track Stock</label>
-                </div>
-                ${v.trackStock ? `<input type="number" placeholder="Stock Qty" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" style="width:80px; padding:6px; border-radius:5px; border:1px solid #444; background:#222; color:#fff;">` : ''}
-            </div>
-            <div id="v-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:10px;"></div>
-            <div id="v-swatch-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;"></div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 
     variantBlocks.forEach((v, index) => {
         renderImagePreviews(v.id);
         renderSwatchPreview(v.id);
-        // Add sorting badge to variant block
+        
         const blockEl = document.getElementById(`v-block-${v.id}`);
         if(blockEl) {
             let badge = blockEl.querySelector('.sort-badge');
@@ -112,7 +176,7 @@ function renderVariantBlocks() {
             badge.innerText = (index + 1);
             
             // Check for missing image warning
-            if ((!v.existingImages || v.existingImages.length === 0) && (!v.currentFiles || v.currentFiles.length === 0)) {
+            if (!v.images || v.images.length === 0) {
                 let warn = blockEl.querySelector('.warn-badge');
                 if(!warn) {
                     warn = document.createElement('div');
@@ -143,43 +207,24 @@ function renderVariantBlocks() {
     }
 }
 
-// Swap
-function swapArr(arr, index, newIdx, vId) {
-    const temp = arr[index];
-    arr[index] = arr[newIdx];
-    arr[newIdx] = temp;
-    
-    renderImagePreviews(vId);
-}
-
+// Swatch preview rendering with Sortable and unified index badges
 function renderSwatchPreview(vId) {
     const v = variantBlocks.find(x => x.id === vId);
     if (!v) return;
-    const sContainer = document.getElementById(`v-swatch-${v.id}`);
-    if (!sContainer) return;
-    
-    sContainer.innerHTML = '';
     const container = document.getElementById(`v-swatch-${vId}`);
     if (!container) return;
     
-    let html = '';
-    
-    const eImgs = v.existingPreviewImages || [];
-    eImgs.forEach((url, i) => {
-        html += `<div data-type="existing" data-idx="${i}" style="position:relative; width:40px; height:40px; cursor:grab;">
-            <img src="${url}" style="width:100%; height:100%; object-fit:cover; border-radius:5px; border:1px solid #444;">
-            <div onclick="removeExistingSwatch('${vId}', ${i})" style="position:absolute; top:-5px; right:-5px; background:rgba(255,0,0,0.8); color:white; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer; font-weight:bold;">&times;</div>
-        </div>`;
-    });
-    
-    const cFiles = v.currentPreviewFiles || [];
-    cFiles.forEach((file, i) => {
-        const url = URL.createObjectURL(file);
-        html += `<div data-type="current" data-idx="${i}" style="position:relative; width:40px; height:40px; cursor:grab;">
-            <img src="${url}" style="width:100%; height:100%; object-fit:cover; border-radius:5px; border:2px dashed #25D366;">
-            <div onclick="removeNewSwatch('${vId}', ${i})" style="position:absolute; top:-5px; right:-5px; background:rgba(255,0,0,0.8); color:white; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer; font-weight:bold;">&times;</div>
-        </div>`;
-    });
+    let html = (v.previewImages || []).map((img, i) => {
+        const isFile = img instanceof File;
+        const url = isFile ? URL.createObjectURL(img) : img;
+        const borderStyle = isFile ? 'border:2px dashed #25D366;' : 'border:1px solid #444;';
+        return `
+            <div style="position:relative; width:40px; height:40px; cursor:grab; ${borderStyle} border-radius:5px; overflow:hidden;">
+                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
+                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                <div onclick="removeSwatch('${vId}', ${i})" style="position:absolute; top:-2px; right:-2px; background:rgba(255,0,0,0.8); color:white; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer; font-weight:bold; z-index:6;">&times;</div>
+            </div>`;
+    }).join('');
     
     container.innerHTML = html;
     
@@ -188,18 +233,8 @@ function renderSwatchPreview(vId) {
         container._sortable = Sortable.create(container, {
             animation: 150,
             onEnd: function (evt) {
-                const newExisting = [];
-                const newCurrent = [];
-                Array.from(container.children).forEach(child => {
-                    const idx = parseInt(child.dataset.idx);
-                    if (child.dataset.type === 'existing') {
-                        newExisting.push(v.existingPreviewImages[idx]);
-                    } else if (child.dataset.type === 'current') {
-                        newCurrent.push(v.currentPreviewFiles[idx]);
-                    }
-                });
-                v.existingPreviewImages = newExisting;
-                v.currentPreviewFiles = newCurrent;
+                const moved = v.previewImages.splice(evt.oldIndex, 1)[0];
+                v.previewImages.splice(evt.newIndex, 0, moved);
                 renderSwatchPreview(vId);
             }
         });
@@ -211,16 +246,18 @@ function addVariantBlock() {
         id: 'v_' + Math.random().toString(36).substr(2, 9),
         size: 'Standard',
         color: '',
+        colorName: '',
+        pattern: '',
+        patternName: '',
+        showPatternText: false,
         price: '',
         hideDetailsGallery: false,
         showInMainCarousel: false,
         isActive: true,
         trackStock: false,
         stockCount: 0,
-        existingImages: [],
-        currentFiles: [],
-        existingPreviewImages: [],
-        currentPreviewFiles: []
+        images: [],
+        previewImages: []
     });
     renderVariantBlocks();
 }
@@ -230,48 +267,36 @@ function handleFileSelect(input, vId) {
     const newFiles = Array.from(input.files);
     
     if (vId === 'base') {
-        currentProductFiles = [...currentProductFiles, ...newFiles];
+        existingImageUrls = [...existingImageUrls, ...newFiles];
     } else {
         const v = variantBlocks.find(x => x.id === vId);
         if (!v) return;
-        v.currentFiles.push(...newFiles);
+        v.images = [...(v.images || []), ...newFiles];
     }
     renderImagePreviews(vId);
+    input.value = '';
 }
 
 function handleSwatchSelect(input, vId) {
     const v = variantBlocks.find(x => x.id === vId);
     if (!v) return;
     if (input.files && input.files.length > 0) {
-        v.currentPreviewFiles = [...(v.currentPreviewFiles || []), ...Array.from(input.files)];
+        v.previewImages = [...(v.previewImages || []), ...Array.from(input.files)];
     }
-    renderSwatchPreview(vId);
+    renderVariantBlocks();
+    input.value = '';
 }
 
-function removeNewVariantImage(vId, index) {
+function removeVariantImage(vId, index) {
     const v = variantBlocks.find(x => x.id === vId);
-    if (!v) return;
-    v.currentFiles.splice(index, 1);
+    if (v && v.images) v.images.splice(index, 1);
     renderImagePreviews(vId);
 }
 
-function removeExistingVariantImage(vId, index) {
+function removeSwatch(vId, index) {
     const v = variantBlocks.find(x => x.id === vId);
-    if (!v) return;
-    v.existingImages.splice(index, 1);
-    renderImagePreviews(vId);
-}
-
-function removeExistingSwatch(vId, index) {
-    const v = variantBlocks.find(x => x.id === vId);
-    if (v && v.existingPreviewImages) v.existingPreviewImages.splice(index, 1);
-    renderSwatchPreview(vId);
-}
-
-function removeNewSwatch(vId, index) {
-    const v = variantBlocks.find(x => x.id === vId);
-    if (v && v.currentPreviewFiles) v.currentPreviewFiles.splice(index, 1);
-    renderSwatchPreview(vId);
+    if (v && v.previewImages) v.previewImages.splice(index, 1);
+    renderVariantBlocks();
 }
 
 function updateVariant(id, field, value) {
@@ -340,10 +365,11 @@ function openEdit(id) {
     document.getElementById('m-desc').value = p.description || ""; 
     document.getElementById('m-hide-main').checked = !!p.hideMainCarousel;
     document.getElementById('m-hide-main-details').checked = !!p.hideMainDetailsCarousel;
+    document.getElementById('m-main-pos').value = p.mainImagesPosition || 'start';
+    document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])]; 
-    currentProductFiles = []; 
-    renderImagePreviews(); 
+    renderImagePreviews('base'); 
     
     // Load variants or fallback
     if (p.variants && Array.isArray(p.variants)) {
@@ -351,17 +377,18 @@ function openEdit(id) {
             id: 'v_' + Math.random().toString(36).substr(2, 9),
             size: v.size || 'Standard',
             color: v.color || '',
+            colorName: v.colorName || '',
             pattern: v.pattern || '',
+            patternName: v.patternName || '',
+            showPatternText: !!v.showPatternText,
             price: v.price || null,
             hideDetailsGallery: !!v.hideDetailsGallery,
             showInMainCarousel: !!v.showInMainCarousel,
             isActive: v.isActive !== false,
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
-            existingImages: [...(v.images || [])],
-            currentFiles: [],
-            existingPreviewImages: v.previewImages || (v.previewImage ? [v.previewImage] : []),
-            currentPreviewFiles: []
+            images: [...(v.images || [])],
+            previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
     } else {
         // Fallback for older products
@@ -380,17 +407,18 @@ function openEdit(id) {
                         id: 'v_' + Math.random().toString(36).substr(2, 9),
                         size: sz,
                         color: col,
+                        colorName: '',
                         pattern: '',
+                        patternName: '',
+                        showPatternText: false,
                         price: null,
                         hideDetailsGallery: false,
                         showInMainCarousel: false,
                         isActive: true,
                         trackStock: false,
                         stockCount: 0,
-                        existingImages: [],
-                        currentFiles: [],
-                        existingPreviewImages: pImg ? [pImg] : [],
-                        currentPreviewFiles: []
+                        images: [],
+                        previewImages: pImg ? [pImg] : []
                     });
                 });
             } else {
@@ -398,16 +426,18 @@ function openEdit(id) {
                     id: 'v_' + Math.random().toString(36).substr(2, 9),
                     size: sz,
                     color: '',
+                    colorName: '',
+                    pattern: '',
+                    patternName: '',
+                    showPatternText: false,
                     price: p.price,
                     hideDetailsGallery: false,
                     showInMainCarousel: false,
                     isActive: true,
                     trackStock: false,
                     stockCount: 0,
-                    existingImages: [],
-                    currentFiles: [],
-                    existingPreviewImage: '',
-                    currentPreviewFile: null
+                    images: [],
+                    previewImages: []
                 });
             }
         });
@@ -421,12 +451,14 @@ function openEdit(id) {
 function openAdd() { 
     editingId = null; 
     existingImageUrls = []; 
-    currentProductFiles = []; 
     variantBlocks = [];
     document.getElementById('m-name').value = ""; 
     document.getElementById('m-price').value = ""; 
     document.getElementById('m-desc').value = "";
     document.getElementById('m-hide-main').checked = false;
+    document.getElementById('m-hide-main-details').checked = false;
+    document.getElementById('m-main-pos').value = 'start';
+    document.getElementById('m-main-pos-container').style.display = 'flex';
     document.getElementById('m-hide-main-placeholder').checked = false;
     
     renderImagePreviews('base'); 
@@ -440,25 +472,23 @@ function renderImagePreviews(targetId = 'base') {
     
     let html = '';
     if (targetId === 'base') {
-        html += (existingImageUrls || []).map((url, i) => `
-            <div data-type="existing" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px solid #444; cursor:grab;">
-                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
-                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="existingImageUrls.splice(${i},1);renderImagePreviews('base')"></i>
-            </div>
-        `).join('');
-        html += (currentProductFiles || []).map((f, i) => `
-            <div data-type="current" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px dashed #25D366; cursor:grab;">
-                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${(existingImageUrls || []).length + i + 1}</div>
-                <img src="${URL.createObjectURL(f)}" style="width:100%; height:100%; object-fit:cover;">
-                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="currentProductFiles.splice(${i},1);renderImagePreviews('base')"></i>
-            </div>
-        `).join('');
+        html += (existingImageUrls || []).map((img, i) => {
+            const isFile = img instanceof File;
+            const url = isFile ? URL.createObjectURL(img) : img;
+            const borderStyle = isFile ? 'border:1px dashed #25D366;' : 'border:1px solid #444;';
+            return `
+                <div data-type="${isFile ? 'file' : 'url'}" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; ${borderStyle} cursor:grab;">
+                    <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
+                    <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                    <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="existingImageUrls.splice(${i},1);renderImagePreviews('base')"></i>
+                </div>
+            `;
+        }).join('');
         container.innerHTML = html;
 
         // Warning if no main images at all
         let warnEl = document.getElementById('m-warn-badge');
-        if ((!existingImageUrls || existingImageUrls.length === 0) && (!currentProductFiles || currentProductFiles.length === 0)) {
+        if (!existingImageUrls || existingImageUrls.length === 0) {
             if (!warnEl) {
                 warnEl = document.createElement('div');
                 warnEl.id = 'm-warn-badge';
@@ -476,18 +506,8 @@ function renderImagePreviews(targetId = 'base') {
             container._sortable = Sortable.create(container, {
                 animation: 150,
                 onEnd: function (evt) {
-                    const newExisting = [];
-                    const newCurrent = [];
-                    Array.from(container.children).forEach(child => {
-                        const idx = parseInt(child.dataset.idx);
-                        if (child.dataset.type === 'existing') {
-                            newExisting.push(existingImageUrls[idx]);
-                        } else if (child.dataset.type === 'current') {
-                            newCurrent.push(currentProductFiles[idx]);
-                        }
-                    });
-                    existingImageUrls = newExisting;
-                    currentProductFiles = newCurrent;
+                    const movedItem = existingImageUrls.splice(evt.oldIndex, 1)[0];
+                    existingImageUrls.splice(evt.newIndex, 0, movedItem);
                     renderImagePreviews('base');
                 }
             });
@@ -495,24 +515,19 @@ function renderImagePreviews(targetId = 'base') {
     } else {
         const v = variantBlocks.find(x => x.id === targetId);
         if(!v) return;
-        let exist = v.existingImages || [];
-        let curr = v.currentFiles || [];
-
-        let html = '';
-        html += exist.map((url, i) => `
-            <div data-type="existing" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px solid #444; cursor:grab;">
-                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
-                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="removeExistingVariantImage('${targetId}', ${i})"></i>
-            </div>
-        `).join('');
-        html += curr.map((file, i) => `
-            <div data-type="current" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; border:1px dashed #25D366; cursor:grab;">
-                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${exist.length + i + 1}</div>
-                <img src="${URL.createObjectURL(file)}" style="width:100%; height:100%; object-fit:cover;">
-                <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="removeNewVariantImage('${targetId}', ${i})"></i>
-            </div>
-        `).join('');
+        
+        let html = (v.images || []).map((img, i) => {
+            const isFile = img instanceof File;
+            const url = isFile ? URL.createObjectURL(img) : img;
+            const borderStyle = isFile ? 'border:1px dashed #25D366;' : 'border:1px solid #444;';
+            return `
+                <div data-type="${isFile ? 'file' : 'url'}" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; ${borderStyle} cursor:grab;">
+                    <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
+                    <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                    <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="removeVariantImage('${targetId}', ${i})"></i>
+                </div>
+            `;
+        }).join('');
         container.innerHTML = html;
 
         if (window.Sortable && container) {
@@ -520,23 +535,26 @@ function renderImagePreviews(targetId = 'base') {
             container._sortable = Sortable.create(container, {
                 animation: 150,
                 onEnd: function (evt) {
-                    const newExisting = [];
-                    const newCurrent = [];
-                    Array.from(container.children).forEach(child => {
-                        const idx = parseInt(child.dataset.idx);
-                        if (child.dataset.type === 'existing') {
-                            newExisting.push(v.existingImages[idx]);
-                        } else if (child.dataset.type === 'current') {
-                            newCurrent.push(v.currentFiles[idx]);
-                        }
-                    });
-                    v.existingImages = newExisting;
-                    v.currentFiles = newCurrent;
+                    const movedItem = v.images.splice(evt.oldIndex, 1)[0];
+                    v.images.splice(evt.newIndex, 0, movedItem);
                     renderImagePreviews(targetId);
                 }
             });
         }
     }
+}
+
+// Global helper to upload a file to Cloudinary
+async function uploadToCloudinary(file) {
+    const fd = new FormData(); 
+    fd.append("file", file); 
+    fd.append("upload_preset", PRESET); 
+    const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
+    const d = await r.json(); 
+    if (!d.secure_url) {
+        throw new Error(d.error ? d.error.message : "Cloudinary upload failed");
+    }
+    return d.secure_url; 
 }
 
 async function saveProduct() { 
@@ -549,47 +567,45 @@ async function saveProduct() {
     btn.innerText = "Processing..."; 
     
     try { 
-        // Upload new base images to Cloudinary
-        const upPromises = currentProductFiles.map(async f => { 
-            const fd = new FormData(); 
-            fd.append("file", f); 
-            fd.append("upload_preset", PRESET); 
-            const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
-            const d = await r.json(); 
-            return d.secure_url; 
-        }); 
-        const newUrls = await Promise.all(upPromises); 
+        // Upload all base images (interleaved support)
+        const finalMainImages = [];
+        for (let img of existingImageUrls) {
+            if (img instanceof File) {
+                const url = await uploadToCloudinary(img);
+                finalMainImages.push(url);
+            } else {
+                finalMainImages.push(img);
+            }
+        }
         
-        // Upload variant images
+        // Upload variant images & swatches
         const parsedVariants = [];
         for (let v of variantBlocks) {
-            const vUpPromises = v.currentFiles.map(async f => {
-                const fd = new FormData(); 
-                fd.append("file", f); 
-                fd.append("upload_preset", PRESET); 
-                const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
-                const d = await r.json(); 
-                return d.secure_url; 
-            });
-            const vNewUrls = await Promise.all(vUpPromises);
+            const uploadedVariantImages = [];
+            for (let img of (v.images || [])) {
+                if (img instanceof File) {
+                    const url = await uploadToCloudinary(img);
+                    uploadedVariantImages.push(url);
+                } else {
+                    uploadedVariantImages.push(img);
+                }
+            }
             
-            let uploadedPreviewUrls = [...(v.existingPreviewImages || [])];
-            if (v.currentPreviewFiles && v.currentPreviewFiles.length > 0) {
-                const pvUpPromises = v.currentPreviewFiles.map(async f => {
-                    const fd = new FormData(); 
-                    fd.append("file", f); 
-                    fd.append("upload_preset", PRESET); 
-                    const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
-                    const d = await r.json(); 
-                    return d.secure_url; 
-                });
-                const vNewPvUrls = await Promise.all(pvUpPromises);
-                uploadedPreviewUrls = [...uploadedPreviewUrls, ...vNewPvUrls];
+            const uploadedPreviewUrls = [];
+            for (let img of (v.previewImages || [])) {
+                if (img instanceof File) {
+                    const url = await uploadToCloudinary(img);
+                    uploadedPreviewUrls.push(url);
+                } else {
+                    uploadedPreviewUrls.push(img);
+                }
             }
             
             let finalSize = v.size || 'Standard';
             let finalColor = v.color || '';
+            let finalColorName = v.colorName || '';
             let finalPattern = v.pattern || '';
+            let finalPatternName = v.patternName || '';
             
             if (finalSize === 'Standard' && !finalColor && !finalPattern && uploadedPreviewUrls.length === 0) {
                 continue;
@@ -598,19 +614,46 @@ async function saveProduct() {
             const parsedVariant = {
                 size: finalSize,
                 color: finalColor,
+                colorName: finalColorName,
                 pattern: finalPattern,
+                patternName: finalPatternName,
+                showPatternText: !!v.showPatternText,
                 price: v.price ? Number(v.price) : null,
                 hideDetailsGallery: !!v.hideDetailsGallery,
                 showInMainCarousel: !!v.showInMainCarousel,
                 isActive: v.isActive !== false,
                 trackStock: !!v.trackStock,
                 stockCount: v.stockCount || 0,
-                images: [...v.existingImages, ...vNewUrls],
+                images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
             };
             
             parsedVariants.push(parsedVariant);
         }
+        
+        const mergedVariants = [];
+        parsedVariants.forEach(v => {
+            const dup = mergedVariants.find(x => x.size.trim().toLowerCase() === v.size.trim().toLowerCase() && 
+                                                 x.color.trim().toLowerCase() === v.color.trim().toLowerCase() && 
+                                                 x.pattern.trim().toLowerCase() === v.pattern.trim().toLowerCase());
+            if (dup) {
+                dup.images = [...new Set([...(dup.images || []), ...(v.images || [])])];
+                dup.previewImages = [...new Set([...(dup.previewImages || []), ...(v.previewImages || [])])];
+                if (v.trackStock) {
+                    dup.trackStock = true;
+                    dup.stockCount = (dup.stockCount || 0) + (v.stockCount || 0);
+                }
+                if (dup.price === null || dup.price === undefined) {
+                    dup.price = v.price;
+                }
+                if (v.isActive) dup.isActive = true;
+                if (v.hideDetailsGallery) dup.hideDetailsGallery = true;
+                if (v.showInMainCarousel) dup.showInMainCarousel = true;
+                if (v.showPatternText) dup.showPatternText = true;
+            } else {
+                mergedVariants.push(v);
+            }
+        });
         
         const data = { 
             name: n, 
@@ -618,21 +661,28 @@ async function saveProduct() {
             description: document.getElementById('m-desc').value, 
             hideMainCarousel: document.getElementById('m-hide-main').checked,
             hideMainDetailsCarousel: document.getElementById('m-hide-main-details').checked,
+            mainImagesPosition: document.getElementById('m-main-pos').value,
             hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
-            images: [...existingImageUrls, ...newUrls],
-            variants: parsedVariants,
+            images: finalMainImages,
+            variants: mergedVariants,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            // Fallback for older legacy UI code
-            sizes: [...new Set(parsedVariants.map(v => v.size))],
-            colors: [...new Set(parsedVariants.map(v => v.color).filter(c => c))],
+            // Fallback for older legacy UI code (using flatMap for comma separation)
+            sizes: [...new Set(mergedVariants.flatMap(v => v.size ? v.size.split(',').map(s => s.trim()).filter(s => s) : []))],
+            colors: [...new Set(mergedVariants.flatMap(v => v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : []))],
             sizeColorMap: {}
         }; 
         
-        parsedVariants.forEach(v => {
-            if(!data.sizeColorMap[v.size]) data.sizeColorMap[v.size] = [];
-            if(v.color && !data.sizeColorMap[v.size].includes(v.color)) {
-                data.sizeColorMap[v.size].push(v.color);
-            }
+        mergedVariants.forEach(v => {
+            const vSizes = v.size ? v.size.split(',').map(s => s.trim()).filter(s => s) : ['Standard'];
+            const vColors = v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : [''];
+            vSizes.forEach(sz => {
+                if(!data.sizeColorMap[sz]) data.sizeColorMap[sz] = [];
+                vColors.forEach(col => {
+                    if(col && !data.sizeColorMap[sz].includes(col)) {
+                        data.sizeColorMap[sz].push(col);
+                    }
+                });
+            });
         });
         
         if(editingId) {
@@ -645,7 +695,7 @@ async function saveProduct() {
         closeModal('prod-modal'); 
     } catch(e) { 
         console.error(e);
-        showToast("Error saving product"); 
+        showToast("Error saving product: " + e.message); 
     } 
     btn.disabled = false; 
     btn.innerText = "Save Product"; 
@@ -666,8 +716,12 @@ function copyProduct(id) {
     document.getElementById('m-name').value = p.name + " - Copy"; 
     document.getElementById('m-price').value = p.price; 
     document.getElementById('m-desc').value = p.description || ""; 
+    document.getElementById('m-hide-main').checked = !!p.hideMainCarousel;
+    document.getElementById('m-hide-main-details').checked = !!p.hideMainDetailsCarousel;
+    document.getElementById('m-main-pos').value = p.mainImagesPosition || 'start';
+    document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
+    document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])]; 
-    currentProductFiles = []; 
     
     // Load variants or fallback
     if (p.variants && Array.isArray(p.variants)) {
@@ -675,14 +729,18 @@ function copyProduct(id) {
             id: 'v_' + Math.random().toString(36).substr(2, 9),
             size: v.size || 'Standard',
             color: v.color || '',
+            colorName: v.colorName || '',
             pattern: v.pattern || '',
+            patternName: v.patternName || '',
+            showPatternText: !!v.showPatternText,
             price: v.price || null,
-            includeBase: v.includeBase !== false,
+            hideDetailsGallery: !!v.hideDetailsGallery,
+            showInMainCarousel: !!v.showInMainCarousel,
             isActive: v.isActive !== false,
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
-            existingImages: [...(v.images || [])],
-            currentFiles: []
+            images: [...(v.images || [])],
+            previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
     } else {
         // Fallback for older products
@@ -697,13 +755,18 @@ function copyProduct(id) {
                         id: 'v_' + Math.random().toString(36).substr(2, 9),
                         size: sz,
                         color: col,
+                        colorName: '',
+                        pattern: '',
+                        patternName: '',
+                        showPatternText: false,
                         price: null,
-                        includeBase: true,
+                        hideDetailsGallery: false,
+                        showInMainCarousel: false,
                         isActive: true,
                         trackStock: false,
                         stockCount: 0,
-                        existingImages: [],
-                        currentFiles: []
+                        images: [],
+                        previewImages: []
                     });
                 });
             } else {
@@ -711,13 +774,18 @@ function copyProduct(id) {
                     id: 'v_' + Math.random().toString(36).substr(2, 9),
                     size: sz,
                     color: '',
+                    colorName: '',
+                    pattern: '',
+                    patternName: '',
+                    showPatternText: false,
                     price: null,
-                    includeBase: true,
+                    hideDetailsGallery: false,
+                    showInMainCarousel: false,
                     isActive: true,
                     trackStock: false,
                     stockCount: 0,
-                    existingImages: [],
-                    currentFiles: []
+                    images: [],
+                    previewImages: []
                 });
             }
         });

@@ -114,6 +114,13 @@ body {
 .chip.active { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,0.1); }
 
 input, textarea, select { width: 100%; padding: 15px; background: #121212; border: 1px solid #282828; color: white; border-radius: 12px; box-sizing: border-box; margin-bottom: 12px; font-size: 14px; }
+input[type="checkbox"], input[type="radio"] {
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: pointer;
+}
 .btn-gold { width: 100%; padding: 16px; background: var(--gold); color: black; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; text-transform: uppercase; }
 .btn-gold:disabled { background: #555; color: #222; cursor: not-allowed; }
 

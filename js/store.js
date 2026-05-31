@@ -74,7 +74,11 @@ function checkDeepLink() {
 // 1. DATA LOADING
 function loadData() { 
     db.collection("products").onSnapshot(snap => { 
-        products = snap.docs.map(doc => ({...doc.data(), id:doc.id})); 
+        products = snap.docs.map(doc => {
+            const p = {...doc.data(), id:doc.id};
+            p.normalizedVariants = normalizeVariants(p);
+            return p;
+        }); 
         renderStore(); 
         renderFilters();
         if(isAdmin && typeof renderAdmin === "function") renderAdmin();
@@ -230,13 +234,23 @@ function normalizeVariants(p) {
         p.variants.filter(v => v.isActive !== false).forEach(v => {
             const sizeValues = v.size ? v.size.split(',').map(s => s.trim()).filter(s => s) : ['Standard'];
             const colorValues = v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : [''];
-            const patternValues = v.pattern ? v.pattern.split(',').map(p => p.trim()).filter(p => p) : [''];
+            const colorNameValues = v.colorName ? v.colorName.split(',').map(c => c.trim()) : [];
+            let patternValues = v.pattern ? v.pattern.split(',').map(p => p.trim()).filter(p => p) : [''];
+            const patternNameValues = v.patternName ? v.patternName.split(',').map(p => p.trim()) : [];
+            const showPatternText = !!v.showPatternText;
+            
+            if (patternValues.length === 1 && patternValues[0] === '' && v.previewImages && v.previewImages.length > 1) {
+                patternValues = v.previewImages.map((_, i) => `Design ${i + 1}`);
+            }
             
             sizeValues.forEach(sz => {
-                colorValues.forEach(col => {
+                colorValues.forEach((col, colIdx) => {
                     patternValues.forEach((pat, patIdx) => {
                         let finalPatternName = pat;
                         let patPreviewUrl = '';
+                        let finalColorName = colorNameValues[colIdx] || col;
+                        // patternDisplayName: custom text override (like colorName for colors)
+                        const patternDisplayName = patternNameValues[patIdx] || '';
                         if (v.previewImages && v.previewImages.length > 0) {
                             patPreviewUrl = v.previewImages[patIdx] || v.previewImages[0] || '';
                         } else if (v.previewImage || v.existingPreviewImage) {
@@ -251,7 +265,10 @@ function normalizeVariants(p) {
                             ...v,
                             size: sz,
                             color: col,
+                            colorName: finalColorName,
                             pattern: finalPatternName,
+                            patternDisplayName: patternDisplayName,
+                            showPatternText: showPatternText,
                             previewImage: patPreviewUrl
                         });
                     });
@@ -279,8 +296,8 @@ function normalizeVariants(p) {
 
 function getSelectedVariant(p) {
     if (!p || !p.normalizedVariants) return null;
-    let match = p.normalizedVariants.find(v => v.size === selectedSize && formatColorName(v.color) === selectedColor && v.pattern === (window.selectedPattern || ''));
-    if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize && formatColorName(v.color) === selectedColor);
+    let match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor && v.pattern === (window.selectedPattern || ''));
+    if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor);
     if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize);
     return match;
 }
@@ -339,7 +356,10 @@ function selectDetailColor(col, el) {
     el.classList.add('active');
     
     const p = products.find(x => x.id === activeProductId);
-    if (p) updateVariantUI(p);
+    if (p) {
+        renderDetailPatterns(p);
+        updateVariantUI(p);
+    }
 }
 
 function renderDetailColors(p) {
@@ -366,7 +386,7 @@ function renderDetailColors(p) {
             
             return `
                 <div class="color-chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">
-                    ${colorPreview}<span>${formatColorName(col)}</span>
+                    ${colorPreview}<span>${v ? v.colorName : formatColorName(col)}</span>
                 </div>
             `;
         }).join('');
@@ -388,7 +408,7 @@ function renderDetailPatterns(p) {
     if (!patternsContainer || !patternSelector) return;
     
     // Filter variants that match current size and color, then get unique patterns
-    const patterns = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize && formatColorName(v.color) === selectedColor).map(v => v.pattern).filter(pat => pat))];
+    const patterns = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize && v.color === selectedColor).map(v => v.pattern).filter(pat => pat))];
     
     if (patterns.length === 0) {
         patternsContainer.style.display = 'none';
@@ -398,21 +418,30 @@ function renderDetailPatterns(p) {
         if (!patterns.includes(window.selectedPattern)) window.selectedPattern = patterns[0];
         
         patternSelector.innerHTML = patterns.map(pat => {
-            const v = p.normalizedVariants.find(x => x.size === selectedSize && formatColorName(x.color) === selectedColor && x.pattern === pat);
-            let patPreview = '';
+            const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === selectedColor && x.pattern === pat);
+            const hasImage = v && v.previewImage;
+            // Display text logic:
+            // - If patternDisplayName set: use it (like colorName for colors)
+            // - If no image: always show pattern text (text-only pattern)
+            // - If has image + showPatternText checked: show text alongside image
+            // - If has image + showPatternText NOT checked: show only image (no text)
+            const displayText = v && v.patternDisplayName ? v.patternDisplayName : pat;
+            const shouldShowText = !hasImage || (v && v.showPatternText);
             
-            if (v && v.previewImage) {
-                patPreview = `<img src="${v.previewImage}" style="width:24px; height:24px; border-radius:4px; object-fit:cover; margin-right:0px; border:1px solid rgba(255,255,255,0.2); vertical-align:middle;">`;
+            if (hasImage) {
+                const imgHtml = `<img src="${v.previewImage}" style="width:28px; height:28px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); vertical-align:middle; flex-shrink:0;">`;
+                const textHtml = shouldShowText ? `<span style="font-size:11px; font-weight:600; margin-left:5px; line-height:1.2;">${displayText}</span>` : '';
                 return `
-                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px; border-radius:8px; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${pat}">
-                    ${patPreview}
+                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${pat}', this)" title="${displayText}">
+                    ${imgHtml}${textHtml}
                 </div>
                 `;
             }
             
+            // Text-only pattern
             return `
-            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${pat}">
-                <span>${pat}</span>
+            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${displayText}">
+                <span>${displayText}</span>
             </div>
             `;
         }).join('');
@@ -428,19 +457,28 @@ function updateVariantUI(p) {
     
     // Update Images
     let imagesToDisplay = [];
+    let mainImages = [];
+    let variantImages = [];
     
     // 1. Variant Images
     if (v && v.images && v.images.length > 0) {
         if (!v.hideDetailsGallery) {
-            imagesToDisplay.push(...v.images);
+            variantImages.push(...v.images);
         }
     }
     
     // 2. Main Images
     if (!p.hideMainDetailsCarousel) {
         if (p.images && p.images.length > 0) {
-            imagesToDisplay.push(...p.images);
+            mainImages.push(...p.images);
         }
+    }
+    
+    // Position
+    if (p.mainImagesPosition === 'end') {
+        imagesToDisplay = [...variantImages, ...mainImages];
+    } else {
+        imagesToDisplay = [...mainImages, ...variantImages];
     }
     
     // Remove duplicates
@@ -519,7 +557,7 @@ function updateVariantUI(p) {
             const availableColors = p.normalizedVariants.filter(x => x.size === selectedSize).map(x => x.color).filter(c => c);
             if (availableColors.length > 0 && !selectedColor) return showToast("Please select a color");
             
-            addToBagWithSelection(p.id, selectedSize, selectedColor); 
+            addToBagWithSelection(p.id, selectedSize, selectedColor, window.selectedPattern || ''); 
             // Don't close detail instantly, let them use the stepper
             updateVariantUI(p);
         };
@@ -604,75 +642,104 @@ function setFilterPattern(el, pat) {
 }
 
 function renderFilters() {
-    const allSizes = new Set(['S', 'M', 'L', 'XL', 'XXL']);
-    const allColors = new Map(); // displayName -> hex/value
-    const allPatterns = new Map(); // displayName -> previewUrl
-    
+    // allSizes: Set of uppercase size strings
+    const allSizes = new Set();
+    // allColors: Map of colorValue -> { displayName, colorValue }
+    const allColors = new Map();
+    // patternGroups: Map of groupKey -> { key, url, displayName, showPatternText, patternKeys }
+    const patternGroups = new Map();
+
     products.forEach(p => {
-        if (p.sizes && Array.isArray(p.sizes)) {
-            p.sizes.forEach(s => {
-                const upper = s.trim().toUpperCase();
+        const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
+            ? p.normalizedVariants
+            : normalizeVariants(p);
+
+        normVars.forEach(v => {
+            // SIZES
+            if (v.size) {
+                const upper = v.size.trim().toUpperCase();
                 if (upper && upper !== 'STANDARD') allSizes.add(upper);
-            });
-        }
-        if (p.colors && Array.isArray(p.colors)) {
-            p.colors.forEach(c => {
-                const cleanValue = c.trim().toLowerCase();
-                const displayName = formatColorName(c);
-                if (displayName && !allColors.has(displayName)) {
-                    allColors.set(displayName, cleanValue);
+            }
+
+            // COLORS
+            if (v.color && v.color.trim()) {
+                const colorVal = v.color.trim();
+                const displayName = (v.colorName && v.colorName.trim()) ? v.colorName.trim() : formatColorName(colorVal);
+                if (!allColors.has(colorVal)) {
+                    allColors.set(colorVal, { displayName, colorVal });
                 }
-            });
-        }
-        const vars = p.variants && Array.isArray(p.variants) && p.variants.length > 0 ? p.variants : normalizeVariants(p);
-        vars.forEach(v => {
+            }
+
+            // PATTERNS (grouped to prevent duplicates)
             if (v.pattern && v.pattern.trim()) {
-                const pName = v.pattern.trim();
-                if (!allPatterns.has(pName) || (!allPatterns.get(pName) && v.previewImage)) {
-                    allPatterns.set(pName, v.previewImage || '');
+                const patVal = v.pattern.trim();
+                const previewUrl = v.previewImage || '';
+                const displayName = (v.patternDisplayName && v.patternDisplayName.trim()) ? v.patternDisplayName.trim() : patVal;
+                
+                const groupKey = previewUrl ? previewUrl : displayName.toLowerCase();
+                
+                if (!patternGroups.has(groupKey)) {
+                    patternGroups.set(groupKey, {
+                        key: groupKey,
+                        url: previewUrl,
+                        displayName: displayName,
+                        showPatternText: !!v.showPatternText,
+                        patternKeys: new Set([patVal])
+                    });
+                } else {
+                    const group = patternGroups.get(groupKey);
+                    group.patternKeys.add(patVal);
+                    if (v.showPatternText) group.showPatternText = true;
+                    if (displayName && (!group.displayName || group.displayName === patVal)) {
+                        group.displayName = displayName;
+                    }
                 }
             }
         });
     });
-    
+
     const sizesContainer = document.getElementById('filter-sizes');
     if (sizesContainer) {
-        sizesContainer.innerHTML = Array.from(allSizes).map(sz => `
-            <div class="size-chip ${filterActiveSize === sz ? 'active' : ''}" onclick="setFilterSize(this, '${sz}')">${sz}</div>
-        `).join('');
+        sizesContainer.innerHTML = Array.from(allSizes).map(sz =>
+            `<div class="size-chip ${filterActiveSize === sz ? 'active' : ''}" onclick="setFilterSize(this, '${sz}')">${sz}</div>`
+        ).join('');
     }
-    
+
     const colorsContainer = document.getElementById('filter-colors');
     if (colorsContainer) {
-        colorsContainer.innerHTML = Array.from(allColors.entries()).map(([displayName, value]) => {
-            const isWhite = value === '#ffffff' || value === 'white';
-            const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
-            const colorPreview = `<span class="color-indicator" style="background:${value}; border:${indicatorBorder};"></span>`;
+        colorsContainer.innerHTML = Array.from(allColors.entries()).map(([colorVal, info]) => {
+            const isWhite = colorVal.toLowerCase() === '#ffffff' || colorVal.toLowerCase() === 'white';
+            const indicatorBorder = isWhite ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.15)';
+            const colorPreview = `<span class="color-indicator" style="background:${colorVal}; border:${indicatorBorder};"></span>`;
+            const safeVal = colorVal.replace(/'/g, "\\'");
             return `
-                <div class="color-chip ${filterActiveColor === displayName ? 'active' : ''}" onclick="setFilterColor(this, '${displayName}')">
-                    ${colorPreview}<span>${displayName}</span>
+                <div class="color-chip ${filterActiveColor === colorVal ? 'active' : ''}" onclick="setFilterColor(this, '${safeVal}')">
+                    ${colorPreview}<span>${info.displayName}</span>
                 </div>
             `;
         }).join('');
     }
-    
+
     const patternsContainer = document.getElementById('filter-patterns');
     if (patternsContainer) {
-        patternsContainer.innerHTML = Array.from(allPatterns.entries()).map(([pat, previewUrl]) => {
-            let patPreview = '';
+        patternsContainer.innerHTML = Array.from(patternGroups.values()).map(group => {
+            const previewUrl = group.url;
+            const displayName = group.displayName;
+            const showText = group.showPatternText;
+            const activeMatch = filterActivePattern === group.key;
+
             if (previewUrl) {
-                patPreview = `<img src="${previewUrl}" style="width:24px; height:24px; border-radius:4px; object-fit:cover; margin-right:0px; border:1px solid rgba(255,255,255,0.2); vertical-align:middle;">`;
+                const imgHtml = `<img src="${previewUrl}" style="width:26px; height:26px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); flex-shrink:0;">`;
+                const textHtml = showText ? `<span style="font-size:11px; font-weight:600; margin-left:5px;">${displayName}</span>` : '';
                 return `
-                <div class="size-chip color-chip ${filterActivePattern === pat ? 'active' : ''}" style="padding:6px; border-radius:8px; display:inline-flex; align-items:center;" onclick="setFilterPattern(this, '${pat}')" title="${pat}">
-                    ${patPreview}
-                </div>
-                `;
+                <div class="size-chip color-chip ${activeMatch ? 'active' : ''}" style="padding:5px ${showText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center;" onclick="setFilterPattern(this, '${group.key}')" title="${displayName}">
+                    ${imgHtml}${textHtml}
+                </div>`;
             }
             return `
-            <div class="size-chip color-chip ${filterActivePattern === pat ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="setFilterPattern(this, '${pat}')" title="${pat}">
-                <span>${pat}</span>
-            </div>
-            `;
+            <div class="size-chip color-chip ${activeMatch ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="setFilterPattern(this, '${group.key}')" title="${displayName}">
+                <span>${displayName}</span>
+            </div>`;
         }).join('');
     }
 }
@@ -691,30 +758,42 @@ function resetFilters() {
 function applySortAndFilter() {
     const sort = document.getElementById('sort-logic').value;
     let filtered = [...products];
-    
-    if(filterActiveSize) {
+
+    if (filterActiveSize) {
         filtered = filtered.filter(p => {
-            const vars = p.variants && Array.isArray(p.variants) && p.variants.length > 0 ? p.variants : normalizeVariants(p);
-            return vars.some(v => v.size && v.size.trim().toUpperCase() === filterActiveSize);
-        });
-    }
-    
-    if(filterActiveColor) {
-        filtered = filtered.filter(p => {
-            const vars = p.variants && Array.isArray(p.variants) && p.variants.length > 0 ? p.variants : normalizeVariants(p);
-            return vars.some(v => v.color && formatColorName(v.color) === filterActiveColor);
+            // Use normalizedVariants so comma-split sizes are expanded
+            const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
+                ? p.normalizedVariants : normalizeVariants(p);
+            return normVars.some(v => v.size && v.size.trim().toUpperCase() === filterActiveSize);
         });
     }
 
-    if(filterActivePattern) {
+    if (filterActiveColor) {
         filtered = filtered.filter(p => {
-            const vars = p.variants && Array.isArray(p.variants) && p.variants.length > 0 ? p.variants : normalizeVariants(p);
-            return vars.some(v => v.pattern && v.pattern.trim() === filterActivePattern);
+            // Use normalizedVariants so comma-split colors are expanded; match by raw color value
+            const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
+                ? p.normalizedVariants : normalizeVariants(p);
+            return normVars.some(v => v.color && v.color.trim() === filterActiveColor);
         });
     }
-    
-    if(sort === 'low') filtered.sort((a,b) => a.price - b.price);
-    if(sort === 'high') filtered.sort((a,b) => b.price - a.price);
+
+    if (filterActivePattern) {
+        filtered = filtered.filter(p => {
+            const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
+                ? p.normalizedVariants : normalizeVariants(p);
+            return normVars.some(v => {
+                if (!v.pattern) return false;
+                const patVal = v.pattern.trim();
+                const previewUrl = v.previewImage || '';
+                const displayName = (v.patternDisplayName && v.patternDisplayName.trim()) ? v.patternDisplayName.trim() : patVal;
+                const vGroupKey = previewUrl ? previewUrl : displayName.toLowerCase();
+                return vGroupKey === filterActivePattern;
+            });
+        });
+    }
+
+    if (sort === 'low') filtered.sort((a, b) => a.price - b.price);
+    if (sort === 'high') filtered.sort((a, b) => b.price - a.price);
     renderProducts(filtered, 'product-grid');
 }
 
