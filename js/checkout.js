@@ -120,7 +120,8 @@ function getVariantDetails(p, size, color, pattern = '') {
             image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
             trackStock: !!match.trackStock,
             stockCount: typeof match.stockCount === 'number' ? match.stockCount : (parseInt(match.stockCount, 10) || 0),
-            patternImage: match.previewImage || ''
+            patternImage: match.previewImage || '',
+            colorName: match.colorName || ''   // human-readable color label (e.g. "Light Pink")
         };
     }
     
@@ -129,7 +130,8 @@ function getVariantDetails(p, size, color, pattern = '') {
         image: p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image',
         trackStock: false,
         stockCount: 0,
-        patternImage: ''
+        patternImage: '',
+        colorName: ''
     };
 }
 
@@ -153,10 +155,11 @@ function addToBagWithSelection(id, size, color, pattern = '') {
         existing.price = vDetails.price;
         existing.variantImage = vDetails.image;
         existing.variantPatternImage = vDetails.patternImage || '';
+        existing.variantColorName = vDetails.colorName || '';
         existing.trackStock = vDetails.trackStock;
         existing.stockCount = vDetails.stockCount;
     } else {
-        cart.push({...p, variantSize: size, variantColor: color, variantPattern: pattern, variantPatternImage: vDetails.patternImage || '', qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
+        cart.push({...p, variantSize: size, variantColor: color, variantColorName: vDetails.colorName || '', variantPattern: pattern, variantPatternImage: vDetails.patternImage || '', qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
     }
     updateCartUI();
     
@@ -593,7 +596,7 @@ async function placeOrder() {
 
     if (!n || p.length < 10 || a.length < 5) return showToast("Details incomplete");
     if (cart.length === 0) return showToast("Bag is empty");
-    if (!currentUser) return showToast("Please login to order");
+    // Guest checkout allowed — no login required
 
     // ── COD Gate: show advance-payment confirmation modal ──────────────────────
     if (paymentMethod === 'cod') {
@@ -670,21 +673,29 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         msg += `- ${it.qty}x ${it.name}${specStr} (₹${it.price * it.qty})\n`;
     });
 
+    // Guest support: generate a stable guest identifier tied to this order
+    const effectiveUid = currentUser ? currentUser.uid : ('guest_' + orderId);
+    const isGuest = !currentUser;
+
     let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}<br><strong>Payment:</strong> ${paymentMethod.toUpperCase()}${promoLine}${codNote}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Variant</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => {
         const specs = [];
         if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
-        if (it.variantColor) specs.push(formatColorName(it.variantColor));
-        if (it.variantPattern && !it.variantPattern.startsWith('Design-')) specs.push(it.variantPattern);
+        // Use stored colorName (human label) — fall back to formatColorName only if not available
+        const colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
+        if (colorLabel) specs.push(colorLabel);
+        // Only show pattern text if NO pattern swatch image exists
+        if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) specs.push(it.variantPattern);
         const variantDesc = specs.length > 0 ? specs.join(' / ') : '-';
         const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
-        // Show pattern swatch image in email (smaller, below product image)
+        // Show pattern swatch image in email — only shown when pattern image exists
         const patternSwatchEmailHtml = it.variantPatternImage ? `<br><img src="${it.variantPatternImage}" width="30" height="30" title="Pattern: ${it.variantPattern || ''}" style="border-radius:4px; object-fit:cover; border:1px solid #ddd; margin-top:4px; vertical-align:middle;" alt="pattern swatch">` : '';
         return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><div style="display:inline-block; vertical-align:middle; margin-right:10px; position:relative;"><img src="${imgUrl}" width="50" height="50" style="border-radius: 4px; object-fit: cover; display:block;" alt="product">${patternSwatchEmailHtml}</div><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
-    }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: &#8377;${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, contact us on <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" style="color:#25D366">WhatsApp</a></div></div>`;
+    }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: &#8377;${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, WhatsApp us at <a href="https://wa.me/918800467686" style="color:#25D366; font-weight:bold;">+91 8800467686</a></div></div>`;
 
     const orderDoc = {
         orderId,
-        uid: currentUser.uid,
+        uid: effectiveUid,
+        isGuest,
         recipient: n,
         phone: p,
         address: a,
@@ -748,8 +759,16 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         cart = [];
         activePromo = null;
         updateCartUI();
+        // Clear checkout form fields for next order
+        const nameField = document.getElementById('c-name');
+        const phoneField = document.getElementById('c-phone');
+        const addrField = document.getElementById('c-addr');
+        if (nameField) nameField.value = '';
+        if (phoneField) phoneField.value = '';
+        if (addrField) addrField.value = '';
         closeModal('cart-modal');
-        loadOrders();
+        // Only reload order history for logged-in users
+        if (currentUser) loadOrders();
         
         // Refresh grids if possible
         if (typeof renderProducts === 'function' && typeof products !== 'undefined') {
