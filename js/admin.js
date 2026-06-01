@@ -104,12 +104,12 @@ function renderVariantBlocks() {
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                     <div>
                         <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Size</div>
-                        <input list="size-options-${v.id}" id="v-size-${v.id}" placeholder="e.g. S, M, XL, L" value="${v.size === 'Standard' ? '' : (v.size || '')}" oninput="updateVariant('${v.id}', 'size', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                        <input list="size-options-${v.id}" id="v-size-${v.id}" placeholder="e.g. S, M, XL, L" value="${v.size === 'Standard' ? '' : (v.size || '')}" oninput="updateVariant('${v.id}', 'size', this.value)" onchange="renderVariantBlocks()" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
                         <datalist id="size-options-${v.id}">${ALL_SIZES.map(s => `<option value="${s.id}">`).join('')}</datalist>
                     </div>
                     <div>
                         <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Custom Price <span style="color:#555; font-size:9px;">(blank = base)</span></div>
-                        <input id="v-price-${v.id}" type="number" placeholder="₹ Leave blank" value="${v.price || ''}" oninput="updateVariant('${v.id}', 'price', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                        <input id="v-price-${v.id}" type="number" placeholder="₹ Leave blank" value="${v.price || ''}" oninput="updateVariant('${v.id}', 'price', this.value)" onchange="renderVariantBlocks()" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
                     </div>
                 </div>
 
@@ -119,13 +119,13 @@ function renderVariantBlocks() {
                         <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Color Value <span style="color:#555; font-size:9px;">(hex or name)</span></div>
                         <div style="position:relative;">
                             ${v.color ? `<span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); width:14px; height:14px; border-radius:50%; background:${v.color.trim()}; border:1px solid #555; pointer-events:none;"></span>` : ''}
-                            <input list="color-options-${v.id}" id="v-color-${v.id}" placeholder="#FF0000, red…" value="${v.color || ''}" oninput="updateVariant('${v.id}', 'color', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px 9px ${v.color ? '30px' : '10px'}; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                            <input list="color-options-${v.id}" id="v-color-${v.id}" placeholder="#FF0000, red…" value="${v.color || ''}" oninput="updateVariant('${v.id}', 'color', this.value)" onchange="renderVariantBlocks()" style="width:100%; box-sizing:border-box; padding:9px 10px 9px ${v.color ? '30px' : '10px'}; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
                             <datalist id="color-options-${v.id}">${ALL_COLORS.map(c => `<option value="${c}">`).join('')}</datalist>
                         </div>
                     </div>
                     <div>
                         <div style="font-size:10px; color:#FFD700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Color Display Text <span style="color:#555; font-size:9px;">(optional)</span></div>
-                        <input id="v-colorname-${v.id}" placeholder="e.g. Sky Blue, Maroon" value="${v.colorName || ''}" oninput="updateVariant('${v.id}', 'colorName', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #444; background:#1e1e1e; color:#FFD700; font-size:13px;">
+                        <input id="v-colorname-${v.id}" placeholder="e.g. Sky Blue, Maroon" value="${v.colorName || ''}" oninput="updateVariant('${v.id}', 'colorName', this.value)" onchange="renderVariantBlocks()" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #444; background:#1e1e1e; color:#FFD700; font-size:13px;">
                     </div>
                 </div>
 
@@ -133,12 +133,12 @@ function renderVariantBlocks() {
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                     <div>
                         <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Pattern <span style="color:#555; font-size:9px;">(comma-sep for multiple)</span></div>
-                        <input list="pattern-options-${v.id}" id="v-pattern-${v.id}" placeholder="e.g. Floral, p1, p2" value="${v.pattern || ''}" oninput="updateVariant('${v.id}', 'pattern', this.value)" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
+                        <input list="pattern-options-${v.id}" id="v-pattern-${v.id}" placeholder="e.g. Floral, p1, p2" value="${v.pattern || ''}" oninput="updateVariant('${v.id}', 'pattern', this.value)" onchange="renderVariantBlocks()" style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #333; background:#1e1e1e; color:#fff; font-size:13px;">
                         <datalist id="pattern-options-${v.id}">${ALL_PATTERNS.map(p => `<option value="${p}">`).join('')}</datalist>
                     </div>
                     <div>
                         <div style="font-size:10px; color:#25D366; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Pattern Display Text <span style="color:#555; font-size:9px;">(optional)</span></div>
-                        <input id="v-patternname-${v.id}" placeholder="e.g. Floral Print, Checks" value="${v.patternName || ''}" oninput="updateVariant('${v.id}', 'patternName', this.value)" title="Custom display names (comma-separated). Maps to each pattern key." style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #444; background:#1e1e1e; color:#25D366; font-size:13px;">
+                        <input id="v-patternname-${v.id}" placeholder="e.g. Floral Print, Checks" value="${v.patternName || ''}" oninput="updateVariant('${v.id}', 'patternName', this.value)" onchange="renderVariantBlocks()" title="Custom display names (comma-separated). Maps to each pattern key." style="width:100%; box-sizing:border-box; padding:9px 10px; border-radius:7px; border:1px solid #444; background:#1e1e1e; color:#25D366; font-size:13px;">
                     </div>
                 </div>
 
@@ -166,10 +166,10 @@ function renderVariantBlocks() {
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
-                    ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); document.getElementById('v-stock-qty-container-${v.id}').style.display = this.checked ? 'flex' : 'none';`, 'Track Stock', '#FFD700')}
+                    ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();`, 'Track Stock', '#FFD700')}
                     <div id="v-stock-qty-container-${v.id}" style="display:${v.trackStock ? 'flex' : 'none'}; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a;">
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
-                        <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
+                        <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
                     </div>
                 </div>
 
@@ -193,20 +193,46 @@ function renderVariantBlocks() {
             }
             badge.innerText = (index + 1);
             
-            // Check for missing image warning
-            if (!v.images || v.images.length === 0) {
-                let warn = blockEl.querySelector('.warn-badge');
-                if(!warn) {
-                    warn = document.createElement('div');
-                    warn.className = 'warn-badge';
-                    warn.style.cssText = 'position:absolute; top:-10px; right:20px; background:var(--red); color:#fff; font-weight:bold; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; z-index:10; cursor:help;';
-                    warn.title = "Warning: No images uploaded for this variant!";
-                    warn.innerHTML = '⚠️';
-                    blockEl.appendChild(warn);
+            // Remove old warn badge if left over
+            const oldWarn = blockEl.querySelector('.warn-badge');
+            if (oldWarn) oldWarn.remove();
+
+            // Check for duplicate variant
+            const isDuplicate = variantBlocks.some((x, xIdx) => {
+                if (xIdx === index) return false;
+                return (x.size || 'Standard').trim().toLowerCase() === (v.size || 'Standard').trim().toLowerCase() &&
+                       (x.color || '').trim().toLowerCase() === (v.color || '').trim().toLowerCase() &&
+                       (x.pattern || '').trim().toLowerCase() === (v.pattern || '').trim().toLowerCase();
+            });
+
+            // Check for stock count error
+            const isStockError = v.trackStock && (v.stockCount === undefined || v.stockCount === null || isNaN(v.stockCount) || v.stockCount < 0);
+
+            // Check for price error
+            const isPriceError = v.price !== '' && v.price !== null && v.price !== undefined && (isNaN(v.price) || Number(v.price) < 0);
+
+            let infoMsg = '';
+            if (isDuplicate) {
+                infoMsg = 'Info: This is a duplicate variant combination (Size, Color, Pattern) and will be merged upon saving.';
+            } else if (isStockError) {
+                infoMsg = 'Error: Track Stock is enabled, but Stock Quantity is invalid.';
+            } else if (isPriceError) {
+                infoMsg = 'Error: Custom Price is invalid.';
+            }
+
+            let infoEl = blockEl.querySelector('.info-badge');
+            if (infoMsg) {
+                if (!infoEl) {
+                    infoEl = document.createElement('div');
+                    infoEl.className = 'info-badge';
+                    infoEl.style.cssText = 'position:absolute; top:-10px; right:20px; color:#fff; font-weight:bold; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; z-index:10; cursor:help;';
+                    blockEl.appendChild(infoEl);
                 }
-            } else {
-                const warn = blockEl.querySelector('.warn-badge');
-                if(warn) warn.remove();
+                infoEl.title = infoMsg;
+                infoEl.innerHTML = 'ⓘ';
+                infoEl.style.background = infoMsg.startsWith('Error:') ? '#e74c3c' : '#3498db';
+            } else if (infoEl) {
+                infoEl.remove();
             }
         }
     });
@@ -507,20 +533,7 @@ function renderImagePreviews(targetId = 'base') {
         }).join('');
         container.innerHTML = html;
 
-        // Warning if no main images at all
-        let warnEl = document.getElementById('m-warn-badge');
-        if (!existingImageUrls || existingImageUrls.length === 0) {
-            if (!warnEl) {
-                warnEl = document.createElement('div');
-                warnEl.id = 'm-warn-badge';
-                warnEl.style.cssText = 'position:absolute; top:5px; right:100px; background:var(--red); color:#fff; font-weight:bold; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; z-index:10; cursor:help;';
-                warnEl.title = "Warning: No main images uploaded for this product!";
-                warnEl.innerHTML = '⚠️';
-                document.getElementById('prod-modal').querySelector('.modal-box').appendChild(warnEl);
-            }
-        } else if (warnEl) {
-            warnEl.remove();
-        }
+
 
         if (window.Sortable && container) {
             if (container._sortable) container._sortable.destroy();

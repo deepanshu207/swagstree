@@ -88,26 +88,23 @@ function addToBag(id) {
 }
 
 function getVariantDetails(p, size, color, pattern = '') {
-    if (p.variants && Array.isArray(p.variants)) {
-        let match = p.variants.find(v => v.size === size && v.color === color && (v.pattern || '') === pattern);
-        if (!match) match = p.variants.find(v => v.size === size && v.color === color);
-        if (!match) match = p.variants.find(v => v.size === size);
-        if (match) {
-            // Try to get the correct preview image for the chosen pattern
-            let patternImage = '';
-            if (p.normalizedVariants) {
-                const nv = p.normalizedVariants.find(v => v.size === size && v.color === color && v.pattern === pattern);
-                if (nv) patternImage = nv.previewImage || '';
-            }
-            return {
-                price: match.price !== null && match.price !== undefined ? match.price : p.price,
-                image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
-                trackStock: !!match.trackStock,
-                stockCount: match.stockCount || 0,
-                patternImage: patternImage
-            };
-        }
+    const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
+        ? p.normalizedVariants : (typeof normalizeVariants === 'function' ? normalizeVariants(p) : []);
+    
+    let match = normVars.find(v => v.size === size && v.color === color && (v.pattern || '') === pattern);
+    if (!match) match = normVars.find(v => v.size === size && v.color === color);
+    if (!match) match = normVars.find(v => v.size === size);
+    
+    if (match) {
+        return {
+            price: match.price !== null && match.price !== undefined ? match.price : p.price,
+            image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
+            trackStock: !!match.trackStock,
+            stockCount: typeof match.stockCount === 'number' ? match.stockCount : 0,
+            patternImage: match.previewImage || ''
+        };
     }
+    
     return {
         price: p.price,
         image: p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image',
@@ -474,7 +471,7 @@ function openCart() {
         if (it.variantColor) {
             specs.push(formatColorName(it.variantColor));
         }
-        if (it.variantPattern) {
+        if (it.variantPattern && !it.variantPattern.startsWith('Design-')) {
             specs.push(it.variantPattern);
         }
         const variantText = specs.length > 0 ? specs.join(' • ') : '';
@@ -611,7 +608,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         const specs = [];
         if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
         if (it.variantColor) specs.push(formatColorName(it.variantColor));
-        if (it.variantPattern) specs.push(it.variantPattern);
+        if (it.variantPattern && !it.variantPattern.startsWith('Design-')) specs.push(it.variantPattern);
         const specStr = specs.length > 0 ? ` [${specs.join(', ')}]` : '';
         msg += `- ${it.qty}x ${it.name}${specStr} (₹${it.price * it.qty})\n`;
     });
@@ -620,7 +617,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         const specs = [];
         if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
         if (it.variantColor) specs.push(formatColorName(it.variantColor));
-        if (it.variantPattern) specs.push(it.variantPattern);
+        if (it.variantPattern && !it.variantPattern.startsWith('Design-')) specs.push(it.variantPattern);
         const variantDesc = specs.length > 0 ? specs.join(' / ') : '-';
         const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
         // Show pattern swatch image in email (smaller, below product image)

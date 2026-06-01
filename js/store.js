@@ -512,7 +512,7 @@ function updateVariantUI(p) {
     
     let qtyInCart = 0;
     if (typeof cart !== 'undefined' && v) {
-        const existing = cart.find(item => item.id === p.id && item.variantSize === v.size && item.variantColor === v.color);
+        const existing = cart.find(item => item.id === p.id && item.variantSize === v.size && item.variantColor === v.color && (item.variantPattern || '') === (window.selectedPattern || ''));
         if (existing) qtyInCart = existing.qty;
     }
     
@@ -523,9 +523,9 @@ function updateVariantUI(p) {
         btn.disabled = false;
         btn.innerHTML = `
             <div style="display:flex; width:100%; align-items:center; justify-content:space-between; font-size:24px;">
-                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', -1)">-</div>
+                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', '${window.selectedPattern || ''}', -1)">-</div>
                 <div style="padding:15px; flex:2; font-size:16px; text-align:center; white-space:nowrap; font-weight:900;">${qtyInCart} IN BAG</div>
-                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', 1)">+</div>
+                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', '${window.selectedPattern || ''}', 1)">+</div>
             </div>
         `;
         btn.onclick = null;
