@@ -195,32 +195,69 @@ function toggleAuthMode() {
 
 // ── Google Login ────────────────────────────────────────────────────────────
 async function handleGoogleLogin() {
+    const btn = document.querySelector('[onclick="handleGoogleLogin()"]');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
-        if (window.innerWidth < 768) {
-            await auth.signInWithRedirect(provider);
-        } else {
-            await auth.signInWithPopup(provider);
-            showToast("✅ Google Login Successful!");
+        provider.addScope('email');
+        provider.addScope('profile');
+        // Always try popup first — works on both desktop and modern mobile browsers.
+        // Fall back to redirect only if the browser explicitly blocks popups.
+        try {
+            const result = await auth.signInWithPopup(provider);
+            if (result && result.user) {
+                showToast("✅ Google Login Successful!");
+            }
+        } catch (popupError) {
+            // Popup was blocked or not supported — fall back to redirect
+            if (
+                popupError.code === 'auth/popup-blocked' ||
+                popupError.code === 'auth/popup-closed-by-user' ||
+                popupError.code === 'auth/cancelled-popup-request'
+            ) {
+                // Only show redirect fallback message for actual block, not user cancel
+                if (popupError.code === 'auth/popup-blocked') {
+                    showToast("Popup blocked. Redirecting to Google...");
+                    await auth.signInWithRedirect(provider);
+                } else {
+                    // User closed popup — do nothing
+                    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+                    return;
+                }
+            } else {
+                throw popupError; // Re-throw other errors
+            }
         }
     } catch (error) {
         console.error("Google Auth Error:", error);
         if (error.code === 'auth/operation-not-allowed') {
-            showToast("Enable Google Sign-in in Firebase Console first.");
+            showToast("Google Sign-in is not enabled. Contact admin.");
+        } else if (error.code === 'auth/network-request-failed') {
+            showToast("Network error. Check your connection.");
+        } else if (error.code === 'auth/account-exists-with-different-credential') {
+            showToast("This email is already registered with email & password. Please login using Email.");
         } else {
             showToast("Google Login Failed. Try again.");
         }
+    } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
     }
 }
 
-// Handle redirect result for mobile Google Login
+// Handle redirect result (fallback for popup-blocked browsers)
 auth.getRedirectResult().then(result => {
     if (result && result.user) {
         showToast("✅ Google Login Successful!");
     }
 }).catch(error => {
-    console.error("Redirect Auth Error:", error);
-    showToast("Google Login Failed. Try again.");
+    // Ignore the common 'no redirect pending' case — it fires on every page load
+    if (error && error.code !== 'auth/no-auth-event' && error.message) {
+        console.error("Redirect Auth Error:", error);
+        // Only show toast for real errors, not the default no-pending-redirect
+        if (error.code && error.code !== 'auth/no-current-user') {
+            showToast("Google Login Failed. Try again.");
+        }
+    }
 });
 
 // ── Email / Password Auth ───────────────────────────────────────────────────
