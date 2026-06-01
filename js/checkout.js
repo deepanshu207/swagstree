@@ -677,20 +677,136 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
     const effectiveUid = currentUser ? currentUser.uid : ('guest_' + orderId);
     const isGuest = !currentUser;
 
-    let orderTable = `<div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; overflow: hidden;"><div style="background: #000; color: #FFD700; padding: 20px; text-align: center;"><h1 style="margin: 0; font-size: 24px;">SWAG STREE</h1><p style="margin: 5px 0 0; color: #fff; font-size: 12px; letter-spacing: 2px;">OFFICIAL INVOICE #${orderId}</p></div><div style="padding: 20px;"><p><strong>Customer:</strong> ${n}<br><strong>Phone:</strong> ${p}<br><strong>Address:</strong> ${a}<br><strong>Payment:</strong> ${paymentMethod.toUpperCase()}${promoLine}${codNote}</p><table style="width: 100%; border-collapse: collapse; margin-top: 20px;"><thead><tr style="border-bottom: 2px solid #FFD700;"><th style="text-align: left; padding: 10px 5px;">Product</th><th style="text-align: center; padding: 10px 5px;">Variant</th><th style="text-align: center; padding: 10px 5px;">Qty</th><th style="text-align: right; padding: 10px 5px;">Price</th></tr></thead><tbody>${cart.map(it => {
-        const specs = [];
-        if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
-        // Use stored colorName (human label) — fall back to formatColorName only if not available
+    // ── Build premium order email ────────────────────────────────────────────
+    const _pill = (label, val) => `<span style="display:inline-block;background:#f0f0f0;color:#333;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:0.5px;margin:1px 2px 1px 0;text-transform:uppercase;">${label}: ${val}</span>`;
+
+    const _itemRows = cart.map(it => {
         const colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
-        if (colorLabel) specs.push(colorLabel);
-        // Only show pattern text if NO pattern swatch image exists
-        if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) specs.push(it.variantPattern);
-        const variantDesc = specs.length > 0 ? specs.join(' / ') : '-';
         const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
-        // Show pattern swatch image in email — only shown when pattern image exists
-        const patternSwatchEmailHtml = it.variantPatternImage ? `<br><img src="${it.variantPatternImage}" width="30" height="30" title="Pattern: ${it.variantPattern || ''}" style="border-radius:4px; object-fit:cover; border:1px solid #ddd; margin-top:4px; vertical-align:middle;" alt="pattern swatch">` : '';
-        return `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 5px;"><div style="display:inline-block; vertical-align:middle; margin-right:10px; position:relative;"><img src="${imgUrl}" width="50" height="50" style="border-radius: 4px; object-fit: cover; display:block;" alt="product">${patternSwatchEmailHtml}</div><span style="font-size: 14px; vertical-align:middle;">${it.name}</span></td><td style="padding: 10px 5px; text-align: center;">${variantDesc}</td><td style="padding: 10px 5px; text-align: center;">${it.qty}</td><td style="padding: 10px 5px; text-align: right;">&#8377;${it.price * it.qty}</td></tr>`;
-    }).join('')}${discountLine}</tbody></table><div style="margin-top: 20px; text-align: right; border-top: 2px solid #FFD700; padding-top: 10px;"><span style="font-size: 20px; font-weight: bold; color: #FFD700;">Grand Total: &#8377;${total}</span></div></div><div style="background:#f9f9f9; padding:15px; text-align:center; font-size:11px; color:#999;">Thank you for shopping with Swag Stree! 🛍️<br>For queries, WhatsApp us at <a href="https://wa.me/918800467686" style="color:#25D366; font-weight:bold;">+91 8800467686</a></div></div>`;
+        const hasSwatch = !!it.variantPatternImage;
+        const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
+
+        const variantPills = [
+            (it.variantSize && it.variantSize !== 'Standard') ? _pill('Size', it.variantSize) : '',
+            colorLabel ? _pill('Color', colorLabel) : '',
+            showPatternText ? _pill('Pattern', it.variantPattern) : ''
+        ].join('');
+
+        const swatchCell = hasSwatch
+            ? `<tr><td style="padding:4px 0 0;text-align:center;">
+                <img src="${it.variantPatternImage}" width="32" height="32"
+                     style="border-radius:6px;object-fit:cover;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.18);display:block;margin:0 auto;"
+                     alt="pattern" title="${it.variantPattern || 'Pattern'}">
+               </td></tr>`
+            : '';
+
+        return `
+        <tr>
+          <td style="padding:14px 0;border-bottom:1px solid #f3f3f3;vertical-align:top;width:76px;">
+            <table style="border-collapse:collapse;margin:0;">
+              <tr><td style="padding:0;">
+                <img src="${imgUrl}" width="60" height="60"
+                     style="border-radius:10px;object-fit:cover;display:block;border:1px solid #eee;" alt="product">
+              </td></tr>
+              ${swatchCell}
+            </table>
+          </td>
+          <td style="padding:14px 12px;border-bottom:1px solid #f3f3f3;vertical-align:top;">
+            <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:7px;line-height:1.35;">${it.name}</div>
+            <div>${variantPills}</div>
+          </td>
+          <td style="padding:14px 0;border-bottom:1px solid #f3f3f3;vertical-align:top;text-align:right;white-space:nowrap;">
+            <div style="font-size:11px;color:#aaa;margin-bottom:3px;">Qty: ${it.qty}</div>
+            <div style="font-size:16px;font-weight:800;color:#111;">&#8377;${it.price * it.qty}</div>
+            ${it.qty > 1 ? `<div style="font-size:10px;color:#ccc;margin-top:2px;">&#8377;${it.price} each</div>` : ''}
+          </td>
+        </tr>`;
+    }).join('');
+
+    const _totalRows = discount > 0 ? `
+        <tr>
+          <td style="font-size:12px;color:#aaa;padding:3px 0;">Subtotal</td>
+          <td style="font-size:12px;color:#aaa;text-align:right;padding:3px 0;">&#8377;${subtotal}</td>
+        </tr>
+        <tr>
+          <td style="font-size:12px;color:#e74c3c;padding:3px 0;">Discount ${activePromo ? '(' + activePromo.code + ')' : ''}</td>
+          <td style="font-size:12px;color:#e74c3c;text-align:right;padding:3px 0;">-&#8377;${discount}</td>
+        </tr>
+        <tr><td colspan="2" style="padding:6px 0 0;"><div style="height:1px;background:#2a2a2a;"></div></td></tr>` : '';
+
+    const _codRow = (paymentMethod === 'cod' && codMinAmount)
+        ? `<div style="margin-top:6px;font-size:11px;color:#e67e22;">COD Advance: &#8377;${codMinAmount} via UPI before delivery</div>` : '';
+
+    const _promoRow = activePromo
+        ? `<div style="font-size:11px;color:#e74c3c;margin-top:4px;">Promo: ${activePromo.code} (${Math.round(activePromo.discount * 100)}% OFF)</div>` : '';
+
+    let orderTable =
+        `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;">` +
+
+        // ── HEADER ──────────────────────────────────────────────────────────
+        `<div style="background:#000000;padding:28px 24px 22px;text-align:center;">
+           <div style="font-size:28px;font-weight:900;color:#FFD700;letter-spacing:5px;margin-bottom:8px;">SWAG STREE</div>
+           <div style="display:inline-block;border:1px solid rgba(255,215,0,0.35);border-radius:20px;padding:4px 16px;font-size:10px;color:#999;letter-spacing:2px;text-transform:uppercase;">Invoice &nbsp;#${orderId}</div>
+         </div>` +
+
+        // ── CUSTOMER INFO ────────────────────────────────────────────────────
+        `<table width="100%" style="border-collapse:collapse;background:#fafafa;border-bottom:2px solid #FFD700;">
+           <tr>
+             <td style="padding:16px 24px;">
+               <table width="100%" style="border-collapse:collapse;">
+                 <tr>
+                   <td style="vertical-align:top;width:55%;padding-right:12px;">
+                     <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">DELIVER TO</div>
+                     <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:3px;">${n}</div>
+                     <div style="font-size:12px;color:#777;margin-bottom:2px;">&#128241; ${p}</div>
+                     <div style="font-size:12px;color:#777;line-height:1.5;">&#128205; ${a}</div>
+                   </td>
+                   <td style="vertical-align:top;text-align:right;">
+                     <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">PAYMENT</div>
+                     <div style="display:inline-block;background:${paymentMethod === 'cod' ? '#fff3e0' : '#e8f5e9'};color:${paymentMethod === 'cod' ? '#e67e22' : '#27ae60'};border:1px solid ${paymentMethod === 'cod' ? 'rgba(230,126,34,0.4)' : 'rgba(39,174,96,0.4)'};font-weight:700;font-size:11px;padding:4px 14px;border-radius:20px;letter-spacing:1px;">${paymentMethod.toUpperCase()}</div>
+                     ${_promoRow}${_codRow}
+                   </td>
+                 </tr>
+               </table>
+             </td>
+           </tr>
+         </table>` +
+
+        // ── ITEMS HEADER ─────────────────────────────────────────────────────
+        `<div style="padding:14px 24px 0;">
+           <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid #eee;">ITEMS ORDERED</div>
+         </div>` +
+
+        // ── ITEM ROWS ────────────────────────────────────────────────────────
+        `<table width="100%" style="border-collapse:collapse;padding:0 24px;">
+           <tr><td colspan="3" style="padding:0 24px;">
+             <table width="100%" style="border-collapse:collapse;">
+               ${_itemRows}
+             </table>
+           </td></tr>
+         </table>` +
+
+        // ── TOTAL ────────────────────────────────────────────────────────────
+        `<div style="background:#0d0d0d;padding:16px 24px;">
+           <table width="100%" style="border-collapse:collapse;">
+             ${_totalRows}
+             <tr>
+               <td style="font-size:13px;font-weight:700;color:#FFD700;letter-spacing:1px;text-transform:uppercase;padding-top:4px;">Grand Total</td>
+               <td style="font-size:22px;font-weight:900;color:#FFD700;text-align:right;padding-top:4px;">&#8377;${total}</td>
+             </tr>
+           </table>
+         </div>` +
+
+        // ── FOOTER ───────────────────────────────────────────────────────────
+        `<div style="padding:18px 24px;text-align:center;background:#fafafa;">
+           <div style="font-size:13px;color:#555;margin-bottom:12px;">Thank you for shopping with <strong style="color:#000;">Swag Stree</strong>! &#128717;</div>
+           <a href="https://wa.me/918800467686"
+              style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;padding:10px 22px;border-radius:24px;letter-spacing:0.5px;">
+             &#128172; WhatsApp &nbsp;+91 8800467686
+           </a>
+         </div>` +
+
+        `</div>`;
 
     const orderDoc = {
         orderId,
