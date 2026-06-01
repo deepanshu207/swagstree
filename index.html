@@ -97,6 +97,31 @@
         </div>
 
         <div class="filter-group">
+            <label class="filter-section-title">Price Range</label>
+            <div class="price-slider-container">
+                <div class="price-slider-track"></div>
+                <input type="range" id="price-min-range" class="price-range-input" min="0" max="5000" value="0">
+                <input type="range" id="price-max-range" class="price-range-input" min="0" max="5000" value="5000">
+            </div>
+            <div class="price-values">
+                <div class="price-val-box">
+                    <span class="price-label">Min</span>
+                    <div class="price-input-wrap">
+                        <span class="currency-symbol">₹</span>
+                        <input type="number" id="price-min-input" class="premium-price-input" value="0">
+                    </div>
+                </div>
+                <div class="price-val-box">
+                    <span class="price-label">Max</span>
+                    <div class="price-input-wrap">
+                        <span class="currency-symbol">₹</span>
+                        <input type="number" id="price-max-input" class="premium-price-input" value="5000">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
             <label class="filter-section-title">Size</label>
             <div class="chip-group" id="filter-sizes"></div>
         </div>

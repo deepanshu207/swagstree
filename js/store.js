@@ -3,9 +3,13 @@
 // ==========================================
 
 // Global variables fallback definition to prevent browser cache mismatch crashes
-if (typeof filterActiveColor === 'undefined') window.filterActiveColor = null;
-if (typeof filterActiveSize === 'undefined') window.filterActiveSize = null;
-if (typeof filterActivePattern === 'undefined') window.filterActivePattern = null;
+if (typeof filterActiveColors === 'undefined') window.filterActiveColors = [];
+if (typeof filterActiveSizes === 'undefined') window.filterActiveSizes = [];
+if (typeof filterActivePatterns === 'undefined') window.filterActivePatterns = [];
+if (typeof filterMinPrice === 'undefined') window.filterMinPrice = null;
+if (typeof filterMaxPrice === 'undefined') window.filterMaxPrice = null;
+if (typeof priceAbsoluteMin === 'undefined') window.priceAbsoluteMin = 0;
+if (typeof priceAbsoluteMax === 'undefined') window.priceAbsoluteMax = 10000;
 if (typeof selectedColor === 'undefined') window.selectedColor = '';
 if (typeof activeProductId === 'undefined') window.activeProductId = null;
 if (typeof isAdmin === 'undefined') window.isAdmin = false;
@@ -617,29 +621,168 @@ function toggleFilter() {
 
 function setFilterSize(el, sz) {
     displayedProductsLimit = 20;
-    document.querySelectorAll('#filter-sizes .size-chip').forEach(c => c.classList.remove('active'));
-    if(filterActiveSize === sz) filterActiveSize = null;
-    else { filterActiveSize = sz; el.classList.add('active'); }
+    const idx = filterActiveSizes.indexOf(sz);
+    if (idx > -1) {
+        filterActiveSizes.splice(idx, 1);
+        el.classList.remove('active');
+    } else {
+        filterActiveSizes.push(sz);
+        el.classList.add('active');
+    }
     applySortAndFilter();
 }
 
 function setFilterColor(el, col) {
     displayedProductsLimit = 20;
-    document.querySelectorAll('#filter-colors .color-chip').forEach(c => c.classList.remove('active'));
-    if(filterActiveColor === col) filterActiveColor = null;
-    else { filterActiveColor = col; el.classList.add('active'); }
+    const idx = filterActiveColors.indexOf(col);
+    if (idx > -1) {
+        filterActiveColors.splice(idx, 1);
+        el.classList.remove('active');
+    } else {
+        filterActiveColors.push(col);
+        el.classList.add('active');
+    }
     applySortAndFilter();
 }
 
 function setFilterPattern(el, pat) {
     displayedProductsLimit = 20;
-    document.querySelectorAll('#filter-patterns .size-chip').forEach(c => c.classList.remove('active'));
-    if(filterActivePattern === pat) filterActivePattern = null;
-    else { filterActivePattern = pat; el.classList.add('active'); }
+    const idx = filterActivePatterns.indexOf(pat);
+    if (idx > -1) {
+        filterActivePatterns.splice(idx, 1);
+        el.classList.remove('active');
+    } else {
+        filterActivePatterns.push(pat);
+        el.classList.add('active');
+    }
     applySortAndFilter();
 }
 
+function updatePriceSliderUI() {
+    const minRange = document.getElementById('price-min-range');
+    const maxRange = document.getElementById('price-max-range');
+    const minInput = document.getElementById('price-min-input');
+    const maxInput = document.getElementById('price-max-input');
+    const track = document.querySelector('.price-slider-track');
+
+    if (!minRange || !maxRange || !minInput || !maxInput || !track) return;
+
+    const minVal = parseFloat(minRange.value);
+    const maxVal = parseFloat(maxRange.value);
+    
+    const min = parseFloat(minRange.min) || 0;
+    const max = parseFloat(minRange.max) || 5000;
+    const range = max - min;
+    
+    const minPercent = range > 0 ? ((minVal - min) / range) * 100 : 0;
+    const maxPercent = range > 0 ? ((maxVal - min) / range) * 100 : 100;
+
+    track.style.left = minPercent + '%';
+    track.style.width = (maxPercent - minPercent) + '%';
+
+    minInput.value = Math.round(minVal);
+    maxInput.value = Math.round(maxVal);
+}
+
 function renderFilters() {
+    // Price boundary calculation
+    if (products.length > 0) {
+        const prices = products.map(p => parseFloat(p.price) || 0);
+        priceAbsoluteMin = Math.floor(Math.min(...prices));
+        priceAbsoluteMax = Math.ceil(Math.max(...prices));
+        if (priceAbsoluteMin === priceAbsoluteMax) {
+            priceAbsoluteMin = Math.max(0, priceAbsoluteMin - 100);
+            priceAbsoluteMax = priceAbsoluteMax + 100;
+        }
+    } else {
+        priceAbsoluteMin = 0;
+        priceAbsoluteMax = 5000;
+    }
+
+    if (filterMinPrice === null) filterMinPrice = priceAbsoluteMin;
+    if (filterMaxPrice === null) filterMaxPrice = priceAbsoluteMax;
+
+    // Clamp current values to absolute bounds in case catalog changed
+    filterMinPrice = Math.max(priceAbsoluteMin, Math.min(priceAbsoluteMax, filterMinPrice));
+    filterMaxPrice = Math.max(priceAbsoluteMin, Math.min(priceAbsoluteMax, filterMaxPrice));
+
+    // Setup slider inputs in UI
+    const minRange = document.getElementById('price-min-range');
+    const maxRange = document.getElementById('price-max-range');
+    if (minRange && maxRange) {
+        minRange.min = priceAbsoluteMin;
+        minRange.max = priceAbsoluteMax;
+        maxRange.min = priceAbsoluteMin;
+        maxRange.max = priceAbsoluteMax;
+
+        minRange.value = filterMinPrice;
+        maxRange.value = filterMaxPrice;
+    }
+
+    const minInput = document.getElementById('price-min-input');
+    const maxInput = document.getElementById('price-max-input');
+    if (minInput && maxInput) {
+        minInput.min = priceAbsoluteMin;
+        minInput.max = priceAbsoluteMax;
+        maxInput.min = priceAbsoluteMin;
+        maxInput.max = priceAbsoluteMax;
+        
+        minInput.value = Math.round(filterMinPrice);
+        maxInput.value = Math.round(filterMaxPrice);
+    }
+
+    updatePriceSliderUI();
+
+    if (minRange && maxRange) {
+        minRange.oninput = function() {
+            let minVal = parseFloat(minRange.value);
+            let maxVal = parseFloat(maxRange.value);
+            if (minVal > maxVal) {
+                minRange.value = maxVal;
+                minVal = maxVal;
+            }
+            filterMinPrice = minVal;
+            updatePriceSliderUI();
+            applySortAndFilter();
+        };
+
+        maxRange.oninput = function() {
+            let minVal = parseFloat(minRange.value);
+            let maxVal = parseFloat(maxRange.value);
+            if (maxVal < minVal) {
+                maxRange.value = minVal;
+                maxVal = minVal;
+            }
+            filterMaxPrice = maxVal;
+            updatePriceSliderUI();
+            applySortAndFilter();
+        };
+    }
+
+    if (minInput && maxInput) {
+        minInput.onchange = function() {
+            let val = parseFloat(minInput.value);
+            if (isNaN(val) || val < priceAbsoluteMin) val = priceAbsoluteMin;
+            if (val > filterMaxPrice) val = filterMaxPrice;
+            minInput.value = Math.round(val);
+            minRange.value = val;
+            filterMinPrice = val;
+            updatePriceSliderUI();
+            applySortAndFilter();
+        };
+
+        maxInput.onchange = function() {
+            let val = parseFloat(maxInput.value);
+            if (isNaN(val) || val > priceAbsoluteMax) val = priceAbsoluteMax;
+            if (val < filterMinPrice) val = filterMinPrice;
+            maxInput.value = Math.round(val);
+            maxRange.value = val;
+            filterMaxPrice = val;
+            updatePriceSliderUI();
+            applySortAndFilter();
+        };
+    }
+
     // allSizes: Set of uppercase size strings
     const allSizes = new Set();
     // allColors: Map of colorValue -> { displayName, colorValue }
@@ -699,7 +842,7 @@ function renderFilters() {
     const sizesContainer = document.getElementById('filter-sizes');
     if (sizesContainer) {
         sizesContainer.innerHTML = Array.from(allSizes).map(sz =>
-            `<div class="size-chip ${filterActiveSize === sz ? 'active' : ''}" onclick="setFilterSize(this, '${sz}')">${sz}</div>`
+            `<div class="size-chip ${filterActiveSizes.includes(sz) ? 'active' : ''}" onclick="setFilterSize(this, '${sz}')">${sz}</div>`
         ).join('');
     }
 
@@ -711,7 +854,7 @@ function renderFilters() {
             const colorPreview = `<span class="color-indicator" style="background:${colorVal}; border:${indicatorBorder};"></span>`;
             const safeVal = colorVal.replace(/'/g, "\\'");
             return `
-                <div class="color-chip ${filterActiveColor === colorVal ? 'active' : ''}" onclick="setFilterColor(this, '${safeVal}')">
+                <div class="color-chip ${filterActiveColors.includes(colorVal) ? 'active' : ''}" onclick="setFilterColor(this, '${safeVal}')">
                     ${colorPreview}<span>${info.displayName}</span>
                 </div>
             `;
@@ -724,7 +867,7 @@ function renderFilters() {
             const previewUrl = group.url;
             const displayName = group.displayName;
             const showText = group.showPatternText;
-            const activeMatch = filterActivePattern === group.key;
+            const activeMatch = filterActivePatterns.includes(group.key);
 
             if (previewUrl) {
                 const imgHtml = `<img src="${previewUrl}" style="width:26px; height:26px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); flex-shrink:0;">`;
@@ -744,11 +887,32 @@ function renderFilters() {
 
 function resetFilters() {
     displayedProductsLimit = 20;
-    filterActiveSize = null;
-    filterActiveColor = null;
-    filterActivePattern = null;
+    filterActiveSizes = [];
+    filterActiveColors = [];
+    filterActivePatterns = [];
+    
+    filterMinPrice = priceAbsoluteMin;
+    filterMaxPrice = priceAbsoluteMax;
+
+    const minRange = document.getElementById('price-min-range');
+    const maxRange = document.getElementById('price-max-range');
+    if (minRange && maxRange) {
+        minRange.value = priceAbsoluteMin;
+        maxRange.value = priceAbsoluteMax;
+    }
+    
+    const minInput = document.getElementById('price-min-input');
+    const maxInput = document.getElementById('price-max-input');
+    if (minInput && maxInput) {
+        minInput.value = priceAbsoluteMin;
+        maxInput.value = priceAbsoluteMax;
+    }
+
+    updatePriceSliderUI();
+
     const sortLogic = document.getElementById('sort-logic');
     if (sortLogic) sortLogic.value = 'none';
+
     document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
     applySortAndFilter();
 }
@@ -757,35 +921,41 @@ function applySortAndFilter() {
     const sort = document.getElementById('sort-logic').value;
     let filtered = [...products];
 
-    if (filterActiveSize) {
-        filtered = filtered.filter(p => {
-            // Use normalizedVariants so comma-split sizes are expanded
-            const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
-                ? p.normalizedVariants : normalizeVariants(p);
-            return normVars.some(v => v.size && v.size.trim().toUpperCase() === filterActiveSize);
-        });
+    // Filter by Price Range
+    if (filterMinPrice !== null) {
+        filtered = filtered.filter(p => (parseFloat(p.price) || 0) >= filterMinPrice);
+    }
+    if (filterMaxPrice !== null) {
+        filtered = filtered.filter(p => (parseFloat(p.price) || 0) <= filterMaxPrice);
     }
 
-    if (filterActiveColor) {
+    // Filter by size, color, pattern multi-selects (OR within categories, AND between categories)
+    if (filterActiveSizes.length > 0 || filterActiveColors.length > 0 || filterActivePatterns.length > 0) {
         filtered = filtered.filter(p => {
-            // Use normalizedVariants so comma-split colors are expanded; match by raw color value
             const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
                 ? p.normalizedVariants : normalizeVariants(p);
-            return normVars.some(v => v.color && v.color.trim() === filterActiveColor);
-        });
-    }
 
-    if (filterActivePattern) {
-        filtered = filtered.filter(p => {
-            const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
-                ? p.normalizedVariants : normalizeVariants(p);
             return normVars.some(v => {
-                if (!v.pattern) return false;
-                const patVal = v.pattern.trim();
-                const previewUrl = v.previewImage || '';
-                const displayName = (v.patternDisplayName && v.patternDisplayName.trim()) ? v.patternDisplayName.trim() : patVal;
-                const vGroupKey = previewUrl ? previewUrl : displayName.toLowerCase();
-                return vGroupKey === filterActivePattern;
+                if (filterActiveSizes.length > 0) {
+                    const vSize = v.size ? v.size.trim().toUpperCase() : 'STANDARD';
+                    if (!filterActiveSizes.includes(vSize)) return false;
+                }
+
+                if (filterActiveColors.length > 0) {
+                    const vCol = v.color ? v.color.trim() : '';
+                    if (!filterActiveColors.includes(vCol)) return false;
+                }
+
+                if (filterActivePatterns.length > 0) {
+                    if (!v.pattern) return false;
+                    const patVal = v.pattern.trim();
+                    const previewUrl = v.previewImage || '';
+                    const displayName = (v.patternDisplayName && v.patternDisplayName.trim()) ? v.patternDisplayName.trim() : patVal;
+                    const vGroupKey = previewUrl ? previewUrl : displayName.toLowerCase();
+                    if (!filterActivePatterns.includes(vGroupKey)) return false;
+                }
+
+                return true;
             });
         });
     }
