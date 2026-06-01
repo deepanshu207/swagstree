@@ -100,7 +100,7 @@ function getVariantDetails(p, size, color, pattern = '') {
             price: match.price !== null && match.price !== undefined ? match.price : p.price,
             image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
             trackStock: !!match.trackStock,
-            stockCount: typeof match.stockCount === 'number' ? match.stockCount : 0,
+            stockCount: typeof match.stockCount === 'number' ? match.stockCount : (parseInt(match.stockCount, 10) || 0),
             patternImage: match.previewImage || ''
         };
     }
@@ -657,9 +657,9 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
                         if (pData.variants && Array.isArray(pData.variants)) {
                             let updated = false;
                             const newVariants = pData.variants.map(v => {
-                                if (v.size === item.variantSize && v.color === item.variantColor) {
+                                if (v.size === item.variantSize && v.color === item.variantColor && (v.pattern || '') === (item.variantPattern || '')) {
                                     updated = true;
-                                    return { ...v, stockCount: Math.max(0, (v.stockCount || 0) - item.qty) };
+                                    return { ...v, stockCount: Math.max(0, (parseInt(v.stockCount, 10) || 0) - item.qty) };
                                 }
                                 return v;
                             });
@@ -668,7 +668,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
                             if (!updated) {
                                 newVariants.forEach((v, index) => {
                                     if (!updated && v.size === item.variantSize) {
-                                        newVariants[index] = { ...v, stockCount: Math.max(0, (v.stockCount || 0) - item.qty) };
+                                        newVariants[index] = { ...v, stockCount: Math.max(0, (parseInt(v.stockCount, 10) || 0) - item.qty) };
                                         updated = true;
                                     }
                                 });

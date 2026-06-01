@@ -657,7 +657,7 @@ async function saveProduct() {
                 showInMainCarousel: !!v.showInMainCarousel,
                 isActive: v.isActive !== false,
                 trackStock: !!v.trackStock,
-                stockCount: v.stockCount || 0,
+                stockCount: typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0),
                 images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
             };
@@ -675,7 +675,7 @@ async function saveProduct() {
                 dup.previewImages = [...new Set([...(dup.previewImages || []), ...(v.previewImages || [])])];
                 if (v.trackStock) {
                     dup.trackStock = true;
-                    dup.stockCount = (dup.stockCount || 0) + (v.stockCount || 0);
+                    dup.stockCount = (parseInt(dup.stockCount, 10) || 0) + (parseInt(v.stockCount, 10) || 0);
                 }
                 if (dup.price === null || dup.price === undefined) {
                     dup.price = v.price;
