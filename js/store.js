@@ -460,14 +460,12 @@ function updateVariantUI(p) {
     let mainImages = [];
     let variantImages = [];
     
-    // 1. Variant Images
-    if (v && v.images && v.images.length > 0) {
-        if (!v.hideDetailsGallery) {
-            variantImages.push(...v.images);
-        }
+    // 1. Variant Images (Shown in details gallery if not hidden for this specific variant)
+    if (v && v.images && v.images.length > 0 && !v.hideDetailsGallery) {
+        variantImages.push(...v.images);
     }
     
-    // 2. Main Images
+    // 2. Main Images (Shown if not hidden at product level)
     if (!p.hideMainDetailsCarousel) {
         if (p.images && p.images.length > 0) {
             mainImages.push(...p.images);

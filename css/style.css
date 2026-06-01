@@ -510,3 +510,15 @@ body {
 .btn-apply-filter:active {
     transform: translateY(0);
 }
+
+/* Custom Sibling Toggle Switch Styles */
+.toggle-input:checked + .toggle-track-container > .toggle-track {
+    background: var(--toggle-color, var(--gold)) !important;
+}
+.toggle-input:checked + .toggle-track-container > .toggle-handle {
+    left: 20px !important;
+}
+.toggle-input:checked ~ .toggle-label {
+    color: var(--toggle-color, var(--gold)) !important;
+}
+

@@ -2,6 +2,24 @@
 // SWAG STREE | ADMIN TOOLS
 // ==========================================
 
+// Inject custom toggle styles to prevent caching issues
+if (!document.getElementById('custom-toggle-styles')) {
+    const style = document.createElement('style');
+    style.id = 'custom-toggle-styles';
+    style.textContent = `
+        .toggle-input:checked + .toggle-track-container > .toggle-track {
+            background: var(--toggle-color, var(--gold)) !important;
+        }
+        .toggle-input:checked + .toggle-track-container > .toggle-handle {
+            left: 20px !important;
+        }
+        .toggle-input:checked ~ .toggle-label {
+            color: var(--toggle-color, var(--gold)) !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 // Global variables fallback definition to prevent browser cache mismatch crashes
 if (typeof isAdmin === 'undefined') window.isAdmin = false;
 if (typeof products === 'undefined') window.products = [];
@@ -48,14 +66,15 @@ function renderVariantBlocks() {
 
         // Helper: styled toggle checkbox
         const toggle = (id, checked, onChange, label, color) => `
-            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; min-width:0; flex:1;">
-                <div style="position:relative; width:38px; height:20px; flex-shrink:0;">
-                    <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} onchange="${onChange}" style="opacity:0; width:0; height:0; position:absolute;">
-                    <span onclick="document.getElementById('${id}').click()" style="position:absolute; inset:0; border-radius:20px; background:${checked ? (color||'#FFD700') : '#333'}; transition:0.2s; cursor:pointer;"></span>
-                    <span onclick="document.getElementById('${id}').click()" style="position:absolute; top:3px; left:${checked ? '20px' : '3px'}; width:14px; height:14px; border-radius:50%; background:#fff; transition:0.2s; cursor:pointer;"></span>
+            <label class="toggle-container" style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; min-width:0; flex:1; --toggle-color:${color||'#FFD700'};">
+                <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} onchange="${onChange}" class="toggle-input" style="opacity:0; width:0; height:0; position:absolute;">
+                <div class="toggle-track-container" style="position:relative; width:38px; height:20px; flex-shrink:0; pointer-events:none;">
+                    <span class="toggle-track" style="position:absolute; inset:0; border-radius:20px; background:#333; transition:0.2s;"></span>
+                    <span class="toggle-handle" style="position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:0.2s;"></span>
                 </div>
-                <span style="font-size:12px; color:${checked ? (color||'#FFD700') : '#777'}; line-height:1.3;">${label}</span>
+                <span class="toggle-label" style="font-size:12px; color:#777; line-height:1.3;">${label}</span>
             </label>`;
+
 
         return `
         <div class="variant-block" id="v-block-${v.id}" style="background:#141414; border-radius:12px; border:1px solid #2a2a2a; margin-bottom:14px; overflow:hidden; position:relative;">
@@ -72,7 +91,7 @@ function renderVariantBlocks() {
                     </span>
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
-                    <span style="font-size:11px; padding:3px 8px; border-radius:20px; background:${v.isActive !== false ? '#1a3a1a' : '#3a1a1a'}; color:${v.isActive !== false ? '#4caf50' : '#e57373'};">
+                    <span id="v-active-badge-${v.id}" style="font-size:11px; padding:3px 8px; border-radius:20px; background:${v.isActive !== false ? '#1a3a1a' : '#3a1a1a'}; color:${v.isActive !== false ? '#4caf50' : '#e57373'};">
                         ${v.isActive !== false ? '● Active' : '○ Hidden'}
                     </span>
                     <button onclick="removeVariant('${v.id}')" title="Remove variant" style="background:none; border:1px solid #444; border-radius:6px; color:#666; cursor:pointer; padding:4px 8px; font-size:13px; line-height:1;">✕</button>
@@ -143,16 +162,15 @@ function renderVariantBlocks() {
 
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
-                    ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked)`, 'Active', '#4caf50')}
+                    ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked); const badge = document.getElementById('v-active-badge-${v.id}'); if(badge) { badge.style.background = this.checked ? '#1a3a1a' : '#3a1a1a'; badge.style.color = this.checked ? '#4caf50' : '#e57373'; badge.innerHTML = this.checked ? '● Active' : '○ Hidden'; }`, 'Active', '#4caf50')}
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
-                    ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();`, 'Track Stock', '#FFD700')}
-                    ${v.trackStock ? `
-                    <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a;">
+                    ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); document.getElementById('v-stock-qty-container-${v.id}').style.display = this.checked ? 'flex' : 'none';`, 'Track Stock', '#FFD700')}
+                    <div id="v-stock-qty-container-${v.id}" style="display:${v.trackStock ? 'flex' : 'none'}; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a;">
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
                         <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
-                    </div>` : ''}
+                    </div>
                 </div>
 
             </div>
@@ -301,7 +319,10 @@ function removeSwatch(vId, index) {
 
 function updateVariant(id, field, value) {
     const v = variantBlocks.find(x => x.id === id);
-    if (v) v[field] = value;
+    if (v) {
+        v[field] = value;
+        console.log(`[updateVariant] Variant ${id}: set ${field} =`, value);
+    }
 }
 
 function removeVariant(id) {
