@@ -191,7 +191,7 @@
         <div id="product-grid" class="grid">
             <div class="premium-loader-container">
                 <div class="premium-loader"></div>
-                <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Syncing catalog</p>
+                <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading Products</p>
             </div>
             <div class="skeleton-card">
                 <div class="skeleton-media"></div>
@@ -483,11 +483,8 @@
                 <div style="display:flex; gap:10px; align-items:center;">
                     <div style="flex:1; display:flex; gap:6px; align-items:center;">
                         <span style="font-size:11px; color:#aaa; white-space:nowrap;">Expires in:</span>
-                        <input id="admin-promo-expiry-val" type="number" min="1" placeholder="Expiry (optional)" style="margin:0; flex:1; font-size:12px;">
-                        <select id="admin-promo-expiry-unit" style="margin:0; width:90px; font-size:12px; background:#222; color:#fff; border:1px solid #333; padding:8px 5px; border-radius:8px;">
-                            <option value="minutes">Minutes</option>
-                            <option value="hours">Hours</option>
-                        </select>
+                        <input id="admin-promo-expiry-hours" type="number" min="0" placeholder="Hrs" style="margin:0; flex:1; font-size:12px;">
+                        <input id="admin-promo-expiry-mins" type="number" min="0" max="59" placeholder="Mins" style="margin:0; flex:1; font-size:12px;">
                     </div>
                     <button class="btn-gold" style="width:auto; padding:10px 15px; font-size:12px; white-space:nowrap;" onclick="addPromoCode()">+ Add</button>
                 </div>
@@ -625,32 +622,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Admin Edit Promo Code -->
-    <div id="admin-edit-promo-modal" class="modal">
-        <div class="modal-box">
-            <h3 style="margin-top:0;">Edit Promo Code</h3>
-            <input id="aep-promo-index" type="hidden">
-            
-            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Promo Code</label>
-            <input id="aep-promo-code" type="text" placeholder="Code (e.g. SWAG10)" style="text-transform:uppercase;">
-            
-            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Discount Percentage (%)</label>
-            <input id="aep-promo-discount" type="number" min="1" max="100" placeholder="Discount %">
-            
-            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Expiration (Optional)</label>
-            <div id="aep-current-expiry-info" style="font-size:11px; color:#aaa; margin-bottom:8px;"></div>
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
-                <input id="aep-promo-expiry-val" type="number" min="1" placeholder="Value" style="margin:0; flex:1;">
-                <select id="aep-promo-expiry-unit" style="margin:0; flex:1; background:#222; color:#fff; border:1px solid #333; padding:10px; border-radius:8px;">
-                    <option value="minutes">Minutes</option>
-                    <option value="hours">Hours</option>
-                </select>
-            </div>
-            
-            <button class="btn-gold" id="aep-save-btn" onclick="savePromoCodeChanges()">Save Changes</button>
-            <button onclick="closeModal('admin-edit-promo-modal')" style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
-        </div>
-    </div>
+
 
     <!-- MODAL: Product Details -->
     <div id="detail-view" style="position:fixed; inset:0; background:#000; z-index:2000; display:none; overflow-y:auto">
@@ -865,11 +837,11 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=5.1"></script>
-    <script src="js/store.js?v=5.1"></script>
-    <script src="js/checkout.js?v=5.1"></script>
-    <script src="js/auth.js?v=5.1"></script>
-    <script src="js/admin.js?v=5.1"></script>
+    <script src="js/app.js?v=5.2"></script>
+    <script src="js/store.js?v=5.2"></script>
+    <script src="js/checkout.js?v=5.2"></script>
+    <script src="js/auth.js?v=5.2"></script>
+    <script src="js/admin.js?v=5.2"></script>
 
 </body>
 

@@ -181,7 +181,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `
                 <div class="premium-loader-container">
                     <div class="premium-loader"></div>
-                    <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Syncing catalog</p>
+                    <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading Products</p>
                 </div>
                 <div class="skeleton-card">
                     <div class="skeleton-media"></div>

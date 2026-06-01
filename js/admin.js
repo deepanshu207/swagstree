@@ -369,7 +369,7 @@ function renderAdmin() {
         container.innerHTML = `
             <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; gap: 12px; width: 100%;">
                 <div class="premium-loader"></div>
-                <p style="color: #aaa; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin: 0; font-weight: 700;">Loading catalog</p>
+                <p style="color: #aaa; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin: 0; font-weight: 700;">Loading Products</p>
             </div>
         `;
         return;
@@ -1049,6 +1049,8 @@ async function loadPromoSettings() {
     }
 }
 
+let editingPromoIndex = null;
+
 function renderAdminPromoList() {
     const listEl = document.getElementById('admin-promo-list');
     if (!listEl) return;
@@ -1056,6 +1058,16 @@ function renderAdminPromoList() {
     if (promoListInterval) {
         clearInterval(promoListInterval);
         promoListInterval = null;
+    }
+
+    // Auto-delete expired ones
+    const now = Date.now();
+    const expiredCodes = adminPromoList.filter(p => p.expiresAt && now > p.expiresAt);
+    if (expiredCodes.length > 0) {
+        adminPromoList = adminPromoList.filter(p => !(p.expiresAt && now > p.expiresAt));
+        editingPromoIndex = null;
+        saveAdminPromoSettings();
+        return;
     }
 
     if (adminPromoList.length === 0) {
@@ -1078,6 +1090,33 @@ function renderAdminPromoList() {
             }
         } else {
             expiryText = `<span style="color:#666; font-size:10px; margin-left:8px;">[No expiry]</span>`;
+        }
+
+        if (editingPromoIndex === index) {
+            return `
+                <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333; width:100%;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <input id="inline-promo-code-${index}" type="text" value="${p.code}" placeholder="Code" style="margin:0; flex:2; min-width:120px; font-size:12px; text-transform:uppercase;">
+                        <div style="position:relative; flex:1; min-width:70px;">
+                            <input id="inline-promo-discount-${index}" type="number" min="1" max="100" value="${p.discount}" placeholder="%" style="margin:0; padding-right:20px; font-size:12px; width:100%;">
+                            <span style="position:absolute; right:8px; top:50%; transform:translateY(-50%); color:#aaa; font-size:12px; pointer-events:none;">%</span>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;">
+                        <div style="display:flex; gap:6px; align-items:center; flex:1; min-width:180px;">
+                            <span style="font-size:11px; color:#aaa; white-space:nowrap;">Expires in:</span>
+                            <input id="inline-promo-expiry-hours-${index}" type="number" min="0" placeholder="Hrs" style="margin:0; flex:1; font-size:12px; height:32px;">
+                            <input id="inline-promo-expiry-mins-${index}" type="number" min="0" max="59" placeholder="Mins" style="margin:0; flex:1; font-size:12px; height:32px;">
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            ${p.expiresAt ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; background:#444; color:#fff;" onclick="clearInlineExpiry(${index})">Clear Expiry</button>` : ''}
+                            <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px;" onclick="saveInlinePromoChanges(${index})">Save</button>
+                            <button style="width:auto; padding:6px 12px; font-size:11px; background:none; border:1px solid #555; color:#aaa; border-radius:8px; cursor:pointer;" onclick="cancelInlineEdit()">Cancel</button>
+                        </div>
+                    </div>
+                    ${p.expiresAt ? `<div style="font-size:10px; color:#aaa;">Current expiry: ${expiryText}</div>` : ''}
+                </div>
+            `;
         }
 
         return `
@@ -1106,8 +1145,8 @@ function renderAdminPromoList() {
 async function addPromoCode() {
     const codeInput = document.getElementById('admin-promo-code');
     const discInput = document.getElementById('admin-promo-discount');
-    const expValInp = document.getElementById('admin-promo-expiry-val');
-    const expUnitInp = document.getElementById('admin-promo-expiry-unit');
+    const expHoursInp = document.getElementById('admin-promo-expiry-hours');
+    const expMinsInp = document.getElementById('admin-promo-expiry-mins');
     
     const code = codeInput.value.trim().toUpperCase();
     const discount = Number(discInput.value);
@@ -1122,12 +1161,29 @@ async function addPromoCode() {
     
     const newPromo = { code, discount };
     
-    if (expValInp) {
-        const expVal = parseInt(expValInp.value, 10);
-        if (!isNaN(expVal) && expVal > 0) {
-            const expUnit = expUnitInp.value;
-            const minutes = expUnit === 'hours' ? expVal * 60 : expVal;
-            newPromo.expiresAt = Date.now() + (minutes * 60000);
+    let hours = 0;
+    let mins = 0;
+    let hasExpiry = false;
+    
+    if (expHoursInp && expHoursInp.value.trim() !== '') {
+        const h = parseInt(expHoursInp.value, 10);
+        if (!isNaN(h) && h >= 0) {
+            hours = h;
+            hasExpiry = true;
+        }
+    }
+    if (expMinsInp && expMinsInp.value.trim() !== '') {
+        const m = parseInt(expMinsInp.value, 10);
+        if (!isNaN(m) && m >= 0) {
+            mins = m;
+            hasExpiry = true;
+        }
+    }
+    
+    if (hasExpiry) {
+        const totalMinutes = (hours * 60) + mins;
+        if (totalMinutes > 0) {
+            newPromo.expiresAt = Date.now() + (totalMinutes * 60000);
         }
     }
     
@@ -1136,7 +1192,8 @@ async function addPromoCode() {
     
     codeInput.value = '';
     discInput.value = '';
-    if (expValInp) expValInp.value = '';
+    if (expHoursInp) expHoursInp.value = '';
+    if (expMinsInp) expMinsInp.value = '';
     showToast('Promo code added: ' + code);
 }
 
@@ -1165,55 +1222,30 @@ async function saveAdminPromoSettings() {
 }
 
 window.editPromoCode = function(index) {
-    const p = adminPromoList[index];
-    if (!p) return;
-    
-    document.getElementById('aep-promo-index').value = index;
-    document.getElementById('aep-promo-code').value = p.code;
-    document.getElementById('aep-promo-discount').value = p.discount;
-    
-    document.getElementById('aep-promo-expiry-val').value = '';
-    document.getElementById('aep-promo-expiry-unit').value = 'minutes';
-    
-    const expInfo = document.getElementById('aep-current-expiry-info');
-    if (expInfo) {
-        if (p.expiresAt) {
-            const timeLeft = p.expiresAt - Date.now();
-            if (timeLeft <= 0) {
-                expInfo.innerHTML = `Current: <span style="color:#ff4444; font-weight:700;">Expired</span> (<a href="#" onclick="clearAepExpiry(); return false;" style="color:var(--gold);">Clear</a>)`;
-            } else {
-                const min = Math.ceil(timeLeft / 60000);
-                expInfo.innerHTML = `Current: <span style="color:#2ecc71;">Expires in ${min}m</span> (<a href="#" onclick="clearAepExpiry(); return false;" style="color:var(--gold);">Clear</a>)`;
-            }
-        } else {
-            expInfo.innerHTML = `Current: <span style="color:#666;">No expiry</span>`;
-        }
-    }
-    
-    const modal = document.getElementById('admin-edit-promo-modal');
-    if (modal) modal.style.display = 'flex';
+    editingPromoIndex = index;
+    renderAdminPromoList();
 }
 
-window.clearAepExpiry = function() {
-    const index = parseInt(document.getElementById('aep-promo-index').value, 10);
+window.cancelInlineEdit = function() {
+    editingPromoIndex = null;
+    renderAdminPromoList();
+}
+
+window.clearInlineExpiry = function(index) {
     const p = adminPromoList[index];
     if (p) {
         p.expiresAt = null;
-        const expInfo = document.getElementById('aep-current-expiry-info');
-        if (expInfo) {
-            expInfo.innerHTML = `Current: <span style="color:#666;">No expiry</span>`;
-        }
-        showToast("Expiry cleared. Remember to save changes!");
+        showToast("Expiry cleared. Remember to click Save to persist!");
+        renderAdminPromoList();
     }
 }
 
-window.savePromoCodeChanges = async function() {
-    const index = parseInt(document.getElementById('aep-promo-index').value, 10);
+window.saveInlinePromoChanges = async function(index) {
     const p = adminPromoList[index];
     if (!p) return;
     
-    const code = document.getElementById('aep-promo-code').value.trim().toUpperCase();
-    const discount = Number(document.getElementById('aep-promo-discount').value);
+    const code = document.getElementById(`inline-promo-code-${index}`).value.trim().toUpperCase();
+    const discount = Number(document.getElementById(`inline-promo-discount-${index}`).value);
     
     if (!code) return showToast('Enter a promo code');
     if (isNaN(discount) || discount < 1 || discount > 100) return showToast('Enter valid discount % (1-100)');
@@ -1226,18 +1258,37 @@ window.savePromoCodeChanges = async function() {
     p.code = code;
     p.discount = discount;
     
-    const expValInp = document.getElementById('aep-promo-expiry-val');
-    const expUnitInp = document.getElementById('aep-promo-expiry-unit');
-    const expVal = parseInt(expValInp.value, 10);
+    const expHoursInp = document.getElementById(`inline-promo-expiry-hours-${index}`);
+    const expMinsInp = document.getElementById(`inline-promo-expiry-mins-${index}`);
     
-    if (!isNaN(expVal) && expVal > 0) {
-        const expUnit = expUnitInp.value;
-        const minutes = expUnit === 'hours' ? expVal * 60 : expVal;
-        p.expiresAt = Date.now() + (minutes * 60000);
+    let hours = 0;
+    let mins = 0;
+    let hasNewExpiry = false;
+    
+    if (expHoursInp && expHoursInp.value.trim() !== '') {
+        const h = parseInt(expHoursInp.value, 10);
+        if (!isNaN(h) && h >= 0) {
+            hours = h;
+            hasNewExpiry = true;
+        }
+    }
+    if (expMinsInp && expMinsInp.value.trim() !== '') {
+        const m = parseInt(expMinsInp.value, 10);
+        if (!isNaN(m) && m >= 0) {
+            mins = m;
+            hasNewExpiry = true;
+        }
     }
     
+    if (hasNewExpiry) {
+        const totalMinutes = (hours * 60) + mins;
+        if (totalMinutes > 0) {
+            p.expiresAt = Date.now() + (totalMinutes * 60000);
+        }
+    }
+    
+    editingPromoIndex = null;
     await saveAdminPromoSettings();
-    closeModal('admin-edit-promo-modal');
     showToast('Promo code updated: ' + code);
 }
 

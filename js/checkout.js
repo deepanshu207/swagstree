@@ -242,7 +242,28 @@ async function loadPromos() {
     try {
         const snap = await db.collection('settings').doc('promos').get();
         if (snap.exists) {
-            activePromosList = snap.data().list || [];
+            const list = snap.data().list || [];
+            const now = Date.now();
+            let updated = false;
+            
+            list.forEach(p => {
+                if (!p.expiresAt) {
+                    p.expiresAt = now + (30 * 24 * 60 * 60 * 1000);
+                    updated = true;
+                }
+            });
+
+            const unexpired = list.filter(p => !(p.expiresAt && now > p.expiresAt));
+            activePromosList = unexpired;
+            if (list.length !== unexpired.length || updated) {
+                await db.collection('settings').doc('promos').set({ list: unexpired }, { merge: true });
+                if (typeof adminPromoList !== 'undefined') {
+                    adminPromoList = unexpired;
+                    if (typeof renderAdminPromoList === 'function') {
+                        renderAdminPromoList();
+                    }
+                }
+            }
         }
     } catch(e) {
         console.error("Failed to load promos", e);
@@ -252,7 +273,7 @@ async function loadPromos() {
 // Ensure promos are loaded early
 loadPromos();
 
-function applyPromo() {
+async function applyPromo() {
     const code = document.getElementById('promo-code').value.trim().toUpperCase();
     if (!code) return;
     
@@ -262,6 +283,18 @@ function applyPromo() {
         if (promo.expiresAt && Date.now() > promo.expiresAt) {
             activePromo = null;
             showToast("Invalid or Expired Promo Code");
+            activePromosList = activePromosList.filter(p => p.code !== code);
+            try {
+                await db.collection('settings').doc('promos').set({ list: activePromosList }, { merge: true });
+                if (typeof adminPromoList !== 'undefined') {
+                    adminPromoList = activePromosList;
+                    if (typeof renderAdminPromoList === 'function') {
+                        renderAdminPromoList();
+                    }
+                }
+            } catch(e) {
+                console.error("Failed to auto-delete expired promo", e);
+            }
         } else {
             activePromo = { code: promo.code, discount: promo.discount / 100 }; // Convert % to decimal
             showToast("Promo Applied: " + promo.discount + "% OFF");
