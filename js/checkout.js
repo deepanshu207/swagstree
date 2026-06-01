@@ -528,10 +528,13 @@ function openCart() {
         if (it.variantSize && it.variantSize !== 'Standard') {
             specs.push(it.variantSize);
         }
-        if (it.variantColor) {
-            specs.push(formatColorName(it.variantColor));
+        // Use stored human-readable color name; fall back to formatColorName
+        const _colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
+        if (_colorLabel) {
+            specs.push(_colorLabel);
         }
-        if (it.variantPattern && !it.variantPattern.startsWith('Design-')) {
+        // Only show pattern text when NO swatch image exists (avoids duplication)
+        if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) {
             specs.push(it.variantPattern);
         }
         const variantText = specs.length > 0 ? specs.join(' • ') : '';
@@ -996,8 +999,12 @@ function loadOrders() {
                     if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') {
                         specs.push(i.variantSize);
                     }
-                    if (i.variantColor) {
-                        specs.push(formatColorName(i.variantColor));
+                    // Use stored human-readable color name; fall back to formatColorName
+                    const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
+                    if (_oColorLabel) specs.push(_oColorLabel);
+                    // Only show pattern text when NO swatch image exists
+                    if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) {
+                        specs.push(i.variantPattern);
                     }
                     const variantDesc = specs.length > 0 ? specs.join(' • ') : '';
                     const descSuffix = variantDesc ? ` <span style="color:#666">(${variantDesc})</span>` : '';
