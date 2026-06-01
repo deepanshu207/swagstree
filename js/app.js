@@ -21,6 +21,9 @@ let cart = [];
 let wishlist = [];
 let currentUser = null;
 let isAdmin = false;
+let isSuperAdmin = false;
+let assignedAdmins = [];
+let productsPageLimitSetting = 20;
 let editingId = null;
 
 // UI State
@@ -114,7 +117,7 @@ function nav(id, el) {
 
     // Reset wishlist page limit when navigating to wishlist
     if (id === 'wish') {
-        displayedWishlistLimit = 20;
+        displayedWishlistLimit = productsPageLimitSetting;
         if (typeof renderStore === 'function') renderStore();
     }
 
@@ -124,6 +127,11 @@ function nav(id, el) {
         if (typeof loadCodSettings === 'function') loadCodSettings();
         if (typeof loadMaxQtySettings === 'function') loadMaxQtySettings();
         if (typeof loadPromoSettings === 'function') loadPromoSettings();
+        if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
+    }
+    if (id === 'super') {
+        if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
+        if (typeof loadAssignedAdmins === 'function') loadAssignedAdmins();
     }
 }
 

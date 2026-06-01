@@ -14,9 +14,10 @@ if (typeof selectedColor === 'undefined') window.selectedColor = '';
 if (typeof activeProductId === 'undefined') window.activeProductId = null;
 if (typeof isAdmin === 'undefined') window.isAdmin = false;
 if (typeof products === 'undefined') window.products = [];
+if (typeof productsLoaded === 'undefined') window.productsLoaded = false;
 
-if (typeof displayedProductsLimit === 'undefined') window.displayedProductsLimit = 20;
-if (typeof displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = 20;
+if (typeof displayedProductsLimit === 'undefined') window.displayedProductsLimit = (typeof productsPageLimitSetting !== 'undefined' ? productsPageLimitSetting : 20);
+if (typeof displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = (typeof productsPageLimitSetting !== 'undefined' ? productsPageLimitSetting : 20);
 if (typeof displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = 20;
 if (typeof ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
 if (typeof deepLinkHandled === 'undefined') window.deepLinkHandled = false;
@@ -83,9 +84,10 @@ function loadData() {
             p.normalizedVariants = normalizeVariants(p);
             return p;
         }); 
+        window.productsLoaded = true;
         renderStore(); 
         renderFilters();
-        if(isAdmin && typeof renderAdmin === "function") renderAdmin();
+        if(typeof renderAdmin === "function") renderAdmin();
         checkDeepLink(); // open shared product link if present
     }, error => {
         console.error("Firestore products onSnapshot error:", error);
@@ -172,10 +174,54 @@ function renderProducts(items, targetId) {
     if (targetId === 'product-grid') {
         const loadMoreBtnContainer = document.getElementById('load-more-container');
         const countContainer = document.getElementById('product-count');
+        
+        if (items.length === 0 && !window.productsLoaded) {
+            if (countContainer) countContainer.style.display = 'none';
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+            container.innerHTML = `
+                <div class="premium-loader-container">
+                    <div class="premium-loader"></div>
+                    <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Syncing catalog</p>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-media"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-price"></div>
+                    </div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-media"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-price"></div>
+                    </div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-media"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-price"></div>
+                    </div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-media"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-price"></div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
         if (items.length === 0) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
-            if (countContainer) countContainer.innerHTML = '0 Products';
+            if (countContainer) {
+                countContainer.innerHTML = '0 Products';
+                countContainer.style.display = 'inline-flex';
+            }
             return;
         }
         
@@ -192,16 +238,47 @@ function renderProducts(items, targetId) {
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
             countContainer.innerHTML = `Showing ${visible} of ${items.length} Products`;
+            countContainer.style.display = 'inline-flex';
         }
         
         container.innerHTML = itemsToRender.map(productCardHtml).join(''); 
     } else if (targetId === 'wish-grid') {
         const loadMoreBtnContainer = document.getElementById('wish-load-more-container');
         const countContainer = document.getElementById('wish-count');
+        
+        if (items.length === 0 && !window.productsLoaded) {
+            if (countContainer) countContainer.style.display = 'none';
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+            container.innerHTML = `
+                <div class="premium-loader-container">
+                    <div class="premium-loader"></div>
+                    <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading Wishlist</p>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-media"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-price"></div>
+                    </div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton-media"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-price"></div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
         if (items.length === 0) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
-            if (countContainer) countContainer.innerHTML = '0 Items';
+            if (countContainer) {
+                countContainer.innerHTML = '0 Items';
+                countContainer.style.display = 'inline-flex';
+            }
             return;
         }
         
@@ -218,6 +295,7 @@ function renderProducts(items, targetId) {
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
             countContainer.innerHTML = `Showing ${visible} of ${items.length} Items`;
+            countContainer.style.display = 'inline-flex';
         }
         
         container.innerHTML = itemsToRender.map(productCardHtml).join(''); 
@@ -594,7 +672,7 @@ async function shareProduct(id) {
 }
 
 function searchHandler() { 
-    displayedProductsLimit = 20;
+    displayedProductsLimit = productsPageLimitSetting;
     const q = document.getElementById('app_search').value.toLowerCase(); 
     renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid'); 
 }
@@ -620,7 +698,7 @@ function toggleFilter() {
 }
 
 function setFilterSize(el, sz) {
-    displayedProductsLimit = 20;
+    displayedProductsLimit = productsPageLimitSetting;
     const idx = filterActiveSizes.indexOf(sz);
     if (idx > -1) {
         filterActiveSizes.splice(idx, 1);
@@ -633,7 +711,7 @@ function setFilterSize(el, sz) {
 }
 
 function setFilterColor(el, col) {
-    displayedProductsLimit = 20;
+    displayedProductsLimit = productsPageLimitSetting;
     const idx = filterActiveColors.indexOf(col);
     if (idx > -1) {
         filterActiveColors.splice(idx, 1);
@@ -646,7 +724,7 @@ function setFilterColor(el, col) {
 }
 
 function setFilterPattern(el, pat) {
-    displayedProductsLimit = 20;
+    displayedProductsLimit = productsPageLimitSetting;
     const idx = filterActivePatterns.indexOf(pat);
     if (idx > -1) {
         filterActivePatterns.splice(idx, 1);
@@ -886,7 +964,7 @@ function renderFilters() {
 }
 
 function resetFilters() {
-    displayedProductsLimit = 20;
+    displayedProductsLimit = productsPageLimitSetting;
     filterActiveSizes = [];
     filterActiveColors = [];
     filterActivePatterns = [];
@@ -966,12 +1044,12 @@ function applySortAndFilter() {
 }
 
 function changeSortLogic() {
-    displayedProductsLimit = 20;
+    displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
 }
 
 function loadMoreProducts() {
-    displayedProductsLimit += 20;
+    displayedProductsLimit += productsPageLimitSetting;
     const q = document.getElementById('app_search').value.toLowerCase(); 
     if (q) {
         renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
@@ -981,6 +1059,6 @@ function loadMoreProducts() {
 }
 
 function loadMoreWishlist() {
-    displayedWishlistLimit += 20;
+    displayedWishlistLimit += productsPageLimitSetting;
     renderStore();
 }

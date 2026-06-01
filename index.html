@@ -62,12 +62,9 @@
 
     <!-- Deep Link Loading Overlay — shown instantly when ?id= is in the URL -->
     <div id="deep-link-overlay"
-        style="display:none; position:fixed; inset:0; background:#000; z-index:99999; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
-        <div
-            style="width:44px; height:44px; border:3px solid #222; border-top-color:var(--gold); border-radius:50%; animation:dlSpin 0.75s linear infinite;">
-        </div>
-        <p style="color:#888; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; margin:0;">Loading
-            product…</p>
+        style="display:none; position:fixed; inset:0; background:#000; z-index:99999; align-items:center; justify-content:center; flex-direction:column; gap:18px;">
+        <div class="premium-loader"></div>
+        <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading product</p>
     </div>
 
     <!-- Slide-out Filter Menu -->
@@ -152,6 +149,7 @@
             <div class="nav-item active" onclick="nav('home', this)">Home</div>
             <div class="nav-item" onclick="nav('wish', this)">Wishlist</div>
             <div id="nav-adm-desktop" class="nav-item" style="display:none" onclick="nav('admin', this)">Admin</div>
+            <div id="nav-super-desktop" class="nav-item" style="display:none" onclick="nav('super', this)">Superadmin</div>
             <div class="nav-item" onclick="nav('user', this)">Profile & Orders</div>
         </div>
 
@@ -185,12 +183,45 @@
                 autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
         </div>
         <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
-            <span id="product-count" class="count-badge"></span>
-            <a href="https://wa.me/918800467686" target="_blank" style="background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <span id="product-count" class="count-badge" style="display:none;"></span>
+            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
                 <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
             </a>
         </div>
-        <div id="product-grid" class="grid"></div>
+        <div id="product-grid" class="grid">
+            <div class="premium-loader-container">
+                <div class="premium-loader"></div>
+                <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Syncing catalog</p>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+        </div>
         <div id="load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
     </div>
 
@@ -198,8 +229,8 @@
     <div id="wish-view" class="section">
         <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
         <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
-            <span id="wish-count" class="count-badge">0 Items</span>
-            <a href="https://wa.me/918800467686" target="_blank" style="background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <span id="wish-count" class="count-badge" style="display:none;">0 Items</span>
+            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
                 <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
             </a>
         </div>
@@ -338,7 +369,7 @@
             <div class="profile-section">
                 <h4 class="section-label" style="display:flex; justify-content:space-between; align-items:center;"><span
                         style="display:flex; align-items:center; gap:8px;"><i class="fa fa-box"></i> My Orders</span>
-                    <span id="orders-count" class="count-badge">0 Orders</span>
+                    <span id="orders-count" class="count-badge" style="display:none;">0 Orders</span>
                 </h4>
                 <div id="order-history"></div>
                 <div id="orders-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
@@ -359,7 +390,7 @@
     <div id="admin-view" class="section">
         <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
             <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
-                    class="count-badge">0 Products</span></h3>
+                    class="count-badge" style="display:none;">0 Products</span></h3>
             <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
         </div>
 
@@ -441,18 +472,184 @@
                 <!-- Promo items render here -->
             </div>
 
-            <div style="display:flex; gap:10px; align-items:center; background:#1a1a1a; padding:10px; border-radius:12px; border:1px solid #333;">
-                <input id="admin-promo-code" type="text" placeholder="Code (e.g. SWAG10)" style="margin:0; flex:1; font-size:12px; text-transform:uppercase;">
-                <div style="position:relative; width:90px;">
-                    <input id="admin-promo-discount" type="number" min="1" max="100" placeholder="%" style="margin:0; padding-right:25px; font-size:12px;">
-                    <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#aaa; font-size:12px; pointer-events:none;">%</span>
+            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input id="admin-promo-code" type="text" placeholder="Code (e.g. SWAG10)" style="margin:0; flex:1; font-size:12px; text-transform:uppercase;">
+                    <div style="position:relative; width:90px;">
+                        <input id="admin-promo-discount" type="number" min="1" max="100" placeholder="%" style="margin:0; padding-right:25px; font-size:12px;">
+                        <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#aaa; font-size:12px; pointer-events:none;">%</span>
+                    </div>
                 </div>
-                <button class="btn-gold" style="width:auto; padding:12px 15px; font-size:12px; white-space:nowrap;" onclick="addPromoCode()">+ Add</button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <div style="flex:1; display:flex; gap:6px; align-items:center;">
+                        <span style="font-size:11px; color:#aaa; white-space:nowrap;">Expires in:</span>
+                        <input id="admin-promo-expiry-val" type="number" min="1" placeholder="Expiry (optional)" style="margin:0; flex:1; font-size:12px;">
+                        <select id="admin-promo-expiry-unit" style="margin:0; width:90px; font-size:12px; background:#222; color:#fff; border:1px solid #333; padding:8px 5px; border-radius:8px;">
+                            <option value="minutes">Minutes</option>
+                            <option value="hours">Hours</option>
+                        </select>
+                    </div>
+                    <button class="btn-gold" style="width:auto; padding:10px 15px; font-size:12px; white-space:nowrap;" onclick="addPromoCode()">+ Add</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Products Pagination Settings -->
+        <div id="admin-pagination-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Products Page Limit</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set the number of products loaded per page on the storefront</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <input id="admin-products-page-limit" type="number" min="1" step="1" value="20"
+                        style="margin:0;" placeholder="Default is 20">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="savePaginationSettings()">Save</button>
             </div>
         </div>
 
         <div id="admin-list" style="padding:0 20px"></div>
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
+    </div>
+
+    <!-- SECTION: Superadmin -->
+    <div id="super-view" class="section">
+        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Superadmin Panel</h3>
+        </div>
+
+        <!-- Section 1: Manage Admins -->
+        <div style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-user-shield" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Manage Admins</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Assign, update, or remove additional admin roles</p>
+                </div>
+            </div>
+            
+            <div id="super-admin-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
+                <!-- Admins list -->
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center; background:#1a1a1a; padding:10px; border-radius:12px; border:1px solid #333;">
+                <input id="super-admin-email" type="email" placeholder="Admin Email (e.g. name@swagstree.com)" style="margin:0; flex:1; font-size:12px;">
+                <button class="btn-gold" style="width:auto; padding:12px 15px; font-size:12px; white-space:nowrap;" onclick="addAdminRole()">+ Add Admin</button>
+            </div>
+        </div>
+
+        <!-- Section 2: Manage Customers -->
+        <div style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa fa-users" style="color:var(--gold); font-size:15px;"></i>
+                    <div>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Manage Customers</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Update profiles, toggle active state, or clear individual history</p>
+                    </div>
+                </div>
+                <button class="btn-gold" onclick="loadSuperCustomers()" style="width:auto; padding:6px 12px; font-size:11px; display:flex; align-items:center; gap:5px;"><i class="fa fa-sync"></i> Refresh</button>
+            </div>
+
+            <!-- Search input -->
+            <input type="text" id="super-customer-search" placeholder="Search customers by name, email, or phone..." oninput="resetSuperCustomerLimitAndFilter()" style="margin-bottom:12px; font-size:13px;">
+
+            <div id="super-customer-list" style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:5px;">
+                <!-- Customers list -->
+            </div>
+            
+            <div id="super-customer-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
+        </div>
+
+        <!-- Section 3: Destructive Catalog & Operations -->
+        <div style="margin: 0 20px 20px 20px; background:#111; border:1px solid rgba(255, 71, 87, 0.2); border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                <i class="fa fa-exclamation-triangle" style="color:var(--red); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Destructive Operations</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Superadmin bulk deletions and catalog reset controls</p>
+                </div>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Products</span>
+                        <span style="font-size:10px; color:#666;">Permanently delete all product catalogs and variants</span>
+                    </div>
+                    <button class="btn-gold" style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;" onclick="deleteAllProductsPrompt()">Delete All Products</button>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Orders</span>
+                        <span style="font-size:10px; color:#666;">Permanently erase the order collection and histories</span>
+                    </div>
+                    <button class="btn-gold" style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;" onclick="deleteAllOrdersPrompt()">Delete All Orders</button>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Clean Everything</span>
+                        <span style="font-size:10px; color:#666;">Factory reset: Erase all products, orders, promos, settings, and assigned admins</span>
+                    </div>
+                    <button class="btn-gold" style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;" onclick="cleanEverythingPrompt()">Factory Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Superadmin Edit Customer -->
+    <div id="super-edit-cust-modal" class="modal">
+        <div class="modal-box">
+            <h3 style="margin-top:0;">Edit Customer Details</h3>
+            <input id="sec-cust-uid" type="hidden">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Full Name</label>
+            <input id="sec-cust-name" type="text" placeholder="Customer Name">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Email Address</label>
+            <input id="sec-cust-email" type="email" placeholder="Customer Email">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Phone Number</label>
+            <input id="sec-cust-phone" type="tel" placeholder="Customer Phone">
+            
+            <button class="btn-gold" id="sec-save-btn" onclick="saveCustomerDetails()">Save Changes</button>
+            <button onclick="closeModal('super-edit-cust-modal')" style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Admin Edit Promo Code -->
+    <div id="admin-edit-promo-modal" class="modal">
+        <div class="modal-box">
+            <h3 style="margin-top:0;">Edit Promo Code</h3>
+            <input id="aep-promo-index" type="hidden">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Promo Code</label>
+            <input id="aep-promo-code" type="text" placeholder="Code (e.g. SWAG10)" style="text-transform:uppercase;">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Discount Percentage (%)</label>
+            <input id="aep-promo-discount" type="number" min="1" max="100" placeholder="Discount %">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Expiration (Optional)</label>
+            <div id="aep-current-expiry-info" style="font-size:11px; color:#aaa; margin-bottom:8px;"></div>
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
+                <input id="aep-promo-expiry-val" type="number" min="1" placeholder="Value" style="margin:0; flex:1;">
+                <select id="aep-promo-expiry-unit" style="margin:0; flex:1; background:#222; color:#fff; border:1px solid #333; padding:10px; border-radius:8px;">
+                    <option value="minutes">Minutes</option>
+                    <option value="hours">Hours</option>
+                </select>
+            </div>
+            
+            <button class="btn-gold" id="aep-save-btn" onclick="savePromoCodeChanges()">Save Changes</button>
+            <button onclick="closeModal('admin-edit-promo-modal')" style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
     </div>
 
     <!-- MODAL: Product Details -->
@@ -661,16 +858,18 @@
         <div class="nav-item" onclick="nav('wish', this)"><i class="fa fa-heart"></i>Wish</div>
         <div id="nav-adm" class="nav-item" style="display:none" onclick="nav('admin', this)"><i
                 class="fa fa-gear"></i>Admin</div>
+        <div id="nav-super" class="nav-item" style="display:none" onclick="nav('super', this)"><i
+                class="fa fa-user-shield"></i>Super</div>
         <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
     </nav>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=5.0"></script>
-    <script src="js/store.js?v=5.0"></script>
-    <script src="js/checkout.js?v=5.0"></script>
-    <script src="js/auth.js?v=5.0"></script>
-    <script src="js/admin.js?v=5.0"></script>
+    <script src="js/app.js?v=5.1"></script>
+    <script src="js/store.js?v=5.1"></script>
+    <script src="js/checkout.js?v=5.1"></script>
+    <script src="js/auth.js?v=5.1"></script>
+    <script src="js/admin.js?v=5.1"></script>
 
 </body>
 

@@ -362,6 +362,19 @@ function renderAdmin() {
     
     const loadMoreContainer = document.getElementById('admin-load-more-container');
     const countContainer = document.getElementById('admin-product-count');
+    
+    if (products.length === 0 && !window.productsLoaded) {
+        if (countContainer) countContainer.style.display = 'none';
+        if (loadMoreContainer) loadMoreContainer.innerHTML = '';
+        container.innerHTML = `
+            <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; gap: 12px; width: 100%;">
+                <div class="premium-loader"></div>
+                <p style="color: #aaa; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin: 0; font-weight: 700;">Loading catalog</p>
+            </div>
+        `;
+        return;
+    }
+    
     let itemsToRender = products;
     
     if (products.length > editingProductsLimit) {
@@ -376,6 +389,7 @@ function renderAdmin() {
     if (countContainer) {
         const visible = Math.min(products.length, editingProductsLimit);
         countContainer.innerHTML = products.length > 0 ? `Showing ${visible} of ${products.length} Products` : '0 Products';
+        countContainer.style.display = 'inline-flex';
     }
     
     container.innerHTML = itemsToRender.map(p => {
@@ -601,39 +615,35 @@ async function saveProduct() {
     btn.innerText = "Processing..."; 
     
     try { 
-        // Upload all base images (interleaved support)
-        const finalMainImages = [];
-        for (let img of existingImageUrls) {
-            if (img instanceof File) {
-                const url = await uploadToCloudinary(img);
-                finalMainImages.push(url);
-            } else {
-                finalMainImages.push(img);
-            }
-        }
+        // Upload all base images in parallel (interleaved support)
+        const finalMainImages = await Promise.all(
+            existingImageUrls.map(async img => {
+                if (img instanceof File) {
+                    return await uploadToCloudinary(img);
+                }
+                return img;
+            })
+        );
         
-        // Upload variant images & swatches
-        const parsedVariants = [];
-        for (let v of variantBlocks) {
-            const uploadedVariantImages = [];
-            for (let img of (v.images || [])) {
-                if (img instanceof File) {
-                    const url = await uploadToCloudinary(img);
-                    uploadedVariantImages.push(url);
-                } else {
-                    uploadedVariantImages.push(img);
-                }
-            }
+        // Upload all variant images and swatches in parallel
+        const parsedVariantsResult = await Promise.all(variantBlocks.map(async v => {
+            const uploadedVariantImages = await Promise.all(
+                (v.images || []).map(async img => {
+                    if (img instanceof File) {
+                        return await uploadToCloudinary(img);
+                    }
+                    return img;
+                })
+            );
             
-            const uploadedPreviewUrls = [];
-            for (let img of (v.previewImages || [])) {
-                if (img instanceof File) {
-                    const url = await uploadToCloudinary(img);
-                    uploadedPreviewUrls.push(url);
-                } else {
-                    uploadedPreviewUrls.push(img);
-                }
-            }
+            const uploadedPreviewUrls = await Promise.all(
+                (v.previewImages || []).map(async img => {
+                    if (img instanceof File) {
+                        return await uploadToCloudinary(img);
+                    }
+                    return img;
+                })
+            );
             
             let finalSize = v.size || 'Standard';
             let finalColor = v.color || '';
@@ -642,10 +652,10 @@ async function saveProduct() {
             let finalPatternName = v.patternName || '';
             
             if (finalSize === 'Standard' && !finalColor && !finalPattern && uploadedPreviewUrls.length === 0) {
-                continue;
+                return null;
             }
             
-            const parsedVariant = {
+            return {
                 size: finalSize,
                 color: finalColor,
                 colorName: finalColorName,
@@ -661,9 +671,9 @@ async function saveProduct() {
                 images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
             };
-            
-            parsedVariants.push(parsedVariant);
-        }
+        }));
+        
+        const parsedVariants = parsedVariantsResult.filter(x => x !== null);
         
         const mergedVariants = [];
         parsedVariants.forEach(v => {
@@ -738,7 +748,7 @@ async function saveProduct() {
 // Render admin list on load if already authenticated as admin
 if (isAdmin) {
     renderAdmin();
-    loadAdminPromoSettings();
+    loadPromoSettings();
 }
 
 // ── Admin Copy / Import / Export ───────────────────────────────────────────
@@ -987,10 +997,47 @@ window.saveMaxQtySettings = async function() {
     }
 }
 
+// ── Products Pagination Settings ─────────────────────────────────────────────
+window.loadPaginationSettings = async function() {
+    try {
+        const snap = await db.collection('settings').doc('pagination').get();
+        if (snap.exists && typeof snap.data().limit !== 'undefined') {
+            const val = snap.data().limit;
+            const inp = document.getElementById('admin-products-page-limit');
+            if (inp) inp.value = val;
+            if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
+            if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
+            if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+        }
+    } catch(e) {
+        console.error('loadPaginationSettings error:', e);
+    }
+}
+
+window.savePaginationSettings = async function() {
+    const inp = document.getElementById('admin-products-page-limit');
+    if (!inp) return;
+    let val = parseInt(inp.value, 10);
+    if (isNaN(val) || val < 1) val = 20;
+    inp.value = val;
+    try {
+        await db.collection('settings').doc('pagination').set({ limit: val }, { merge: true });
+        if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
+        if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
+        if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+        showToast('✅ Products page limit saved: ' + val);
+        if (typeof renderStore === 'function') renderStore();
+    } catch(e) {
+        console.error('savePaginationSettings error:', e);
+        showToast('Failed to save pagination settings');
+    }
+}
+
 // ── Promo Code Settings ─────────────────────────────────────────────────────
 let adminPromoList = [];
+let promoListInterval = null;
 
-async function loadAdminPromoSettings() {
+async function loadPromoSettings() {
     try {
         const snap = await db.collection('settings').doc('promos').get();
         if (snap.exists) {
@@ -998,7 +1045,7 @@ async function loadAdminPromoSettings() {
         }
         renderAdminPromoList();
     } catch(e) {
-        console.error('loadAdminPromoSettings error:', e);
+        console.error('loadPromoSettings error:', e);
     }
 }
 
@@ -1006,25 +1053,62 @@ function renderAdminPromoList() {
     const listEl = document.getElementById('admin-promo-list');
     if (!listEl) return;
     
+    if (promoListInterval) {
+        clearInterval(promoListInterval);
+        promoListInterval = null;
+    }
+
     if (adminPromoList.length === 0) {
         listEl.innerHTML = '<div style="font-size:11px; color:#555;">No active promo codes.</div>';
         return;
     }
     
-    listEl.innerHTML = adminPromoList.map((p, index) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:10px; border-radius:10px; border:1px dashed #444;">
-            <div>
-                <span style="color:var(--gold); font-weight:bold; font-size:13px; letter-spacing:1px;">${p.code}</span>
-                <span style="color:#aaa; font-size:11px; margin-left:8px;">${p.discount}% OFF</span>
+    listEl.innerHTML = adminPromoList.map((p, index) => {
+        let expiryText = '';
+        if (p.expiresAt) {
+            const timeLeft = p.expiresAt - Date.now();
+            if (timeLeft <= 0) {
+                expiryText = `<span style="color:#ff4444; font-size:10px; margin-left:8px; font-weight:700;">[EXPIRED]</span>`;
+            } else {
+                const totalMinutes = Math.ceil(timeLeft / 60000);
+                const h = Math.floor(totalMinutes / 60);
+                const m = totalMinutes % 60;
+                let timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                expiryText = `<span style="color:#2ecc71; font-size:10px; margin-left:8px;">[Expires in ${timeStr}]</span>`;
+            }
+        } else {
+            expiryText = `<span style="color:#666; font-size:10px; margin-left:8px;">[No expiry]</span>`;
+        }
+
+        return `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:10px; border-radius:10px; border:1px dashed #444; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <span style="color:var(--gold); font-weight:bold; font-size:13px; letter-spacing:1px;">${p.code}</span>
+                    <span style="color:#aaa; font-size:11px; margin-left:8px;">${p.discount}% OFF</span>
+                    ${expiryText}
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i class="fa fa-edit" style="color:var(--gold); font-size:12px; cursor:pointer; padding:5px;" onclick="editPromoCode(${index})" title="Edit Promo"></i>
+                    <i class="fa fa-trash" style="color:#ff4444; font-size:12px; cursor:pointer; padding:5px;" onclick="removePromoCode(${index})" title="Delete Promo"></i>
+                </div>
             </div>
-            <i class="fa fa-trash" style="color:#ff4444; font-size:12px; cursor:pointer; padding:5px;" onclick="removePromoCode(${index})"></i>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+
+    const hasExpiring = adminPromoList.some(p => p.expiresAt);
+    if (hasExpiring) {
+        promoListInterval = setInterval(() => {
+            renderAdminPromoList();
+        }, 30000);
+    }
 }
 
 async function addPromoCode() {
     const codeInput = document.getElementById('admin-promo-code');
     const discInput = document.getElementById('admin-promo-discount');
+    const expValInp = document.getElementById('admin-promo-expiry-val');
+    const expUnitInp = document.getElementById('admin-promo-expiry-unit');
+    
     const code = codeInput.value.trim().toUpperCase();
     const discount = Number(discInput.value);
     
@@ -1036,11 +1120,23 @@ async function addPromoCode() {
         return showToast('Promo code already exists');
     }
     
-    adminPromoList.push({ code, discount });
+    const newPromo = { code, discount };
+    
+    if (expValInp) {
+        const expVal = parseInt(expValInp.value, 10);
+        if (!isNaN(expVal) && expVal > 0) {
+            const expUnit = expUnitInp.value;
+            const minutes = expUnit === 'hours' ? expVal * 60 : expVal;
+            newPromo.expiresAt = Date.now() + (minutes * 60000);
+        }
+    }
+    
+    adminPromoList.push(newPromo);
     await saveAdminPromoSettings();
     
     codeInput.value = '';
     discInput.value = '';
+    if (expValInp) expValInp.value = '';
     showToast('Promo code added: ' + code);
 }
 
@@ -1067,3 +1163,87 @@ async function saveAdminPromoSettings() {
         showToast('Failed to save promo settings');
     }
 }
+
+window.editPromoCode = function(index) {
+    const p = adminPromoList[index];
+    if (!p) return;
+    
+    document.getElementById('aep-promo-index').value = index;
+    document.getElementById('aep-promo-code').value = p.code;
+    document.getElementById('aep-promo-discount').value = p.discount;
+    
+    document.getElementById('aep-promo-expiry-val').value = '';
+    document.getElementById('aep-promo-expiry-unit').value = 'minutes';
+    
+    const expInfo = document.getElementById('aep-current-expiry-info');
+    if (expInfo) {
+        if (p.expiresAt) {
+            const timeLeft = p.expiresAt - Date.now();
+            if (timeLeft <= 0) {
+                expInfo.innerHTML = `Current: <span style="color:#ff4444; font-weight:700;">Expired</span> (<a href="#" onclick="clearAepExpiry(); return false;" style="color:var(--gold);">Clear</a>)`;
+            } else {
+                const min = Math.ceil(timeLeft / 60000);
+                expInfo.innerHTML = `Current: <span style="color:#2ecc71;">Expires in ${min}m</span> (<a href="#" onclick="clearAepExpiry(); return false;" style="color:var(--gold);">Clear</a>)`;
+            }
+        } else {
+            expInfo.innerHTML = `Current: <span style="color:#666;">No expiry</span>`;
+        }
+    }
+    
+    const modal = document.getElementById('admin-edit-promo-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+window.clearAepExpiry = function() {
+    const index = parseInt(document.getElementById('aep-promo-index').value, 10);
+    const p = adminPromoList[index];
+    if (p) {
+        p.expiresAt = null;
+        const expInfo = document.getElementById('aep-current-expiry-info');
+        if (expInfo) {
+            expInfo.innerHTML = `Current: <span style="color:#666;">No expiry</span>`;
+        }
+        showToast("Expiry cleared. Remember to save changes!");
+    }
+}
+
+window.savePromoCodeChanges = async function() {
+    const index = parseInt(document.getElementById('aep-promo-index').value, 10);
+    const p = adminPromoList[index];
+    if (!p) return;
+    
+    const code = document.getElementById('aep-promo-code').value.trim().toUpperCase();
+    const discount = Number(document.getElementById('aep-promo-discount').value);
+    
+    if (!code) return showToast('Enter a promo code');
+    if (isNaN(discount) || discount < 1 || discount > 100) return showToast('Enter valid discount % (1-100)');
+    
+    const dup = adminPromoList.find((item, idx) => item.code === code && idx !== index);
+    if (dup) {
+        return showToast('Promo code already exists');
+    }
+    
+    p.code = code;
+    p.discount = discount;
+    
+    const expValInp = document.getElementById('aep-promo-expiry-val');
+    const expUnitInp = document.getElementById('aep-promo-expiry-unit');
+    const expVal = parseInt(expValInp.value, 10);
+    
+    if (!isNaN(expVal) && expVal > 0) {
+        const expUnit = expUnitInp.value;
+        const minutes = expUnit === 'hours' ? expVal * 60 : expVal;
+        p.expiresAt = Date.now() + (minutes * 60000);
+    }
+    
+    await saveAdminPromoSettings();
+    closeModal('admin-edit-promo-modal');
+    showToast('Promo code updated: ' + code);
+}
+
+// Bind settings loaders to window for cross-script execution
+window.loadCodSettings = loadCodSettings;
+window.saveCodSettings = saveCodSettings;
+window.loadMaxQtySettings = loadMaxQtySettings;
+window.loadPromoSettings = loadPromoSettings;
+

@@ -643,3 +643,97 @@ body {
     -moz-appearance: textfield;
 }
 
+/* ==========================================
+   10. SHIMMER SKELETON & PREMIUM LOADERS
+   ========================================== */
+
+/* Shimmer Animation Keyframe */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* Skeleton Card Structure */
+.skeleton-card {
+    background: var(--card);
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    padding-bottom: 12px;
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.skeleton-media {
+    aspect-ratio: 1/1;
+    background: linear-gradient(90deg, #111 25%, #1d1d1d 50%, #111 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+}
+
+.skeleton-info {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skeleton-title {
+    height: 12px;
+    width: 75%;
+    background: linear-gradient(90deg, #111 25%, #1d1d1d 50%, #111 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+    border-radius: 4px;
+}
+
+.skeleton-price {
+    height: 14px;
+    width: 40%;
+    background: linear-gradient(90deg, #111 25%, #1d1d1d 50%, #111 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+    border-radius: 4px;
+}
+
+/* Premium Spinner Container */
+.premium-loader-container {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 0 40px 0;
+    gap: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Glowing Gold Spinner */
+.premium-loader {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 215, 0, 0.05);
+    border-radius: 50%;
+    border-top: 3px solid var(--gold);
+    border-right: 3px solid var(--gold);
+    animation: premiumSpinner 0.9s cubic-bezier(0.445, 0.050, 0.550, 0.950) infinite;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+}
+
+@keyframes premiumSpinner {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+

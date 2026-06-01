@@ -20,11 +20,30 @@ const UPI_ID   = '7683020636@pthdfc';
 const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
 // ───────────────────────────────────────────────────────────────────────────
 
-(function loadCodMinPayment() {
+(function loadGlobalSettings() {
     if (typeof db === 'undefined') return;
+    
+    // Load COD settings
     db.collection('settings').doc('cod').get().then(doc => {
         if (doc.exists && typeof doc.data().minPayment === 'number') {
             codMinPayment = doc.data().minPayment;
+        }
+    }).catch(() => {});
+
+    // Load Cart Quantity limit settings
+    db.collection('settings').doc('cart').get().then(doc => {
+        if (doc.exists && typeof doc.data().globalMaxQty === 'number') {
+            globalMaxCartQty = doc.data().globalMaxQty;
+        }
+    }).catch(() => {});
+
+    // Load Product Pagination settings
+    db.collection('settings').doc('pagination').get().then(doc => {
+        if (doc.exists && typeof doc.data().limit === 'number') {
+            productsPageLimitSetting = doc.data().limit;
+            displayedProductsLimit = productsPageLimitSetting;
+            displayedWishlistLimit = productsPageLimitSetting;
+            if (typeof renderStore === 'function') renderStore();
         }
     }).catch(() => {});
 })();
@@ -240,8 +259,13 @@ function applyPromo() {
     const promo = activePromosList.find(p => p.code === code);
     
     if (promo) {
-        activePromo = { code: promo.code, discount: promo.discount / 100 }; // Convert % to decimal
-        showToast("Promo Applied: " + promo.discount + "% OFF");
+        if (promo.expiresAt && Date.now() > promo.expiresAt) {
+            activePromo = null;
+            showToast("Invalid or Expired Promo Code");
+        } else {
+            activePromo = { code: promo.code, discount: promo.discount / 100 }; // Convert % to decimal
+            showToast("Promo Applied: " + promo.discount + "% OFF");
+        }
     } else {
         activePromo = null;
         showToast("Invalid or Expired Promo Code");
@@ -712,7 +736,15 @@ function loadOrders() {
     const container = document.getElementById('order-history'); 
     if (!currentUser) return; 
     
-    container.innerHTML = `<p style="text-align:center; color:#666; font-size:12px;">Syncing orders...</p>`; 
+    const countContainer = document.getElementById('orders-count');
+    if (countContainer) countContainer.style.display = 'none';
+    
+    container.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
+            <div class="premium-loader"></div>
+            <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Syncing orders</p>
+        </div>
+    `; 
     
     // Unsubscribe from old listener to prevent memory leaks on limit changes
     if (ordersUnsubscribe) {
@@ -734,7 +766,10 @@ function loadOrders() {
         if (snap.empty) { 
             container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
-            if (countContainer) countContainer.innerHTML = '0 Orders';
+            if (countContainer) {
+                countContainer.innerHTML = '0 Orders';
+                countContainer.style.display = 'inline-flex';
+            }
             return; 
         } 
         
@@ -774,6 +809,7 @@ function loadOrders() {
             } else {
                 countContainer.innerHTML = `Showing ${visibleCount} of ${snap.docs.length} Orders`;
             }
+            countContainer.style.display = 'inline-flex';
         }
         
         container.innerHTML = docs.map(doc => { 
