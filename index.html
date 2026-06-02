@@ -1,1 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Swag Stree</title>
+    <script>
+        window.onerror = function (message, source, lineno, colno, error) {
+            const div = document.createElement('div');
+            div.style.position = 'fixed';
+            div.style.top = '10px';
+            div.style.left = '10px';
+            div.style.right = '10px';
+            div.style.background = 'rgba(255, 0, 0, 0.9)';
+            div.style.color = '#fff';
+            div.style.padding = '15px';
+            div.style.zIndex = '999999';
+            div.style.fontFamily = 'monospace';
+            div.style.fontSize = '12px';
+            div.style.borderRadius = '5px';
+            div.style.whiteSpace = 'pre-wrap';
+            div.innerHTML = `<strong>Error:</strong> ${message}<br><strong>Source:</strong> ${source}:${lineno}:${colno}<br><strong>Stack:</strong> ${error ? error.stack : ''}`;
+            document.body.appendChild(div);
+            return false;
+        };
+        window.onunhandledrejection = function (event) {
+            const div = document.createElement('div');
+            div.style.position = 'fixed';
+            div.style.top = '10px';
+            div.style.left = '10px';
+            div.style.right = '10px';
+            div.style.background = 'rgba(255, 0, 0, 0.9)';
+            div.style.color = '#fff';
+            div.style.padding = '15px';
+            div.style.zIndex = '999999';
+            div.style.fontFamily = 'monospace';
+            div.style.fontSize = '12px';
+            div.style.borderRadius = '5px';
+            div.style.whiteSpace = 'pre-wrap';
+            div.innerHTML = `<strong>Unhandled Rejection:</strong> ${event.reason}`;
+            document.body.appendChild(div);
+        };
+    </script>
+
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css?v=3.0">
+</head>
+
+<body>
+
+    <div id="toast">Message</div>
+    <div class="filter-overlay" onclick="toggleFilter()"></div>
+
+    <!-- Deep Link Loading Overlay — shown instantly when ?id= is in the URL -->
+    <div id="deep-link-overlay"
+        style="display:none; position:fixed; inset:0; background:#000; z-index:99999; align-items:center; justify-content:center; flex-direction:column; gap:18px;">
+        <div class="premium-loader"></div>
+        <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading product</p>
+    </div>
+
+    <!-- Slide-out Filter Menu -->
+    <div id="filter-slider">
+        <div class="filter-header">
+            <div class="filter-title-wrap">
+                <h3>Filters</h3>
+                <!-- <p class="filter-subtitle">Refine Your Style</p> -->
+            </div>
+            <div class="filter-header-actions">
+                <span class="clear-all-btn" onclick="resetFilters()">Clear All</span>
+                <div class="close-filter-btn" onclick="toggleFilter()">
+                    <i class="fa fa-times"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-section-title">Sort Price</label>
+            <div class="select-wrapper">
+                <select id="sort-logic" class="premium-select" onchange="changeSortLogic()">
+                    <option value="none">Default Sorting</option>
+                    <option value="low">Price: Low to High</option>
+                    <option value="high">Price: High to Low</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-section-title">Price Range</label>
+            <div class="price-slider-container">
+                <div class="price-slider-track"></div>
+                <input type="range" id="price-min-range" class="price-range-input" min="0" max="5000" value="0">
+                <input type="range" id="price-max-range" class="price-range-input" min="0" max="5000" value="5000">
+            </div>
+            <div class="price-values">
+                <div class="price-val-box">
+                    <span class="price-label">Min</span>
+                    <div class="price-input-wrap">
+                        <span class="currency-symbol">₹</span>
+                        <input type="number" id="price-min-input" class="premium-price-input" value="0">
+                    </div>
+                </div>
+                <div class="price-val-box">
+                    <span class="price-label">Max</span>
+                    <div class="price-input-wrap">
+                        <span class="currency-symbol">₹</span>
+                        <input type="number" id="price-max-input" class="premium-price-input" value="5000">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-section-title">Size</label>
+            <div class="chip-group" id="filter-sizes"></div>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-section-title">Color</label>
+            <div class="chip-group" id="filter-colors"></div>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-section-title">Pattern</label>
+            <div class="chip-group" id="filter-patterns"></div>
+        </div>
+
+        <div class="filter-footer">
+            <button class="btn-apply-filter" onclick="toggleFilter()">Apply Filters</button>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header class="header">
+        <img src="assets/logo.png" class="logo-img" onerror="this.src='https://i.ibb.co/3mN5SgN/1000591447.png'"
+            alt="Swag Stree Logo">
+        <div class="brand">SWAG STREE</div>
+
+        <!-- Desktop Navigation -->
+        <div class="desktop-nav">
+            <div class="nav-item active" onclick="nav('home', this)">Home</div>
+            <div class="nav-item" onclick="nav('wish', this)">Wishlist</div>
+            <div id="nav-adm-desktop" class="nav-item" style="display:none" onclick="nav('admin', this)">Admin</div>
+            <div id="nav-super-desktop" class="nav-item" style="display:none" onclick="nav('super', this)">Superadmin</div>
+            <div class="nav-item" onclick="nav('user', this)">Profile & Orders</div>
+        </div>
+
+        <!-- Socials & Cart -->
+        <div class="social-tools">
+            <a href="https://instagram.com/swag_stree" target="_blank"><i class="fab fa-instagram"></i></a>
+            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank"><i
+                    class="fab fa-whatsapp"></i></a>
+            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank"><i class="fab fa-facebook"></i></a>
+            <i class="fa fa-sliders" onclick="toggleFilter()"
+                style="color:var(--gold); cursor:pointer; font-size:18px"></i>
+        </div>
+
+        <div class="cart-trigger" onclick="openCart()">
+            <i class="fa fa-shopping-bag" style="font-size:22px"></i>
+            <span id="cart-badge"
+                style="position:absolute; top:-6px; right:-6px; background:var(--red); font-size:10px; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-weight:bold">0</span>
+        </div>
+    </header>
+
+    <!-- SECTION: Home / Products -->
+    <div id="home-view" class="section active">
+        <div style="padding:15px">
+            <!-- Hidden auth fields to prevent browser auto-fill bugs -->
+            <div
+                style="opacity: 0; position: absolute; top: 0; left: 0; height: 0; width: 0; z-index: -1; overflow: hidden;">
+                <input type="text" name="email" tabindex="-1">
+                <input type="password" name="password" tabindex="-1">
+            </div>
+            <input type="text" id="app_search" placeholder="Search products..." oninput="searchHandler()"
+                autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
+        </div>
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
+            <span id="product-count" class="count-badge" style="display:none;"></span>
+            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
+            </a>
+        </div>
+        <div id="product-grid" class="grid">
+            <div class="premium-loader-container">
+                <div class="premium-loader"></div>
+                <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading Products</p>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+            <div class="skeleton-card">
+                <div class="skeleton-media"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-price"></div>
+                </div>
+            </div>
+        </div>
+        <div id="load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
+    </div>
+
+    <!-- SECTION: Wishlist -->
+    <div id="wish-view" class="section">
+        <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
+            <span id="wish-count" class="count-badge" style="display:none;">0 Items</span>
+            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
+            </a>
+        </div>
+        <div id="wish-grid" class="grid"></div>
+        <div id="wish-load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
+    </div>
+
+    <!-- SECTION: User Profile & Auth -->
+    <div id="user-view" class="section">
+
+        <!-- Login / Register Form -->
+        <div id="auth-ui" style="padding:30px; max-width:400px; margin:auto">
+            <h2 style="margin-bottom:5px;">Welcome</h2>
+            <p style="color:#666; font-size:13px; margin-top:0;">Login or create your account</p>
+
+            <!-- Name (register only) -->
+            <div id="reg-name-field" style="display:none">
+                <input id="au-name" placeholder="Full Name *" autocomplete="name">
+            </div>
+
+            <!-- Email -->
+            <input id="au-id" type="email" placeholder="Email Address" autocomplete="email">
+
+            <!-- Password -->
+            <div id="pass-area">
+                <input id="au-pass" type="password" placeholder="Password" autocomplete="current-password">
+            </div>
+
+            <!-- Optional Phone (register only) -->
+            <div id="reg-phone-field" style="display:none">
+                <input id="au-phone" type="tel" placeholder="Phone Number (Optional, e.g. +919XXXXXXXXX)"
+                    autocomplete="tel">
+            </div>
+
+            <button class="btn-gold" id="au-btn" onclick="handleMainAuth()">Continue</button>
+            <p onclick="toggleAuthMode()" id="toggle-text"
+                style="text-align:center; color:var(--gold); cursor:pointer; margin-top:20px; font-size:13px">New here?
+                Register</p>
+            <p onclick="forgotPassword()" id="forgot-password-link"
+                style="text-align:center; color:#666; cursor:pointer; margin-top:10px; font-size:13px">Forgot Password?
+            </p>
+
+            <!-- Google Login -->
+            <div
+                style="text-align:center; margin: 20px 0; color: #666; font-size: 12px; display:flex; align-items:center; gap:10px;">
+                <div style="flex:1; height:1px; background:#333;"></div>
+                OR
+                <div style="flex:1; height:1px; background:#333;"></div>
+            </div>
+            <button class="btn-gold"
+                style="background:#fff; color:#000; display:flex; align-items:center; justify-content:center; gap:10px; font-weight:600;"
+                onclick="handleGoogleLogin()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"
+                    style="width:20px;height:20px;flex-shrink:0">
+                    <path fill="#EA4335"
+                        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                    <path fill="#4285F4"
+                        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                    <path fill="#FBBC05"
+                        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                    <path fill="#34A853"
+                        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                </svg>
+                Continue with Google
+            </button>
+        </div>
+
+        <!-- Logged-in Dashboard -->
+        <div id="dash-ui" style="display:none; padding:20px; max-width:500px; margin:auto">
+
+            <!-- Profile Card -->
+            <div class="profile-card">
+                <div class="profile-avatar" id="profile-avatar">U</div>
+                <div style="flex:1; min-width:0;">
+                    <div id="profile-email-display" style="font-size:12px; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
+                    <div id="profile-name-display" style="font-size:16px; font-weight:700; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">User</div>
+                </div>
+                <button onclick="auth.signOut()" class="btn-logout"><i class="fa fa-sign-out-alt"></i> Logout</button>
+            </div>
+
+            <!-- Edit Profile Form -->
+            <div class="profile-section">
+                <h4 class="section-label"><i class="fa fa-user-edit"></i> Edit Profile</h4>
+
+                <label class="field-label">Display Name</label>
+                <input id="prof-name" placeholder="Your full name" autocomplete="name">
+
+                <label class="field-label">Phone Number</label>
+                <input id="prof-phone" type="tel" placeholder="+91XXXXXXXXXX" autocomplete="tel">
+
+                <button class="btn-gold" onclick="saveProfile()" style="margin-top:5px;">
+                    <i class="fa fa-save"></i> &nbsp;Save Changes
+                </button>
+            </div>
+
+            <!-- Change Email (with verification) -->
+            <div class="profile-section">
+                <h4 class="section-label"><i class="fa fa-envelope"></i> Change Email</h4>
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">A verification link will be sent to your new
+                    email before it takes effect.</p>
+
+                <label class="field-label">New Email Address</label>
+                <input id="prof-new-email" type="email" placeholder="New email address" autocomplete="email">
+
+                <label class="field-label">Current Password (to confirm)</label>
+                <input id="prof-curr-pass" type="password" placeholder="Your current password">
+
+                <button class="btn-gold" onclick="changeEmail()"
+                    style="background:#222; border:1px solid #555; color:#fff;">
+                    <i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change
+                </button>
+            </div>
+
+            <!-- Change Password (with re-auth) -->
+            <div class="profile-section">
+                <h4 class="section-label"><i class="fa fa-lock"></i> Change Password</h4>
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">For security, please enter your current password
+                    to set a new one.</p>
+
+                <label class="field-label">Current Password</label>
+                <input id="prof-pass-current" type="password" placeholder="Your current password">
+
+                <label class="field-label">New Password</label>
+                <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)">
+
+                <label class="field-label">Confirm New Password</label>
+                <input id="prof-pass-confirm" type="password" placeholder="Confirm new password">
+
+                <button class="btn-gold" onclick="changePassword()"
+                    style="background:#222; border:1px solid #555; color:#fff;">
+                    <i class="fa fa-lock"></i> &nbsp;Change Password
+                </button>
+            </div>
+
+            <!-- My Orders -->
+            <div class="profile-section">
+                <h4 class="section-label" style="display:flex; justify-content:space-between; align-items:center;"><span
+                        style="display:flex; align-items:center; gap:8px;"><i class="fa fa-box"></i> My Orders</span>
+                    <span id="orders-count" class="count-badge" style="display:none;">0 Orders</span>
+                </h4>
+                <div id="order-history"></div>
+                <div id="orders-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
+            </div>
+
+            <!-- Admin Customers (Visible only to admins) -->
+            <div class="profile-section" id="admin-customers-section" style="display:none; margin-top:20px;">
+                <h4 class="section-label" style="display:flex; justify-content:space-between; align-items:center; color:var(--gold);">
+                    <span style="display:flex; align-items:center; gap:8px;"><i class="fa fa-users"></i> All Customers</span>
+                    <button class="btn-gold" onclick="loadAllCustomers()" style="padding:4px 10px; font-size:12px;"><i class="fa fa-sync"></i> Refresh</button>
+                </h4>
+                <div id="all-customers-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION: Admin -->
+    <div id="admin-view" class="section">
+        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
+                    class="count-badge" style="display:none;">0 Products</span></h3>
+            <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+        </div>
+
+        <!-- Bulk Operations -->
+        <div
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:flex; gap:15px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div>
+                <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; letter-spacing:0.5px;">Bulk Catalog
+                    Actions</h4>
+                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export or batch update/import products Excel
+                    (.xlsx)</p>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn-gold" style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px;"
+                    onclick="exportProducts()">Export Excel</button>
+                <button class="btn-gold"
+                    style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px; background:#222; border:1px solid #444; color:#fff;"
+                    onclick="triggerImport()">Import Excel</button>
+                <button class="btn-gold"
+                    style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px; background:#e74c3c; border:1px solid #c0392b; color:#fff;"
+                    onclick="deleteAllProducts()">Delete All Products</button>
+                <input type="file" id="import-file-input" accept=".xlsx, .xls" style="display:none;"
+                    onchange="importProducts(this)">
+            </div>
+        </div>
+
+        <!-- COD Settings -->
+        <div id="admin-cod-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-truck" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">COD Advance Payment</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Minimum UPI payment required to confirm a COD
+                        order</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <span
+                        style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:700; font-size:14px; pointer-events:none;">&#8377;</span>
+                    <input id="admin-cod-min-payment" type="number" min="0" step="10" value="100"
+                        style="padding-left:30px; margin:0;" placeholder="Min amount (default 100)">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveCodSettings()">Save</button>
+            </div>
+        </div>
+
+        <!-- Global Max Quantity Settings -->
+        <div id="admin-max-qty-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-shopping-bag" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Global Max Cart Quantity</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Max allowed per item if stock tracking is OFF (default 1)</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <input id="admin-max-cart-qty" type="number" min="1" step="1" value="1"
+                        style="margin:0;" placeholder="Default is 1">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveMaxQtySettings()">Save</button>
+            </div>
+        </div>
+
+        <!-- Promo Code Settings -->
+        <div id="admin-promo-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+                </div>
+            </div>
+            
+            <div id="admin-promo-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
+                <!-- Promo items render here -->
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input id="admin-promo-code" type="text" placeholder="Code (e.g. SWAG10)" style="margin:0; flex:1; font-size:12px; text-transform:uppercase;">
+                    <div style="position:relative; width:90px;">
+                        <input id="admin-promo-discount" type="number" min="1" max="100" placeholder="%" style="margin:0; padding-right:25px; font-size:12px;">
+                        <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#aaa; font-size:12px; pointer-events:none;">%</span>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <div style="flex:1; display:flex; gap:6px; align-items:center;">
+                        <span style="font-size:11px; color:#aaa; white-space:nowrap;">Expires in:</span>
+                        <input id="admin-promo-expiry-hours" type="number" min="0" placeholder="Hrs" style="margin:0; flex:1; font-size:12px;">
+                        <input id="admin-promo-expiry-mins" type="number" min="0" max="59" placeholder="Mins" style="margin:0; flex:1; font-size:12px;">
+                    </div>
+                    <button class="btn-gold" style="width:auto; padding:10px 15px; font-size:12px; white-space:nowrap;" onclick="addPromoCode()">+ Add</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Products Pagination Settings -->
+        <div id="admin-pagination-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Products Page Limit</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set the number of products loaded per page on the storefront</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <input id="admin-products-page-limit" type="number" min="1" step="1" value="20"
+                        style="margin:0;" placeholder="Default is 20">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="savePaginationSettings()">Save</button>
+            </div>
+        </div>
+
+        <div id="admin-list" style="padding:0 20px"></div>
+        <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
+    </div>
+
+    <!-- SECTION: Superadmin -->
+    <div id="super-view" class="section">
+        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Superadmin Panel</h3>
+        </div>
+
+        <!-- Section 1: Manage Admins -->
+        <div style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-user-shield" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Manage Admins</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Assign, update, or remove additional admin roles</p>
+                </div>
+            </div>
+            
+            <div id="super-admin-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
+                <!-- Admins list -->
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center; background:#1a1a1a; padding:10px; border-radius:12px; border:1px solid #333;">
+                <input id="super-admin-email" type="email" placeholder="Admin Email (e.g. name@swagstree.com)" style="margin:0; flex:1; font-size:12px;">
+                <button class="btn-gold" style="width:auto; padding:12px 15px; font-size:12px; white-space:nowrap;" onclick="addAdminRole()">+ Add Admin</button>
+            </div>
+        </div>
+
+        <!-- Section 2: Manage Customers -->
+        <div style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa fa-users" style="color:var(--gold); font-size:15px;"></i>
+                    <div>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Manage Customers</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Update profiles, toggle active state, or clear individual history</p>
+                    </div>
+                </div>
+                <button class="btn-gold" onclick="loadSuperCustomers()" style="width:auto; padding:6px 12px; font-size:11px; display:flex; align-items:center; gap:5px;"><i class="fa fa-sync"></i> Refresh</button>
+            </div>
+
+            <!-- Search input -->
+            <input type="text" id="super-customer-search" placeholder="Search customers by name, email, or phone..." oninput="resetSuperCustomerLimitAndFilter()" style="margin-bottom:12px; font-size:13px;">
+
+            <div id="super-customer-list" style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:5px;">
+                <!-- Customers list -->
+            </div>
+            
+            <div id="super-customer-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
+        </div>
+
+        <!-- Section 3: Destructive Catalog & Operations -->
+        <div style="margin: 0 20px 20px 20px; background:#111; border:1px solid rgba(255, 71, 87, 0.2); border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                <i class="fa fa-exclamation-triangle" style="color:var(--red); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Destructive Operations</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Superadmin bulk deletions and catalog reset controls</p>
+                </div>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Products</span>
+                        <span style="font-size:10px; color:#666;">Permanently delete all product catalogs and variants</span>
+                    </div>
+                    <button class="btn-gold" style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;" onclick="deleteAllProductsPrompt()">Delete All Products</button>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Orders</span>
+                        <span style="font-size:10px; color:#666;">Permanently erase the order collection and histories</span>
+                    </div>
+                    <button class="btn-gold" style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;" onclick="deleteAllOrdersPrompt()">Delete All Orders</button>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Clean Everything</span>
+                        <span style="font-size:10px; color:#666;">Factory reset: Erase all products, orders, promos, settings, and assigned admins</span>
+                    </div>
+                    <button class="btn-gold" style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;" onclick="cleanEverythingPrompt()">Factory Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Superadmin Edit Customer -->
+    <div id="super-edit-cust-modal" class="modal">
+        <div class="modal-box">
+            <h3 style="margin-top:0;">Edit Customer Details</h3>
+            <input id="sec-cust-uid" type="hidden">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Full Name</label>
+            <input id="sec-cust-name" type="text" placeholder="Customer Name">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Email Address</label>
+            <input id="sec-cust-email" type="email" placeholder="Customer Email">
+            
+            <label style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:4px; display:block;">Phone Number</label>
+            <input id="sec-cust-phone" type="tel" placeholder="Customer Phone">
+            
+            <button class="btn-gold" id="sec-save-btn" onclick="saveCustomerDetails()">Save Changes</button>
+            <button onclick="closeModal('super-edit-cust-modal')" style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+
+
+    <!-- MODAL: Product Details -->
+    <div id="detail-view" style="position:fixed; inset:0; background:#000; z-index:2000; display:none; overflow-y:auto">
+        <div style="padding:15px; display:flex; justify-content:space-between; align-items:center">
+            <i class="fa fa-chevron-left" onclick="closeDetail()"
+                style="font-size:20px; padding:10px; cursor:pointer;"></i>
+            <span style="font-weight:bold; letter-spacing:2px; font-size:11px">DETAILS</span>
+            <div style="width:40px; display:flex; justify-content:flex-end;">
+                <i class="fa fa-share-alt" onclick="shareProduct(activeProductId)" style="font-size:18px; padding:10px; cursor:pointer;"></i>
+            </div>
+        </div>
+        <div id="det-box" class="carousel-box" style="height:400px">
+            <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
+            <div id="det-indicators" class="indicators"></div>
+        </div>
+        <div style="padding:25px; padding-bottom:80px;">
+            <h2 id="det-name" style="margin:0;"></h2>
+            <div id="det-price" style="color:var(--gold); font-size:24px; font-weight:800; margin:10px 0"></div>
+
+            <div id="det-sizes-container">
+                <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT SIZE</p>
+                <div class="chip-group" id="detail-size-selector"></div>
+            </div>
+
+            <div id="det-colors-container" style="margin-top:15px">
+                <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT COLOR</p>
+                <div class="chip-group" id="detail-color-selector"></div>
+            </div>
+
+            <div id="det-patterns-container" style="margin-top:15px; display:none;">
+                <p style="font-size:11px; color:#666; margin-bottom:8px">SELECT PATTERN</p>
+                <div class="chip-group" id="detail-pattern-selector"></div>
+            </div>
+
+            <p style="font-size:11px; color:#666; margin-top:20px;">DESCRIPTION</p>
+            <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:30px"></p>
+
+            <button class="btn-gold" id="det-btn">ADD TO BAG</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Admin Edit Product -->
+    <div id="prod-modal" class="modal">
+        <div class="modal-box">
+            <h3>Product Details</h3>
+            <input id="m-name" placeholder="Name">
+            <input id="m-price" type="number" placeholder="Price">
+            <textarea id="m-desc" placeholder="Description"></textarea>
+
+            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Product Variants <span title="Define specific prices and images for different sizes/colors" style="cursor:help; color:#aaa;">ⓘ</span></p>
+            <div id="m-variants-container" style="background:#121212; border: 1px solid #282828; border-radius: 12px; padding: 10px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;">
+            </div>
+            <button onclick="addVariantBlock()" style="width:100%; padding:10px; background:#222; color:#fff; border:1px dashed #555; border-radius:8px; cursor:pointer; font-size:12px; margin-bottom: 15px;">+ Add Variant</button>
+
+            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Main Product Images / Home Preview <span title="These images appear on the home page and can be included in the variant galleries (e.g. Size Charts, Lifestyle shots)." style="cursor:help; color:#aaa;">ⓘ</span> (TAP × TO REMOVE)</p>
+            <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
+            <label style="display:block; padding:10px; border-radius:8px; border:1px dashed #666; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px; margin-bottom: 15px;">
+                Upload Main Images
+                <input type="file" id="m-files" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'base')">
+            </label>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:flex-start;">
+                <input type="checkbox" id="m-hide-main" style="width:auto; margin:0;">
+                <label for="m-hide-main" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Main Images from Home Screen Carousel</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:flex-start; flex-wrap:wrap;">
+                <input type="checkbox" id="m-hide-main-details" style="width:auto; margin:0;" onchange="document.getElementById('m-main-pos-container').style.display = this.checked ? 'none' : 'flex'">
+                <label for="m-hide-main-details" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Main Images from Product Details Carousel</label>
+            </div>
+            <div id="m-main-pos-container" style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:flex-start;">
+                <label style="font-size:12px; color:#aaa; margin:0;">If not hidden, show Main Images at:</label>
+                <select id="m-main-pos" style="background:#222; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px; font-size:12px; outline:none; margin:0;">
+                    <option value="start">Start</option>
+                    <option value="end">End</option>
+                </select>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:15px; justify-content:flex-start;">
+                <input type="checkbox" id="m-hide-main-placeholder" style="width:auto; margin:0;">
+                <label for="m-hide-main-placeholder" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide default placeholder for no image</label>
+            </div>
+            <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
+            <button onclick="closeModal('prod-modal')"
+                style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Cart & Checkout -->
+    <div id="cart-modal" class="modal">
+        <div class="modal-box" style="padding-top: 15px;">
+            <h3 style="margin-top:0;">Checkout</h3>
+            <div id="cart-items" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
+
+            <!-- Promo Code -->
+            <div style="display:flex; gap:10px; margin-bottom: 10px;">
+                <input id="promo-code" placeholder="Promo Code" style="margin-bottom:0; flex:1;">
+                <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
+            </div>
+            <div id="active-promos-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px;"></div>
+
+            <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 20px; font-size: 14px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Subtotal</span><span
+                        id="cart-subtotal">₹0</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; color:var(--red);">
+                    <span>Discount</span><span id="cart-discount">₹0</span>
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; font-weight:bold; font-size:18px; margin-top:10px;">
+                    <span>Total</span><span id="cart-total" style="color:var(--gold)">₹0</span>
+                </div>
+            </div>
+
+            <input id="c-name" placeholder="Recipient Name" autocomplete="name">
+            <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
+            <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
+
+            <!-- Payment Methods -->
+            <p style="font-size:11px; color:#666; margin-bottom:10px;">PAYMENT METHOD</p>
+            <div class="payment-options" style="flex-direction:column; gap:8px; margin-bottom:15px;">
+                <div class="payment-chip cod-chip active" id="pay-cod" data-method="cod" onclick="selectPayment('cod')" style="text-align:left; display:flex; align-items:center;">
+                    <i class="fa fa-truck" style="margin-right:10px; font-size:18px;"></i>Cash on Delivery
+                </div>
+                <div class="payment-chip upi-chip" id="pay-upi" data-method="upi" onclick="selectPayment('upi')" style="text-align:left; display:flex; align-items:center;">
+                    <span style="font-size:18px; margin-right:10px;">&#x1F4F7;</span>UPI / QR Scanner
+                </div>
+                <div class="payment-chip paytm-chip" id="pay-paytm" data-method="paytm" onclick="selectPayment('paytm')" style="text-align:left; display:flex; align-items:center;">
+                    <span style="font-size:18px; margin-right:10px;">&#x1F4B3;</span>Paytm
+                </div>
+                <div class="payment-chip gpay-chip" id="pay-gpay" data-method="gpay" onclick="selectPayment('gpay')" style="text-align:left; display:flex; align-items:center;">
+                    <span style="font-size:18px; margin-right:10px;">&#x1F4B0;</span>Google Pay
+                </div>
+            </div>
+
+            <!-- UPI QR Box (shown for Paytm, PhonePe, UPI) -->
+            <div id="upi-payment-box"
+                style="display:none; background:linear-gradient(135deg,#0d0d0d,#1a1a1a); padding:18px; border-radius:16px; margin-bottom:15px; text-align:center; border:1px solid #2a2a2a;">
+                <div id="upi-brand-header"
+                    style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px; font-size:14px;">
+                </div>
+                <img src="assets/qr.png" alt="Scan to Pay"
+                    style="width:160px; height:160px; border-radius:10px; background:#fff; padding:6px; box-shadow:0 4px 20px rgba(255,215,0,0.15);">
+                <p id="upi-brand-hint" style="font-size:12px; color:#aaa; margin:10px 0 0;"></p>
+            </div>
+
+            <!-- COD Advance Payment Notice (shown when COD is active) -->
+            <div id="cod-info-box"
+                style="display:flex; align-items:flex-start; gap:10px; background:rgba(230,126,34,0.08); border:1px solid rgba(230,126,34,0.3); border-radius:12px; padding:12px 14px; margin-bottom:15px;">
+                <i class="fa fa-circle-info" style="color:#e67e22; margin-top:2px; flex-shrink:0;"></i>
+                <p style="margin:0; font-size:12px; color:#e0a060; line-height:1.6;">
+                    A minimum advance of <strong id="cod-notice-amt" style="color:#e67e22;">&#8377;100</strong> is
+                    required via UPI to confirm your COD order.
+                    You will be asked to confirm before placing.
+                </p>
+            </div>
+
+            <button class="btn-gold" id="btn-checkout" onclick="placeOrder()">Place Order</button>
+            <button onclick="closeModal('cart-modal')"
+                style="width:100%; margin-top:10px; background:none; color:#555; border:none; cursor:pointer;">Back</button>
+        </div>
+    </div>
+
+    <!-- MODAL: COD Advance Payment Confirmation -->
+    <div id="cod-confirm-modal" class="modal" style="display:none; z-index:6000;">
+        <div class="modal-box" style="max-width:400px; text-align:center;">
+            <!-- Icon -->
+            <div style="width:64px; height:64px; border-radius:50%; background:rgba(230,126,34,0.15); border:2px solid rgba(230,126,34,0.4); display:grid; place-items:center; margin:0 auto 18px;">
+                <i class="fa fa-truck" style="color:#e67e22; font-size:26px;"></i>
+            </div>
+            <h3 style="margin:0 0 8px; font-size:18px;">Cash on Delivery</h3>
+            <p style="color:#888; font-size:13px; margin:0 0 20px; line-height:1.7;">
+                To confirm your order, a minimum advance payment of
+                <br><span id="cod-min-amount-display" style="color:#e67e22; font-size:22px; font-weight:900;">&#8377;100</span><br>
+                is required via UPI <strong>before delivery</strong>.
+                <br><br>
+                Please choose a payment method below to pay the advance amount.
+            </p>
+
+            <div id="cod-advance-payment-options" style="display:flex; flex-direction:column; gap:10px;">
+                <button onclick="payCodAdvance('upi')" style="width:100%; padding:14px; background:#1a1a1a; color:#FFD700; border:1px solid #FFD700; border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
+                    &#x1F4F7; Pay Advance via Scanner (QR)
+                </button>
+                <button onclick="payCodAdvance('paytm')" style="width:100%; padding:14px; background:#1a1a1a; color:#00BAF2; border:1px solid #00BAF2; border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
+                    &#x1F4B3; Pay Advance via Paytm
+                </button>
+                <button onclick="payCodAdvance('gpay')" style="width:100%; padding:14px; background:#1a1a1a; color:#4285F4; border:1px solid #4285F4; border-radius:12px; font-weight:700; cursor:pointer; font-size:13px;">
+                    &#x1F4B0; Pay Advance via Google Pay
+                </button>
+                
+                <div id="cod-qr-box" style="display:none; background:#fff; border-radius:12px; padding:8px; margin:10px auto; width:max-content; box-shadow:0 4px 20px rgba(255,215,0,0.15);">
+                    <img src="assets/qr.png" alt="Scan QR" style="width:130px; height:130px; border-radius:6px; display:block;">
+                </div>
+
+                <div style="height:1px; background:#333; margin: 10px 0;"></div>
+                
+                <button class="btn-gold" id="btn-confirm-cod" onclick="confirmCodOrder()" style="display:none;">
+                    <i class="fa fa-check-circle" style="margin-right:8px;"></i>I Paid — Place COD Order
+                </button>
+
+                <button onclick="closeCodConfirmModal()" style="width:100%; padding:10px; background:none; color:#555; border:none; cursor:pointer; font-size:13px;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="nav('home', this)"><i class="fa fa-house"></i>Home</div>
+        <div class="nav-item" onclick="nav('wish', this)"><i class="fa fa-heart"></i>Wish</div>
+        <div id="nav-adm" class="nav-item" style="display:none" onclick="nav('admin', this)"><i
+                class="fa fa-gear"></i>Admin</div>
+        <div id="nav-super" class="nav-item" style="display:none" onclick="nav('super', this)"><i
+                class="fa fa-user-shield"></i>Super</div>
+        <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
+    </nav>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="js/app.js?v=6.1"></script>
+    <script src="js/store.js?v=6.1"></script>
+    <script src="js/checkout.js?v=6.1"></script>
+    <script src="js/auth.js?v=6.1"></script>
+    <script src="js/admin.js?v=6.1"></script>
+
+</body>
+
+</html>
