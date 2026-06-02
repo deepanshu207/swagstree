@@ -1298,3 +1298,36 @@ window.saveCodSettings = saveCodSettings;
 window.loadMaxQtySettings = loadMaxQtySettings;
 window.loadPromoSettings = loadPromoSettings;
 
+async function deleteAllProducts() {
+    if (!confirm("Are you absolutely sure you want to delete ALL products from the catalog? This action cannot be undone.")) {
+        return;
+    }
+    const doubleCheck = prompt("Type 'DELETE ALL' to confirm deletion of all products:");
+    if (doubleCheck !== "DELETE ALL") {
+        showToast("Deletion cancelled. Confirmation text did not match.");
+        return;
+    }
+
+    try {
+        showToast("Deleting all products...");
+        const snapshot = await db.collection('products').get();
+        if (snapshot.empty) {
+            showToast("No products found to delete.");
+            return;
+        }
+
+        const batch = db.batch();
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        showToast("All products deleted successfully!");
+        if (typeof renderAdmin === "function") renderAdmin();
+    } catch (error) {
+        console.error("Error deleting all products:", error);
+        showToast("Error deleting products: " + error.message);
+    }
+}
+window.deleteAllProducts = deleteAllProducts;
+
+
