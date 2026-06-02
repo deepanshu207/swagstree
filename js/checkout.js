@@ -526,44 +526,71 @@ function payCodAdvance(method) {
 
 function openCart() {
     let h = ""; 
+    const groups = {};
     cart.forEach((it, idx) => {
-        const specs = [];
-        if (it.variantSize && it.variantSize !== 'Standard') {
-            specs.push(it.variantSize);
+        if (!groups[it.id]) {
+            groups[it.id] = {
+                name: it.name,
+                image: it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image',
+                items: []
+            };
         }
-        // Use stored human-readable color name; fall back to formatColorName
-        const _colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
-        if (_colorLabel) {
-            specs.push(_colorLabel);
-        }
-        // Only show pattern text when NO swatch image exists (avoids duplication)
-        if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) {
-            specs.push(it.variantPattern);
-        }
-        const variantText = specs.length > 0 ? specs.join(' • ') : '';
-        const priceText = `₹${it.price}`;
-        const infoLine = variantText ? `${variantText} • ${priceText}` : priceText;
-        
-        const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
-        
-        // Pattern swatch: shown as a small overlay badge on the product image when available
-        const patternSwatchHtml = it.variantPatternImage ? `
-            <div style="position:relative; width:50px; height:50px; flex-shrink:0;">
-                <img src="${imgUrl}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">
-                <img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="position:absolute; bottom:-4px; right:-4px; width:22px; height:22px; border-radius:4px; object-fit:cover; border:2px solid #1a1a1a; box-shadow:0 1px 4px rgba(0,0,0,0.5);">
-            </div>` : `<img src="${imgUrl}" style="width:50px; height:50px; border-radius:8px; object-fit:cover">`;
-        
-        h += `<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; background:#111; padding:10px; border-radius:15px; border:1px solid #222">
-            ${patternSwatchHtml}
-            <div style="flex:1"><div style="font-size:13px; font-weight:600">${it.name}</div><div style="font-size:11px; color:var(--gold)">${infoLine}</div></div>
-            <div class="qty-ctrl">
-                <span class="qty-btn" onclick="changeQty(${idx},-1)">-</span>
-                <span style="font-size:14px; width:20px; text-align:center">${it.qty}</span>
-                <span class="qty-btn" onclick="changeQty(${idx},1)">+</span>
+        groups[it.id].items.push({ item: it, originalIndex: idx });
+    });
+
+    Object.values(groups).forEach(g => {
+        const variantListHtml = g.items.map(entry => {
+            const it = entry.item;
+            const idx = entry.originalIndex;
+            const specs = [];
+            if (it.variantSize && it.variantSize !== 'Standard') {
+                specs.push(it.variantSize);
+            }
+            const _colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
+            if (_colorLabel) {
+                specs.push(_colorLabel);
+            }
+            if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) {
+                specs.push(it.variantPattern);
+            }
+            const variantText = specs.length > 0 ? specs.join(' • ') : 'Standard';
+            
+            let swatchHtml = '';
+            if (it.variantPatternImage) {
+                swatchHtml = `<img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="width:22px; height:22px; border-radius:4px; object-fit:cover; border:1px solid #333;">`;
+            } else if (it.variantColor) {
+                swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:${it.variantColor}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>`;
+            } else {
+                swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:#333; border:1px solid rgba(255,255,255,0.1);"></div>`;
+            }
+
+            return `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed #222;">
+                <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                    ${swatchHtml}
+                    <div style="font-size:12px; color:#aaa;">${variantText}</div>
+                    <div style="font-size:12px; color:var(--gold); font-weight:700; margin-left:auto; padding-right:10px;">₹${it.price}</div>
+                </div>
+                <div class="qty-ctrl" style="margin-left:0;">
+                    <span class="qty-btn" onclick="changeQty(${idx},-1)">-</span>
+                    <span style="font-size:13px; width:20px; text-align:center; color:#fff;">${it.qty}</span>
+                    <span class="qty-btn" onclick="changeQty(${idx},1)">+</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        h += `
+        <div style="background:#111; padding:12px; border-radius:15px; border:1px solid #222; margin-bottom:12px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #222;">
+                <img src="${g.image}" style="width:36px; height:36px; border-radius:6px; object-fit:cover;">
+                <div style="font-size:13px; font-weight:700; color:#fff;">${g.name}</div>
+            </div>
+            <div style="padding-left:4px;">
+                ${variantListHtml}
             </div>
         </div>`;
     });
-    
+
     document.getElementById('cart-items').innerHTML = h || `<p style="text-align:center; color:#555">Bag is empty</p>`;
     
     // Calculate Totals
@@ -670,13 +697,25 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
     const codNote = (paymentMethod === 'cod' && codMinAmount) ? `<br><span style="color:#e67e22;"><strong>COD Advance:</strong> &#8377;${codMinAmount} to be paid via UPI before delivery</span>` : '';
     
     let msg = `*NEW ORDER (${orderId})*\n\n`;
+    const waGroups = {};
     cart.forEach(it => {
-        const specs = [];
-        if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
-        if (it.variantColor) specs.push(it.variantColorName || formatColorName(it.variantColor));
-        if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) specs.push(it.variantPattern);
-        const specStr = specs.length > 0 ? ` [${specs.join(', ')}]` : '';
-        msg += `- ${it.qty}x ${it.name}${specStr} (₹${it.price * it.qty})\n`;
+        if (!waGroups[it.id]) {
+            waGroups[it.id] = { name: it.name, items: [] };
+        }
+        waGroups[it.id].items.push(it);
+    });
+    
+    Object.values(waGroups).forEach(g => {
+        msg += `*${g.name}*:\n`;
+        g.items.forEach(it => {
+            const specs = [];
+            if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
+            if (it.variantColor) specs.push(it.variantColorName || formatColorName(it.variantColor));
+            if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) specs.push(it.variantPattern);
+            const specStr = specs.length > 0 ? ` [${specs.join(', ')}]` : '';
+            msg += `  - ${it.qty}x${specStr} (₹${it.price * it.qty})\n`;
+        });
+        msg += `\n`;
     });
 
     // Guest support: generate a stable guest identifier tied to this order
@@ -686,45 +725,70 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
     // ── Build premium order email ────────────────────────────────────────────
     const _pill = (label, val) => `<span style="display:inline-block;background:#f0f0f0;color:#333;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:0.5px;margin:1px 2px 1px 0;text-transform:uppercase;">${label}: ${val}</span>`;
 
-    const _itemRows = cart.map(it => {
-        const colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
-        const imgUrl = it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image';
-        const hasSwatch = !!it.variantPatternImage;
-        const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
+    const emailGroups = {};
+    cart.forEach(it => {
+        if (!emailGroups[it.id]) {
+            emailGroups[it.id] = {
+                name: it.name,
+                image: it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image',
+                variants: []
+            };
+        }
+        emailGroups[it.id].variants.push(it);
+    });
 
-        const variantPills = [
-            (it.variantSize && it.variantSize !== 'Standard') ? _pill('Size', it.variantSize) : '',
-            colorLabel ? _pill('Color', colorLabel) : '',
-            showPatternText ? _pill('Pattern', it.variantPattern) : ''
-        ].join('');
+    const _itemRows = Object.values(emailGroups).map(g => {
+        const variantRowsHtml = g.variants.map(it => {
+            const colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
+            const hasSwatch = !!it.variantPatternImage;
+            const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
 
-        const swatchCell = hasSwatch
-            ? `<tr><td style="padding:4px 0 0;text-align:center;">
-                <img src="${it.variantPatternImage}" width="32" height="32"
-                     style="border-radius:6px;object-fit:cover;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.18);display:block;margin:0 auto;"
-                     alt="pattern" title="${it.variantPattern || 'Pattern'}">
-               </td></tr>`
-            : '';
+            const swatchIcon = hasSwatch
+                ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
+                : (it.variantColor ? `
+                    <table width="12" height="12" cellpadding="0" cellspacing="0" style="display:inline-table; border-collapse:collapse; margin-right:6px; vertical-align:middle; line-height:0;">
+                      <tr>
+                        <td width="12" height="12" style="padding:0; border-radius:50%; background:${it.variantColor}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
+                          &nbsp;
+                        </td>
+                      </tr>
+                    </table>` : '');
+
+            const specs = [];
+            if (it.variantSize && it.variantSize !== 'Standard') specs.push(`Size: <strong>${it.variantSize}</strong>`);
+            if (colorLabel) specs.push(`Color: <strong>${colorLabel}</strong>`);
+            if (showPatternText) specs.push(`Pattern: <strong>${it.variantPattern}</strong>`);
+            const specsString = specs.length > 0 ? specs.join(' &nbsp;•&nbsp; ') : 'Standard';
+
+            return `
+            <tr>
+              <td style="padding:8px 0; border-bottom:1px dashed #eee; font-size:12px; color:#555; vertical-align:middle; line-height:1.4;">
+                ${swatchIcon}${specsString}
+              </td>
+              <td style="padding:8px 0; border-bottom:1px dashed #eee; font-size:12px; color:#111; text-align:right; vertical-align:middle; white-space:nowrap; width:120px;">
+                <span style="color:#777; font-size:11px; margin-right:8px;">Qty: ${it.qty}</span>
+                <strong style="font-size:13px; font-weight:700;">&#8377;${it.price * it.qty}</strong>
+              </td>
+            </tr>`;
+        }).join('');
 
         return `
         <tr>
-          <td style="padding:14px 0;border-bottom:1px solid #f3f3f3;vertical-align:top;width:76px;">
-            <table style="border-collapse:collapse;margin:0;">
-              <tr><td style="padding:0;">
-                <img src="${imgUrl}" width="60" height="60"
-                     style="border-radius:10px;object-fit:cover;display:block;border:1px solid #eee;" alt="product">
-              </td></tr>
-              ${swatchCell}
+          <td style="padding:14px 0; border-bottom:1px solid #f3f3f3; vertical-align:top; width:54px;">
+            <img src="${g.image}" width="54" height="54"
+                 style="border-radius:8px; object-fit:cover; display:block; border:1px solid #eee;" alt="product">
+          </td>
+          <td style="padding:14px 0 14px 12px; border-bottom:1px solid #f3f3f3; vertical-align:top;">
+            <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:8px; line-height:1.35;">${g.name}</div>
+            <table style="width:100%; border-collapse:collapse; margin:0; background:#fafafa; border-radius:8px; border:1px solid #f0f0f0;">
+              <tr>
+                <td style="padding:4px 10px;">
+                  <table style="width:100%; border-collapse:collapse; margin:0;">
+                    ${variantRowsHtml}
+                  </table>
+                </td>
+              </tr>
             </table>
-          </td>
-          <td style="padding:14px 12px;border-bottom:1px solid #f3f3f3;vertical-align:top;">
-            <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:7px;line-height:1.35;">${it.name}</div>
-            <div>${variantPills}</div>
-          </td>
-          <td style="padding:14px 0;border-bottom:1px solid #f3f3f3;vertical-align:top;text-align:right;white-space:nowrap;">
-            <div style="font-size:11px;color:#aaa;margin-bottom:3px;">Qty: ${it.qty}</div>
-            <div style="font-size:16px;font-weight:800;color:#111;">&#8377;${it.price * it.qty}</div>
-            ${it.qty > 1 ? `<div style="font-size:10px;color:#ccc;margin-top:2px;">&#8377;${it.price} each</div>` : ''}
           </td>
         </tr>`;
     }).join('');
@@ -997,28 +1061,58 @@ function loadOrders() {
                 </div>
                 ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
                 <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
-                ${(o.items || []).map(i => {
-                    const specs = [];
-                    if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') {
-                        specs.push(i.variantSize);
-                    }
-                    // Use stored human-readable color name; fall back to formatColorName
-                    const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
-                    if (_oColorLabel) specs.push(_oColorLabel);
-                    // Only show pattern text when NO swatch image exists
-                    if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) {
-                        specs.push(i.variantPattern);
-                    }
-                    const variantDesc = specs.length > 0 ? specs.join(' • ') : '';
-                    const descSuffix = variantDesc ? ` <span style="color:#666">(${variantDesc})</span>` : '';
-                    const imgUrl = (i.images && i.images.length) ? i.images[0] : '';
-                    const patternOverlayHtml = i.variantPatternImage ? `
-                        <div style="position:relative; width:40px; height:40px; flex-shrink:0;">
-                            <img src="${imgUrl}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;">
-                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="position:absolute; bottom:-2px; right:-2px; width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; box-shadow:0 1px 3px rgba(0,0,0,0.5);">
-                        </div>` : `<img src="${imgUrl}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">`;
-                    return `<div style="display:flex; align-items:center; gap:10px; margin-bottom:5px">${patternOverlayHtml}<span style="font-size:12px">${i.name}${descSuffix} ×${i.qty||1}</span><span style="margin-left:auto; font-size:12px; color:var(--gold)">₹${i.price * (i.qty||1)}</span></div>`;
-                }).join('')}
+                ${(() => {
+                    const orderGroups = {};
+                    (o.items || []).forEach(i => {
+                        const prodId = i.id || i.name;
+                        if (!orderGroups[prodId]) {
+                            orderGroups[prodId] = {
+                                name: i.name,
+                                image: (i.images && i.images.length) ? i.images[0] : '',
+                                variants: []
+                            };
+                        }
+                        orderGroups[prodId].variants.push(i);
+                    });
+
+                    return Object.values(orderGroups).map(g => {
+                        const variantListHtml = g.variants.map(i => {
+                            const specs = [];
+                            if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
+                            const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
+                            if (_oColorLabel) specs.push(_oColorLabel);
+                            if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
+                            const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
+
+                            const swatchIconHtml = i.variantPatternImage ? `
+                                <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
+                                : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${i.variantColor}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+
+                            return `
+                            <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
+                                <div style="display:flex; align-items:center;">
+                                    ${swatchIconHtml}
+                                    <span>${variantDesc}</span>
+                                </div>
+                                <div style="margin-left:auto; text-align:right;">
+                                    <span style="color:#666; margin-right:8px;">×${i.qty||1}</span>
+                                    <span style="color:var(--gold)">₹${i.price * (i.qty||1)}</span>
+                                </div>
+                            </div>`;
+                        }).join('');
+
+                        return `
+                        <div style="display:flex; gap:10px; margin-bottom:10px; background:#111; padding:8px; border-radius:8px; border:1px solid #222;">
+                            <img src="${g.image}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">
+                            <div style="flex:1;">
+                                <div style="font-size:12px; font-weight:bold; color:#fff; margin-bottom:5px;">${g.name}</div>
+                                <div style="padding-left:5px;">
+                                    ${variantListHtml}
+                                </div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                })()}
                 ${promoInfo}
                 <div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right; font-size:16px;">Total: ₹${o.total || 0}</div>
             </div>`; 
