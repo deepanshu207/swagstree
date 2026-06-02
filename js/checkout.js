@@ -178,7 +178,10 @@ function addToBagWithSelection(id, size, color, pattern = '') {
         specs.push(size);
     }
     if (color) {
-        specs.push(formatColorName(color));
+        specs.push(vDetails.colorName || formatColorName(color));
+    }
+    if (pattern && !pattern.startsWith('Design-') && !vDetails.patternImage) {
+        specs.push(pattern);
     }
     const variantText = specs.length > 0 ? ` (${specs.join(' - ')})` : '';
     showToast(`Added to Bag: ${p.name}${variantText}`); 
@@ -670,8 +673,8 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
     cart.forEach(it => {
         const specs = [];
         if (it.variantSize && it.variantSize !== 'Standard') specs.push(it.variantSize);
-        if (it.variantColor) specs.push(formatColorName(it.variantColor));
-        if (it.variantPattern && !it.variantPattern.startsWith('Design-')) specs.push(it.variantPattern);
+        if (it.variantColor) specs.push(it.variantColorName || formatColorName(it.variantColor));
+        if (it.variantPattern && !it.variantPattern.startsWith('Design-') && !it.variantPatternImage) specs.push(it.variantPattern);
         const specStr = specs.length > 0 ? ` [${specs.join(', ')}]` : '';
         msg += `- ${it.qty}x ${it.name}${specStr} (₹${it.price * it.qty})\n`;
     });

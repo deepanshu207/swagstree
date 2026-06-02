@@ -321,8 +321,20 @@ function normalizeVariants(p) {
             const patternNameValues = v.patternName ? v.patternName.split(',').map(p => p.trim()) : [];
             const showPatternText = !!v.showPatternText;
             
-            if (patternValues.length === 1 && patternValues[0] === '' && v.previewImages && v.previewImages.length > 1) {
-                patternValues = v.previewImages.map((_, i) => `Design ${i + 1}`);
+            if (v.previewImages && v.previewImages.length > 0) {
+                const imgCount = v.previewImages.length;
+                const newPatternValues = [];
+                for (let i = 0; i < imgCount; i++) {
+                    let patVal = patternValues[i] || '';
+                    if (!patVal || patVal === '') {
+                        const baseName = (patternValues.length > 0 && patternValues[0] !== '') ? patternValues[0] : 'Design';
+                        patVal = `${baseName} ${i + 1}`;
+                    }
+                    newPatternValues.push(patVal);
+                }
+                patternValues = newPatternValues;
+            } else if (patternValues.length === 1 && patternValues[0] === '' && (v.previewImage || v.existingPreviewImage)) {
+                patternValues = ['Design 1'];
             }
             
             sizeValues.forEach(sz => {
@@ -627,7 +639,16 @@ function updateVariantUI(p) {
         let label = "ADD TO BAG";
         const specs = [];
         if (selectedSize && selectedSize !== 'Standard') specs.push(`Size: ${selectedSize}`);
-        if (selectedColor) specs.push(`Color: ${formatColorName(selectedColor)}`);
+        if (selectedColor) {
+            const dispColor = (v && v.color === selectedColor && v.colorName) ? v.colorName : formatColorName(selectedColor);
+            specs.push(`Color: ${dispColor}`);
+        }
+        if (window.selectedPattern) {
+            const hasPatternImg = v && v.previewImage;
+            if (!hasPatternImg && !window.selectedPattern.startsWith('Design-')) {
+                specs.push(`Pattern: ${window.selectedPattern}`);
+            }
+        }
         if (specs.length > 0) label += ` (${specs.join(', ')})`;
         btn.innerHTML = label;
         
