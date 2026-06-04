@@ -7,10 +7,6 @@
     <title>Swag Stree</title>
     <script>
         window.onerror = function (message, source, lineno, colno, error) {
-            // Ignore generic cross-origin third-party script errors (e.g. from Instagram embeds)
-            if (message === 'Script error.' || !source || (lineno === 0 && colno === 0)) {
-                return false;
-            }
             const div = document.createElement('div');
             div.style.position = 'fixed';
             div.style.top = '10px';
@@ -227,15 +223,6 @@
             </div>
         </div>
         <div id="load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
-        
-        <!-- SECTION: Customer Diaries / Instagram & Testimonials Feed -->
-        <div id="feedback-section-container" style="display:none; margin-top:40px; padding-top:20px; border-top:1px solid #222;">
-            <div style="padding:0 15px; margin-bottom:15px; text-align:center;">
-                <h3 style="margin:0; font-size:18px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; font-weight:900;">✨ CUSTOMER DIARIES</h3>
-                <p style="margin:5px 0 0 0; font-size:12px; color:#777;">See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured.</p>
-            </div>
-            <div id="feedback-grid" class="feedback-grid"></div>
-        </div>
     </div>
 
     <!-- SECTION: Wishlist -->
@@ -524,64 +511,6 @@
                 </div>
                 <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
                     onclick="savePaginationSettings()">Save</button>
-        </div>
-
-        <!-- Feedback / Instagram Feed Settings -->
-        <div id="admin-feedback-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Customer Diaries & Feed</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown on storefront</p>
-                </div>
-            </div>
-            
-            <!-- List of existing feedbacks -->
-            <div id="admin-feedback-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
-                <!-- Feedbacks render here -->
-            </div>
-
-            <!-- Form to add new feedback -->
-            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <input id="admin-fb-username" type="text" placeholder="Username/Handle (e.g. @ria_jain)" style="margin:0; flex:1; font-size:12px;">
-                    <select id="admin-fb-platform" onchange="renderFeedbackFormPreviews()" style="margin:0; width:120px; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:8px 12px; height:38px;">
-                        <option value="instagram">Instagram</option>
-                        <option value="facebook">Facebook</option>
-                        <option value="general">Testimonial</option>
-                    </select>
-                </div>
-                <textarea id="admin-fb-text" placeholder="Caption/Feedback text..." style="margin:0; font-size:12px; height:60px;"></textarea>
-                <input id="admin-fb-link" oninput="renderFeedbackFormPreviews()" type="text" placeholder="Post URL(s) (comma-separated for multiple)" style="margin:0; font-size:12px;">
-                <input id="admin-fb-image-urls" oninput="renderFeedbackFormPreviews()" type="text" placeholder="Direct Image CDN URLs (comma-separated, optional)" style="margin:0; font-size:12px; display:none;">
-                <div style="display:flex; align-items:center; gap:15px; margin: 2px 0; flex-wrap:wrap;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" id="admin-fb-active" checked style="margin:0; width:16px; height:16px; cursor:pointer;">
-                        <label for="admin-fb-active" style="font-size:12px; color:#fff; cursor:pointer; user-select:none;">Visible on Storefront</label>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" id="admin-fb-show-multiple" style="margin:0; width:16px; height:16px; cursor:pointer;">
-                        <label for="admin-fb-show-multiple" style="font-size:12px; color:#fff; cursor:pointer; user-select:none;">Multiple Posts (Show separate cards)</label>
-                    </div>
-                </div>
-                <div style="display:flex; align-items:center; gap:10px; margin: 2px 0;">
-                    <span style="font-size:12px; color:#fff;">Post Image Position in Carousel:</span>
-                    <select id="admin-fb-img-position" onchange="renderFeedbackFormPreviews()" style="margin:0; width:140px; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:4px 8px; height:30px;">
-                        <option value="first">First</option>
-                        <option value="last">Last</option>
-                    </select>
-                </div>
-                
-                <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; background:#222; border:1px solid #444; color:#fff;" onclick="document.getElementById('admin-fb-file').click()"><i class="fa fa-image"></i> Add Image(s)</button>
-                        <input type="file" id="admin-fb-file" accept="image/*" multiple style="display:none;" onchange="handleFeedbackFileSelect(this)">
-                        <span id="admin-fb-filename" style="font-size:11px; color:#aaa;">No image selected</span>
-                    </div>
-                    <button id="admin-fb-add-btn" class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;" onclick="addFeedbackItem()">Submit</button>
-                </div>
-                <div id="admin-fb-img-preview-container" style="display:none; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;"></div>
             </div>
         </div>
 
@@ -908,12 +837,15 @@
                 class="fa fa-user-shield"></i>Super</div>
         <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
     </nav>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=8.4"></script>
-    <script src="js/store.js?v=8.4"></script>
-    <script src="js/checkout.js?v=8.4"></script>
-    <script src="js/auth.js?v=8.4"></script>
-    <script src="js/admin.js?v=8.4"></script>
+    <script src="js/app.js?v=6.1"></script>
+    <script src="js/store.js?v=6.1"></script>
+    <script src="js/checkout.js?v=6.1"></script>
+    <script src="js/auth.js?v=6.1"></script>
+    <script src="js/admin.js?v=6.1"></script>
+
 </body>
+
 </html>
