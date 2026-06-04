@@ -1330,4 +1330,403 @@ async function deleteAllProducts() {
 }
 window.deleteAllProducts = deleteAllProducts;
 
+// --- Feedback / Testimonials / Instagram Diaries Admin panel ---
+let feedbackFiles = [];
+
+// Unified preview rendering function
+function renderFeedbackFormPreviews() {
+    const previewContainer = document.getElementById('admin-fb-img-preview-container');
+    if (!previewContainer) return;
+    previewContainer.innerHTML = '';
+    
+    const manualUrlsVal = document.getElementById('admin-fb-image-urls').value.trim();
+    let customImages = manualUrlsVal 
+        ? manualUrlsVal.split(',').map(url => {
+            url = url.trim();
+            if (url.includes('github.com') && url.includes('/blob/')) {
+                return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+            }
+            return url;
+        }).filter(url => url) 
+        : [];
+    
+    // Auto-extract Instagram post images if links are available
+    let postImgUrls = [];
+    const linkVal = document.getElementById('admin-fb-link').value.trim();
+    const platformVal = document.getElementById('admin-fb-platform').value;
+    const links = linkVal ? linkVal.split(',').map(url => {
+        url = url.trim();
+        if (url.includes('facebook.com') && url.includes('fbid=')) {
+            try {
+                const searchStr = url.split('?')[1];
+                if (searchStr) {
+                    const urlParams = new URLSearchParams(searchStr);
+                    const fbid = urlParams.get('fbid');
+                    if (fbid) {
+                        return `https://www.facebook.com/photo.php?fbid=${fbid}`;
+                    }
+                }
+            } catch (e) {}
+        }
+        return url;
+    }).filter(url => url) : [];
+    
+    if (platformVal === 'instagram') {
+        links.forEach(link => {
+            if (link.includes('instagram.com')) {
+                const match = link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                if (match && match[1]) {
+                    postImgUrls.push(`https://www.instagram.com/p/${match[1]}/media/?size=l`);
+                }
+            }
+        });
+    }
+    
+    const imgPosition = document.getElementById('admin-fb-img-position').value;
+    
+    // 1. Get manual/custom URLs
+    let customUrlItems = customImages.map(url => ({ type: 'url', url: url }));
+    
+    // 2. Get local file items
+    let fileItems = feedbackFiles.map((file, idx) => ({ type: 'file', file: file, index: idx }));
+    
+    // 3. Combine custom images
+    let customItems = [...customUrlItems, ...fileItems];
+    
+    // 4. Get post image items
+    let postItems = postImgUrls.map(url => ({ type: 'post', url: url }));
+    
+    // 5. Sequence them
+    let previewItems = [];
+    if (imgPosition === 'first') {
+        previewItems = [...postItems, ...customItems];
+    } else {
+        previewItems = [...customItems, ...postItems];
+    }
+    
+    if (previewItems.length > 0) {
+        previewContainer.style.display = 'flex';
+        previewContainer.style.flexWrap = 'wrap';
+        previewContainer.style.gap = '8px';
+        previewContainer.style.justifyContent = 'center';
+        
+        previewItems.forEach((item) => {
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+            wrapper.style.display = 'inline-block';
+            
+            const img = document.createElement('img');
+            img.style.maxHeight = '60px';
+            img.style.borderRadius = '6px';
+            img.style.border = '1px solid #444';
+            
+            if (item.type === 'url' || item.type === 'post') {
+                img.src = item.url;
+                img.referrerPolicy = "no-referrer";
+                
+                if (item.type === 'post') {
+                    // Add onerror handler to show a placeholder block instead of a broken image icon
+                    img.onerror = () => {
+                        const match = item.url.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                        const postId = match ? match[1] : 'Post';
+                        wrapper.innerHTML = `
+                            <div style="width:60px; height:60px; border-radius:6px; border:1px solid #444; background:#222; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#E1306C; font-size:9px; font-weight:bold; cursor:pointer;" onclick="window.open('${item.url.replace('/media/?size=l', '')}', '_blank')" title="Click to view Instagram post">
+                                <i class="fab fa-instagram" style="font-size:18px; margin-bottom:2px;"></i>
+                                <span style="max-width:55px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${postId}</span>
+                            </div>
+                        `;
+                    };
+                }
+                
+                wrapper.appendChild(img);
+                
+                if (item.type === 'url') {
+                    const removeBtn = document.createElement('span');
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.style = 'position:absolute; top:-4px; right:-4px; background:rgba(255,0,0,0.85); color:#fff; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; font-weight:bold; z-index:5;';
+                    removeBtn.onclick = () => {
+                        const customIdx = customImages.indexOf(item.url);
+                        if (customIdx > -1) {
+                            customImages.splice(customIdx, 1);
+                            document.getElementById('admin-fb-image-urls').value = customImages.join(', ');
+                        }
+                        renderFeedbackFormPreviews(); // Re-render
+                    };
+                    wrapper.appendChild(removeBtn);
+                }
+            } else if (item.type === 'file') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    img.src = e.target.result;
+                }
+                reader.readAsDataURL(item.file);
+                
+                wrapper.appendChild(img);
+                
+                const removeBtn = document.createElement('span');
+                removeBtn.innerHTML = '&times;';
+                removeBtn.style = 'position:absolute; top:-4px; right:-4px; background:rgba(255,0,0,0.85); color:#fff; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; font-weight:bold; z-index:5;';
+                removeBtn.onclick = () => {
+                    feedbackFiles.splice(item.index, 1);
+                    document.getElementById('admin-fb-filename').innerText = feedbackFiles.length > 0 ? `${feedbackFiles.length} image(s) selected` : 'No image selected';
+                    renderFeedbackFormPreviews(); // Re-render
+                };
+                wrapper.appendChild(removeBtn);
+            }
+            
+            previewContainer.appendChild(wrapper);
+        });
+        
+        document.getElementById('admin-fb-filename').innerText = `${previewItems.length} image(s) configured`;
+    } else {
+        previewContainer.style.display = 'none';
+        document.getElementById('admin-fb-filename').innerText = 'No image selected';
+    }
+}
+window.renderFeedbackFormPreviews = renderFeedbackFormPreviews;
+
+function handleFeedbackFileSelect(input) {
+    if (input.files && input.files.length > 0) {
+        feedbackFiles = Array.from(input.files);
+        renderFeedbackFormPreviews();
+    }
+}
+window.handleFeedbackFileSelect = handleFeedbackFileSelect;
+
+let editingFeedbackId = null;
+
+async function addFeedbackItem() {
+    const username = document.getElementById('admin-fb-username').value.trim();
+    const text = document.getElementById('admin-fb-text').value.trim();
+    const platform = document.getElementById('admin-fb-platform').value;
+    const link = document.getElementById('admin-fb-link').value.trim();
+    const manualUrlsVal = document.getElementById('admin-fb-image-urls').value.trim();
+    const active = document.getElementById('admin-fb-active').checked;
+    const showMultiple = document.getElementById('admin-fb-show-multiple').checked;
+    const imgPosition = document.getElementById('admin-fb-img-position').value;
+    const addBtn = document.getElementById('admin-fb-add-btn');
+
+    if (!username) {
+        showToast("Please enter a username or handle");
+        return;
+    }
+    
+    // Parse manual URLs
+    let imageUrls = manualUrlsVal ? manualUrlsVal.split(',').map(url => url.trim()).filter(url => url) : [];
+
+    if (!text && feedbackFiles.length === 0 && imageUrls.length === 0 && !link && !editingFeedbackId) {
+        showToast("Please enter feedback text, image URLs, post URL, or add at least one image file");
+        return;
+    }
+
+    addBtn.disabled = true;
+    addBtn.innerText = editingFeedbackId ? "Updating..." : "Submitting...";
+
+    try {
+        if (editingFeedbackId) {
+            const updateData = {
+                username,
+                text,
+                platform,
+                link,
+                active,
+                showMultiple,
+                imgPosition
+            };
+
+            if (feedbackFiles.length > 0) {
+                showToast(`Uploading ${feedbackFiles.length} image(s)...`);
+                const uploadedUrls = await Promise.all(feedbackFiles.map(file => uploadToCloudinary(file)));
+                imageUrls = imageUrls.concat(uploadedUrls);
+            }
+            
+            updateData.imageUrl = imageUrls[0] || '';
+            updateData.imageUrls = imageUrls;
+
+            await db.collection("feedbacks").doc(editingFeedbackId).update(updateData);
+            showToast("Feedback updated successfully!");
+        } else {
+            if (feedbackFiles.length > 0) {
+                showToast(`Uploading ${feedbackFiles.length} image(s)...`);
+                const uploadedUrls = await Promise.all(feedbackFiles.map(file => uploadToCloudinary(file)));
+                imageUrls = imageUrls.concat(uploadedUrls);
+            }
+
+            const mainImageUrl = imageUrls.length > 0 ? imageUrls[0] : '';
+
+            await db.collection("feedbacks").add({
+                username,
+                text,
+                platform,
+                link,
+                imageUrl: mainImageUrl,
+                imageUrls: imageUrls,
+                active,
+                showMultiple,
+                imgPosition,
+                timestamp: Date.now()
+            });
+
+            showToast("Feedback added successfully!");
+        }
+        
+        cancelFeedbackEdit();
+
+    } catch (e) {
+        console.error("Error saving feedback:", e);
+        showToast("Error saving feedback: " + e.message);
+    } finally {
+        addBtn.disabled = false;
+        addBtn.innerText = editingFeedbackId ? "Update" : "Submit";
+    }
+}
+window.addFeedbackItem = addFeedbackItem;
+
+function editFeedbackItem(id) {
+    const f = (window.feedbacks || []).find(x => x.id === id);
+    if (!f) return;
+
+    editingFeedbackId = id;
+    
+    document.getElementById('admin-fb-username').value = f.username || '';
+    document.getElementById('admin-fb-text').value = f.text || '';
+    document.getElementById('admin-fb-platform').value = f.platform || 'instagram';
+    document.getElementById('admin-fb-link').value = f.link || '';
+    document.getElementById('admin-fb-active').checked = f.active !== false;
+    document.getElementById('admin-fb-show-multiple').checked = !!f.showMultiple;
+    document.getElementById('admin-fb-img-position').value = f.imgPosition || 'first';
+    
+    let images = f.imageUrls || (f.imageUrl ? [f.imageUrl] : []);
+    document.getElementById('admin-fb-image-urls').value = images.join(', ');
+    
+    renderFeedbackFormPreviews();
+    
+    document.getElementById('admin-fb-add-btn').innerText = 'Update';
+    
+    let cancelBtn = document.getElementById('admin-fb-cancel-btn');
+    if (!cancelBtn) {
+        cancelBtn = document.createElement('button');
+        cancelBtn.id = 'admin-fb-cancel-btn';
+        cancelBtn.className = 'btn-gold';
+        cancelBtn.style = 'width:auto; padding:10px 15px; font-size:12px; margin-right:10px; background:#222; border:1px solid #444; color:#fff;';
+        cancelBtn.innerText = 'Cancel';
+        cancelBtn.onclick = cancelFeedbackEdit;
+        const addBtn = document.getElementById('admin-fb-add-btn');
+        addBtn.parentNode.insertBefore(cancelBtn, addBtn);
+    }
+    
+    document.getElementById('admin-feedback-settings').scrollIntoView({ behavior: 'smooth' });
+}
+window.editFeedbackItem = editFeedbackItem;
+
+function cancelFeedbackEdit() {
+    editingFeedbackId = null;
+    
+    document.getElementById('admin-fb-username').value = '';
+    document.getElementById('admin-fb-text').value = '';
+    document.getElementById('admin-fb-link').value = '';
+    document.getElementById('admin-fb-image-urls').value = '';
+    document.getElementById('admin-fb-file').value = '';
+    document.getElementById('admin-fb-filename').innerText = 'No image selected';
+    document.getElementById('admin-fb-active').checked = true;
+    document.getElementById('admin-fb-show-multiple').checked = false;
+    document.getElementById('admin-fb-img-position').value = 'first';
+    
+    const previewContainer = document.getElementById('admin-fb-img-preview-container');
+    if (previewContainer) {
+        previewContainer.style.display = 'none';
+        previewContainer.innerHTML = '';
+    }
+    
+    document.getElementById('admin-fb-add-btn').innerText = 'Submit';
+    
+    const cancelBtn = document.getElementById('admin-fb-cancel-btn');
+    if (cancelBtn) cancelBtn.remove();
+    
+    feedbackFiles = [];
+}
+window.cancelFeedbackEdit = cancelFeedbackEdit;
+
+function renderAdminFeedbackList() {
+    const container = document.getElementById('admin-feedback-list');
+    if (!container) return;
+
+    const list = window.feedbacks || [];
+    if (list.length === 0) {
+        container.innerHTML = `<p style="text-align:center; color:#666; font-size:11px; margin: 10px 0;">No testimonials or posts added yet.</p>`;
+        return;
+    }
+
+    container.innerHTML = list.map(f => {
+        const platformLabel = f.platform === 'instagram' ? 'Instagram' : (f.platform === 'facebook' ? 'Facebook' : 'Testimonial');
+        const activeLabel = f.active !== false 
+            ? '<span style="font-size:8px; background:rgba(0,255,0,0.1); color:#00ff00; border:1px solid rgba(0,255,0,0.2); padding:1px 4px; border-radius:4px; font-weight:bold;">ACTIVE</span>' 
+            : '<span style="font-size:8px; background:rgba(255,0,0,0.1); color:#ff0000; border:1px solid rgba(255,0,0,0.2); padding:1px 4px; border-radius:4px; font-weight:bold;">HIDDEN</span>';
+            
+        let customImages = (f.imageUrls || (f.imageUrl ? [f.imageUrl] : []))
+            .filter(url => url && url.trim() !== '')
+            .filter(url => {
+                if (url.includes('instagram.com') && !url.includes('/media')) return false;
+                if (url.includes('facebook.com') && !url.includes('fbcdn')) return false;
+                return true;
+            });
+        
+        let postImgUrl = '';
+        if (f.link && (f.link.includes('instagram.com/p/') || f.link.includes('instagram.com/reel/') || f.link.includes('instagram.com/tv/'))) {
+            const match = f.link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+            if (match && match[1]) {
+                postImgUrl = `https://www.instagram.com/p/${match[1]}/media/?size=l`;
+            }
+        }
+        
+        const position = f.imgPosition || 'first';
+        let images = [...customImages];
+        if (postImgUrl) {
+            if (position === 'first') {
+                images.unshift(postImgUrl);
+            } else if (position === 'last') {
+                images.push(postImgUrl);
+            }
+        }
+
+        const imgHtml = images.length > 0 ? `<img src="${images[0]}" referrerpolicy="no-referrer" style="width:30px; height:30px; object-fit:cover; border-radius:4px; border:1px solid #333;">` : '';
+        const countBadge = images.length > 1 ? `<span style="font-size:8px; background:#444; color:#fff; padding:1px 3px; border-radius:3px; position:absolute; bottom:0; right:0;">${images.length}</span>` : '';
+        
+        return `
+        <div style="display:flex; align-items:center; gap:10px; background:#1a1a1a; padding:10px; border-radius:10px; border:1px solid #333;">
+            <div style="position:relative; width:30px; height:30px; flex-shrink:0;">
+                ${imgHtml}
+                ${countBadge}
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:11px; font-weight:bold; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <span>${f.username}</span>
+                    <span style="font-size:8px; background:#333; color:var(--gold); padding:1px 4px; border-radius:4px; text-transform:uppercase;">${platformLabel}</span>
+                    ${activeLabel}
+                </div>
+                <div style="font-size:10px; color:#aaa; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;">${f.text || '(No text)'}</div>
+            </div>
+            <div style="display:flex; align-items:center;">
+                <i class="fa fa-edit" style="color:var(--gold); cursor:pointer; font-size:12px; padding:5px; margin-right:5px;" onclick="editFeedbackItem('${f.id}')" title="Edit feedback"></i>
+                <i class="fa fa-trash" style="color:var(--red); cursor:pointer; font-size:12px; padding:5px;" onclick="deleteFeedbackItem('${f.id}')" title="Delete feedback"></i>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+window.renderAdminFeedbackList = renderAdminFeedbackList;
+
+async function deleteFeedbackItem(id) {
+    if (!confirm("Are you sure you want to delete this customer feedback/post?")) return;
+    try {
+        await db.collection("feedbacks").doc(id).delete();
+        if (editingFeedbackId === id) cancelFeedbackEdit();
+        showToast("Feedback deleted successfully");
+    } catch (e) {
+        showToast("Error deleting feedback: " + e.message);
+    }
+}
+window.deleteFeedbackItem = deleteFeedbackItem;
+
+
 

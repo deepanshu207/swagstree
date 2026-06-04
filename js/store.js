@@ -92,6 +92,14 @@ function loadData() {
     }, error => {
         console.error("Firestore products onSnapshot error:", error);
     }); 
+
+    db.collection("feedbacks").orderBy("timestamp", "desc").onSnapshot(snap => {
+        window.feedbacks = snap.docs.map(doc => ({...doc.data(), id: doc.id}));
+        renderFeedbacks();
+        if(typeof renderAdminFeedbackList === "function") renderAdminFeedbackList();
+    }, error => {
+        console.error("Firestore feedbacks error:", error);
+    });
 }
 
 function renderStore() { 
@@ -1082,4 +1090,229 @@ function loadMoreProducts() {
 function loadMoreWishlist() {
     displayedWishlistLimit += productsPageLimitSetting;
     renderStore();
+}
+
+window.handleFeedbackImageError = function(imgEl, postId) {
+    if (!postId) return;
+    const container = imgEl.parentElement;
+    if (!container) return;
+    
+    container.innerHTML = `
+        <iframe src="https://www.instagram.com/p/${postId}/embed" style="width:100%; height:100%; border:none; display:block; background:#fff;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
+    `;
+    
+    if (container.style.aspectRatio) {
+        container.style.aspectRatio = 'auto';
+        container.style.height = '460px';
+    }
+};
+
+function renderFeedbacks() {
+    const container = document.getElementById('feedback-section-container');
+    if (!container) return;
+    
+    if (!window.feedbacks || window.feedbacks.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    const grid = document.getElementById('feedback-grid');
+    if (!grid) return;
+    
+    grid.innerHTML = window.feedbacks.filter(f => f.active !== false).flatMap(f => {
+        const platformIcon = f.platform === 'instagram' 
+            ? '<i class="fab fa-instagram" style="color:#E1306C; font-size:16px;"></i>' 
+            : (f.platform === 'facebook'
+                ? '<i class="fab fa-facebook" style="color:#1877F2; font-size:16px;"></i>'
+                : '<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>');
+        
+        let customImages = (f.imageUrls || (f.imageUrl ? [f.imageUrl] : []))
+            .filter(url => url && url.trim() !== '')
+            .map(url => {
+                if (url.includes('github.com') && url.includes('/blob/')) {
+                    return url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+                }
+                return url.trim();
+            })
+            .filter(url => {
+                if (url.includes('instagram.com') && !url.includes('/media')) return false;
+                if (url.includes('facebook.com') && !url.includes('fbcdn')) return false;
+                return true;
+            });
+        
+        function normalizeFacebookLink(link) {
+            if (!link) return '';
+            link = link.trim();
+            if (link.includes('facebook.com') && link.includes('fbid=')) {
+                try {
+                    const searchStr = link.split('?')[1];
+                    if (searchStr) {
+                        const urlParams = new URLSearchParams(searchStr);
+                        const fbid = urlParams.get('fbid');
+                        if (fbid) {
+                            return `https://www.facebook.com/photo.php?fbid=${fbid}`;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Facebook link normalization failed:", e);
+                }
+            }
+            return link;
+        }
+
+        const links = f.showMultiple && f.link
+            ? f.link.split(',').map(url => normalizeFacebookLink(url.trim())).filter(url => url)
+            : [normalizeFacebookLink((f.link || '').trim())];
+        
+        return links.map(link => {
+            let postImgUrls = [];
+            
+            if (f.showMultiple) {
+                if (link && f.platform === 'instagram') {
+                    const match = link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                    if (match && match[1]) {
+                        postImgUrls.push(`https://www.instagram.com/p/${match[1]}/media/?size=l`);
+                    }
+                }
+            } else {
+                const allLinks = f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : [];
+                allLinks.forEach(l => {
+                    if (l && f.platform === 'instagram') {
+                        const match = l.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                        if (match && match[1]) {
+                            postImgUrls.push(`https://www.instagram.com/p/${match[1]}/media/?size=l`);
+                        }
+                    }
+                });
+            }
+            
+            const position = f.imgPosition || 'first';
+            let images = [...customImages];
+            if (postImgUrls.length > 0) {
+                if (position === 'first') {
+                    images = [...postImgUrls, ...customImages];
+                } else if (position === 'last') {
+                    images = [...customImages, ...postImgUrls];
+                }
+            }
+            
+            // Skip rendering if there is no image, no link, and no text caption
+            if (images.length === 0 && !link && !f.text) {
+                return '';
+            }
+            
+            // Skip rendering social media cards if there's no link and no images
+            if ((f.platform === 'instagram' || f.platform === 'facebook') && images.length === 0 && !link) {
+                return '';
+            }
+            
+            // Render official Instagram/Facebook iframe embeds if no images to display in carousel
+            if (images.length === 0 && link && (f.platform === 'instagram' || f.platform === 'facebook')) {
+                const fallbackLinks = f.showMultiple 
+                    ? [link] 
+                    : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
+                
+                if (fallbackLinks.length > 0) {
+                    return fallbackLinks.map(fl => {
+                        if (fl.includes('instagram.com/p/') || fl.includes('instagram.com/reel/') || fl.includes('instagram.com/tv/')) {
+                            const match = fl.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                            if (match && match[1]) {
+                                return `
+                                <div class="feedback-card" style="background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
+                                    <div style="position:relative; width:100%; height:0; padding-bottom:calc(100% + 60px); overflow:hidden; background:#fff;">
+                                        <iframe src="https://www.instagram.com/p/${match[1]}/embed" style="position:absolute; top:0; left:0; width:100%; height:460px; border:none;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
+                                    </div>
+                                </div>
+                                `;
+                            }
+                        } else if (fl.includes('facebook.com')) {
+                            return `
+                            <div class="feedback-card" style="background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); min-height:480px;">
+                                <iframe src="https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(fl)}&show_text=true&width=auto" style="width:100%; height:100%; min-height:480px; border:none; display:block; background:#fff;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media; picture-in-picture"></iframe>
+                            </div>
+                            `;
+                        }
+                        return '';
+                    }).join('');
+                }
+            }
+
+            let mediaHtml = '';
+            if (images.length === 1) {
+                const match = images[0].match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                const postId = match ? match[1] : '';
+                const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
+                mediaHtml = `
+                <div style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: 1/1; background:#000; border-bottom: 1px solid #222;">
+                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s;" class="feedback-img">
+                </div>`;
+            } else if (images.length > 1) {
+                const slideImages = images.map(url => {
+                    const match = url.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                    const postId = match ? match[1] : '';
+                    const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
+                    return `
+                    <div style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center;">
+                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover;">
+                    </div>
+                    `;
+                }).join('');
+                
+                const dotHtml = images.map((_, i) => `
+                    <div class="dot ${i===0?'active':''}" style="cursor:pointer; pointer-events:auto;" onclick="event.stopPropagation(); const c = this.parentElement.previousElementSibling; c.scrollTo({left: ${i} * c.offsetWidth, behavior: 'smooth'});"></div>
+                `).join('');
+                
+                mediaHtml = `
+                <div class="carousel-box" style="border-radius:10px 10px 0 0; border-bottom: 1px solid #222;">
+                    <div class="carousel" onscroll="updateDots(this)">
+                        ${slideImages}
+                    </div>
+                    <div style="position:absolute; top:50%; left:8px; transform:translateY(-50%); background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px; z-index:2; border:1px solid rgba(255,255,255,0.2);" onclick="event.stopPropagation(); const c = this.parentElement.querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">&lt;</div>
+                    <div style="position:absolute; top:50%; right:8px; transform:translateY(-50%); background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px; z-index:2; border:1px solid rgba(255,255,255,0.2);" onclick="event.stopPropagation(); const c = this.parentElement.querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">&gt;</div>
+                    <div class="indicators">
+                        ${dotHtml}
+                    </div>
+                </div>`;
+            } else {
+                mediaHtml = `<div style="padding:15px 15px 0 15px; color:rgba(255, 215, 0, 0.12); font-size:36px; line-height:1; font-family:serif; font-weight:bold;">“</div>`;
+            }
+                
+            const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s; cursor:${link ? 'pointer' : 'default'};`;
+            const clickAttr = link ? `onclick="window.open('${link}', '_blank')"` : '';
+            
+            return `
+            <div class="feedback-card" ${clickAttr} style="${cardStyle}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
+                ${mediaHtml}
+                <div style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-size:13px; font-weight:700; color:var(--gold); font-family:'Outfit', sans-serif; letter-spacing:0.3px;">${f.username ? ((f.platform === 'instagram' || f.platform === 'facebook') && !f.username.startsWith('@') ? '@' + f.username : f.username) : 'Customer'}</span>
+                        </div>
+                        ${platformIcon}
+                    </div>
+                    <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
+                    ${link ? `<div style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
+                </div>
+            </div>
+            `;
+        });
+    }).join('');
+    
+    if (window.instgrm) {
+        window.instgrm.Embeds.process();
+    } else {
+        const scriptId = 'instagram-embed-script';
+        if (!document.getElementById(scriptId)) {
+            const s = document.createElement('script');
+            s.id = scriptId;
+            s.async = true;
+            s.src = "https://www.instagram.com/embed.js";
+            document.body.appendChild(s);
+        } else {
+            setTimeout(() => {
+                if (window.instgrm) window.instgrm.Embeds.process();
+            }, 1000);
+        }
+    }
 }
