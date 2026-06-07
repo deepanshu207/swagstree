@@ -7,10 +7,6 @@
     <title>Swag Stree</title>
     <script>
         window.onerror = function (message, source, lineno, colno, error) {
-            // Ignore generic cross-origin third-party script errors (e.g. from Instagram embeds)
-            if (message === 'Script error.' || !source || (lineno === 0 && colno === 0)) {
-                return false;
-            }
             const div = document.createElement('div');
             div.style.position = 'fixed';
             div.style.top = '10px';
@@ -227,15 +223,6 @@
             </div>
         </div>
         <div id="load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
-        
-        <!-- SECTION: Customer Diaries / Instagram & Testimonials Feed -->
-        <div id="feedback-section-container" style="display:none; margin-top:40px; padding-top:20px; border-top:1px solid #222;">
-            <div style="padding:0 15px; margin-bottom:15px; text-align:center;">
-                <h3 style="margin:0; font-size:18px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; font-weight:900;">✨ CUSTOMER DIARIES</h3>
-                <p style="margin:5px 0 0 0; font-size:12px; color:#777;">See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured.</p>
-            </div>
-            <div id="feedback-grid" class="feedback-grid"></div>
-        </div>
     </div>
 
     <!-- SECTION: Wishlist -->
@@ -951,6 +938,7 @@
                 class="fa fa-user-shield"></i>Super</div>
         <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
     </nav>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="js/app.js?v=9.0"></script>
@@ -959,4 +947,5 @@
     <script src="js/auth.js?v=9.0"></script>
     <script src="js/admin.js?v=9.0"></script>
 </body>
+
 </html>
