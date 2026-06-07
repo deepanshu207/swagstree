@@ -97,8 +97,8 @@ function nav(id, el) {
     document.getElementById(id + '-view').classList.add('active'); 
     
     if (id === 'home' && new URLSearchParams(window.location.search).has('id')) {
-        window.location.href = window.location.pathname;
-        return;
+        // Clear search params to exit product detail view mode cleanly without hard reloading page
+        window.history.replaceState({}, '', window.location.pathname);
     }
 
     // Close any open modals and detail overlays to ensure the main section is visible
@@ -108,12 +108,17 @@ function nav(id, el) {
     window.history.replaceState({}, '', window.location.pathname);
     
     // Sync active state between desktop and mobile nav
-    const desktopNavs = document.querySelectorAll(`.desktop-nav .nav-item[onclick="nav('${id}', this)"]`);
-    const bottomNavs = document.querySelectorAll(`.bottom-nav .nav-item[onclick="nav('${id}', this)"]`);
-    if (desktopNavs.length) desktopNavs[0].classList.add('active');
-    if (bottomNavs.length) bottomNavs[0].classList.add('active');
+    const desktopNavs = document.querySelectorAll(`.desktop-nav .nav-item`);
+    const bottomNavs = document.querySelectorAll(`.bottom-nav .nav-item`);
     
-    if(el) el.classList.add('active'); 
+    desktopNavs.forEach(n => {
+        const clickAttr = n.getAttribute('onclick') || '';
+        if (clickAttr.includes(`'${id}'`)) n.classList.add('active');
+    });
+    bottomNavs.forEach(n => {
+        const clickAttr = n.getAttribute('onclick') || '';
+        if (clickAttr.includes(`'${id}'`)) n.classList.add('active');
+    }); 
 
     // Reset wishlist page limit when navigating to wishlist
     if (id === 'wish') {

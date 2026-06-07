@@ -1041,7 +1041,13 @@ async function loadPromoSettings() {
     try {
         const snap = await db.collection('settings').doc('promos').get();
         if (snap.exists) {
-            adminPromoList = snap.data().list || [];
+            const list = snap.data().list || [];
+            adminPromoList = list.map(p => {
+                if (p.expiresAt && !p.endsAt) {
+                    p.endsAt = p.expiresAt;
+                }
+                return p;
+            });
         }
         renderAdminPromoList();
     } catch(e) {
@@ -1060,15 +1066,7 @@ function renderAdminPromoList() {
         promoListInterval = null;
     }
 
-    // Auto-delete expired ones
     const now = Date.now();
-    const expiredCodes = adminPromoList.filter(p => p.expiresAt && now > p.expiresAt);
-    if (expiredCodes.length > 0) {
-        adminPromoList = adminPromoList.filter(p => !(p.expiresAt && now > p.expiresAt));
-        editingPromoIndex = null;
-        saveAdminPromoSettings();
-        return;
-    }
 
     if (adminPromoList.length === 0) {
         listEl.innerHTML = '<div style="font-size:11px; color:#555;">No active promo codes.</div>';
@@ -1076,23 +1074,31 @@ function renderAdminPromoList() {
     }
     
     listEl.innerHTML = adminPromoList.map((p, index) => {
-        let expiryText = '';
-        if (p.expiresAt) {
-            const timeLeft = p.expiresAt - Date.now();
-            if (timeLeft <= 0) {
-                expiryText = `<span style="color:#ff4444; font-size:10px; margin-left:8px; font-weight:700;">[EXPIRED]</span>`;
+        let scheduleText = '';
+        if (p.startsAt || p.endsAt) {
+            const startStr = p.startsAt ? new Date(p.startsAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : 'Now';
+            const endStr = p.endsAt ? new Date(p.endsAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : 'Never';
+            
+            if (p.endsAt && now > p.endsAt) {
+                scheduleText = `<span style="color:#ff4444; font-size:10px; margin-left:8px; font-weight:700;">[EXPIRED]</span>`;
+            } else if (p.startsAt && now < p.startsAt) {
+                scheduleText = `<span style="color:#f1c40f; font-size:10px; margin-left:8px;">[Scheduled: ${startStr} to ${endStr}]</span>`;
             } else {
-                const totalMinutes = Math.ceil(timeLeft / 60000);
-                const h = Math.floor(totalMinutes / 60);
-                const m = totalMinutes % 60;
-                let timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
-                expiryText = `<span style="color:#2ecc71; font-size:10px; margin-left:8px;">[Expires in ${timeStr}]</span>`;
+                scheduleText = `<span style="color:#2ecc71; font-size:10px; margin-left:8px;">[Active until: ${endStr}]</span>`;
             }
         } else {
-            expiryText = `<span style="color:#666; font-size:10px; margin-left:8px;">[No expiry]</span>`;
+            scheduleText = `<span style="color:#666; font-size:10px; margin-left:8px;">[Always Active]</span>`;
         }
 
         if (editingPromoIndex === index) {
+            // Helper to format timestamps back to datetime-local format (YYYY-MM-DDTHH:MM)
+            const toDtLocal = (ts) => {
+                if (!ts) return '';
+                const d = new Date(ts);
+                const pad = (n) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+
             return `
                 <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333; width:100%;">
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -1102,29 +1108,44 @@ function renderAdminPromoList() {
                             <span style="position:absolute; right:8px; top:50%; transform:translateY(-50%); color:#aaa; font-size:12px; pointer-events:none;">%</span>
                         </div>
                     </div>
-                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;">
-                        <div style="display:flex; gap:6px; align-items:center; flex:1; min-width:180px;">
-                            <span style="font-size:11px; color:#aaa; white-space:nowrap;">Expires in:</span>
-                            <input id="inline-promo-expiry-hours-${index}" type="number" min="0" placeholder="Hrs" style="margin:0; flex:1; font-size:12px; height:32px;">
-                            <input id="inline-promo-expiry-mins-${index}" type="number" min="0" max="59" placeholder="Mins" style="margin:0; flex:1; font-size:12px; height:32px;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:180px; display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Active Time Range (Date & Time)</span>
+                            <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+                                <div style="display:flex; align-items:center; gap:8px; width:100%;">
+                                    <span style="font-size:10px; color:#888; width:35px;">From:</span>
+                                    <input id="inline-promo-start-${index}" type="datetime-local" value="${toDtLocal(p.startsAt)}" onchange="this.blur()" style="margin:0; flex:1; font-size:11px; padding:6px; background:#222; border:1px solid #444; color:#fff; border-radius:8px;">
+                                </div>
+                                <div style="display:flex; align-items:center; gap:8px; width:100%;">
+                                    <span style="font-size:10px; color:#888; width:35px;">To:</span>
+                                    <input id="inline-promo-end-${index}" type="datetime-local" value="${toDtLocal(p.endsAt)}" onchange="this.blur()" style="margin:0; flex:1; font-size:11px; padding:6px; background:#222; border:1px solid #444; color:#fff; border-radius:8px;">
+                                </div>
+                            </div>
                         </div>
-                        <div style="display:flex; gap:6px; align-items:center;">
-                            ${p.expiresAt ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; background:#444; color:#fff;" onclick="clearInlineExpiry(${index})">Clear Expiry</button>` : ''}
-                            <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px;" onclick="saveInlinePromoChanges(${index})">Save</button>
-                            <button style="width:auto; padding:6px 12px; font-size:11px; background:none; border:1px solid #555; color:#aaa; border-radius:8px; cursor:pointer;" onclick="cancelInlineEdit()">Cancel</button>
+                        <div style="width:90px; display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Max Uses</span>
+                            <input id="inline-promo-max-uses-${index}" type="number" min="1" placeholder="Unlimited" value="${p.maxUses || ''}" style="margin:0; font-size:11px; padding:6px; background:#222; border:1px solid #444; color:#fff; border-radius:8px; width:100%;">
                         </div>
                     </div>
-                    ${p.expiresAt ? `<div style="font-size:10px; color:#aaa;">Current expiry: ${expiryText}</div>` : ''}
+                    <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end; margin-top:4px;">
+                        <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px;" onclick="saveInlinePromoChanges(${index})">Save</button>
+                        <button style="width:auto; padding:6px 12px; font-size:11px; background:none; border:1px solid #555; color:#aaa; border-radius:8px; cursor:pointer;" onclick="cancelInlineEdit()">Cancel</button>
+                    </div>
                 </div>
             `;
         }
+
+        const usesText = p.maxUses 
+            ? `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}/${p.maxUses}]</span>`
+            : `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}]</span>`;
 
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:10px; border-radius:10px; border:1px dashed #444; flex-wrap:wrap; gap:10px;">
                 <div>
                     <span style="color:var(--gold); font-weight:bold; font-size:13px; letter-spacing:1px;">${p.code}</span>
                     <span style="color:#aaa; font-size:11px; margin-left:8px;">${p.discount}% OFF</span>
-                    ${expiryText}
+                    ${usesText}
+                    ${scheduleText}
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <i class="fa fa-edit" style="color:var(--gold); font-size:12px; cursor:pointer; padding:5px;" onclick="editPromoCode(${index})" title="Edit Promo"></i>
@@ -1134,7 +1155,7 @@ function renderAdminPromoList() {
         `;
     }).join('');
 
-    const hasExpiring = adminPromoList.some(p => p.expiresAt);
+    const hasExpiring = adminPromoList.some(p => p.endsAt);
     if (hasExpiring) {
         promoListInterval = setInterval(() => {
             renderAdminPromoList();
@@ -1145,8 +1166,9 @@ function renderAdminPromoList() {
 async function addPromoCode() {
     const codeInput = document.getElementById('admin-promo-code');
     const discInput = document.getElementById('admin-promo-discount');
-    const expHoursInp = document.getElementById('admin-promo-expiry-hours');
-    const expMinsInp = document.getElementById('admin-promo-expiry-mins');
+    const startInp = document.getElementById('admin-promo-start');
+    const endInp = document.getElementById('admin-promo-end');
+    const maxUsesInp = document.getElementById('admin-promo-max-uses');
     
     const code = codeInput.value.trim().toUpperCase();
     const discount = Number(discInput.value);
@@ -1159,32 +1181,20 @@ async function addPromoCode() {
         return showToast('Promo code already exists');
     }
     
-    const newPromo = { code, discount };
+    const newPromo = { code, discount, usedCount: 0 };
     
-    let hours = 0;
-    let mins = 0;
-    let hasExpiry = false;
-    
-    if (expHoursInp && expHoursInp.value.trim() !== '') {
-        const h = parseInt(expHoursInp.value, 10);
-        if (!isNaN(h) && h >= 0) {
-            hours = h;
-            hasExpiry = true;
-        }
+    const startsAtVal = startInp && startInp.value ? new Date(startInp.value).getTime() : null;
+    const endsAtVal = endInp && endInp.value ? new Date(endInp.value).getTime() : null;
+    const maxUsesVal = maxUsesInp && maxUsesInp.value ? parseInt(maxUsesInp.value, 10) : null;
+
+    if (startsAtVal && endsAtVal && startsAtVal >= endsAtVal) {
+        return showToast('Start time must be before end time');
     }
-    if (expMinsInp && expMinsInp.value.trim() !== '') {
-        const m = parseInt(expMinsInp.value, 10);
-        if (!isNaN(m) && m >= 0) {
-            mins = m;
-            hasExpiry = true;
-        }
-    }
-    
-    if (hasExpiry) {
-        const totalMinutes = (hours * 60) + mins;
-        if (totalMinutes > 0) {
-            newPromo.expiresAt = Date.now() + (totalMinutes * 60000);
-        }
+
+    if (startsAtVal) newPromo.startsAt = startsAtVal;
+    if (endsAtVal) newPromo.endsAt = endsAtVal;
+    if (maxUsesVal !== null && !isNaN(maxUsesVal)) {
+        newPromo.maxUses = maxUsesVal;
     }
     
     adminPromoList.push(newPromo);
@@ -1192,8 +1202,9 @@ async function addPromoCode() {
     
     codeInput.value = '';
     discInput.value = '';
-    if (expHoursInp) expHoursInp.value = '';
-    if (expMinsInp) expMinsInp.value = '';
+    if (startInp) startInp.value = '';
+    if (endInp) endInp.value = '';
+    if (maxUsesInp) maxUsesInp.value = '';
     showToast('Promo code added: ' + code);
 }
 
@@ -1231,15 +1242,6 @@ window.cancelInlineEdit = function() {
     renderAdminPromoList();
 }
 
-window.clearInlineExpiry = function(index) {
-    const p = adminPromoList[index];
-    if (p) {
-        p.expiresAt = null;
-        showToast("Expiry cleared. Remember to click Save to persist!");
-        renderAdminPromoList();
-    }
-}
-
 window.saveInlinePromoChanges = async function(index) {
     const p = adminPromoList[index];
     if (!p) return;
@@ -1255,36 +1257,40 @@ window.saveInlinePromoChanges = async function(index) {
         return showToast('Promo code already exists');
     }
     
+    const startInp = document.getElementById(`inline-promo-start-${index}`);
+    const endInp = document.getElementById(`inline-promo-end-${index}`);
+    const maxUsesInp = document.getElementById(`inline-promo-max-uses-${index}`);
+    
+    const startsAtVal = startInp && startInp.value ? new Date(startInp.value).getTime() : null;
+    const endsAtVal = endInp && endInp.value ? new Date(endInp.value).getTime() : null;
+    const maxUsesVal = maxUsesInp && maxUsesInp.value ? parseInt(maxUsesInp.value, 10) : null;
+
+    if (startsAtVal && endsAtVal && startsAtVal >= endsAtVal) {
+        return showToast('Start time must be before end time');
+    }
+
     p.code = code;
     p.discount = discount;
     
-    const expHoursInp = document.getElementById(`inline-promo-expiry-hours-${index}`);
-    const expMinsInp = document.getElementById(`inline-promo-expiry-mins-${index}`);
-    
-    let hours = 0;
-    let mins = 0;
-    let hasNewExpiry = false;
-    
-    if (expHoursInp && expHoursInp.value.trim() !== '') {
-        const h = parseInt(expHoursInp.value, 10);
-        if (!isNaN(h) && h >= 0) {
-            hours = h;
-            hasNewExpiry = true;
-        }
-    }
-    if (expMinsInp && expMinsInp.value.trim() !== '') {
-        const m = parseInt(expMinsInp.value, 10);
-        if (!isNaN(m) && m >= 0) {
-            mins = m;
-            hasNewExpiry = true;
-        }
+    if (startsAtVal) {
+        p.startsAt = startsAtVal;
+    } else {
+        delete p.startsAt;
     }
     
-    if (hasNewExpiry) {
-        const totalMinutes = (hours * 60) + mins;
-        if (totalMinutes > 0) {
-            p.expiresAt = Date.now() + (totalMinutes * 60000);
-        }
+    if (endsAtVal) {
+        p.endsAt = endsAtVal;
+    } else {
+        delete p.endsAt;
+    }
+
+    if (maxUsesVal !== null && !isNaN(maxUsesVal)) {
+        p.maxUses = maxUsesVal;
+    } else {
+        delete p.maxUses;
+    }
+    if (p.usedCount === undefined) {
+        p.usedCount = 0;
     }
     
     editingPromoIndex = null;
@@ -1297,6 +1303,86 @@ window.loadCodSettings = loadCodSettings;
 window.saveCodSettings = saveCodSettings;
 window.loadMaxQtySettings = loadMaxQtySettings;
 window.loadPromoSettings = loadPromoSettings;
+
+async function loadTelegramSettings() {
+    try {
+        const snap = await db.collection('settings').doc('telegram').get();
+        const container = document.getElementById('telegram-chat-ids-container');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        let tokenVal = '';
+        let chatIds = [];
+
+        if (snap.exists) {
+            const data = snap.data();
+            tokenVal = data.token || '';
+            if (Array.isArray(data.chatIds)) {
+                chatIds = data.chatIds;
+            } else if (data.chatId) {
+                chatIds = [data.chatId];
+            }
+        }
+        
+        const tokenInp = document.getElementById('admin-telegram-token');
+        if (tokenInp) tokenInp.value = tokenVal;
+
+        if (chatIds.length === 0) {
+            chatIds.push(''); // add at least one empty row
+        }
+
+        chatIds.forEach(id => {
+            addTelegramChatIdInput(id);
+        });
+    } catch(e) {
+        console.error('loadTelegramSettings error:', e);
+    }
+}
+window.loadTelegramSettings = loadTelegramSettings;
+
+window.addTelegramChatIdInput = function(value = '') {
+    const container = document.getElementById('telegram-chat-ids-container');
+    if (!container) return;
+    
+    const wrapper = document.createElement('div');
+    wrapper.style = 'display:flex; gap:8px; align-items:center;';
+    wrapper.className = 'telegram-chatid-row';
+    wrapper.innerHTML = `
+        <input type="text" class="telegram-chatid-input" placeholder="e.g. 9654414891" value="${value}" style="margin:0; flex:1; font-size:12px;">
+        <button class="btn-gold" style="width:auto; padding:8px 12px; background:var(--red); border:none; color:#fff; font-size:14px; line-height:1; font-weight:bold; margin:0;" onclick="const row = this.parentNode; if (row.classList.contains('marked-deleted')) { row.classList.remove('marked-deleted'); row.style.opacity = '1'; this.innerText = '-'; this.style.background = 'var(--red)'; } else { row.classList.add('marked-deleted'); row.style.opacity = '0.35'; this.innerText = '↺'; this.style.background = '#333'; }">-</button>
+    `;
+    container.appendChild(wrapper);
+};
+
+async function saveTelegramSettings() {
+    const tokenInp = document.getElementById('admin-telegram-token');
+    if (!tokenInp) return;
+    
+    const token = tokenInp.value.trim();
+    const rows = document.querySelectorAll('.telegram-chatid-row');
+    const chatIds = [];
+    
+    rows.forEach(row => {
+        if (!row.classList.contains('marked-deleted')) {
+            const el = row.querySelector('.telegram-chatid-input');
+            const val = el ? el.value.trim() : '';
+            if (val) chatIds.push(val);
+        }
+    });
+
+    try {
+        await db.collection('settings').doc('telegram').set({ token, chatIds, chatId: chatIds[0] || '' }, { merge: true });
+        
+        // Physically clean up the marked rows from UI since they are saved/persisted now
+        document.querySelectorAll('.telegram-chatid-row.marked-deleted').forEach(el => el.remove());
+        
+        showToast('✅ Telegram settings saved successfully!');
+    } catch(e) {
+        console.error('saveTelegramSettings error:', e);
+        showToast('Failed to save Telegram settings');
+    }
+}
+window.saveTelegramSettings = saveTelegramSettings;
 
 async function deleteAllProducts() {
     if (!confirm("Are you absolutely sure you want to delete ALL products from the catalog? This action cannot be undone.")) {

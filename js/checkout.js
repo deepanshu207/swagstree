@@ -243,32 +243,26 @@ function changeQty(idx, delta) {
 
 // Array to hold active promos loaded from Firestore
 let activePromosList = [];
+let loadPromosPromise = null;
 
 async function loadPromos() {
     try {
         const snap = await db.collection('settings').doc('promos').get();
         if (snap.exists) {
             const list = snap.data().list || [];
-            const now = Date.now();
-            let updated = false;
             
-            list.forEach(p => {
-                if (!p.expiresAt) {
-                    p.expiresAt = now + (30 * 24 * 60 * 60 * 1000);
-                    updated = true;
+            // Map legacy expiresAt to endsAt
+            const normalizedList = list.map(p => {
+                if (p.expiresAt && !p.endsAt) {
+                    p.endsAt = p.expiresAt;
                 }
+                return p;
             });
 
-            const unexpired = list.filter(p => !(p.expiresAt && now > p.expiresAt));
-            activePromosList = unexpired;
-            if (list.length !== unexpired.length || updated) {
-                await db.collection('settings').doc('promos').set({ list: unexpired }, { merge: true });
-                if (typeof adminPromoList !== 'undefined') {
-                    adminPromoList = unexpired;
-                    if (typeof renderAdminPromoList === 'function') {
-                        renderAdminPromoList();
-                    }
-                }
+            // Store in memory, let active use-time validation handle rejection rather than mutating store data immediately
+            activePromosList = normalizedList;
+            if (typeof adminPromoList !== 'undefined') {
+                adminPromoList = normalizedList;
             }
         }
     } catch(e) {
@@ -277,31 +271,52 @@ async function loadPromos() {
 }
 
 // Ensure promos are loaded early
-loadPromos();
+loadPromosPromise = loadPromos();
 
 async function applyPromo() {
+    if (loadPromosPromise) {
+        try {
+            await loadPromosPromise;
+        } catch(e) {
+            console.error("Error awaiting promos load:", e);
+        }
+    }
     const code = document.getElementById('promo-code').value.trim().toUpperCase();
     if (!code) return;
     
     const promo = activePromosList.find(p => p.code === code);
+    const now = Date.now();
     
     if (promo) {
-        if (promo.expiresAt && Date.now() > promo.expiresAt) {
+        if (promo.endsAt && now > promo.endsAt) {
             activePromo = null;
             showToast("Invalid or Expired Promo Code");
-            activePromosList = activePromosList.filter(p => p.code !== code);
-            try {
-                await db.collection('settings').doc('promos').set({ list: activePromosList }, { merge: true });
-                if (typeof adminPromoList !== 'undefined') {
-                    adminPromoList = activePromosList;
-                    if (typeof renderAdminPromoList === 'function') {
-                        renderAdminPromoList();
-                    }
-                }
-            } catch(e) {
-                console.error("Failed to auto-delete expired promo", e);
-            }
+        } else if (promo.startsAt && now < promo.startsAt) {
+            activePromo = null;
+            const startStr = new Date(promo.startsAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+            showToast("Promo code active starting " + startStr);
+        } else if (promo.maxUses && (promo.usedCount || 0) >= promo.maxUses) {
+            activePromo = null;
+            showToast("Promo code limit reached");
         } else {
+            // Check if logged in user already used this promo code
+            if (currentUser) {
+                try {
+                    const usedSnap = await db.collection('orders')
+                        .where('promoCode', '==', promo.code)
+                        .where('uid', '==', currentUser.uid)
+                        .limit(1)
+                        .get();
+                    if (!usedSnap.empty) {
+                        activePromo = null;
+                        showToast("You have already used this promo code");
+                        openCart();
+                        return;
+                    }
+                } catch(err) {
+                    console.error("Error checking user promo usage", err);
+                }
+            }
             activePromo = { code: promo.code, discount: promo.discount / 100 }; // Convert % to decimal
             showToast("Promo Applied: " + promo.discount + "% OFF");
         }
@@ -890,6 +905,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         discount,
         total,
         paymentMethod,
+        promoCode: activePromo ? activePromo.code : null,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (paymentMethod === 'cod') {
@@ -898,7 +914,70 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
     }
 
     try {
-        await db.collection('orders').add(orderDoc);
+        if (activePromo) {
+            // Check once-per-user by phone number
+            const phoneClean = p.trim();
+            const phoneSnap = await db.collection('orders')
+                .where('promoCode', '==', activePromo.code)
+                .where('phone', '==', phoneClean)
+                .limit(1)
+                .get();
+            if (!phoneSnap.empty) {
+                if (btn) { btn.disabled = false; btn.innerText = 'Place Order'; }
+                return showToast("You have already used this promo code");
+            }
+            
+            // Check once-per-user by UID
+            if (currentUser) {
+                const uidSnap = await db.collection('orders')
+                    .where('promoCode', '==', activePromo.code)
+                    .where('uid', '==', currentUser.uid)
+                    .limit(1)
+                    .get();
+                if (!uidSnap.empty) {
+                    if (btn) { btn.disabled = false; btn.innerText = 'Place Order'; }
+                    return showToast("You have already used this promo code");
+                }
+            }
+
+            const promoRef = db.collection('settings').doc('promos');
+            await db.runTransaction(async (transaction) => {
+                const promoSnap = await transaction.get(promoRef);
+                if (!promoSnap.exists) {
+                    throw new Error("Promo code is no longer valid");
+                }
+                const list = promoSnap.data().list || [];
+                const dbPromo = list.find(p => p.code === activePromo.code);
+                if (!dbPromo) {
+                    throw new Error("Promo code is no longer valid");
+                }
+                const now = Date.now();
+                if (dbPromo.endsAt && now > dbPromo.endsAt) {
+                    throw new Error("Promo code has expired");
+                }
+                if (dbPromo.startsAt && now < dbPromo.startsAt) {
+                    throw new Error("Promo code is not yet active");
+                }
+                if (dbPromo.maxUses && (dbPromo.usedCount || 0) >= dbPromo.maxUses) {
+                    throw new Error("Promo code limit reached");
+                }
+                
+                // Increment promo code usedCount
+                const newList = list.map(p => {
+                    if (p.code === activePromo.code) {
+                        p.usedCount = (p.usedCount || 0) + 1;
+                    }
+                    return p;
+                });
+                transaction.update(promoRef, { list: newList });
+                
+                // Add the order document
+                const newOrderRef = db.collection('orders').doc();
+                transaction.set(newOrderRef, orderDoc);
+            });
+        } else {
+            await db.collection('orders').add(orderDoc);
+        }
         
         // --- STOCK DEDUCTION LOGIC ---
         for (const item of cart) {
@@ -963,7 +1042,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         }
     } catch(e) {
         console.error('Order Error:', e);
-        const errMsg = e && e.text ? `Failed: ${e.text}` : 'Failed to place order';
+        const errMsg = e && e.message ? e.message : (e && e.text ? `Failed: ${e.text}` : 'Failed to place order');
         showToast(errMsg);
     }
 
@@ -1123,7 +1202,428 @@ function loadOrders() {
     }); 
 }
 
+const ORDER_STATUSES = [
+    { value: 'pending', label: '⏳ Pending' },
+    { value: 'confirmed', label: '✅ Confirmed' },
+    { value: 'processing', label: '⚙️ Processing' },
+    { value: 'shipped', label: '🚚 Shipped' },
+    { value: 'delivered', label: '📦 Delivered' },
+    { value: 'cancelled', label: '❌ Cancelled' }
+];
+
+const COURIER_COMPANIES = [
+    { value: 'Delhivery', label: 'Delhivery' },
+    { value: 'DTDC', label: 'DTDC' },
+    { value: 'BlueDart', label: 'BlueDart' },
+    { value: 'Ekart', label: 'Ekart (Flipkart)' },
+    { value: 'SpeedPost', label: 'Speed Post (India Post)' },
+    { value: 'FedEx', label: 'FedEx' },
+    { value: 'Xpressbees', label: 'Xpressbees' },
+    { value: 'Other', label: 'Other / Hand Delivery' }
+];
+
+function loadOrders() { 
+    const container = document.getElementById('order-history'); 
+    if (!currentUser) return; 
+    
+    const countContainer = document.getElementById('orders-count');
+    if (countContainer) countContainer.style.display = 'none';
+    
+    container.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
+            <div class="premium-loader"></div>
+            <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Syncing orders</p>
+        </div>
+    `; 
+    
+    if (ordersUnsubscribe) {
+        ordersUnsubscribe();
+        ordersUnsubscribe = null;
+    }
+    
+    let ordersRef = db.collection("orders"); 
+    let query = isAdmin 
+        ? ordersRef.orderBy("timestamp", "desc").limit(displayedOrdersLimit + 1) 
+        : ordersRef.where("uid", "==", currentUser.uid); 
+    
+    ordersUnsubscribe = query.onSnapshot(snap => { 
+        const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
+        const countContainer = document.getElementById('orders-count');
+        if (snap.empty) { 
+            container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
+            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+            if (countContainer) {
+                countContainer.innerHTML = '0 Orders';
+                countContainer.style.display = 'inline-flex';
+            }
+            return; 
+        } 
+        
+        let docs = snap.docs;
+        let showLoadMore = false;
+        
+        if (isAdmin) {
+            if (docs.length > displayedOrdersLimit) {
+                showLoadMore = true;
+                docs = docs.slice(0, displayedOrdersLimit);
+            }
+        } else {
+            docs = docs.sort((a, b) => {
+                const tsA = a.data().timestamp ? a.data().timestamp.toMillis() : 0;
+                const tsB = b.data().timestamp ? b.data().timestamp.toMillis() : 0;
+                return tsB - tsA;
+            });
+            if (docs.length > displayedOrdersLimit) {
+                showLoadMore = true;
+                docs = docs.slice(0, displayedOrdersLimit);
+            }
+        }
+        
+        const visibleCount = docs.length;
+        if (loadMoreBtnContainer) {
+            if (showLoadMore) {
+                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;" onclick="loadMoreOrders()">LOAD MORE ORDERS</button>`;
+            } else {
+                loadMoreBtnContainer.innerHTML = '';
+            }
+        }
+        if (countContainer) {
+            if (isAdmin) {
+                countContainer.innerHTML = showLoadMore ? `Showing ${visibleCount}+ Orders` : `${visibleCount} Orders`;
+            } else {
+                countContainer.innerHTML = `Showing ${visibleCount} of ${snap.docs.length} Orders`;
+            }
+            countContainer.style.display = 'inline-flex';
+        }
+        
+        container.innerHTML = docs.map(doc => { 
+            const o = doc.data(); 
+            const docId = doc.id;
+            const orderIdStr = o.orderId || docId.slice(-6).toUpperCase();
+            const promoInfo = o.discount > 0 ? `<div style="font-size:11px; color:#e74c3c; margin-bottom:5px;">Discount: -₹${o.discount}</div>` : '';
+            const statusVal = o.status || 'pending';
+            const statusInfo = ORDER_STATUSES.find(s => s.value === statusVal) || ORDER_STATUSES[0];
+            const currentCourier = o.courier || '';
+            const trackingId = o.trackingId || '';
+            
+            const itemsHtml = (() => {
+                const orderGroups = {};
+                (o.items || []).forEach(i => {
+                    const prodId = i.id || i.name;
+                    if (!orderGroups[prodId]) {
+                        orderGroups[prodId] = {
+                            name: i.name,
+                            image: (i.images && i.images.length) ? i.images[0] : '',
+                            variants: []
+                        };
+                    }
+                    orderGroups[prodId].variants.push(i);
+                });
+
+                return Object.values(orderGroups).map(g => {
+                    const variantListHtml = g.variants.map(i => {
+                        const specs = [];
+                        if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
+                        const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
+                        if (_oColorLabel) specs.push(_oColorLabel);
+                        if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
+                        const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
+
+                        const swatchIconHtml = i.variantPatternImage ? `
+                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
+                            : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${i.variantColor}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+
+                        return `
+                        <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
+                            <div style="display:flex; align-items:center;">
+                                ${swatchIconHtml}
+                                <span>${variantDesc}</span>
+                            </div>
+                            <div style="margin-left:auto; text-align:right;">
+                                <span style="color:#666; margin-right:8px;">×${i.qty||1}</span>
+                                <span style="color:var(--gold)">₹${i.price * (i.qty||1)}</span>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    return `
+                    <div style="display:flex; gap:10px; margin-bottom:10px; background:#111; padding:8px; border-radius:8px; border:1px solid #222;">
+                        <img src="${g.image}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">
+                        <div style="flex:1;">
+                            <div style="font-size:12px; font-weight:bold; color:#fff; margin-bottom:5px;">${g.name}</div>
+                            <div style="padding-left:5px;">
+                                ${variantListHtml}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            })();
+
+            if (isAdmin) {
+                // Admin detailed card with edit/status/tracking/courier controls
+                const statusOptions = ORDER_STATUSES.map(s => `
+                    <option value="${s.value}" ${s.value === statusVal ? 'selected' : ''}>${s.label}</option>
+                `).join('');
+                
+                // Check if currentCourier is in the predefined list
+                const isPredefined = COURIER_COMPANIES.some(c => c.value === currentCourier);
+                const courierSelectValue = currentCourier ? (isPredefined ? currentCourier : 'Other') : '';
+                const showCustomInput = courierSelectValue === 'Other';
+                
+                const courierOptions = COURIER_COMPANIES.map(c => `
+                    <option value="${c.value}" ${c.value === courierSelectValue ? 'selected' : ''}>${c.label}</option>
+                `).join('');
+
+                return `
+                <div id="order-card-${docId}" class="order-card" style="border:1px solid #333; margin-bottom:15px; background:#111; padding:15px; border-radius:15px; transition: background-color 0.4s ease, border-color 0.4s ease;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #222; padding-bottom:10px;">
+                        <div>
+                            <span style="font-size:12px; font-weight:700; color:#fff; display:block;">Order #${orderIdStr}</span>
+                            <span style="font-size:10px; color:#666;">${o.timestamp ? o.timestamp.toDate().toLocaleString('en-IN') : 'New'}</span>
+                        </div>
+                        <div style="font-size:11px; background:#1a1a1a; padding:4px 8px; border-radius:6px; border:1px solid #333; color:var(--gold); font-weight:bold;">
+                            ₹${o.total || 0}
+                        </div>
+                    </div>
+
+                    <!-- Customer Profile & Info -->
+                    <div style="background:#1a1a1a; border-radius:8px; padding:10px; margin-bottom:12px; font-size:11px; line-height:1.7; border:1px solid #222;">
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; font-weight:600; color:#fff; margin-bottom:4px;">
+                            <span>👤 ${o.recipient || 'N/A'}</span>
+                            <span style="color:#444;">|</span>
+                            <span>📱 ${o.phone || 'N/A'}</span>
+                        </div>
+                        <div style="color:#aaa;">📍 ${o.address || 'N/A'}</div>
+                        <div style="color:#888; margin-top:2px;">💳 Payment: <b style="color:#fff;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
+                    </div>
+
+                    <!-- Order Items -->
+                    <div style="margin-bottom:12px;">${itemsHtml}</div>
+                    ${promoInfo}
+
+                    <!-- Admin Status, Courier and Tracking Update Form -->
+                    <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #222;">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:140px;">
+                                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Order Status</label>
+                                <select id="status-sel-${docId}" 
+                                    style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; cursor:pointer;">
+                                    ${statusOptions}
+                                </select>
+                            </div>
+                            <div style="flex:1; min-width:140px;">
+                                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Courier Partner</label>
+                                <select id="courier-sel-${docId}" 
+                                    onchange="const customInp = document.getElementById('courier-custom-row-${docId}'); if (this.value === 'Other') { customInp.style.display = 'block'; } else { customInp.style.display = 'none'; }"
+                                    style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; cursor:pointer;">
+                                    <option value="">-- Select Courier --</option>
+                                    ${courierOptions}
+                                </select>
+                            </div>
+                            <div style="flex:1; min-width:160px;">
+                                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Tracking / AWB ID</label>
+                                <input id="tracking-input-${docId}" type="text" 
+                                    placeholder="e.g. 78291829029"
+                                    value="${trackingId}"
+                                    style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; font-family:monospace; margin:0;">
+                            </div>
+                        </div>
+                        
+                        <!-- Custom Courier input if 'Other' selected -->
+                        <div id="courier-custom-row-${docId}" style="display:${showCustomInput ? 'block' : 'none'}; margin-top:2px;">
+                            <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Custom Delivery Partner Name</label>
+                            <input id="courier-custom-input-${docId}" type="text" 
+                                placeholder="Enter courier name..."
+                                value="${!isPredefined ? currentCourier : ''}"
+                                style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; margin:0;">
+                        </div>
+
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+                            <button onclick="saveAdminOrderChanges('${docId}', false)"
+                                style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:12px; font-weight:700; cursor:pointer;">
+                                💾 Save Changes
+                            </button>
+                            <button onclick="saveAdminOrderChanges('${docId}', true)"
+                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #0088cc; background:transparent; color:#0088cc; font-size:12px; font-weight:700; cursor:pointer;">
+                                📨 Save & Notify Admin
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            } else {
+                // Customer read-only card (exactly matching original layout)
+                let trackingHtml = '';
+                if (trackingId) {
+                    const courierLabel = currentCourier || 'Courier';
+                    trackingHtml = `
+                    <div style="background:#1a1a1a; border:1px solid #222; border-radius:8px; padding:8px 12px; margin-bottom:10px; font-size:11px;">
+                        <span style="color:#aaa;">Delivery Partner:</span> <b style="color:#fff;">${courierLabel}</b><br>
+                        <span style="color:#aaa;">Tracking ID:</span> <b style="color:var(--gold); font-family:monospace;">${trackingId}</b>
+                    </div>`;
+                }
+
+                return `
+                <div class="order-card">
+                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#666; margin-bottom:8px">
+                        <span>#${orderIdStr}</span>
+                        <span style="display:flex; align-items:center; gap:4px;">
+                            <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${statusVal === 'delivered' ? '#2ecc71' : statusVal === 'cancelled' ? '#e74c3c' : '#f1c40f'}"></span>
+                            ${statusInfo.label}
+                        </span>
+                        <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString('en-IN') : 'New'}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
+                    ${trackingHtml}
+                    ${itemsHtml}
+                    ${promoInfo}
+                    <div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right; font-size:16px;">Total: ₹${o.total || 0}</div>
+                </div>`; 
+            }
+        }).join(''); 
+    }, error => {
+        console.error("Orders load error:", error);
+        container.innerHTML = `<p style="text-align:center;color:#e74c3c;font-size:12px;">Error loading orders. Please try again.</p>`;
+    }); 
+}
+
 function loadMoreOrders() {
     displayedOrdersLimit += 20;
     loadOrders();
 }
+
+window.saveAdminOrderChanges = async function(docId, sendNotification) {
+    const statusVal = document.getElementById(`status-sel-${docId}`).value;
+    const courierSelect = document.getElementById(`courier-sel-${docId}`).value;
+    const trackingVal = document.getElementById(`tracking-input-${docId}`).value.trim();
+    
+    let courierVal = courierSelect;
+    if (courierSelect === 'Other') {
+        const customInp = document.getElementById(`courier-custom-input-${docId}`);
+        courierVal = customInp ? customInp.value.trim() : 'Other';
+    }
+    
+    await updateOrderStatus(docId, statusVal, courierVal, trackingVal, sendNotification);
+};
+
+async function updateOrderStatus(docId, newStatus, courier, trackingId, sendNotification) {
+    if (!docId) return;
+    const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || ORDER_STATUSES[0];
+    try {
+        const updateData = {
+            status: newStatus,
+            courier: courier || '',
+            trackingId: trackingId || '',
+            statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await db.collection('orders').doc(docId).update(updateData);
+        
+        // Flash card confirmation
+        const cardEl = document.getElementById(`order-card-${docId}`);
+        if (cardEl) {
+            const originalBg = cardEl.style.backgroundColor;
+            const originalBorder = cardEl.style.borderColor;
+            
+            // Flashing gold/green effect
+            cardEl.style.backgroundColor = 'rgba(212, 175, 55, 0.15)';
+            cardEl.style.borderColor = 'var(--gold)';
+            
+            setTimeout(() => {
+                cardEl.style.backgroundColor = originalBg;
+                cardEl.style.borderColor = originalBorder;
+            }, 600);
+        }
+        
+        showToast(`✅ Order updated: ${statusInfo.label}`);
+        if (sendNotification) {
+            const snap = await db.collection('orders').doc(docId).get();
+            if (snap.exists) {
+                await triggerTelegramNotification(snap.data(), docId, newStatus, courier, trackingId);
+            }
+        }
+    } catch(e) {
+        console.error('updateOrderStatus error:', e);
+        showToast('Failed to update order: ' + e.message);
+    }
+}
+window.updateOrderStatus = updateOrderStatus;
+
+async function triggerTelegramNotification(orderData, docId, newStatus, courier, trackingId) {
+    try {
+        const cfgSnap = await db.collection('settings').doc('telegram').get();
+        if (!cfgSnap.exists) {
+            showToast('⚠️ Telegram not configured in Admin panel.');
+            return;
+        }
+        const cfg = cfgSnap.data();
+        const botToken = cfg.token;
+        
+        let chatIds = [];
+        if (Array.isArray(cfg.chatIds)) {
+            chatIds = cfg.chatIds.filter(id => id.trim());
+        } else if (cfg.chatId) {
+            chatIds = [cfg.chatId.trim()];
+        }
+        
+        if (!botToken || chatIds.length === 0) {
+            showToast('⚠️ Missing Telegram Bot Token or Chat ID.');
+            return;
+        }
+
+        const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
+        const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
+        const itemsList = (orderData.items || [])
+            .map(i => `• ${i.name} (×${i.qty || 1}) — ₹${(i.price || 0) * (i.qty || 1)}`)
+            .join('\n');
+
+        const message = [
+            `🛍️ *SWAG STREE — Order Update*`,
+            ``,
+            `📋 *Order ID:* #${orderId}`,
+            `📦 *New Status:* ${statusInfo.label}`,
+            courier ? `🚚 *Courier:* ${courier}` : '',
+            trackingId ? `🎫 *Tracking ID:* \`${trackingId}\`` : '',
+            ``,
+            `👤 *Customer:* ${orderData.recipient || 'N/A'}`,
+            `📱 *Phone:* ${orderData.phone || 'N/A'}`,
+            `📍 *Address:* ${orderData.address || 'N/A'}`,
+            ``,
+            `🧾 *Items:*`,
+            itemsList,
+            ``,
+            `💰 *Total:* ₹${orderData.total || 0}`,
+            `💳 *Payment:* ${orderData.paymentMethod ? orderData.paymentMethod.toUpperCase() : 'N/A'}`,
+        ].filter(line => line !== '').join('\n');
+
+        // Dispatch notifications to all configured Chat IDs asynchronously
+        let successCount = 0;
+        await Promise.all(chatIds.map(async (chatId) => {
+            try {
+                const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: message,
+                        parse_mode: 'Markdown'
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    successCount++;
+                }
+            } catch (err) {
+                console.error(`Error sending telegram to ${chatId}:`, err);
+            }
+        }));
+
+        if (successCount > 0) {
+            showToast(`📨 Sent notification to ${successCount} admin account(s)!`);
+        } else {
+            showToast('⚠️ Telegram notification dispatch failed.');
+        }
+    } catch(e) {
+        console.error('triggerTelegramNotification error:', e);
+        showToast('Telegram send failed: ' + e.message);
+    }
+}
+window.triggerTelegramNotification = triggerTelegramNotification;
