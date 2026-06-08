@@ -1698,7 +1698,8 @@ function editFeedbackItem(id) {
         cancelBtn.innerText = 'Cancel';
         cancelBtn.onclick = cancelFeedbackEdit;
         const addBtn = document.getElementById('admin-fb-add-btn');
-        addBtn.parentNode.insertBefore(cancelBtn, addBtn);
+        const actionGroup = document.getElementById('admin-fb-action-btn-group') || addBtn.parentNode;
+        actionGroup.insertBefore(cancelBtn, addBtn);
     }
     
     document.getElementById('admin-feedback-settings').scrollIntoView({ behavior: 'smooth' });
