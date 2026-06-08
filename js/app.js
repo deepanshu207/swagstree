@@ -3,48 +3,47 @@
 // ==========================================
 
 // 1. CONFIGURATION
-emailjs.init("k3l2JkCbjMs8WOAXg");
 const firebaseConfig = { 
     apiKey: "AIzaSyAKXSFKuhQXMGvmtjh0CHnz48vbYz9a_4A", 
     authDomain: "swagstree-web.firebaseapp.com", 
     projectId: "swagstree-web" 
 };
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
+var db = firebase.firestore();
+var auth = firebase.auth();
 const CLOUD_NAME = "mysharecloud";
 const PRESET = "swagstree_upload";
 
 // 2. GLOBAL STATE
-let products = [];
-let cart = [];
-let wishlist = [];
-let currentUser = null;
-let isAdmin = false;
-let isSuperAdmin = false;
-let assignedAdmins = [];
-let productsPageLimitSetting = 20;
-let editingId = null;
+var products = [];
+var cart = [];
+var wishlist = [];
+var currentUser = null;
+var isAdmin = false;
+var isSuperAdmin = false;
+var assignedAdmins = [];
+var productsPageLimitSetting = 20;
+var editingId = null;
 
 // UI State
-let isRegMode = false;
-let selectedSize = 'S';
-let selectedColor = '';
-let activeProductId = null;
-let currentProductFiles = [];
-let existingImageUrls = [];
-let filterActiveSizes = [];
-let filterActiveColors = [];
-let filterActivePatterns = [];
-let filterMinPrice = null;
-let filterMaxPrice = null;
-let priceAbsoluteMin = 0;
-let priceAbsoluteMax = 10000;
-let confirmationResult = null; // Used for SMS OTP fallback
-let displayedProductsLimit = 20;
-let displayedWishlistLimit = 20;
-let displayedOrdersLimit = 20;
-let ordersUnsubscribe = null;
+var isRegMode = false;
+var selectedSize = 'S';
+var selectedColor = '';
+var activeProductId = null;
+var currentProductFiles = [];
+var existingImageUrls = [];
+var filterActiveSizes = [];
+var filterActiveColors = [];
+var filterActivePatterns = [];
+var filterMinPrice = null;
+var filterMaxPrice = null;
+var priceAbsoluteMin = 0;
+var priceAbsoluteMax = 10000;
+var confirmationResult = null; // Used for SMS OTP fallback
+var displayedProductsLimit = 20;
+var displayedWishlistLimit = 20;
+var displayedOrdersLimit = 20;
+var ordersUnsubscribe = null;
 
 // 3. UTILITIES
 function showToast(m) { 

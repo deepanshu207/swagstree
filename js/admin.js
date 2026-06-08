@@ -21,13 +21,13 @@ if (!document.getElementById('custom-toggle-styles')) {
 }
 
 // Global variables fallback definition to prevent browser cache mismatch crashes
-if (typeof isAdmin === 'undefined') window.isAdmin = false;
-if (typeof products === 'undefined') window.products = [];
-if (typeof editingId === 'undefined') window.editingId = null;
-if (typeof existingImageUrls === 'undefined') window.existingImageUrls = [];
-if (typeof currentProductFiles === 'undefined') window.currentProductFiles = [];
+if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
+if (typeof window.products === 'undefined') window.products = [];
+if (typeof window.editingId === 'undefined') window.editingId = null;
+if (typeof window.existingImageUrls === 'undefined') window.existingImageUrls = [];
+if (typeof window.currentProductFiles === 'undefined') window.currentProductFiles = [];
 
-if (typeof editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
+if (typeof window.editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
 
 const ALL_SIZES = [
     { id: 'XXS', label: 'XXS (Chest: 32")' },
@@ -1813,6 +1813,36 @@ async function deleteFeedbackItem(id) {
     }
 }
 window.deleteFeedbackItem = deleteFeedbackItem;
+
+async function loadEmailSettings() {
+    try {
+        const snap = await db.collection('settings').doc('email').get();
+        if (snap.exists && snap.data().brevoKey) {
+            const el = document.getElementById('admin-brevo-key');
+            if (el) el.value = snap.data().brevoKey;
+        }
+    } catch(e) {
+        console.error("loadEmailSettings error:", e);
+    }
+}
+async function saveEmailSettings() {
+    const key = document.getElementById('admin-brevo-key').value.trim();
+    const confirmMsg = key 
+        ? "Are you sure you want to update the Brevo API Key? This will change the email sender configuration." 
+        : "Are you sure you want to remove the Brevo API Key? This will disable order email notifications.";
+        
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        await db.collection('settings').doc('email').set({ brevoKey: key }, { merge: true });
+        showToast("Email settings saved successfully!");
+    } catch(e) {
+        console.error("saveEmailSettings error:", e);
+        showToast("Failed to save email settings");
+    }
+}
+window.loadEmailSettings = loadEmailSettings;
+window.saveEmailSettings = saveEmailSettings;
 
 
 
