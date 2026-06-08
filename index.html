@@ -550,7 +550,7 @@
                 <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Customer Diaries & Feed</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown on storefront</p>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown on home</p>
                 </div>
             </div>
             
@@ -559,22 +559,37 @@
                 <!-- Feedbacks render here -->
             </div>
 
-            <!-- Customer Diaries Placement Settings -->
-            <div style="background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333; margin-bottom:12px;">
-                <h5 style="margin:0 0 8px 0; font-size:12px; color:#fff; font-weight:700;">Diaries Placement on Homepage Grid</h5>
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <select id="admin-fb-placement" onchange="toggleFeedbackPlacementInputs()" style="margin:0; width:150px; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px;">
-                        <option value="first">First in Grid</option>
-                        <option value="last">Last in Grid</option>
-                        <option value="custom">Custom (Every N items)</option>
-                    </select>
-                    <div id="admin-fb-n-container" style="display:none; align-items:center; gap:8px;">
-                        <span style="font-size:11px; color:#aaa;">Every:</span>
-                        <input id="admin-fb-n-value" type="number" min="1" step="1" value="6" style="margin:0; width:70px; font-size:12px; height:36px; padding:6px 8px;">
-                        <span style="font-size:11px; color:#aaa;">items</span>
-                    </div>
-                    <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; height:36px;" onclick="saveFeedbackPlacementSettings()">Save Placement</button>
+            <div style="background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333; margin-bottom:12px; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" id="admin-fb-show-section" checked style="margin:0; width:16px; height:16px; cursor:pointer;" onchange="toggleFeedbackPlacementInputs()">
+                    <label for="admin-fb-show-section" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Show Customer Diaries Section on Home</label>
                 </div>
+                <div id="admin-fb-placement-controls" style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <span style="font-size:12px; color:#aaa;">Placement:</span>
+                        <select id="admin-fb-placement" onchange="toggleFeedbackPlacementInputs()" style="margin:0; width:150px; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px;">
+                            <option value="last">Last in Grid (Default)</option>
+                            <option value="first">First in Grid</option>
+                            <option value="custom">Custom (Every N items)</option>
+                        </select>
+                        <div id="admin-fb-n-container" style="display:none; align-items:center; gap:8px;">
+                            <span style="font-size:11px; color:#aaa;">Every:</span>
+                            <input id="admin-fb-n-value" type="number" min="1" step="1" value="6" style="margin:0; width:70px; font-size:12px; height:36px; padding:6px 8px;">
+                            <span style="font-size:11px; color:#aaa;">items</span>
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Section Title:</span>
+                            <input id="admin-fb-section-title" type="text" placeholder="✨ CUSTOMER DIARIES" style="margin:0; font-size:12px; padding:6px 12px; height:36px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Section Subtitle:</span>
+                            <input id="admin-fb-section-subtitle" type="text" placeholder="See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured." style="margin:0; font-size:12px; padding:6px 12px; height:36px;">
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; height:36px; align-self:flex-start;" onclick="saveFeedbackPlacementSettings()">Save Settings</button>
             </div>
 
             <!-- Form to add new feedback -->
@@ -599,10 +614,6 @@
                 </div>
                 <input id="admin-fb-image-urls" oninput="renderFeedbackFormPreviews()" type="text" placeholder="Direct Image CDN URLs (comma-separated, optional)" style="margin:0; font-size:12px; display:none;">
                 <div style="display:flex; align-items:center; gap:15px; margin: 2px 0; flex-wrap:wrap;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" id="admin-fb-active" checked style="margin:0; width:16px; height:16px; cursor:pointer;">
-                        <label for="admin-fb-active" style="font-size:12px; color:#fff; cursor:pointer; user-select:none;">Visible on Storefront</label>
-                    </div>
                     <div style="display:flex; align-items:center; gap:8px;">
                         <input type="checkbox" id="admin-fb-show-multiple" style="margin:0; width:16px; height:16px; cursor:pointer;">
                         <label for="admin-fb-show-multiple" style="font-size:12px; color:#fff; cursor:pointer; user-select:none;">Multiple Posts (Show separate cards)</label>

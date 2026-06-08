@@ -102,7 +102,7 @@ function loadData() {
     });
 
     db.collection("settings").doc("diaries").onSnapshot(snap => {
-        window.diariesSettings = snap.exists ? snap.data() : { placement: 'last', n: 6 };
+        window.diariesSettings = snap.exists ? snap.data() : { placement: 'last', n: 6, showSection: true };
         if (window.productsLoaded) {
             renderStore();
             renderFeedbacks();
@@ -257,16 +257,18 @@ function renderProducts(items, targetId) {
             countContainer.style.display = 'inline-flex';
         }
         
-        const feedbackCards = typeof getFeedbackCardsHtml === 'function' ? getFeedbackCardsHtml() : [];
-        const settings = window.diariesSettings || { placement: 'last' };
+        const settings = window.diariesSettings || { placement: 'last', showSection: true };
+        const feedbackCards = (typeof getFeedbackCardsHtml === 'function' && settings.showSection !== false) ? getFeedbackCardsHtml() : [];
         
         function getDiariesSectionHtml(cards) {
             if (!cards || cards.length === 0) return '';
+            const sectionTitle = settings.sectionTitle || '✨ CUSTOMER DIARIES';
+            const sectionSubtitle = settings.sectionSubtitle || 'See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured.';
             return `
             <div class="feedback-section-container-in-grid" style="grid-column: 1 / -1; margin-top:20px; margin-bottom:20px; padding-top:20px; border-top:1px solid #222; border-bottom:1px solid #222; width: 100%;">
                 <div style="padding:0 15px; margin-bottom:15px; text-align:center;">
-                    <h3 style="margin:0; font-size:18px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; font-weight:900;">✨ CUSTOMER DIARIES</h3>
-                    <p style="margin:5px 0 0 0; font-size:12px; color:#777;">See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured.</p>
+                    <h3 style="margin:0; font-size:18px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; font-weight:900;">${sectionTitle}</h3>
+                    <p style="margin:5px 0 0 0; font-size:12px; color:#777;">${sectionSubtitle}</p>
                 </div>
                 <div class="feedback-grid" style="padding:0;">${cards.join('')}</div>
             </div>`;
@@ -1179,7 +1181,7 @@ function getFeedbackCardsHtml() {
         return [];
     }
     
-    return window.feedbacks.filter(f => f.active !== false).flatMap(f => {
+    return window.feedbacks.filter(f => f.active !== false && f.active !== 'false').flatMap(f => {
         const platformIconStyle = 'color:#E1306C; font-size:16px; cursor:pointer;';
         
         let customImages = (f.imageUrls || (f.imageUrl ? [f.imageUrl] : []))
