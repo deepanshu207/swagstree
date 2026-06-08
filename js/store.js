@@ -183,6 +183,40 @@ function productCardHtml(p) {
     </div>`;
 }
 
+let infiniteScrollObserver = null;
+let isLoadingMore = false;
+
+function setupInfiniteScrollObserver() {
+    if (infiniteScrollObserver) {
+        infiniteScrollObserver.disconnect();
+    }
+    
+    infiniteScrollObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && !isLoadingMore) {
+                const target = entry.target.getAttribute('data-target');
+                isLoadingMore = true;
+                
+                setTimeout(() => {
+                    if (target === 'products') {
+                        loadMoreProducts();
+                    } else if (target === 'wishlist') {
+                        loadMoreWishlist();
+                    }
+                    isLoadingMore = false;
+                }, 300);
+            }
+        });
+    }, {
+        rootMargin: '100px',
+        threshold: 0.1
+    });
+    
+    document.querySelectorAll('.infinite-scroll-loader').forEach(el => {
+        infiniteScrollObserver.observe(el);
+    });
+}
+
 function renderProducts(items, targetId) { 
     const container = document.getElementById(targetId); 
     if(!container) return;
@@ -245,7 +279,11 @@ function renderProducts(items, targetId) {
         if (items.length > displayedProductsLimit) {
             itemsToRender = items.slice(0, displayedProductsLimit);
             if (loadMoreBtnContainer) {
-                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreProducts()">Show More</button>`;
+                loadMoreBtnContainer.innerHTML = `
+                <div class="infinite-scroll-loader" data-target="products" style="display:flex; justify-content:center; align-items:center; padding: 20px 0; gap: 8px; width: 100%;">
+                    <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
+                    <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
+                </div>`;
             }
         } else {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -343,7 +381,11 @@ function renderProducts(items, targetId) {
         if (items.length > displayedWishlistLimit) {
             itemsToRender = items.slice(0, displayedWishlistLimit);
             if (loadMoreBtnContainer) {
-                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreWishlist()">Show More</button>`;
+                loadMoreBtnContainer.innerHTML = `
+                <div class="infinite-scroll-loader" data-target="wishlist" style="display:flex; justify-content:center; align-items:center; padding: 20px 0; gap: 8px; width: 100%;">
+                    <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
+                    <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
+                </div>`;
             }
         } else {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -363,6 +405,8 @@ function renderProducts(items, targetId) {
         }
         container.innerHTML = items.map(productCardHtml).join(''); 
     }
+    
+    setupInfiniteScrollObserver();
 }
 
 // 3. PRODUCT DETAILS
