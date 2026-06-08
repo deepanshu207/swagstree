@@ -1438,10 +1438,10 @@ function renderFeedbackFormPreviews() {
     
     // Auto-extract Instagram post images if links are available
     let postImgUrls = [];
-    const linkVal = document.getElementById('admin-fb-link').value.trim();
     const platformVal = document.getElementById('admin-fb-platform').value;
-    const links = linkVal ? linkVal.split(',').map(url => {
-        url = url.trim();
+    const linkInputs = document.querySelectorAll('.diaries-link-input');
+    const links = Array.from(linkInputs).map(inp => {
+        let url = inp.value.trim();
         if (url.includes('facebook.com') && url.includes('fbid=')) {
             try {
                 const searchStr = url.split('?')[1];
@@ -1455,12 +1455,12 @@ function renderFeedbackFormPreviews() {
             } catch (e) {}
         }
         return url;
-    }).filter(url => url) : [];
+    }).filter(url => url);
     
     if (platformVal === 'instagram') {
         links.forEach(link => {
             if (link.includes('instagram.com')) {
-                const match = link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                const match = link.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
                 if (match && match[1]) {
                     postImgUrls.push(`https://www.instagram.com/p/${match[1]}/media/?size=l`);
                 }
@@ -1585,7 +1585,11 @@ async function addFeedbackItem() {
     const username = document.getElementById('admin-fb-username').value.trim();
     const text = document.getElementById('admin-fb-text').value.trim();
     const platform = document.getElementById('admin-fb-platform').value;
-    const link = document.getElementById('admin-fb-link').value.trim();
+    
+    const linkInputs = document.querySelectorAll('.diaries-link-input');
+    const links = Array.from(linkInputs).map(inp => inp.value.trim()).filter(url => url);
+    const link = links.join(',');
+    
     const manualUrlsVal = document.getElementById('admin-fb-image-urls').value.trim();
     const active = document.getElementById('admin-fb-active').checked;
     const showMultiple = document.getElementById('admin-fb-show-multiple').checked;
@@ -1677,13 +1681,23 @@ function editFeedbackItem(id) {
     document.getElementById('admin-fb-username').value = f.username || '';
     document.getElementById('admin-fb-text').value = f.text || '';
     document.getElementById('admin-fb-platform').value = f.platform || 'instagram';
-    document.getElementById('admin-fb-link').value = f.link || '';
     document.getElementById('admin-fb-active').checked = f.active !== false;
     document.getElementById('admin-fb-show-multiple').checked = !!f.showMultiple;
     document.getElementById('admin-fb-img-position').value = f.imgPosition || 'first';
     
     let images = f.imageUrls || (f.imageUrl ? [f.imageUrl] : []);
     document.getElementById('admin-fb-image-urls').value = images.join(', ');
+    
+    const linkContainer = document.getElementById('diaries-links-container');
+    if (linkContainer) {
+        linkContainer.innerHTML = '';
+        const allLinks = f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : [];
+        if (allLinks.length > 0) {
+            allLinks.forEach(lnk => addDiariesLinkInput(lnk));
+        } else {
+            addDiariesLinkInput('');
+        }
+    }
     
     renderFeedbackFormPreviews();
     
@@ -1711,13 +1725,18 @@ function cancelFeedbackEdit() {
     
     document.getElementById('admin-fb-username').value = '';
     document.getElementById('admin-fb-text').value = '';
-    document.getElementById('admin-fb-link').value = '';
     document.getElementById('admin-fb-image-urls').value = '';
     document.getElementById('admin-fb-file').value = '';
     document.getElementById('admin-fb-filename').innerText = 'No image selected';
     document.getElementById('admin-fb-active').checked = true;
     document.getElementById('admin-fb-show-multiple').checked = false;
     document.getElementById('admin-fb-img-position').value = 'first';
+    
+    const linkContainer = document.getElementById('diaries-links-container');
+    if (linkContainer) {
+        linkContainer.innerHTML = '';
+        addDiariesLinkInput('');
+    }
     
     const previewContainer = document.getElementById('admin-fb-img-preview-container');
     if (previewContainer) {
@@ -1737,6 +1756,11 @@ window.cancelFeedbackEdit = cancelFeedbackEdit;
 function renderAdminFeedbackList() {
     const container = document.getElementById('admin-feedback-list');
     if (!container) return;
+    
+    const linkContainer = document.getElementById('diaries-links-container');
+    if (linkContainer && linkContainer.children.length === 0) {
+        addDiariesLinkInput('');
+    }
 
     const list = window.feedbacks || [];
     if (list.length === 0) {
@@ -1759,8 +1783,8 @@ function renderAdminFeedbackList() {
             });
         
         let postImgUrl = '';
-        if (f.link && (f.link.includes('instagram.com/p/') || f.link.includes('instagram.com/reel/') || f.link.includes('instagram.com/tv/'))) {
-            const match = f.link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+        if (f.link && f.link.includes('instagram.com') && (f.link.includes('/p/') || f.link.includes('/reel/') || f.link.includes('/tv/'))) {
+            const match = f.link.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
             if (match && match[1]) {
                 postImgUrl = `https://www.instagram.com/p/${match[1]}/media/?size=l`;
             }
@@ -1844,6 +1868,69 @@ async function saveEmailSettings() {
 }
 window.loadEmailSettings = loadEmailSettings;
 window.saveEmailSettings = saveEmailSettings;
+
+// ── Diaries Placement Settings ──
+async function loadFeedbackPlacementSettings() {
+    try {
+        const snap = await db.collection('settings').doc('diaries').get();
+        const placement = snap.exists ? (snap.data().placement || 'last') : 'last';
+        const nValue = snap.exists ? (snap.data().n || 6) : 6;
+        
+        const selectEl = document.getElementById('admin-fb-placement');
+        if (selectEl) selectEl.value = placement;
+        
+        const valEl = document.getElementById('admin-fb-n-value');
+        if (valEl) valEl.value = nValue;
+        
+        toggleFeedbackPlacementInputs();
+    } catch(e) {
+        console.error('loadFeedbackPlacementSettings error:', e);
+    }
+}
+window.loadFeedbackPlacementSettings = loadFeedbackPlacementSettings;
+
+window.toggleFeedbackPlacementInputs = function() {
+    const selectEl = document.getElementById('admin-fb-placement');
+    const container = document.getElementById('admin-fb-n-container');
+    if (selectEl && container) {
+        container.style.display = selectEl.value === 'custom' ? 'flex' : 'none';
+    }
+}
+
+async function saveFeedbackPlacementSettings() {
+    const selectEl = document.getElementById('admin-fb-placement');
+    const valEl = document.getElementById('admin-fb-n-value');
+    if (!selectEl || !valEl) return;
+    
+    const placement = selectEl.value;
+    const n = parseInt(valEl.value, 10) || 6;
+    
+    try {
+        await db.collection('settings').doc('diaries').set({ placement, n }, { merge: true });
+        showToast('✅ Diaries placement settings saved!');
+    } catch(e) {
+        console.error('saveFeedbackPlacementSettings error:', e);
+        showToast('Failed to save placement settings');
+    }
+}
+window.saveFeedbackPlacementSettings = saveFeedbackPlacementSettings;
+
+window.addDiariesLinkInput = function(value = '') {
+    const container = document.getElementById('diaries-links-container');
+    if (!container) return;
+    
+    const wrapper = document.createElement('div');
+    wrapper.style = 'display:flex; gap:8px; align-items:center;';
+    wrapper.className = 'diaries-link-row';
+    
+    wrapper.innerHTML = `
+        <input type="text" class="diaries-link-input" placeholder="e.g. https://www.instagram.com/p/..." value="${value}" style="margin:0; flex:1; font-size:12px;" oninput="renderFeedbackFormPreviews()">
+        <button class="btn-gold" style="width:auto; padding:10px 14px; font-size:12px; margin:0; background:#ff4757; color:#fff;" onclick="this.parentNode.remove(); renderFeedbackFormPreviews();">-</button>
+    `;
+    container.appendChild(wrapper);
+    renderFeedbackFormPreviews();
+};
+
 
 
 
