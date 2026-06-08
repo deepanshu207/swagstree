@@ -100,6 +100,14 @@ function loadData() {
     }, error => {
         console.error("Firestore feedbacks error:", error);
     });
+
+    db.collection("settings").doc("diaries").onSnapshot(snap => {
+        window.diariesSettings = snap.exists ? snap.data() : { placement: 'last', n: 6, showSection: true };
+        if (window.productsLoaded) {
+            renderStore();
+            renderFeedbacks();
+        }
+    });
 }
 
 function renderStore() { 
@@ -175,6 +183,40 @@ function productCardHtml(p) {
     </div>`;
 }
 
+let infiniteScrollObserver = null;
+let isLoadingMore = false;
+
+function setupInfiniteScrollObserver() {
+    if (infiniteScrollObserver) {
+        infiniteScrollObserver.disconnect();
+    }
+    
+    infiniteScrollObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && !isLoadingMore) {
+                const target = entry.target.getAttribute('data-target');
+                isLoadingMore = true;
+                
+                setTimeout(() => {
+                    if (target === 'products') {
+                        loadMoreProducts();
+                    } else if (target === 'wishlist') {
+                        loadMoreWishlist();
+                    }
+                    isLoadingMore = false;
+                }, 300);
+            }
+        });
+    }, {
+        rootMargin: '100px',
+        threshold: 0.1
+    });
+    
+    document.querySelectorAll('.infinite-scroll-loader').forEach(el => {
+        infiniteScrollObserver.observe(el);
+    });
+}
+
 function renderProducts(items, targetId) { 
     const container = document.getElementById(targetId); 
     if(!container) return;
@@ -237,7 +279,11 @@ function renderProducts(items, targetId) {
         if (items.length > displayedProductsLimit) {
             itemsToRender = items.slice(0, displayedProductsLimit);
             if (loadMoreBtnContainer) {
-                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreProducts()">Show More</button>`;
+                loadMoreBtnContainer.innerHTML = `
+                <div class="infinite-scroll-loader" data-target="products" style="display:flex; justify-content:center; align-items:center; padding: 20px 0; gap: 8px; width: 100%;">
+                    <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
+                    <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
+                </div>`;
             }
         } else {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -249,7 +295,48 @@ function renderProducts(items, targetId) {
             countContainer.style.display = 'inline-flex';
         }
         
-        container.innerHTML = itemsToRender.map(productCardHtml).join(''); 
+        const settings = window.diariesSettings || { placement: 'last', showSection: true };
+        const feedbackCards = (typeof getFeedbackCardsHtml === 'function' && settings.showSection !== false) ? getFeedbackCardsHtml() : [];
+        
+        function getDiariesSectionHtml(cards) {
+            if (!cards || cards.length === 0) return '';
+            const sectionTitle = settings.sectionTitle || '✨ CUSTOMER DIARIES';
+            const sectionSubtitle = settings.sectionSubtitle || 'See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured.';
+            return `
+            <div class="feedback-section-container-in-grid" style="grid-column: 1 / -1; margin-top:20px; margin-bottom:20px; padding-top:20px; border-top:1px solid #222; border-bottom:1px solid #222; width: 100%;">
+                <div style="padding:0 15px; margin-bottom:15px; text-align:center;">
+                    <h3 style="margin:0; font-size:18px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; font-weight:900;">${sectionTitle}</h3>
+                    <p style="margin:5px 0 0 0; font-size:12px; color:#777;">${sectionSubtitle}</p>
+                </div>
+                <div class="feedback-grid" style="padding:0;">${cards.join('')}</div>
+            </div>`;
+        }
+        
+        let finalHtml = '';
+        if (settings.placement === 'first') {
+            finalHtml = getDiariesSectionHtml(feedbackCards) + itemsToRender.map(productCardHtml).join('');
+        } else if (settings.placement === 'last') {
+            finalHtml = itemsToRender.map(productCardHtml).join('') + getDiariesSectionHtml(feedbackCards);
+        } else if (settings.placement === 'custom') {
+            const n = settings.n || 6;
+            const pCards = itemsToRender.map(productCardHtml);
+            let combined = [];
+            
+            for (let i = 0; i < pCards.length; i++) {
+                combined.push(pCards[i]);
+                if ((i + 1) % n === 0 && i !== pCards.length - 1) {
+                    combined.push(getDiariesSectionHtml(feedbackCards));
+                }
+            }
+            if (pCards.length > 0 && !combined.includes(getDiariesSectionHtml(feedbackCards))) {
+                combined.push(getDiariesSectionHtml(feedbackCards));
+            }
+            finalHtml = combined.join('');
+        } else {
+            finalHtml = itemsToRender.map(productCardHtml).join('');
+        }
+        
+        container.innerHTML = finalHtml; 
     } else if (targetId === 'wish-grid') {
         const loadMoreBtnContainer = document.getElementById('wish-load-more-container');
         const countContainer = document.getElementById('wish-count');
@@ -294,7 +381,11 @@ function renderProducts(items, targetId) {
         if (items.length > displayedWishlistLimit) {
             itemsToRender = items.slice(0, displayedWishlistLimit);
             if (loadMoreBtnContainer) {
-                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreWishlist()">Show More</button>`;
+                loadMoreBtnContainer.innerHTML = `
+                <div class="infinite-scroll-loader" data-target="wishlist" style="display:flex; justify-content:center; align-items:center; padding: 20px 0; gap: 8px; width: 100%;">
+                    <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
+                    <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
+                </div>`;
             }
         } else {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -314,6 +405,8 @@ function renderProducts(items, targetId) {
         }
         container.innerHTML = items.map(productCardHtml).join(''); 
     }
+    
+    setupInfiniteScrollObserver();
 }
 
 // 3. PRODUCT DETAILS
@@ -1107,25 +1200,33 @@ window.handleFeedbackImageError = function(imgEl, postId) {
     }
 };
 
-function renderFeedbacks() {
-    const container = document.getElementById('feedback-section-container');
-    if (!container) return;
+window.openFeedbackPost = function(el, allLinks) {
+    if (!allLinks || allLinks.length === 0) return;
     
-    if (!window.feedbacks || window.feedbacks.length === 0) {
-        container.style.display = 'none';
-        return;
+    const card = el.closest('.feedback-card');
+    let activeIdx = 0;
+    if (card) {
+        const carousel = card.querySelector('.carousel');
+        if (carousel) {
+            const scrollLeft = carousel.scrollLeft;
+            const offsetWidth = carousel.offsetWidth || 1;
+            activeIdx = Math.round(scrollLeft / offsetWidth);
+        }
     }
     
-    container.style.display = 'block';
-    const grid = document.getElementById('feedback-grid');
-    if (!grid) return;
+    const targetLink = allLinks[activeIdx] || allLinks[0];
+    if (targetLink) {
+        window.open(targetLink, '_blank');
+    }
+};
+
+function getFeedbackCardsHtml() {
+    if (!window.feedbacks || window.feedbacks.length === 0) {
+        return [];
+    }
     
-    grid.innerHTML = window.feedbacks.filter(f => f.active !== false).flatMap(f => {
-        const platformIcon = f.platform === 'instagram' 
-            ? '<i class="fab fa-instagram" style="color:#E1306C; font-size:16px;"></i>' 
-            : (f.platform === 'facebook'
-                ? '<i class="fab fa-facebook" style="color:#1877F2; font-size:16px;"></i>'
-                : '<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>');
+    return window.feedbacks.filter(f => f.active !== false && f.active !== 'false').flatMap(f => {
+        const platformIconStyle = 'color:#E1306C; font-size:16px; cursor:pointer;';
         
         let customImages = (f.imageUrls || (f.imageUrl ? [f.imageUrl] : []))
             .filter(url => url && url.trim() !== '')
@@ -1170,7 +1271,7 @@ function renderFeedbacks() {
             
             if (f.showMultiple) {
                 if (link && f.platform === 'instagram') {
-                    const match = link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                    const match = link.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
                     if (match && match[1]) {
                         postImgUrls.push(`https://www.instagram.com/p/${match[1]}/media/?size=l`);
                     }
@@ -1179,7 +1280,7 @@ function renderFeedbacks() {
                 const allLinks = f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : [];
                 allLinks.forEach(l => {
                     if (l && f.platform === 'instagram') {
-                        const match = l.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                        const match = l.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
                         if (match && match[1]) {
                             postImgUrls.push(`https://www.instagram.com/p/${match[1]}/media/?size=l`);
                         }
@@ -1215,8 +1316,8 @@ function renderFeedbacks() {
                 
                 if (fallbackLinks.length > 0) {
                     return fallbackLinks.map(fl => {
-                        if (fl.includes('instagram.com/p/') || fl.includes('instagram.com/reel/') || fl.includes('instagram.com/tv/')) {
-                            const match = fl.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                        if (fl.includes('instagram.com') && (fl.includes('/p/') || fl.includes('/reel/') || fl.includes('/tv/'))) {
+                            const match = fl.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
                             if (match && match[1]) {
                                 return `
                                 <div class="feedback-card" style="background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
@@ -1278,11 +1379,24 @@ function renderFeedbacks() {
                 mediaHtml = `<div style="padding:15px 15px 0 15px; color:rgba(255, 215, 0, 0.12); font-size:36px; line-height:1; font-family:serif; font-weight:bold;">“</div>`;
             }
                 
-            const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s; cursor:${link ? 'pointer' : 'default'};`;
-            const clickAttr = link ? `onclick="window.open('${link}', '_blank')"` : '';
+            const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s;`;
+            
+            const allLinksForCard = f.showMultiple
+                ? [link]
+                : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
+            const serializedLinks = JSON.stringify(allLinksForCard).replace(/"/g, '&quot;');
+            
+            let platformIcon = '';
+            if (f.platform === 'instagram') {
+                platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})"></i>`;
+            } else if (f.platform === 'facebook') {
+                platformIcon = `<i class="fab fa-facebook" style="color:#1877F2; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})"></i>`;
+            } else {
+                platformIcon = `<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>`;
+            }
             
             return `
-            <div class="feedback-card" ${clickAttr} style="${cardStyle}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
+            <div class="feedback-card" style="${cardStyle}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
                 <div style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -1292,12 +1406,29 @@ function renderFeedbacks() {
                         ${platformIcon}
                     </div>
                     <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
-                    ${link ? `<div style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
+                    ${allLinksForCard.length > 0 ? `<div onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})" style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif; cursor:pointer;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
                 </div>
             </div>
             `;
         });
-    }).join('');
+    }).filter(html => html !== '');
+}
+
+function renderFeedbacks() {
+    const container = document.getElementById('feedback-section-container');
+    if (!container) return;
+    
+    const settings = window.diariesSettings || { placement: 'none' };
+    if (!window.feedbacks || window.feedbacks.length === 0 || settings.placement !== 'none') {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    const grid = document.getElementById('feedback-grid');
+    if (!grid) return;
+    
+    grid.innerHTML = getFeedbackCardsHtml().join('');
     
     if (window.instgrm) {
         window.instgrm.Embeds.process();

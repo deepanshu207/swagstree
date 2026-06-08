@@ -1438,10 +1438,10 @@ function renderFeedbackFormPreviews() {
     
     // Auto-extract Instagram post images if links are available
     let postImgUrls = [];
-    const linkVal = document.getElementById('admin-fb-link').value.trim();
     const platformVal = document.getElementById('admin-fb-platform').value;
-    const links = linkVal ? linkVal.split(',').map(url => {
-        url = url.trim();
+    const linkInputs = document.querySelectorAll('.diaries-link-input');
+    const links = Array.from(linkInputs).map(inp => {
+        let url = inp.value.trim();
         if (url.includes('facebook.com') && url.includes('fbid=')) {
             try {
                 const searchStr = url.split('?')[1];
@@ -1455,12 +1455,12 @@ function renderFeedbackFormPreviews() {
             } catch (e) {}
         }
         return url;
-    }).filter(url => url) : [];
+    }).filter(url => url);
     
     if (platformVal === 'instagram') {
         links.forEach(link => {
             if (link.includes('instagram.com')) {
-                const match = link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+                const match = link.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
                 if (match && match[1]) {
                     postImgUrls.push(`https://www.instagram.com/p/${match[1]}/media/?size=l`);
                 }
@@ -1585,9 +1585,12 @@ async function addFeedbackItem() {
     const username = document.getElementById('admin-fb-username').value.trim();
     const text = document.getElementById('admin-fb-text').value.trim();
     const platform = document.getElementById('admin-fb-platform').value;
-    const link = document.getElementById('admin-fb-link').value.trim();
+    
+    const linkInputs = document.querySelectorAll('.diaries-link-input');
+    const links = Array.from(linkInputs).map(inp => inp.value.trim()).filter(url => url);
+    const link = links.join(',');
+    
     const manualUrlsVal = document.getElementById('admin-fb-image-urls').value.trim();
-    const active = document.getElementById('admin-fb-active').checked;
     const showMultiple = document.getElementById('admin-fb-show-multiple').checked;
     const imgPosition = document.getElementById('admin-fb-img-position').value;
     const addBtn = document.getElementById('admin-fb-add-btn');
@@ -1615,7 +1618,6 @@ async function addFeedbackItem() {
                 text,
                 platform,
                 link,
-                active,
                 showMultiple,
                 imgPosition
             };
@@ -1647,7 +1649,7 @@ async function addFeedbackItem() {
                 link,
                 imageUrl: mainImageUrl,
                 imageUrls: imageUrls,
-                active,
+                active: true,
                 showMultiple,
                 imgPosition,
                 timestamp: Date.now()
@@ -1677,13 +1679,22 @@ function editFeedbackItem(id) {
     document.getElementById('admin-fb-username').value = f.username || '';
     document.getElementById('admin-fb-text').value = f.text || '';
     document.getElementById('admin-fb-platform').value = f.platform || 'instagram';
-    document.getElementById('admin-fb-link').value = f.link || '';
-    document.getElementById('admin-fb-active').checked = f.active !== false;
     document.getElementById('admin-fb-show-multiple').checked = !!f.showMultiple;
     document.getElementById('admin-fb-img-position').value = f.imgPosition || 'first';
     
     let images = f.imageUrls || (f.imageUrl ? [f.imageUrl] : []);
     document.getElementById('admin-fb-image-urls').value = images.join(', ');
+    
+    const linkContainer = document.getElementById('diaries-links-container');
+    if (linkContainer) {
+        linkContainer.innerHTML = '';
+        const allLinks = f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : [];
+        if (allLinks.length > 0) {
+            allLinks.forEach(lnk => addDiariesLinkInput(lnk));
+        } else {
+            addDiariesLinkInput('');
+        }
+    }
     
     renderFeedbackFormPreviews();
     
@@ -1711,13 +1722,17 @@ function cancelFeedbackEdit() {
     
     document.getElementById('admin-fb-username').value = '';
     document.getElementById('admin-fb-text').value = '';
-    document.getElementById('admin-fb-link').value = '';
     document.getElementById('admin-fb-image-urls').value = '';
     document.getElementById('admin-fb-file').value = '';
     document.getElementById('admin-fb-filename').innerText = 'No image selected';
-    document.getElementById('admin-fb-active').checked = true;
     document.getElementById('admin-fb-show-multiple').checked = false;
     document.getElementById('admin-fb-img-position').value = 'first';
+    
+    const linkContainer = document.getElementById('diaries-links-container');
+    if (linkContainer) {
+        linkContainer.innerHTML = '';
+        addDiariesLinkInput('');
+    }
     
     const previewContainer = document.getElementById('admin-fb-img-preview-container');
     if (previewContainer) {
@@ -1737,6 +1752,11 @@ window.cancelFeedbackEdit = cancelFeedbackEdit;
 function renderAdminFeedbackList() {
     const container = document.getElementById('admin-feedback-list');
     if (!container) return;
+    
+    const linkContainer = document.getElementById('diaries-links-container');
+    if (linkContainer && linkContainer.children.length === 0) {
+        addDiariesLinkInput('');
+    }
 
     const list = window.feedbacks || [];
     if (list.length === 0) {
@@ -1746,7 +1766,7 @@ function renderAdminFeedbackList() {
 
     container.innerHTML = list.map(f => {
         const platformLabel = f.platform === 'instagram' ? 'Instagram' : (f.platform === 'facebook' ? 'Facebook' : 'Testimonial');
-        const activeLabel = f.active !== false 
+        const activeLabel = (f.active !== false && f.active !== 'false')
             ? '<span style="font-size:8px; background:rgba(0,255,0,0.1); color:#00ff00; border:1px solid rgba(0,255,0,0.2); padding:1px 4px; border-radius:4px; font-weight:bold;">ACTIVE</span>' 
             : '<span style="font-size:8px; background:rgba(255,0,0,0.1); color:#ff0000; border:1px solid rgba(255,0,0,0.2); padding:1px 4px; border-radius:4px; font-weight:bold;">HIDDEN</span>';
             
@@ -1759,8 +1779,8 @@ function renderAdminFeedbackList() {
             });
         
         let postImgUrl = '';
-        if (f.link && (f.link.includes('instagram.com/p/') || f.link.includes('instagram.com/reel/') || f.link.includes('instagram.com/tv/'))) {
-            const match = f.link.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
+        if (f.link && f.link.includes('instagram.com') && (f.link.includes('/p/') || f.link.includes('/reel/') || f.link.includes('/tv/'))) {
+            const match = f.link.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
             if (match && match[1]) {
                 postImgUrl = `https://www.instagram.com/p/${match[1]}/media/?size=l`;
             }
@@ -1779,6 +1799,11 @@ function renderAdminFeedbackList() {
         const imgHtml = images.length > 0 ? `<img src="${images[0]}" referrerpolicy="no-referrer" style="width:30px; height:30px; object-fit:cover; border-radius:4px; border:1px solid #333;">` : '';
         const countBadge = images.length > 1 ? `<span style="font-size:8px; background:#444; color:#fff; padding:1px 3px; border-radius:3px; position:absolute; bottom:0; right:0;">${images.length}</span>` : '';
         
+        const isActive = f.active !== false && f.active !== 'false';
+        const toggleIcon = isActive 
+            ? `<i class="fa fa-eye" style="color:#00ff00; cursor:pointer; font-size:12px; padding:5px; margin-right:5px;" onclick="toggleFeedbackActiveStatus('${f.id}', true)" title="Hide feedback"></i>` 
+            : `<i class="fa fa-eye-slash" style="color:#888; cursor:pointer; font-size:12px; padding:5px; margin-right:5px;" onclick="toggleFeedbackActiveStatus('${f.id}', false)" title="Show/Activate feedback"></i>`;
+
         return `
         <div style="display:flex; align-items:center; gap:10px; background:#1a1a1a; padding:10px; border-radius:10px; border:1px solid #333;">
             <div style="position:relative; width:30px; height:30px; flex-shrink:0;">
@@ -1794,6 +1819,7 @@ function renderAdminFeedbackList() {
                 <div style="font-size:10px; color:#aaa; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;">${f.text || '(No text)'}</div>
             </div>
             <div style="display:flex; align-items:center;">
+                ${toggleIcon}
                 <i class="fa fa-edit" style="color:var(--gold); cursor:pointer; font-size:12px; padding:5px; margin-right:5px;" onclick="editFeedbackItem('${f.id}')" title="Edit feedback"></i>
                 <i class="fa fa-trash" style="color:var(--red); cursor:pointer; font-size:12px; padding:5px;" onclick="deleteFeedbackItem('${f.id}')" title="Delete feedback"></i>
             </div>
@@ -1802,6 +1828,16 @@ function renderAdminFeedbackList() {
     }).join('');
 }
 window.renderAdminFeedbackList = renderAdminFeedbackList;
+
+async function toggleFeedbackActiveStatus(id, currentStatus) {
+    try {
+        await db.collection("feedbacks").doc(id).update({ active: !currentStatus });
+        showToast("Feedback status updated!");
+    } catch (e) {
+        showToast("Error updating status: " + e.message);
+    }
+}
+window.toggleFeedbackActiveStatus = toggleFeedbackActiveStatus;
 
 async function deleteFeedbackItem(id) {
     if (!confirm("Are you sure you want to delete this customer feedback/post?")) return;
@@ -1844,6 +1880,94 @@ async function saveEmailSettings() {
 }
 window.loadEmailSettings = loadEmailSettings;
 window.saveEmailSettings = saveEmailSettings;
+
+// ── Diaries Placement Settings ──
+async function loadFeedbackPlacementSettings() {
+    try {
+        const snap = await db.collection('settings').doc('diaries').get();
+        const showSection = snap.exists ? (snap.data().showSection !== false) : true;
+        const placement = snap.exists ? (snap.data().placement || 'last') : 'last';
+        const nValue = snap.exists ? (snap.data().n || 6) : 6;
+        const titleVal = snap.exists ? (snap.data().sectionTitle || '') : '';
+        const subtitleVal = snap.exists ? (snap.data().sectionSubtitle || '') : '';
+        
+        const showEl = document.getElementById('admin-fb-show-section');
+        if (showEl) showEl.checked = showSection;
+        
+        const selectEl = document.getElementById('admin-fb-placement');
+        if (selectEl) selectEl.value = placement;
+        
+        const valEl = document.getElementById('admin-fb-n-value');
+        if (valEl) valEl.value = nValue;
+        
+        const titleEl = document.getElementById('admin-fb-section-title');
+        if (titleEl) titleEl.value = titleVal;
+        
+        const subtitleEl = document.getElementById('admin-fb-section-subtitle');
+        if (subtitleEl) subtitleEl.value = subtitleVal;
+        
+        toggleFeedbackPlacementInputs();
+    } catch(e) {
+        console.error('loadFeedbackPlacementSettings error:', e);
+    }
+}
+window.loadFeedbackPlacementSettings = loadFeedbackPlacementSettings;
+
+window.toggleFeedbackPlacementInputs = function() {
+    const showEl = document.getElementById('admin-fb-show-section');
+    const controls = document.getElementById('admin-fb-placement-controls');
+    const selectEl = document.getElementById('admin-fb-placement');
+    const container = document.getElementById('admin-fb-n-container');
+    
+    const showSection = showEl ? showEl.checked : true;
+    if (controls) {
+        controls.style.display = showSection ? 'flex' : 'none';
+    }
+    if (selectEl && container) {
+        container.style.display = (showSection && selectEl.value === 'custom') ? 'flex' : 'none';
+    }
+}
+
+async function saveFeedbackPlacementSettings() {
+    const showEl = document.getElementById('admin-fb-show-section');
+    const selectEl = document.getElementById('admin-fb-placement');
+    const valEl = document.getElementById('admin-fb-n-value');
+    const titleEl = document.getElementById('admin-fb-section-title');
+    const subtitleEl = document.getElementById('admin-fb-section-subtitle');
+    if (!selectEl || !valEl) return;
+    
+    const showSection = showEl ? showEl.checked : true;
+    const placement = selectEl.value;
+    const n = parseInt(valEl.value, 10) || 6;
+    const sectionTitle = titleEl ? titleEl.value.trim() : '';
+    const sectionSubtitle = subtitleEl ? subtitleEl.value.trim() : '';
+    
+    try {
+        await db.collection('settings').doc('diaries').set({ showSection, placement, n, sectionTitle, sectionSubtitle }, { merge: true });
+        showToast('✅ Diaries settings saved!');
+    } catch(e) {
+        console.error('saveFeedbackPlacementSettings error:', e);
+        showToast('Failed to save placement settings');
+    }
+}
+window.saveFeedbackPlacementSettings = saveFeedbackPlacementSettings;
+
+window.addDiariesLinkInput = function(value = '') {
+    const container = document.getElementById('diaries-links-container');
+    if (!container) return;
+    
+    const wrapper = document.createElement('div');
+    wrapper.style = 'display:flex; gap:8px; align-items:center;';
+    wrapper.className = 'diaries-link-row';
+    
+    wrapper.innerHTML = `
+        <input type="text" class="diaries-link-input" placeholder="e.g. https://www.instagram.com/p/..." value="${value}" style="margin:0; flex:1; font-size:12px;" oninput="renderFeedbackFormPreviews()">
+        <button class="btn-gold" style="width:auto; padding:10px 14px; font-size:12px; margin:0; background:#ff4757; color:#fff;" onclick="this.parentNode.remove(); renderFeedbackFormPreviews();">-</button>
+    `;
+    container.appendChild(wrapper);
+    renderFeedbackFormPreviews();
+};
+
 
 
 
