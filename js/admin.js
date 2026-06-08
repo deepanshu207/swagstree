@@ -21,13 +21,13 @@ if (!document.getElementById('custom-toggle-styles')) {
 }
 
 // Global variables fallback definition to prevent browser cache mismatch crashes
-if (typeof isAdmin === 'undefined') window.isAdmin = false;
-if (typeof products === 'undefined') window.products = [];
-if (typeof editingId === 'undefined') window.editingId = null;
-if (typeof existingImageUrls === 'undefined') window.existingImageUrls = [];
-if (typeof currentProductFiles === 'undefined') window.currentProductFiles = [];
+if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
+if (typeof window.products === 'undefined') window.products = [];
+if (typeof window.editingId === 'undefined') window.editingId = null;
+if (typeof window.existingImageUrls === 'undefined') window.existingImageUrls = [];
+if (typeof window.currentProductFiles === 'undefined') window.currentProductFiles = [];
 
-if (typeof editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
+if (typeof window.editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
 
 const ALL_SIZES = [
     { id: 'XXS', label: 'XXS (Chest: 32")' },

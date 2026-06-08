@@ -3,24 +3,24 @@
 // ==========================================
 
 // Global variables fallback definition to prevent browser cache mismatch crashes
-if (typeof filterActiveColors === 'undefined') window.filterActiveColors = [];
-if (typeof filterActiveSizes === 'undefined') window.filterActiveSizes = [];
-if (typeof filterActivePatterns === 'undefined') window.filterActivePatterns = [];
-if (typeof filterMinPrice === 'undefined') window.filterMinPrice = null;
-if (typeof filterMaxPrice === 'undefined') window.filterMaxPrice = null;
-if (typeof priceAbsoluteMin === 'undefined') window.priceAbsoluteMin = 0;
-if (typeof priceAbsoluteMax === 'undefined') window.priceAbsoluteMax = 10000;
-if (typeof selectedColor === 'undefined') window.selectedColor = '';
-if (typeof activeProductId === 'undefined') window.activeProductId = null;
-if (typeof isAdmin === 'undefined') window.isAdmin = false;
-if (typeof products === 'undefined') window.products = [];
-if (typeof productsLoaded === 'undefined') window.productsLoaded = false;
+if (typeof window.filterActiveColors === 'undefined') window.filterActiveColors = [];
+if (typeof window.filterActiveSizes === 'undefined') window.filterActiveSizes = [];
+if (typeof window.filterActivePatterns === 'undefined') window.filterActivePatterns = [];
+if (typeof window.filterMinPrice === 'undefined') window.filterMinPrice = null;
+if (typeof window.filterMaxPrice === 'undefined') window.filterMaxPrice = null;
+if (typeof window.priceAbsoluteMin === 'undefined') window.priceAbsoluteMin = 0;
+if (typeof window.priceAbsoluteMax === 'undefined') window.priceAbsoluteMax = 10000;
+if (typeof window.selectedColor === 'undefined') window.selectedColor = '';
+if (typeof window.activeProductId === 'undefined') window.activeProductId = null;
+if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
+if (typeof window.products === 'undefined') window.products = [];
+if (typeof window.productsLoaded === 'undefined') window.productsLoaded = false;
 
-if (typeof displayedProductsLimit === 'undefined') window.displayedProductsLimit = (typeof productsPageLimitSetting !== 'undefined' ? productsPageLimitSetting : 20);
-if (typeof displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = (typeof productsPageLimitSetting !== 'undefined' ? productsPageLimitSetting : 20);
-if (typeof displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = 20;
-if (typeof ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
-if (typeof deepLinkHandled === 'undefined') window.deepLinkHandled = false;
+if (typeof window.displayedProductsLimit === 'undefined') window.displayedProductsLimit = (typeof window.productsPageLimitSetting !== 'undefined' ? window.productsPageLimitSetting : 20);
+if (typeof window.displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = (typeof window.productsPageLimitSetting !== 'undefined' ? window.productsPageLimitSetting : 20);
+if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = 20;
+if (typeof window.ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
+if (typeof window.deepLinkHandled === 'undefined') window.deepLinkHandled = false;
 
 if (typeof formatColorName === 'undefined') {
     window.formatColorName = function(col) {

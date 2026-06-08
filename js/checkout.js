@@ -3,12 +3,12 @@
 // ==========================================
 
 // Global variables fallback definition to prevent browser cache mismatch crashes
-if (typeof products === 'undefined') window.products = [];
-if (typeof selectedSize === 'undefined') window.selectedSize = 'S';
-if (typeof selectedColor === 'undefined') window.selectedColor = '';
-if (typeof cart === 'undefined') window.cart = [];
-if (typeof isAdmin === 'undefined') window.isAdmin = false;
-if (typeof currentUser === 'undefined') window.currentUser = null;
+if (typeof window.products === 'undefined') window.products = [];
+if (typeof window.selectedSize === 'undefined') window.selectedSize = 'S';
+if (typeof window.selectedColor === 'undefined') window.selectedColor = '';
+if (typeof window.cart === 'undefined') window.cart = [];
+if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
+if (typeof window.currentUser === 'undefined') window.currentUser = null;
 
 let activePromo = null;
 let codMinPayment = 100; // Default, loaded from Firestore
