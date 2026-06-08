@@ -638,11 +638,15 @@ async function placeOrder() {
     const n = document.getElementById('c-name').value.trim();
     const p = document.getElementById('c-phone').value.trim();
     const a = document.getElementById('c-addr').value.trim();
+    const emailVal = document.getElementById('c-email') ? document.getElementById('c-email').value.trim() : '';
     const activeChip = document.querySelector('.payment-chip.active');
     if (!activeChip) return showToast("Select a payment method");
     const paymentMethod = activeChip.dataset.method;
 
-    if (!n || p.length < 10 || a.length < 5) return showToast("Details incomplete");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!n || p.length < 10 || a.length < 5 || !emailVal || !emailRegex.test(emailVal)) {
+        return showToast("Please fill all details correctly (Name, 10-Digit Phone, Email, Address)");
+    }
     if (cart.length === 0) return showToast("Bag is empty");
     // Guest checkout allowed — no login required
 
@@ -654,13 +658,13 @@ async function placeOrder() {
                 codMinPayment = snap.data().minPayment;
             }
         } catch(e) { /* use cached value */ }
-        _pendingOrderArgs = { n, p, a, paymentMethod };
+        _pendingOrderArgs = { n, p, a, emailVal, paymentMethod };
         _showCodConfirmModal(codMinPayment);
         return;
     }
     // ──────────────────────────────────────────────────────────────────────────
 
-    await _executeOrder({ n, p, a, paymentMethod });
+    await _executeOrder({ n, p, a, emailVal, paymentMethod });
 }
 
 // Called from COD confirmation modal "Confirm & Place Order"
@@ -698,7 +702,7 @@ function _showCodConfirmModal(minAmt) {
     modal.style.display = 'flex';
 }
 
-async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvancePaid }) {
+async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, codAdvancePaid }) {
     const btn = document.getElementById('btn-checkout');
     if (btn) { btn.disabled = true; btn.innerText = 'Placing...'; }
 
@@ -900,7 +904,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         recipient: n,
         phone: p,
         address: a,
-        email: (currentUser && currentUser.email) ? currentUser.email : '',
+        email: emailVal || ((currentUser && currentUser.email) ? currentUser.email : ''),
         items: cart,
         subtotal,
         discount,
@@ -910,7 +914,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         notifications: {
             placed: {
-                customerMailSent: (currentUser && currentUser.email) ? true : false,
+                customerMailSent: (emailVal || (currentUser && currentUser.email)) ? true : false,
                 adminMailSent: true,
                 adminTelegramSent: false
             }
@@ -1036,9 +1040,10 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
             if (brevoKey) {
                 const toList = [];
                 const bccList = [];
-                if (currentUser && currentUser.email) {
+                const customerEmail = emailVal || ((currentUser && currentUser.email) ? currentUser.email : '');
+                if (customerEmail) {
                     toList.push({
-                        email: currentUser.email,
+                        email: customerEmail,
                         name: n
                     });
                     bccList.push({
@@ -1091,9 +1096,11 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         // Clear checkout form fields for next order
         const nameField = document.getElementById('c-name');
         const phoneField = document.getElementById('c-phone');
+        const emailField = document.getElementById('c-email');
         const addrField = document.getElementById('c-addr');
         if (nameField) nameField.value = '';
         if (phoneField) phoneField.value = '';
+        if (emailField) emailField.value = '';
         if (addrField) addrField.value = '';
         closeModal('cart-modal');
         // Only reload order history for logged-in users
