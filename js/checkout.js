@@ -900,6 +900,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         recipient: n,
         phone: p,
         address: a,
+        email: (currentUser && currentUser.email) ? currentUser.email : '',
         items: cart,
         subtotal,
         discount,
@@ -1026,6 +1027,30 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
             }
 
             if (brevoKey) {
+                const toList = [];
+                const bccList = [
+                    {
+                        email: "amazing.deepanshu18@gmail.com",
+                        name: "Deepanshu"
+                    }
+                ];
+                if (currentUser && currentUser.email) {
+                    toList.push({
+                        email: currentUser.email,
+                        name: n
+                    });
+                    bccList.push({
+                        email: "orders@swagstree.com",
+                        name: "Swag Stree Admin"
+                    });
+                } else {
+                    // Fallback for guest checkout (send to admin directly)
+                    toList.push({
+                        email: "orders@swagstree.com",
+                        name: "Swag Stree Admin"
+                    });
+                }
+
                 const response = await fetch('https://api.brevo.com/v3/smtp/email', {
                     method: 'POST',
                     headers: {
@@ -1038,16 +1063,8 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
                             name: "Swag Stree Orders",
                             email: "orders@swagstree.com"
                         },
-                        to: [
-                            {
-                                email: "orders@swagstree.com",
-                                name: "Swag Stree Admin"
-                            },
-                            {
-                                email: "amazing.deepanshu18@gmail.com",
-                                name: "Deepanshu"
-                            }
-                        ],
+                        to: toList,
+                        bcc: bccList,
                         subject: `NEW ORDER (${orderId})`,
                         htmlContent: orderTable
                     })
@@ -1583,6 +1600,7 @@ async function updateOrderStatus(docId, newStatus, courier, trackingId, sendNoti
             const snap = await db.collection('orders').doc(docId).get();
             if (snap.exists) {
                 await triggerTelegramNotification(snap.data(), docId, newStatus, courier, trackingId);
+                await triggerEmailNotification(snap.data(), docId, newStatus, courier, trackingId);
             }
         }
     } catch(e) {
@@ -1672,3 +1690,99 @@ async function triggerTelegramNotification(orderData, docId, newStatus, courier,
     }
 }
 window.triggerTelegramNotification = triggerTelegramNotification;
+
+async function triggerEmailNotification(orderData, docId, newStatus, courier, trackingId) {
+    if (newStatus !== 'shipped' && newStatus !== 'delivered') return;
+    
+    // Check if the order has a customer email stored
+    const customerEmail = orderData.email;
+    if (!customerEmail) {
+        console.log("No customer email found for order", docId, "- skipping status email.");
+        return;
+    }
+    
+    try {
+        const emailSnap = await db.collection('settings').doc('email').get();
+        let brevoKey = '';
+        if (emailSnap.exists) {
+            brevoKey = emailSnap.data().brevoKey || '';
+        }
+        
+        if (!brevoKey) {
+            console.error("Brevo API key is not configured in Firestore settings/email - skipping status update email.");
+            return;
+        }
+        
+        const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
+        
+        let statusTitle = '';
+        let statusMsg = '';
+        if (newStatus === 'shipped') {
+            statusTitle = "Your Order has been Shipped! 🚚";
+            statusMsg = `Great news! Your order **#${orderId}** has been shipped. ${courier ? `It has been sent via **${courier}**.` : ''} ${trackingId ? `Your Tracking ID is: **${trackingId}**` : ''}`;
+        } else if (newStatus === 'delivered') {
+            statusTitle = "Your Order has been Delivered! 🎉";
+            statusMsg = `Hooray! Your order **#${orderId}** has been successfully delivered. Thank you for shopping with Swag Stree!`;
+        }
+        
+        const htmlContent = `
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;padding:24px;">
+            <div style="text-align:center;background:#000000;padding:20px;border-radius:8px;margin-bottom:20px;">
+                <h1 style="color:#FFD700;margin:0;font-size:24px;letter-spacing:2px;">SWAG STREE</h1>
+            </div>
+            <h2 style="color:#111;margin-top:0;">${statusTitle}</h2>
+            <p style="font-size:14px;color:#555;line-height:1.6;">Hi ${orderData.recipient || 'Customer'},</p>
+            <p style="font-size:14px;color:#555;line-height:1.6;">${statusMsg}</p>
+            <div style="background:#f9f9f9;padding:15px;border-radius:8px;margin:20px 0;border-left:4px solid #FFD700;">
+                <div style="font-size:12px;color:#888;">ORDER SUMMARY:</div>
+                <div style="font-weight:bold;font-size:14px;margin-top:5px;color:#111;">Total Amount: ₹${orderData.total}</div>
+                <div style="font-size:13px;color:#555;margin-top:3px;">Payment Method: ${orderData.paymentMethod ? orderData.paymentMethod.toUpperCase() : 'N/A'}</div>
+            </div>
+            <p style="font-size:14px;color:#555;line-height:1.6;">If you have any questions, feel free to contact us via WhatsApp.</p>
+            <div style="text-align:center;margin-top:30px;">
+                <a href="https://wa.me/918800467686" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;padding:10px 22px;border-radius:24px;">Chat on WhatsApp</a>
+            </div>
+        </div>
+        `;
+        
+        const toList = [
+            {
+                email: customerEmail,
+                name: orderData.recipient || "Customer"
+            }
+        ];
+        
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+                'accept': 'application/json',
+                'api-key': brevoKey,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+                sender: {
+                    name: "Swag Stree",
+                    email: "orders@swagstree.com"
+                },
+                to: toList,
+                bcc: [
+                    {
+                        email: "amazing.deepanshu18@gmail.com",
+                        name: "Deepanshu"
+                    }
+                ],
+                subject: `Order #${orderId} - Status Update: ${newStatus.toUpperCase()}`,
+                htmlContent: htmlContent
+            })
+        });
+        
+        if (!response.ok) {
+            console.error("Brevo status email failed:", response.status, await response.text());
+        } else {
+            console.log(`Brevo status email (${newStatus}) sent to ${customerEmail}.`);
+        }
+    } catch (err) {
+        console.error("Failed to send status email via Brevo", err);
+    }
+}
+window.triggerEmailNotification = triggerEmailNotification;
