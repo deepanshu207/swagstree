@@ -1826,8 +1826,14 @@ async function loadEmailSettings() {
     }
 }
 async function saveEmailSettings() {
+    const key = document.getElementById('admin-brevo-key').value.trim();
+    const confirmMsg = key 
+        ? "Are you sure you want to update the Brevo API Key? This will change the email sender configuration." 
+        : "Are you sure you want to remove the Brevo API Key? This will disable order email notifications.";
+        
+    if (!confirm(confirmMsg)) return;
+
     try {
-        const key = document.getElementById('admin-brevo-key').value.trim();
         await db.collection('settings').doc('email').set({ brevoKey: key }, { merge: true });
         showToast("Email settings saved successfully!");
     } catch(e) {
