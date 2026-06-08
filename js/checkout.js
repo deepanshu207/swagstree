@@ -907,7 +907,14 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         total,
         paymentMethod,
         promoCode: activePromo ? activePromo.code : null,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        notifications: {
+            placed: {
+                customerMailSent: (currentUser && currentUser.email) ? true : false,
+                adminMailSent: true,
+                adminTelegramSent: false
+            }
+        }
     };
     if (paymentMethod === 'cod') {
         orderDoc.codMinAmount = codMinAmount || codMinPayment;
@@ -1028,12 +1035,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
 
             if (brevoKey) {
                 const toList = [];
-                const bccList = [
-                    {
-                        email: "amazing.deepanshu18@gmail.com",
-                        name: "Deepanshu"
-                    }
-                ];
+                const bccList = [];
                 if (currentUser && currentUser.email) {
                     toList.push({
                         email: currentUser.email,
@@ -1500,14 +1502,41 @@ function loadOrders() {
                                 style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; margin:0;">
                         </div>
 
+                        <!-- Notification History Tracking -->
+                        <div style="background:#111; border-radius:6px; padding:8px; margin-top:8px; font-size:10px; border:1px dashed #333; line-height:1.4;">
+                            <div style="font-weight:700; color:#aaa; margin-bottom:4px; text-transform:uppercase; font-size:9px; letter-spacing:0.5px;">🔔 Notification Status Log:</div>
+                            ${(() => {
+                                const notifs = o.notifications || {};
+                                const statusesList = ['placed', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+                                let logHtml = '';
+                                statusesList.forEach(st => {
+                                    const stNode = notifs[st];
+                                    if (stNode && (stNode.customerMailSent || stNode.adminTelegramSent || stNode.adminMailSent)) {
+                                        const logs = [];
+                                        if (stNode.adminTelegramSent) logs.push('Telegram sent to Admin ✅');
+                                        if (stNode.customerMailSent) logs.push('Email sent to Customer ✉️');
+                                        if (stNode.adminMailSent) logs.push('Email sent to Admin ✉️');
+                                        
+                                        const stLabel = ORDER_STATUSES.find(x => x.value === st)?.label || st;
+                                        logHtml += `<div style="margin-bottom:2px; color:#ccc;"><strong>${stLabel}:</strong> ${logs.join(' | ')}</div>`;
+                                    }
+                                });
+                                return logHtml || '<div style="color:#666; font-style:italic;">No notifications sent yet.</div>';
+                            })()}
+                        </div>
+
                         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
-                            <button onclick="saveAdminOrderChanges('${docId}', false)"
-                                style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:12px; font-weight:700; cursor:pointer;">
+                            <button onclick="saveAdminOrderChanges('${docId}', 'none')"
+                                style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:12px; font-weight:700; cursor:pointer; min-width:110px;">
                                 💾 Save Changes
                             </button>
-                            <button onclick="saveAdminOrderChanges('${docId}', true)"
-                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #0088cc; background:transparent; color:#0088cc; font-size:12px; font-weight:700; cursor:pointer;">
+                            <button onclick="saveAdminOrderChanges('${docId}', 'admin')"
+                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #25D366; background:transparent; color:#25D366; font-size:12px; font-weight:700; cursor:pointer; min-width:130px;">
                                 📨 Save & Notify Admin
+                            </button>
+                            <button onclick="saveAdminOrderChanges('${docId}', 'customer')"
+                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #0088cc; background:transparent; color:#0088cc; font-size:12px; font-weight:700; cursor:pointer; min-width:140px;">
+                                ✉️ Save & Notify Customer
                             </button>
                         </div>
                     </div>
@@ -1553,7 +1582,7 @@ function loadMoreOrders() {
     loadOrders();
 }
 
-window.saveAdminOrderChanges = async function(docId, sendNotification) {
+window.saveAdminOrderChanges = async function(docId, notifyType) {
     const statusVal = document.getElementById(`status-sel-${docId}`).value;
     const courierSelect = document.getElementById(`courier-sel-${docId}`).value;
     const trackingVal = document.getElementById(`tracking-input-${docId}`).value.trim();
@@ -1564,20 +1593,72 @@ window.saveAdminOrderChanges = async function(docId, sendNotification) {
         courierVal = customInp ? customInp.value.trim() : 'Other';
     }
     
-    await updateOrderStatus(docId, statusVal, courierVal, trackingVal, sendNotification);
+    try {
+        const snap = await db.collection('orders').doc(docId).get();
+        if (snap.exists) {
+            const orderData = snap.data();
+            const notifications = orderData.notifications || {};
+            const statusNode = notifications[statusVal] || {};
+            
+            if (notifyType === 'admin') {
+                if (statusNode.adminTelegramSent || orderData.status === statusVal) {
+                    const msg = statusNode.adminTelegramSent 
+                        ? `A Telegram notification for "${statusVal}" has already been sent to the admin. Do you want to send it again?`
+                        : `Order status is already "${statusVal}". Do you want to send Telegram notification anyway?`;
+                    if (!confirm(msg)) return;
+                }
+            } else if (notifyType === 'customer') {
+                if (statusNode.customerMailSent || orderData.status === statusVal) {
+                    const msg = statusNode.customerMailSent
+                        ? `An Email notification for "${statusVal}" has already been sent to the customer. Do you want to send it again?`
+                        : `Order status is already "${statusVal}". Do you want to send Email notification anyway?`;
+                    if (!confirm(msg)) return;
+                }
+            }
+        }
+    } catch(err) {
+        console.error("Error checking existing notification status:", err);
+    }
+    
+    await updateOrderStatus(docId, statusVal, courierVal, trackingVal, notifyType);
 };
 
-async function updateOrderStatus(docId, newStatus, courier, trackingId, sendNotification) {
+async function updateOrderStatus(docId, newStatus, courier, trackingId, notifyType) {
     if (!docId) return;
     const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || ORDER_STATUSES[0];
     try {
+        const docRef = db.collection('orders').doc(docId);
+        const snap = await docRef.get();
+        if (!snap.exists) return;
+        const orderData = snap.data();
+        
+        let notifications = orderData.notifications || {};
+        if (!notifications[newStatus]) {
+            notifications[newStatus] = {
+                customerMailSent: false,
+                adminMailSent: false,
+                adminTelegramSent: false
+            };
+        }
+        
         const updateData = {
             status: newStatus,
             courier: courier || '',
             trackingId: trackingId || '',
             statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        await db.collection('orders').doc(docId).update(updateData);
+        
+        if (notifyType === 'admin') {
+            await triggerTelegramNotification(orderData, docId, newStatus, courier, trackingId);
+            notifications[newStatus].adminTelegramSent = true;
+            updateData.notifications = notifications;
+        } else if (notifyType === 'customer') {
+            await triggerEmailNotification(orderData, docId, newStatus, courier, trackingId);
+            notifications[newStatus].customerMailSent = true;
+            updateData.notifications = notifications;
+        }
+        
+        await docRef.update(updateData);
         
         // Flash card confirmation
         const cardEl = document.getElementById(`order-card-${docId}`);
@@ -1596,13 +1677,6 @@ async function updateOrderStatus(docId, newStatus, courier, trackingId, sendNoti
         }
         
         showToast(`✅ Order updated: ${statusInfo.label}`);
-        if (sendNotification) {
-            const snap = await db.collection('orders').doc(docId).get();
-            if (snap.exists) {
-                await triggerTelegramNotification(snap.data(), docId, newStatus, courier, trackingId);
-                await triggerEmailNotification(snap.data(), docId, newStatus, courier, trackingId);
-            }
-        }
     } catch(e) {
         console.error('updateOrderStatus error:', e);
         showToast('Failed to update order: ' + e.message);
@@ -1692,8 +1766,6 @@ async function triggerTelegramNotification(orderData, docId, newStatus, courier,
 window.triggerTelegramNotification = triggerTelegramNotification;
 
 async function triggerEmailNotification(orderData, docId, newStatus, courier, trackingId) {
-    if (newStatus !== 'shipped' && newStatus !== 'delivered') return;
-    
     // Check if the order has a customer email stored
     const customerEmail = orderData.email;
     if (!customerEmail) {
@@ -1715,14 +1787,20 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
         
         const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
         
-        let statusTitle = '';
-        let statusMsg = '';
+        // Support dynamic title/msg for any status update
+        const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
+        let statusTitle = `Order status update: ${statusInfo.label}`;
+        let statusMsg = `Your order **#${orderId}** status has been updated to **${statusInfo.label}**.`;
+        
         if (newStatus === 'shipped') {
             statusTitle = "Your Order has been Shipped! 🚚";
             statusMsg = `Great news! Your order **#${orderId}** has been shipped. ${courier ? `It has been sent via **${courier}**.` : ''} ${trackingId ? `Your Tracking ID is: **${trackingId}**` : ''}`;
         } else if (newStatus === 'delivered') {
             statusTitle = "Your Order has been Delivered! 🎉";
             statusMsg = `Hooray! Your order **#${orderId}** has been successfully delivered. Thank you for shopping with Swag Stree!`;
+        } else if (newStatus === 'cancelled') {
+            statusTitle = "Your Order has been Cancelled ❌";
+            statusMsg = `Your order **#${orderId}** has been cancelled.`;
         }
         
         const htmlContent = `
@@ -1765,12 +1843,6 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
                     email: "orders@swagstree.com"
                 },
                 to: toList,
-                bcc: [
-                    {
-                        email: "amazing.deepanshu18@gmail.com",
-                        name: "Deepanshu"
-                    }
-                ],
                 subject: `Order #${orderId} - Status Update: ${newStatus.toUpperCase()}`,
                 htmlContent: htmlContent
             })
@@ -1779,7 +1851,7 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
         if (!response.ok) {
             console.error("Brevo status email failed:", response.status, await response.text());
         } else {
-            console.log(`Brevo status email (${newStatus}) sent to ${customerEmail}.`);
+            console.log(`Brevo status email (${newStatus}) sent successfully.`);
         }
     } catch (err) {
         console.error("Failed to send status email via Brevo", err);
