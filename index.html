@@ -472,33 +472,7 @@
             </div>
         </div>
 
-        <!-- Telegram Admin Alerts Settings -->
-        <div id="admin-telegram-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fab fa-telegram" style="color:#0088cc; font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Telegram Admin Alerts</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Receive real-time order status update alerts on account (+91 9654414891)</p>
-                </div>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <span style="font-size:11px; color:#aaa;">Bot Token</span>
-                    <input id="admin-telegram-token" type="text" placeholder="e.g. 8653322231:AAEEhGVZVjmRcN..." style="margin:0; font-size:12px;">
-                </div>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <span style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; align-items:center;">
-                        <span>Chat IDs (Multiple Accounts)</span>
-                        <button class="btn-gold" style="width:auto; padding:3px 8px; font-size:10px; margin:0;" onclick="addTelegramChatIdInput()">+ Add ID</button>
-                    </span>
-                    <div id="telegram-chat-ids-container" style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-                        <!-- Inputs dynamically generated -->
-                    </div>
-                </div>
-                <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px;" onclick="saveTelegramSettings()">Save Settings</button>
-            </div>
-        </div>
+
 
 
         <!-- Promo Code Settings -->
@@ -616,13 +590,15 @@
                     </select>
                 </div>
                 
-                <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
-                    <div style="display:flex; align-items:center; gap:8px;">
+                <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
                         <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; background:#222; border:1px solid #444; color:#fff;" onclick="document.getElementById('admin-fb-file').click()"><i class="fa fa-image"></i> Add Image(s)</button>
                         <input type="file" id="admin-fb-file" accept="image/*" multiple style="display:none;" onchange="handleFeedbackFileSelect(this)">
                         <span id="admin-fb-filename" style="font-size:11px; color:#aaa;">No image selected</span>
                     </div>
-                    <button id="admin-fb-add-btn" class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;" onclick="addFeedbackItem()">Submit</button>
+                    <div id="admin-fb-action-btn-group" style="display:flex; gap:10px; align-items:center; margin-bottom:4px;">
+                        <button id="admin-fb-add-btn" class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;" onclick="addFeedbackItem()">Submit</button>
+                    </div>
                 </div>
                 <div id="admin-fb-img-preview-container" style="display:none; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;"></div>
             </div>
@@ -654,6 +630,34 @@
                     <input id="admin-brevo-key" type="password" placeholder="e.g. xkeysib-..." style="margin:0; font-size:12px;">
                 </div>
                 <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px;" onclick="saveEmailSettings()">Save Settings</button>
+            </div>
+        </div>
+
+        <!-- Telegram Admin Alerts Settings -->
+        <div id="admin-telegram-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fab fa-telegram" style="color:#0088cc; font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Telegram Admin Alerts</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Receive real-time order status update alerts on account (+91 9654414891)</p>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:11px; color:#aaa;">Bot Token</span>
+                    <input id="admin-telegram-token" type="text" placeholder="e.g. 8653322231:AAEEhGVZVjmRcN..." style="margin:0; font-size:12px;">
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Chat IDs (Multiple Accounts)</span>
+                        <button class="btn-gold" style="width:auto; padding:3px 8px; font-size:10px; margin:0;" onclick="addTelegramChatIdInput()">+ Add ID</button>
+                    </span>
+                    <div id="telegram-chat-ids-container" style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+                        <!-- Inputs dynamically generated -->
+                    </div>
+                </div>
+                <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px;" onclick="saveTelegramSettings()">Save Settings</button>
             </div>
         </div>
 
@@ -871,6 +875,7 @@
 
             <input id="c-name" placeholder="Recipient Name" autocomplete="name">
             <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
+            <input id="c-email" placeholder="Email Address" type="email">
             <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
 
             <!-- Payment Methods -->
