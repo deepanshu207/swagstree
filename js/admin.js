@@ -1814,5 +1814,29 @@ async function deleteFeedbackItem(id) {
 }
 window.deleteFeedbackItem = deleteFeedbackItem;
 
+async function loadEmailSettings() {
+    try {
+        const snap = await db.collection('settings').doc('email').get();
+        if (snap.exists && snap.data().brevoKey) {
+            const el = document.getElementById('admin-brevo-key');
+            if (el) el.value = snap.data().brevoKey;
+        }
+    } catch(e) {
+        console.error("loadEmailSettings error:", e);
+    }
+}
+async function saveEmailSettings() {
+    try {
+        const key = document.getElementById('admin-brevo-key').value.trim();
+        await db.collection('settings').doc('email').set({ brevoKey: key }, { merge: true });
+        showToast("Email settings saved successfully!");
+    } catch(e) {
+        console.error("saveEmailSettings error:", e);
+        showToast("Failed to save email settings");
+    }
+}
+window.loadEmailSettings = loadEmailSettings;
+window.saveEmailSettings = saveEmailSettings;
+
 
 

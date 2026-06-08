@@ -67,6 +67,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadPromoSettings === 'function') loadPromoSettings();
             if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
             if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
+            if (typeof loadEmailSettings === 'function') loadEmailSettings();
         }
     }
 }, error => {
@@ -130,6 +131,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadPromoSettings === 'function') loadPromoSettings();
             if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
             if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
+            if (typeof loadEmailSettings === 'function') loadEmailSettings();
         }
 
         // Update profile header

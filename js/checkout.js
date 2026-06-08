@@ -1017,9 +1017,54 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
                 }
             }
         }
-        // -----------------------------
-        
-        await emailjs.send('service_pdnmeeb', 'template_pugghm5', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total }, 'k3l2JkCbjMs8WOAXg');
+        // --- BREVO EMAIL SENDING (LOAD KEY FROM FIRESTORE) ---
+        try {
+            const emailSnap = await db.collection('settings').doc('email').get();
+            let brevoKey = '';
+            if (emailSnap.exists) {
+                brevoKey = emailSnap.data().brevoKey || '';
+            }
+
+            if (brevoKey) {
+                const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': brevoKey,
+                        'content-type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sender: {
+                            name: "Swag Stree Orders",
+                            email: "orders@swagstree.com"
+                        },
+                        to: [
+                            {
+                                email: "orders@swagstree.com",
+                                name: "Swag Stree Admin"
+                            },
+                            {
+                                email: "amazing.deepanshu18@gmail.com",
+                                name: "Deepanshu"
+                            }
+                        ],
+                        subject: `NEW ORDER (${orderId})`,
+                        htmlContent: orderTable
+                    })
+                });
+                if (!response.ok) {
+                    const errText = await response.text();
+                    console.error("Brevo API returned error status:", response.status, errText);
+                } else {
+                    console.log("Brevo email sent successfully.");
+                }
+            } else {
+                console.error("Brevo API key is not configured in Firestore settings/email");
+            }
+        } catch (mailErr) {
+            console.error("Failed to send email via Brevo", mailErr);
+        }
+        // ----------------------------
         showToast('Success! Order Placed.');
         cart = [];
         activePromo = null;
