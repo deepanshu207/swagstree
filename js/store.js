@@ -26,23 +26,51 @@ if (typeof formatColorName === 'undefined') {
     window.formatColorName = function(col) {
         if (!col) return '';
         const clean = col.trim().toLowerCase();
-        const map = {
-            '#000000': 'Black',
-            '#ffffff': 'White',
-            '#ff0000': 'Red',
-            '#0000ff': 'Blue',
-            '#00ff00': 'Green',
-            '#ffff00': 'Yellow',
-            '#932a2a': 'Maroon',
-            '#808080': 'Grey',
-            '#ffc0cb': 'Pink',
-            '#ffa500': 'Orange',
-            '#800080': 'Purple',
-            '#a52a2a': 'Brown'
+        // Hex → name map (100+ common colors)
+        const hexMap = {
+            '#000000':'Black','#ffffff':'White','#ff0000':'Red','#0000ff':'Blue',
+            '#008000':'Green','#00ff00':'Lime','#ffff00':'Yellow','#ffa500':'Orange',
+            '#800080':'Purple','#ff00ff':'Magenta','#00ffff':'Cyan','#008080':'Teal',
+            '#808080':'Grey','#c0c0c0':'Silver','#ffc0cb':'Pink','#a52a2a':'Brown',
+            '#800000':'Maroon','#932a2a':'Maroon','#000080':'Navy','#191970':'Midnight Blue',
+            '#4169e1':'Royal Blue','#1e90ff':'Dodger Blue','#00bfff':'Deep Sky Blue',
+            '#87ceeb':'Sky Blue','#87cefa':'Light Sky Blue','#add8e6':'Light Blue',
+            '#b0c4de':'Light Steel Blue','#6495ed':'Cornflower Blue','#4682b4':'Steel Blue',
+            '#5f9ea0':'Cadet Blue','#00ced1':'Dark Turquoise','#40e0d0':'Turquoise',
+            '#48d1cc':'Medium Turquoise','#afeeee':'Pale Turquoise','#e0ffff':'Light Cyan',
+            '#7fffd4':'Aquamarine','#66cdaa':'Medium Aquamarine','#20b2aa':'Light Sea Green',
+            '#3cb371':'Medium Sea Green','#2e8b57':'Sea Green','#006400':'Dark Green',
+            '#228b22':'Forest Green','#32cd32':'Lime Green','#90ee90':'Light Green',
+            '#98fb98':'Pale Green','#8fbc8f':'Dark Sea Green','#9acd32':'Yellow Green',
+            '#6b8e23':'Olive Drab','#808000':'Olive','#556b2f':'Dark Olive Green',
+            '#00ff7f':'Spring Green','#00fa9a':'Medium Spring Green','#7cfc00':'Lawn Green',
+            '#adff2f':'Green Yellow','#ffd700':'Gold','#daa520':'Goldenrod',
+            '#b8860b':'Dark Goldenrod','#f0e68c':'Khaki','#eee8aa':'Pale Goldenrod',
+            '#bdb76b':'Dark Khaki','#ff8c00':'Dark Orange','#ff6347':'Tomato',
+            '#ff4500':'Orange Red','#ff7f50':'Coral','#ffa07a':'Light Salmon',
+            '#fa8072':'Salmon','#e9967a':'Dark Salmon','#f08080':'Light Coral',
+            '#cd5c5c':'Indian Red','#dc143c':'Crimson','#b22222':'Firebrick',
+            '#8b0000':'Dark Red','#ff69b4':'Hot Pink','#ff1493':'Deep Pink',
+            '#db7093':'Pale Violet Red','#c71585':'Medium Violet Red',
+            '#ba55d3':'Medium Orchid','#da70d6':'Orchid','#ee82ee':'Violet',
+            '#dda0dd':'Plum','#d8bfd8':'Thistle','#e6e6fa':'Lavender',
+            '#9370db':'Medium Purple','#8a2be2':'Blue Violet','#9400d3':'Dark Violet',
+            '#4b0082':'Indigo','#6a5acd':'Slate Blue','#483d8b':'Dark Slate Blue',
+            '#7b68ee':'Medium Slate Blue','#d2b48c':'Tan','#bc8f8f':'Rosy Brown',
+            '#f4a460':'Sandy Brown','#d2691e':'Chocolate','#a0522d':'Sienna',
+            '#8b4513':'Saddle Brown','#cd853f':'Peru','#deb887':'Burly Wood',
+            '#ffe4c4':'Bisque','#ffdead':'Navajo White','#f5deb3':'Wheat',
+            '#faebd7':'Antique White','#fffaf0':'Floral White','#f5f5dc':'Beige',
+            '#fff8dc':'Cornsilk','#fffacd':'Lemon Chiffon','#fffff0':'Ivory',
+            '#f0fff0':'Honeydew','#f5fffa':'Mint Cream','#f0f8ff':'Alice Blue',
+            '#fff0f5':'Lavender Blush','#fff5ee':'Seashell','#f8f8ff':'Ghost White',
+            '#d3d3d3':'Light Grey','#a9a9a9':'Dark Grey','#696969':'Dim Grey',
+            '#778899':'Light Slate Grey','#708090':'Slate Grey','#2f4f4f':'Dark Slate Grey',
         };
-        if (clean in map) return map[clean];
-        if (col.startsWith('#')) return col.toUpperCase();
-        return col.charAt(0).toUpperCase() + col.slice(1).toLowerCase();
+        if (clean in hexMap) return hexMap[clean];
+        if (clean.startsWith('#')) return col.trim().toUpperCase(); // Unknown hex → show hex
+        // Named color → capitalize each word
+        return col.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
     };
 }
 
@@ -574,8 +602,9 @@ function renderDetailColors(p) {
         
         colorSelector.innerHTML = colors.map(col => {
             const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === col);
-            const cleanColor = col.trim();
-            const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
+            // Normalize for CSS: hex stays as-is; named colors strip spaces ("light green" → "lightgreen")
+            const cleanColor = col.trim().startsWith('#') ? col.trim() : col.trim().toLowerCase().replace(/\s+/g, '');
+            const isWhite = cleanColor === '#ffffff' || cleanColor === 'white';
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
             
