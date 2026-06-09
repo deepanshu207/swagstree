@@ -100,10 +100,12 @@ body {
 .share-btn { position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.5); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; cursor: pointer; }
 .quick-add { position: absolute; bottom: 65px; right: 10px; z-index: 100; background: var(--gold); color: #000; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 
-.carousel-box { aspect-ratio: 1/1; background: #1a1a1a; position: relative; overflow: hidden; }
+.carousel-box { aspect-ratio: 4/5; background: #1a1a1a; position: relative; overflow: hidden; }
 .carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 100%; scrollbar-width: none; }
 .carousel::-webkit-scrollbar { display: none; }
-.carousel img { width: 100%; height: 100%; object-fit: cover; flex-shrink: 0; scroll-snap-align: center; }
+.carousel img { width: 100%; height: 100%; object-fit: cover; object-position: top; flex-shrink: 0; scroll-snap-align: center; }
+/* Detail view — slightly taller ratio & black background */
+#det-box { aspect-ratio: 3/4; background: #000; }
 .indicators { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; }
 .dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: 0.3s; }
 .dot.active { background: var(--gold); width: 12px; border-radius: 4px; }
