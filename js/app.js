@@ -53,10 +53,52 @@ function showToast(m) {
     setTimeout(() => t.style.display = 'none', 2000); 
 }
 
+// We map custom/common names to hex codes for the preview bubble,
+// and also return friendly display names.
+const customColorsMap = {
+    'mehndi green': { hex: '#4b5320', name: 'Mehendi Green' }, // olive-drab/army green
+    'mehndigreen': { hex: '#4b5320', name: 'Mehendi Green' },
+    'mehendi green': { hex: '#4b5320', name: 'Mehendi Green' },
+    'mehendigreen': { hex: '#4b5320', name: 'Mehendi Green' },
+    'light green': { hex: '#90ee90', name: 'Light Green' },
+    'lightgreen': { hex: '#90ee90', name: 'Light Green' },
+    'dark green': { hex: '#006400', name: 'Dark Green' },
+    'darkgreen': { hex: '#006400', name: 'Dark Green' },
+    'navy blue': { hex: '#000080', name: 'Navy Blue' },
+    'navyblue': { hex: '#000080', name: 'Navy Blue' },
+    'dusty pink': { hex: '#dcaebb', name: 'Dusty Pink' },
+    'dustypink': { hex: '#dcaebb', name: 'Dusty Pink' },
+    'light blue': { hex: '#add8e6', name: 'Light Blue' },
+    'lightblue': { hex: '#add8e6', name: 'Light Blue' },
+    'pastel pink': { hex: '#ffd1dc', name: 'Pastel Pink' },
+    'pastelpink': { hex: '#ffd1dc', name: 'Pastel Pink' },
+    'wine': { hex: '#722f37', name: 'Wine' },
+    'burgundy': { hex: '#800020', name: 'Burgundy' },
+    'olive': { hex: '#808000', name: 'Olive' },
+    'mustard': { hex: '#ffdb58', name: 'Mustard' },
+    'rust': { hex: '#b7410e', name: 'Rust' },
+    'peach': { hex: '#ffcba4', name: 'Peach' },
+    'coral': { hex: '#ff7f50', name: 'Coral' },
+    'lavender': { hex: '#e6e6fa', name: 'Lavender' },
+    'mauve': { hex: '#e0b0ff', name: 'Mauve' },
+    'mint': { hex: '#3eb489', name: 'Mint' },
+    'cream': { hex: '#fffdd0', name: 'Cream' },
+    'beige': { hex: '#f5f5dc', name: 'Beige' },
+    'khaki': { hex: '#c3b091', name: 'Khaki' }
+};
+window.customColorsMap = customColorsMap;
+
 function formatColorName(col) {
     if (!col) return '';
     const clean = col.trim().toLowerCase();
+    const cleanNoSpaces = clean.replace(/\s+/g, '');
+    
+    // Check customColorsMap first
+    if (customColorsMap[clean]) return customColorsMap[clean].name;
+    if (customColorsMap[cleanNoSpaces]) return customColorsMap[cleanNoSpaces].name;
+
     const map = {
+        '#4b5320': 'Mehendi Green',
         '#000000': 'Black',
         '#ffffff': 'White',
         '#ff0000': 'Red',
@@ -74,6 +116,7 @@ function formatColorName(col) {
     if (col.startsWith('#')) return col.toUpperCase();
     return col.charAt(0).toUpperCase() + col.slice(1).toLowerCase();
 }
+window.formatColorName = formatColorName;
 
 function copyToClipboard(text) { 
     const dummy = document.createElement("input"); 
