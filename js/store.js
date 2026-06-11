@@ -615,7 +615,9 @@ function showDetail(id) {
     renderDetailPatterns(p);
     updateVariantUI(p);
 
-    document.getElementById('detail-view').style.display = 'block';
+    const detView = document.getElementById('detail-view');
+    detView.style.display = 'block';
+    detView.classList.add('active-detail-flex');
 }
 
 function selectDetailSize(sz, el) {
@@ -865,7 +867,9 @@ function updateVariantUI(p) {
 }
 
 function closeDetail() {
-    document.getElementById('detail-view').style.display = 'none';
+    const detView = document.getElementById('detail-view');
+    detView.style.display = 'none';
+    detView.classList.remove('active-detail-flex');
     window.history.replaceState({}, '', window.location.pathname);
 }
 
