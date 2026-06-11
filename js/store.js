@@ -750,35 +750,94 @@ function updateVariantUI(p) {
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
 
-    // Update Images
+    // Update Images: Include ALL active variant images in the gallery so users can scroll through all colors
     let imagesToDisplay = [];
-    let mainImages = [];
-    let variantImages = [];
+    
+    // Add all variant images first, tagged with their variant details
+    const imageToVariantMap = [];
+    
+    // Track if a specific image has already been added to avoid exact duplicates
+    const addedImages = new Set();
 
-    // 1. Variant Images (Shown in details gallery if not hidden for this specific variant)
-    if (v && v.images && v.images.length > 0 && !v.hideDetailsGallery) {
-        variantImages.push(...v.images);
+    // 1. Gather all variant images with their mapping info
+    if (p.normalizedVariants && p.normalizedVariants.length > 0) {
+        p.normalizedVariants.forEach(variant => {
+            if (variant.images && variant.images.length > 0 && !variant.hideDetailsGallery) {
+                variant.images.forEach(img => {
+                    if (!addedImages.has(img)) {
+                        addedImages.add(img);
+                        imagesToDisplay.push(img);
+                        imageToVariantMap.push({
+                            url: img,
+                            color: variant.color || '',
+                            size: variant.size || ''
+                        });
+                    }
+                });
+            }
+        });
     }
 
-    // 2. Main Images (Shown if not hidden at product level)
-    if (!p.hideMainDetailsCarousel) {
-        if (p.images && p.images.length > 0) {
-            mainImages.push(...p.images);
+    // 2. Add main images if they are not hidden and haven't been added yet
+    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
+        p.images.forEach(img => {
+            if (!addedImages.has(img)) {
+                addedImages.add(img);
+                imagesToDisplay.push(img);
+                imageToVariantMap.push({
+                    url: img,
+                    color: '',
+                    size: ''
+                });
+            }
+        });
+    }
+
+    // Render gallery with mapping metadata
+    const galleryHtml = imagesToDisplay.length 
+        ? imagesToDisplay.map((img, index) => {
+            const mapInfo = imageToVariantMap[index] || { color: '', size: '' };
+            return `<img src="${img}" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}">`;
+        }).join('') 
+        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
+
+    const detGallery = document.getElementById('det-gallery');
+    detGallery.innerHTML = galleryHtml;
+    document.getElementById('det-indicators').innerHTML = imagesToDisplay.length > 1 ? imagesToDisplay.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : '';
+
+    // Render thumbnails strip
+    const thumbsContainer = document.getElementById('det-thumbs');
+    if (thumbsContainer) {
+        if (imagesToDisplay.length > 1) {
+            thumbsContainer.style.display = 'flex';
+            thumbsContainer.innerHTML = imagesToDisplay.map((img, idx) => {
+                const mapInfo = imageToVariantMap[idx] || { color: '', size: '' };
+                const isActive = idx === 0; // Default first active
+                const borderStyle = isActive ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
+                return `
+                    <div class="det-thumb-item" data-index="${idx}" style="width: 50px; height: 50px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
+                        <img src="${img}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                `;
+            }).join('');
+        } else {
+            thumbsContainer.style.display = 'none';
         }
     }
 
-    // Position
-    if (p.mainImagesPosition === 'end') {
-        imagesToDisplay = [...variantImages, ...mainImages];
-    } else {
-        imagesToDisplay = [...mainImages, ...variantImages];
+    // Scroll to the current selected variant's first image if we're not triggered by a scroll event
+    if (imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
+        const targetIndex = imageToVariantMap.findIndex(m => m.color === selectedColor && (selectedSize === 'Standard' || m.size === selectedSize));
+        if (targetIndex > -1) {
+            const imgEl = detGallery.children[targetIndex];
+            if (imgEl) {
+                setTimeout(() => {
+                    detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
+                    updateActiveThumbnailBorder(targetIndex);
+                }, 50);
+            }
+        }
     }
-
-    // Remove duplicates
-    imagesToDisplay = [...new Set(imagesToDisplay)];
-
-    document.getElementById('det-gallery').innerHTML = imagesToDisplay.length ? imagesToDisplay.map(img => `<img src="${img}">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
-    document.getElementById('det-indicators').innerHTML = imagesToDisplay.length > 1 ? imagesToDisplay.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : '';
 
     // Update Button and Stock Info
     const btn = document.getElementById('det-btn');
@@ -905,6 +964,108 @@ function updateDots(el) {
     const idx = Math.round(el.scrollLeft / el.offsetWidth);
     const dots = el.parentElement.querySelectorAll('.dot');
     dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+
+    // For product detail gallery: Automatically switch active variant selections on scroll
+    if (el.id === 'det-gallery') {
+        const activeImg = el.children[idx];
+        if (activeImg) {
+            const imgColor = activeImg.getAttribute('data-color');
+            const imgSize = activeImg.getAttribute('data-size');
+            const p = products.find(x => x.id === activeProductId);
+            
+            if (p) {
+                let changed = false;
+
+                // Sync visible color
+                if (imgColor && imgColor !== selectedColor) {
+                    selectedColor = imgColor;
+                    changed = true;
+                    // Highlight color chip
+                    const colorChips = document.querySelectorAll('#detail-color-selector .color-chip');
+                    colorChips.forEach(chip => {
+                        const clickAttr = chip.getAttribute('onclick') || '';
+                        chip.classList.toggle('active', clickAttr.includes(`'${imgColor}'`));
+                    });
+                }
+
+                // Sync visible size
+                if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
+                    selectedSize = imgSize;
+                    changed = true;
+                    // Highlight size chip
+                    const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
+                    sizeChips.forEach(chip => {
+                        const clickAttr = chip.getAttribute('onclick') || '';
+                        chip.classList.toggle('active', clickAttr.includes(`'${imgSize}'`));
+                    });
+                }
+
+                if (changed) {
+                    // Update selectors and buttons without scrolling the gallery container again
+                    window.detGalleryScrollingNow = true;
+                    renderDetailPatterns(p);
+                    updateVariantUI(p);
+                    window.detGalleryScrollingNow = false;
+                }
+            }
+        }
+        // Update thumbnail borders to show active image indicator
+        updateActiveThumbnailBorder(idx);
+    }
+}
+
+function clickDetThumb(idx) {
+    const detGallery = document.getElementById('det-gallery');
+    if (!detGallery) return;
+    const imgEl = detGallery.children[idx];
+    if (imgEl) {
+        window.detGalleryScrollingNow = true;
+        detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
+        updateActiveThumbnailBorder(idx);
+        
+        // Also sync option selection states matching this thumbnail
+        const imgColor = imgEl.getAttribute('data-color');
+        const imgSize = imgEl.getAttribute('data-size');
+        const p = products.find(x => x.id === activeProductId);
+        if (p) {
+            let changed = false;
+            if (imgColor && imgColor !== selectedColor) {
+                selectedColor = imgColor;
+                changed = true;
+                const colorChips = document.querySelectorAll('#detail-color-selector .color-chip');
+                colorChips.forEach(chip => {
+                    const clickAttr = chip.getAttribute('onclick') || '';
+                    chip.classList.toggle('active', clickAttr.includes(`'${imgColor}'`));
+                });
+            }
+            if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
+                selectedSize = imgSize;
+                changed = true;
+                const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
+                sizeChips.forEach(chip => {
+                    const clickAttr = chip.getAttribute('onclick') || '';
+                    chip.classList.toggle('active', clickAttr.includes(`'${imgSize}'`));
+                });
+            }
+            if (changed) {
+                renderDetailPatterns(p);
+            }
+        }
+        setTimeout(() => {
+            window.detGalleryScrollingNow = false;
+        }, 300);
+    }
+}
+
+function updateActiveThumbnailBorder(idx) {
+    const thumbs = document.querySelectorAll('#det-thumbs .det-thumb-item');
+    thumbs.forEach((thumb, i) => {
+        if (i === idx) {
+            thumb.style.borderColor = 'var(--gold)';
+        } else {
+            thumb.style.borderColor = '#222';
+        }
+    });
 }
 
 function selectChip(el, type) {
