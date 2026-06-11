@@ -23,55 +23,225 @@ if (typeof window.ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = 
 if (typeof window.deepLinkHandled === 'undefined') window.deepLinkHandled = false;
 
 if (typeof formatColorName === 'undefined') {
-    window.formatColorName = function(col) {
+    // We map custom/common names to hex codes for the preview bubble,
+    // and also return friendly display names.
+    const customColorsMap = {
+        // Greens
+        'mehndi green': { hex: '#4b5320', name: 'Mehendi Green' }, // olive-drab/army green
+        'mehndigreen': { hex: '#4b5320', name: 'Mehendi Green' },
+        'mehendi green': { hex: '#4b5320', name: 'Mehendi Green' },
+        'mehendigreen': { hex: '#4b5320', name: 'Mehendi Green' },
+        'light green': { hex: '#90ee90', name: 'Light Green' },
+        'lightgreen': { hex: '#90ee90', name: 'Light Green' },
+        'dark green': { hex: '#006400', name: 'Dark Green' },
+        'darkgreen': { hex: '#006400', name: 'Dark Green' },
+        'olive green': { hex: '#556b2f', name: 'Olive Green' },
+        'olivegreen': { hex: '#556b2f', name: 'Olive Green' },
+        'mint green': { hex: '#98ff98', name: 'Mint Green' },
+        'mintgreen': { hex: '#98ff98', name: 'Mint Green' },
+        'sage green': { hex: '#87a96b', name: 'Sage Green' },
+        'sagegreen': { hex: '#87a96b', name: 'Sage Green' },
+        'rama green': { hex: '#008b8b', name: 'Rama Green' },
+        'ramagreen': { hex: '#008b8b', name: 'Rama Green' },
+        'bottle green': { hex: '#006a4e', name: 'Bottle Green' },
+        'bottlegreen': { hex: '#006a4e', name: 'Bottle Green' },
+        'sea green': { hex: '#2e8b57', name: 'Sea Green' },
+        'seagreen': { hex: '#2e8b57', name: 'Sea Green' },
+        'lime green': { hex: '#32cd32', name: 'Lime Green' },
+        'limegreen': { hex: '#32cd32', name: 'Lime Green' },
+        'army green': { hex: '#4b5320', name: 'Army Green' },
+        'armygreen': { hex: '#4b5320', name: 'Army Green' },
+        'pista green': { hex: '#93c572', name: 'Pista Green' },
+        'pistagreen': { hex: '#93c572', name: 'Pista Green' },
+        'emerald green': { hex: '#50c878', name: 'Emerald Green' },
+        'emeraldgreen': { hex: '#50c878', name: 'Emerald Green' },
+        'neon green': { hex: '#39ff14', name: 'Neon Green' },
+        'neongreen': { hex: '#39ff14', name: 'Neon Green' },
+
+        // Pinks
+        'dusty pink': { hex: '#dcaebb', name: 'Dusty Pink' },
+        'dustypink': { hex: '#dcaebb', name: 'Dusty Pink' },
+        'rose dark pink': { hex: '#c21e56', name: 'Rose Dark Pink' },
+        'rosedarkpink': { hex: '#c21e56', name: 'Rose Dark Pink' },
+        'light pink': { hex: '#ffb6c1', name: 'Light Pink' },
+        'lightpink': { hex: '#ffb6c1', name: 'Light Pink' },
+        'dark pink': { hex: '#e75480', name: 'Dark Pink' },
+        'darkpink': { hex: '#e75480', name: 'Dark Pink' },
+        'pastel pink': { hex: '#ffd1dc', name: 'Pastel Pink' },
+        'pastelpink': { hex: '#ffd1dc', name: 'Pastel Pink' },
+        'baby pink': { hex: '#ffc0cb', name: 'Baby Pink' },
+        'babypink': { hex: '#ffc0cb', name: 'Baby Pink' },
+        'hot pink': { hex: '#ff69b4', name: 'Hot Pink' },
+        'hotpink': { hex: '#ff69b4', name: 'Hot Pink' },
+        'onion pink': { hex: '#dcaebb', name: 'Onion Pink' },
+        'onionpink': { hex: '#dcaebb', name: 'Onion Pink' },
+        'gajari': { hex: '#f08080', name: 'Gajari' },
+        'blush pink': { hex: '#fe828c', name: 'Blush Pink' },
+        'blushpink': { hex: '#fe828c', name: 'Blush Pink' },
+        'fuchsia': { hex: '#ff00ff', name: 'Fuchsia' },
+
+        // Oranges & Peaches
+        'light orange': { hex: '#ffb347', name: 'Light Orange' },
+        'lightorange': { hex: '#ffb347', name: 'Light Orange' },
+        'dark orange': { hex: '#ff8c00', name: 'Dark Orange' },
+        'darkorange': { hex: '#ff8c00', name: 'Dark Orange' },
+        'peach': { hex: '#ffcba4', name: 'Peach' },
+        'coral': { hex: '#ff7f50', name: 'Coral' },
+        'rust': { hex: '#b7410e', name: 'Rust' },
+        'apricot': { hex: '#fbceb1', name: 'Apricot' },
+        'tangerine': { hex: '#f28500', name: 'Tangerine' },
+
+        // Yellows
+        'mustard yellow': { hex: '#e1ad01', name: 'Mustard Yellow' },
+        'mustardyellow': { hex: '#e1ad01', name: 'Mustard Yellow' },
+        'mustard': { hex: '#ffdb58', name: 'Mustard' },
+        'light yellow': { hex: '#ffffe0', name: 'Light Yellow' },
+        'lightyellow': { hex: '#ffffe0', name: 'Light Yellow' },
+        'haldi yellow': { hex: '#e1ad01', name: 'Haldi Yellow' },
+        'haldiyellow': { hex: '#e1ad01', name: 'Haldi Yellow' },
+        'lemon yellow': { hex: '#fff700', name: 'Lemon Yellow' },
+        'lemonyellow': { hex: '#fff700', name: 'Lemon Yellow' },
+        'gold': { hex: '#ffd700', name: 'Gold' },
+        'canary yellow': { hex: '#ffef00', name: 'Canary Yellow' },
+        'canaryyellow': { hex: '#ffef00', name: 'Canary Yellow' },
+
+        // Blues
+        'navy blue': { hex: '#000080', name: 'Navy Blue' },
+        'navyblue': { hex: '#000080', name: 'Navy Blue' },
+        'light blue': { hex: '#add8e6', name: 'Light Blue' },
+        'lightblue': { hex: '#add8e6', name: 'Light Blue' },
+        'royal blue': { hex: '#4169e1', name: 'Royal Blue' },
+        'royalblue': { hex: '#4169e1', name: 'Royal Blue' },
+        'sky blue': { hex: '#87ceeb', name: 'Sky Blue' },
+        'skyblue': { hex: '#87ceeb', name: 'Sky Blue' },
+        'baby blue': { hex: '#89cff0', name: 'Baby Blue' },
+        'babyblue': { hex: '#89cff0', name: 'Baby Blue' },
+        'firozi': { hex: '#20b2aa', name: 'Firozi' },
+        'turquoise': { hex: '#40e0d0', name: 'Turquoise' },
+        'indigo': { hex: '#4b0082', name: 'Indigo' },
+        'teal': { hex: '#008080', name: 'Teal' },
+        'denim blue': { hex: '#1560bd', name: 'Denim Blue' },
+        'denimblue': { hex: '#1560bd', name: 'Denim Blue' },
+        'powder blue': { hex: '#b0e0e6', name: 'Powder Blue' },
+        'powderblue': { hex: '#b0e0e6', name: 'Powder Blue' },
+
+        // Reds, Purples & Browns
+        'wine red': { hex: '#4e0f1d', name: 'Wine Red' },
+        'winered': { hex: '#4e0f1d', name: 'Wine Red' },
+        'wine': { hex: '#722f37', name: 'Wine' },
+        'burgundy': { hex: '#800020', name: 'Burgundy' },
+        'maroon': { hex: '#800000', name: 'Maroon' },
+        'light purple': { hex: '#d8b2d1', name: 'Light Purple' },
+        'lightpurple': { hex: '#d8b2d1', name: 'Light Purple' },
+        'lavender': { hex: '#e6e6fa', name: 'Lavender' },
+        'mauve': { hex: '#e0b0ff', name: 'Mauve' },
+        'lilac': { hex: '#c8a2c8', name: 'Lilac' },
+        'plum': { hex: '#dda0dd', name: 'Plum' },
+        'magenta': { hex: '#ff00ff', name: 'Magenta' },
+        'coffee': { hex: '#4b3621', name: 'Coffee' },
+        'chocolate': { hex: '#7b3f00', name: 'Chocolate' },
+        'tan': { hex: '#d2b48c', name: 'Tan' },
+        'terracotta': { hex: '#e2725b', name: 'Terracotta' },
+        'crimson': { hex: '#dc143c', name: 'Crimson' },
+        'plum purple': { hex: '#8e4585', name: 'Plum Purple' },
+        'plumpurple': { hex: '#8e4585', name: 'Plum Purple' },
+        'rust orange': { hex: '#c04000', name: 'Rust Orange' },
+        'rustorange': { hex: '#c04000', name: 'Rust Orange' },
+        'rust red': { hex: '#a83232', name: 'Rust Red' },
+        'rustred': { hex: '#a83232', name: 'Rust Red' },
+        'brick red': { hex: '#cb4154', name: 'Brick Red' },
+        'brickred': { hex: '#cb4154', name: 'Brick Red' },
+        'mocha': { hex: '#967969', name: 'Mocha' },
+
+        // Neutrals
+        'cream': { hex: '#fffdd0', name: 'Cream' },
+        'beige': { hex: '#f5f5dc', name: 'Beige' },
+        'khaki': { hex: '#c3b091', name: 'Khaki' },
+        'off white': { hex: '#faf0e6', name: 'Off White' },
+        'offwhite': { hex: '#faf0e6', name: 'Off White' },
+        'charcoal': { hex: '#36454f', name: 'Charcoal' },
+        'charcoal grey': { hex: '#36454f', name: 'Charcoal Grey' },
+        'charcoalgrey': { hex: '#36454f', name: 'Charcoal Grey' },
+        'olive': { hex: '#808000', name: 'Olive' },
+        'silver': { hex: '#c0c0c0', name: 'Silver' },
+        'grey': { hex: '#808080', name: 'Grey' },
+        'gray': { hex: '#808080', name: 'Grey' },
+        'ivory': { hex: '#fffff0', name: 'Ivory' },
+        'champagne': { hex: '#f7e7ce', name: 'Champagne' },
+        'rose gold': { hex: '#b76e79', name: 'Rose Gold' },
+        'rosegold': { hex: '#b76e79', name: 'Rose Gold' },
+        'copper': { hex: '#b87333', name: 'Copper' },
+        'bronze': { hex: '#cd7f32', name: 'Bronze' },
+        'seafoam': { hex: '#9fe2bf', name: 'Seafoam' },
+        'seafoam green': { hex: '#9fe2bf', name: 'Seafoam Green' },
+        'seafoamgreen': { hex: '#9fe2bf', name: 'Seafoam Green' },
+        'lavender mist': { hex: '#e6e6fa', name: 'Lavender Mist' },
+        'lavendermist': { hex: '#e6e6fa', name: 'Lavender Mist' },
+        'brick brown': { hex: '#8b5a2b', name: 'Brick Brown' },
+        'brickbrown': { hex: '#8b5a2b', name: 'Brick Brown' },
+        'peach puff': { hex: '#ffdab9', name: 'Peach Puff' },
+        'peachpuff': { hex: '#ffdab9', name: 'Peach Puff' }
+    };
+
+    window.formatColorName = function (col) {
         if (!col) return '';
         const clean = col.trim().toLowerCase();
+        const cleanNoSpaces = clean.replace(/\s+/g, '');
+
+        // Check customColorsMap first
+        if (customColorsMap[clean]) return customColorsMap[clean].name;
+        if (customColorsMap[cleanNoSpaces]) return customColorsMap[cleanNoSpaces].name;
+
         // Hex → name map (100+ common colors)
         const hexMap = {
-            '#000000':'Black','#ffffff':'White','#ff0000':'Red','#0000ff':'Blue',
-            '#008000':'Green','#00ff00':'Lime','#ffff00':'Yellow','#ffa500':'Orange',
-            '#800080':'Purple','#ff00ff':'Magenta','#00ffff':'Cyan','#008080':'Teal',
-            '#808080':'Grey','#c0c0c0':'Silver','#ffc0cb':'Pink','#a52a2a':'Brown',
-            '#800000':'Maroon','#932a2a':'Maroon','#000080':'Navy','#191970':'Midnight Blue',
-            '#4169e1':'Royal Blue','#1e90ff':'Dodger Blue','#00bfff':'Deep Sky Blue',
-            '#87ceeb':'Sky Blue','#87cefa':'Light Sky Blue','#add8e6':'Light Blue',
-            '#b0c4de':'Light Steel Blue','#6495ed':'Cornflower Blue','#4682b4':'Steel Blue',
-            '#5f9ea0':'Cadet Blue','#00ced1':'Dark Turquoise','#40e0d0':'Turquoise',
-            '#48d1cc':'Medium Turquoise','#afeeee':'Pale Turquoise','#e0ffff':'Light Cyan',
-            '#7fffd4':'Aquamarine','#66cdaa':'Medium Aquamarine','#20b2aa':'Light Sea Green',
-            '#3cb371':'Medium Sea Green','#2e8b57':'Sea Green','#006400':'Dark Green',
-            '#228b22':'Forest Green','#32cd32':'Lime Green','#90ee90':'Light Green',
-            '#98fb98':'Pale Green','#8fbc8f':'Dark Sea Green','#9acd32':'Yellow Green',
-            '#6b8e23':'Olive Drab','#808000':'Olive','#556b2f':'Dark Olive Green',
-            '#00ff7f':'Spring Green','#00fa9a':'Medium Spring Green','#7cfc00':'Lawn Green',
-            '#adff2f':'Green Yellow','#ffd700':'Gold','#daa520':'Goldenrod',
-            '#b8860b':'Dark Goldenrod','#f0e68c':'Khaki','#eee8aa':'Pale Goldenrod',
-            '#bdb76b':'Dark Khaki','#ff8c00':'Dark Orange','#ff6347':'Tomato',
-            '#ff4500':'Orange Red','#ff7f50':'Coral','#ffa07a':'Light Salmon',
-            '#fa8072':'Salmon','#e9967a':'Dark Salmon','#f08080':'Light Coral',
-            '#cd5c5c':'Indian Red','#dc143c':'Crimson','#b22222':'Firebrick',
-            '#8b0000':'Dark Red','#ff69b4':'Hot Pink','#ff1493':'Deep Pink',
-            '#db7093':'Pale Violet Red','#c71585':'Medium Violet Red',
-            '#ba55d3':'Medium Orchid','#da70d6':'Orchid','#ee82ee':'Violet',
-            '#dda0dd':'Plum','#d8bfd8':'Thistle','#e6e6fa':'Lavender',
-            '#9370db':'Medium Purple','#8a2be2':'Blue Violet','#9400d3':'Dark Violet',
-            '#4b0082':'Indigo','#6a5acd':'Slate Blue','#483d8b':'Dark Slate Blue',
-            '#7b68ee':'Medium Slate Blue','#d2b48c':'Tan','#bc8f8f':'Rosy Brown',
-            '#f4a460':'Sandy Brown','#d2691e':'Chocolate','#a0522d':'Sienna',
-            '#8b4513':'Saddle Brown','#cd853f':'Peru','#deb887':'Burly Wood',
-            '#ffe4c4':'Bisque','#ffdead':'Navajo White','#f5deb3':'Wheat',
-            '#faebd7':'Antique White','#fffaf0':'Floral White','#f5f5dc':'Beige',
-            '#fff8dc':'Cornsilk','#fffacd':'Lemon Chiffon','#fffff0':'Ivory',
-            '#f0fff0':'Honeydew','#f5fffa':'Mint Cream','#f0f8ff':'Alice Blue',
-            '#fff0f5':'Lavender Blush','#fff5ee':'Seashell','#f8f8ff':'Ghost White',
-            '#d3d3d3':'Light Grey','#a9a9a9':'Dark Grey','#696969':'Dim Grey',
-            '#778899':'Light Slate Grey','#708090':'Slate Grey','#2f4f4f':'Dark Slate Grey',
+            '#4b5320': 'Mehndi Green',
+            '#000000': 'Black', '#ffffff': 'White', '#ff0000': 'Red', '#0000ff': 'Blue',
+            '#008000': 'Green', '#00ff00': 'Lime', '#ffff00': 'Yellow', '#ffa500': 'Orange',
+            '#800080': 'Purple', '#ff00ff': 'Magenta', '#00ffff': 'Cyan', '#008080': 'Teal',
+            '#808080': 'Grey', '#c0c0c0': 'Silver', '#ffc0cb': 'Pink', '#a52a2a': 'Brown',
+            '#800000': 'Maroon', '#932a2a': 'Maroon', '#000080': 'Navy', '#191970': 'Midnight Blue',
+            '#4169e1': 'Royal Blue', '#1e90ff': 'Dodger Blue', '#00bfff': 'Deep Sky Blue',
+            '#87ceeb': 'Sky Blue', '#87cefa': 'Light Sky Blue', '#add8e6': 'Light Blue',
+            '#b0c4de': 'Light Steel Blue', '#6495ed': 'Cornflower Blue', '#4682b4': 'Steel Blue',
+            '#5f9ea0': 'Cadet Blue', '#00ced1': 'Dark Turquoise', '#40e0d0': 'Turquoise',
+            '#48d1cc': 'Medium Turquoise', '#afeeee': 'Pale Turquoise', '#e0ffff': 'Light Cyan',
+            '#7fffd4': 'Aquamarine', '#66cdaa': 'Medium Aquamarine', '#20b2aa': 'Light Sea Green',
+            '#3cb371': 'Medium Sea Green', '#2e8b57': 'Sea Green', '#006400': 'Dark Green',
+            '#228b22': 'Forest Green', '#32cd32': 'Lime Green', '#90ee90': 'Light Green',
+            '#98fb98': 'Pale Green', '#8fbc8f': 'Dark Sea Green', '#9acd32': 'Yellow Green',
+            '#6b8e23': 'Olive Drab', '#808000': 'Olive', '#556b2f': 'Dark Olive Green',
+            '#00ff7f': 'Spring Green', '#00fa9a': 'Medium Spring Green', '#7cfc00': 'Lawn Green',
+            '#adff2f': 'Green Yellow', '#ffd700': 'Gold', '#daa520': 'Goldenrod',
+            '#b8860b': 'Dark Goldenrod', '#f0e68c': 'Khaki', '#eee8aa': 'Pale Goldenrod',
+            '#bdb76b': 'Dark Khaki', '#ff8c00': 'Dark Orange', '#ff6347': 'Tomato',
+            '#ff4500': 'Orange Red', '#ff7f50': 'Coral', '#ffa07a': 'Light Salmon',
+            '#fa8072': 'Salmon', '#e9967a': 'Dark Salmon', '#f08080': 'Light Coral',
+            '#cd5c5c': 'Indian Red', '#dc143c': 'Crimson', '#b22222': 'Firebrick',
+            '#8b0000': 'Dark Red', '#ff69b4': 'Hot Pink', '#ff1493': 'Deep Pink',
+            '#db7093': 'Pale Violet Red', '#c71585': 'Medium Violet Red',
+            '#ba55d3': 'Medium Orchid', '#da70d6': 'Orchid', '#ee82ee': 'Violet',
+            '#dda0dd': 'Plum', '#d8bfd8': 'Thistle', '#e6e6fa': 'Lavender',
+            '#9370db': 'Medium Purple', '#8a2be2': 'Blue Violet', '#9400d3': 'Dark Violet',
+            '#4b0082': 'Indigo', '#6a5acd': 'Slate Blue', '#483d8b': 'Dark Slate Blue',
+            '#7b68ee': 'Medium Slate Blue', '#d2b48c': 'Tan', '#bc8f8f': 'Rosy Brown',
+            '#f4a460': 'Sandy Brown', '#d2691e': 'Chocolate', '#a0522d': 'Sienna',
+            '#8b4513': 'Saddle Brown', '#cd853f': 'Peru', '#deb887': 'Burly Wood',
+            '#ffe4c4': 'Bisque', '#ffdead': 'Navajo White', '#f5deb3': 'Wheat',
+            '#faebd7': 'Antique White', '#fffaf0': 'Floral White', '#f5f5dc': 'Beige',
+            '#fff8dc': 'Cornsilk', '#fffacd': 'Lemon Chiffon', '#fffff0': 'Ivory',
+            '#f0fff0': 'Honeydew', '#f5fffa': 'Mint Cream', '#f0f8ff': 'Alice Blue',
+            '#fff0f5': 'Lavender Blush', '#fff5ee': 'Seashell', '#f8f8ff': 'Ghost White',
+            '#d3d3d3': 'Light Grey', '#a9a9a9': 'Dark Grey', '#696969': 'Dim Grey',
+            '#778899': 'Light Slate Grey', '#708090': 'Slate Grey', '#2f4f4f': 'Dark Slate Grey',
         };
         if (clean in hexMap) return hexMap[clean];
         if (clean.startsWith('#')) return col.trim().toUpperCase(); // Unknown hex → show hex
         // Named color → capitalize each word
         return col.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
     };
+
+    // Export customColorsMap helper for cleanColor resolution in renderDetailColors
+    window.customColorsMap = customColorsMap;
 }
 
 // ── Deep Link Handler ────────────────────────────────────────────────────────
@@ -105,26 +275,26 @@ function checkDeepLink() {
 }
 
 // 1. DATA LOADING
-function loadData() { 
-    db.collection("products").onSnapshot(snap => { 
+function loadData() {
+    db.collection("products").onSnapshot(snap => {
         products = snap.docs.map(doc => {
-            const p = {...doc.data(), id:doc.id};
+            const p = { ...doc.data(), id: doc.id };
             p.normalizedVariants = normalizeVariants(p);
             return p;
-        }); 
+        });
         window.productsLoaded = true;
-        renderStore(); 
+        renderStore();
         renderFilters();
-        if(typeof renderAdmin === "function") renderAdmin();
+        if (typeof renderAdmin === "function") renderAdmin();
         checkDeepLink(); // open shared product link if present
     }, error => {
         console.error("Firestore products onSnapshot error:", error);
-    }); 
+    });
 
     db.collection("feedbacks").orderBy("timestamp", "desc").onSnapshot(snap => {
-        window.feedbacks = snap.docs.map(doc => ({...doc.data(), id: doc.id}));
+        window.feedbacks = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
         renderFeedbacks();
-        if(typeof renderAdminFeedbackList === "function") renderAdminFeedbackList();
+        if (typeof renderAdminFeedbackList === "function") renderAdminFeedbackList();
     }, error => {
         console.error("Firestore feedbacks error:", error);
     });
@@ -138,42 +308,42 @@ function loadData() {
     });
 }
 
-function renderStore() { 
-    renderProducts(products, 'product-grid'); 
-    renderProducts(products.filter(p => wishlist.includes(p.id)), 'wish-grid'); 
+function renderStore() {
+    renderProducts(products, 'product-grid');
+    renderProducts(products.filter(p => wishlist.includes(p.id)), 'wish-grid');
 }
 
 // 2. RENDERING LOGIC
 function productCardHtml(p) {
-    const isFav = wishlist.includes(p.id); 
-    
+    const isFav = wishlist.includes(p.id);
+
     const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
-    
+
     // Home Page Image Visibility Logic
     let displayImages = [];
     if (!p.hideMainCarousel) {
         displayImages = [...(p.images || [])];
     }
-    
+
     // Add images from variants that opted-in to the home screen
     activeVariants.filter(v => v.showInMainCarousel).forEach(v => {
         if (v.images) displayImages = [...displayImages, ...v.images];
     });
-    
+
     // Remove duplicates and empty strings
     displayImages = [...new Set(displayImages)].filter(img => img && img.trim() !== '');
-    
+
     // Fallback if absolutely empty
     if (displayImages.length === 0 && activeVariants.length > 0 && !p.hideNoImagePlaceholder) {
         const vWithImg = activeVariants.find(v => v.images && v.images.length > 0);
         if (vWithImg) displayImages = vWithImg.images;
     }
-    
+
     // If they strictly want to hide placeholder when hiding main carousel and there's no images
     if (p.hideMainCarousel && p.hideNoImagePlaceholder) {
         displayImages = [];
     }
-    
+
     let isOutOfStock = false;
     if (activeVariants.length > 0) {
         const trackingVariants = activeVariants.filter(v => v.trackStock);
@@ -181,15 +351,15 @@ function productCardHtml(p) {
             isOutOfStock = true;
         }
     }
-    
+
     let quickAddHtml = `<div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')" style="${isOutOfStock ? 'opacity:0.5; pointer-events:none;' : ''}">
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
     </div>`;
 
     return `
     <div class="card"> 
-        <div class="wish-btn ${isFav?'active':''}" onclick="event.stopPropagation(); toggleWish('${p.id}')">
-            <i class="fa${isFav?'s':'r'} fa-heart"></i>
+        <div class="wish-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleWish('${p.id}')">
+            <i class="fa${isFav ? 's' : 'r'} fa-heart"></i>
         </div> 
         <div class="share-btn" onclick="event.stopPropagation(); shareProduct('${p.id}')">
             <i class="fa fa-share-alt"></i>
@@ -201,7 +371,7 @@ function productCardHtml(p) {
                 ${displayImages.length ? displayImages.map(img => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">')}
             </div> 
             <div class="indicators">
-                ${displayImages.length > 1 ? displayImages.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''}
+                ${displayImages.length > 1 ? displayImages.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : ''}
             </div> 
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
@@ -218,13 +388,13 @@ function setupInfiniteScrollObserver() {
     if (infiniteScrollObserver) {
         infiniteScrollObserver.disconnect();
     }
-    
+
     infiniteScrollObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting && !isLoadingMore) {
                 const target = entry.target.getAttribute('data-target');
                 isLoadingMore = true;
-                
+
                 setTimeout(() => {
                     if (target === 'products') {
                         loadMoreProducts();
@@ -239,20 +409,20 @@ function setupInfiniteScrollObserver() {
         rootMargin: '100px',
         threshold: 0.1
     });
-    
+
     document.querySelectorAll('.infinite-scroll-loader').forEach(el => {
         infiniteScrollObserver.observe(el);
     });
 }
 
-function renderProducts(items, targetId) { 
-    const container = document.getElementById(targetId); 
-    if(!container) return;
-    
+function renderProducts(items, targetId) {
+    const container = document.getElementById(targetId);
+    if (!container) return;
+
     if (targetId === 'product-grid') {
         const loadMoreBtnContainer = document.getElementById('load-more-container');
         const countContainer = document.getElementById('product-count');
-        
+
         if (items.length === 0 && !window.productsLoaded) {
             if (countContainer) countContainer.style.display = 'none';
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -292,7 +462,7 @@ function renderProducts(items, targetId) {
             `;
             return;
         }
-        
+
         if (items.length === 0) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -302,7 +472,7 @@ function renderProducts(items, targetId) {
             }
             return;
         }
-        
+
         let itemsToRender = items;
         if (items.length > displayedProductsLimit) {
             itemsToRender = items.slice(0, displayedProductsLimit);
@@ -316,16 +486,16 @@ function renderProducts(items, targetId) {
         } else {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
         }
-        
+
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
             countContainer.innerHTML = `Showing ${visible} of ${items.length} Products`;
             countContainer.style.display = 'inline-flex';
         }
-        
+
         const settings = window.diariesSettings || { placement: 'last', showSection: true };
         const feedbackCards = (typeof getFeedbackCardsHtml === 'function' && settings.showSection !== false) ? getFeedbackCardsHtml() : [];
-        
+
         function getDiariesSectionHtml(cards) {
             if (!cards || cards.length === 0) return '';
             const sectionTitle = settings.sectionTitle || '✨ CUSTOMER DIARIES';
@@ -339,7 +509,7 @@ function renderProducts(items, targetId) {
                 <div class="feedback-grid" style="padding:0;">${cards.join('')}</div>
             </div>`;
         }
-        
+
         let finalHtml = '';
         if (settings.placement === 'first') {
             finalHtml = getDiariesSectionHtml(feedbackCards) + itemsToRender.map(productCardHtml).join('');
@@ -349,7 +519,7 @@ function renderProducts(items, targetId) {
             const n = settings.n || 6;
             const pCards = itemsToRender.map(productCardHtml);
             let combined = [];
-            
+
             for (let i = 0; i < pCards.length; i++) {
                 combined.push(pCards[i]);
                 if ((i + 1) % n === 0 && i !== pCards.length - 1) {
@@ -363,12 +533,12 @@ function renderProducts(items, targetId) {
         } else {
             finalHtml = itemsToRender.map(productCardHtml).join('');
         }
-        
-        container.innerHTML = finalHtml; 
+
+        container.innerHTML = finalHtml;
     } else if (targetId === 'wish-grid') {
         const loadMoreBtnContainer = document.getElementById('wish-load-more-container');
         const countContainer = document.getElementById('wish-count');
-        
+
         if (items.length === 0 && !window.productsLoaded) {
             if (countContainer) countContainer.style.display = 'none';
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -394,7 +564,7 @@ function renderProducts(items, targetId) {
             `;
             return;
         }
-        
+
         if (items.length === 0) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
@@ -404,7 +574,7 @@ function renderProducts(items, targetId) {
             }
             return;
         }
-        
+
         let itemsToRender = items;
         if (items.length > displayedWishlistLimit) {
             itemsToRender = items.slice(0, displayedWishlistLimit);
@@ -418,22 +588,22 @@ function renderProducts(items, targetId) {
         } else {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
         }
-        
+
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
             countContainer.innerHTML = `Showing ${visible} of ${items.length} Items`;
             countContainer.style.display = 'inline-flex';
         }
-        
-        container.innerHTML = itemsToRender.map(productCardHtml).join(''); 
+
+        container.innerHTML = itemsToRender.map(productCardHtml).join('');
     } else {
-        if(items.length === 0) {
+        if (items.length === 0) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             return;
         }
-        container.innerHTML = items.map(productCardHtml).join(''); 
+        container.innerHTML = items.map(productCardHtml).join('');
     }
-    
+
     setupInfiniteScrollObserver();
 }
 
@@ -449,7 +619,7 @@ function normalizeVariants(p) {
             let patternValues = v.pattern ? v.pattern.split(',').map(p => p.trim()).filter(p => p) : [''];
             const patternNameValues = v.patternName ? v.patternName.split(',').map(p => p.trim()) : [];
             const showPatternText = !!v.showPatternText;
-            
+
             if (v.previewImages && v.previewImages.length > 0) {
                 const imgCount = v.previewImages.length;
                 const newPatternValues = [];
@@ -465,7 +635,7 @@ function normalizeVariants(p) {
             } else if (patternValues.length === 1 && patternValues[0] === '' && (v.previewImage || v.existingPreviewImage)) {
                 patternValues = ['Design 1'];
             }
-            
+
             sizeValues.forEach(sz => {
                 colorValues.forEach((col, colIdx) => {
                     patternValues.forEach((pat, patIdx) => {
@@ -479,11 +649,11 @@ function normalizeVariants(p) {
                         } else if (v.previewImage || v.existingPreviewImage) {
                             patPreviewUrl = v.previewImage || v.existingPreviewImage;
                         }
-                        
+
                         if (!finalPatternName && patPreviewUrl) {
                             finalPatternName = `Design-${fallbackIndex++}`;
                         }
-                        
+
                         normalized.push({
                             ...v,
                             size: sz,
@@ -525,21 +695,21 @@ function getSelectedVariant(p) {
     return match;
 }
 
-function showDetail(id) { 
-    const p = products.find(x => x.id === id); 
-    if(!p) return;
-    
+function showDetail(id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+
     activeProductId = id;
     p.normalizedVariants = normalizeVariants(p);
-    
-    document.getElementById('det-name').innerText = p.name; 
-    document.getElementById('det-desc').innerText = p.description || "Premium Quality."; 
-    
+
+    document.getElementById('det-name').innerText = p.name;
+    document.getElementById('det-desc').innerText = p.description || "Premium Quality.";
+
     // Set up sizes
     const uniqueSizes = [...new Set(p.normalizedVariants.map(v => v.size))];
     const sizeSelector = document.getElementById('detail-size-selector');
     const sizesContainer = document.getElementById('det-sizes-container');
-    
+
     if (uniqueSizes.length === 0 || (uniqueSizes.length === 1 && uniqueSizes[0] === 'Standard')) {
         sizesContainer.style.display = 'none';
         selectedSize = 'Standard';
@@ -547,7 +717,7 @@ function showDetail(id) {
     } else {
         sizesContainer.style.display = 'block';
         selectedSize = uniqueSizes[0];
-        
+
         sizeSelector.innerHTML = uniqueSizes.map(sz => `
             <div class="size-chip ${sz === selectedSize ? 'active' : ''}" onclick="selectDetailSize('${sz}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
         `).join('');
@@ -556,15 +726,17 @@ function showDetail(id) {
     renderDetailColors(p);
     renderDetailPatterns(p);
     updateVariantUI(p);
-    
-    document.getElementById('detail-view').style.display = 'block'; 
+
+    const detView = document.getElementById('detail-view');
+    detView.style.display = 'block';
+    detView.classList.add('active-detail-flex');
 }
 
 function selectDetailSize(sz, el) {
     selectedSize = sz;
     el.parentElement.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
-    
+
     const p = products.find(x => x.id === activeProductId);
     if (p) {
         renderDetailColors(p);
@@ -577,7 +749,7 @@ function selectDetailColor(col, el) {
     selectedColor = col;
     el.parentElement.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
-    
+
     const p = products.find(x => x.id === activeProductId);
     if (p) {
         renderDetailPatterns(p);
@@ -589,9 +761,9 @@ function renderDetailColors(p) {
     const colorsContainer = document.getElementById('det-colors-container');
     const colorSelector = document.getElementById('detail-color-selector');
     if (!colorsContainer || !colorSelector) return;
-    
+
     const colors = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize).map(v => v.color).filter(c => c))];
-    
+
     if (colors.length === 0) {
         colorsContainer.style.display = 'none';
         selectedColor = '';
@@ -599,15 +771,26 @@ function renderDetailColors(p) {
         colorsContainer.style.display = 'block';
         // Only reset color if the current selectedColor isn't available for this size
         if (!colors.includes(selectedColor)) selectedColor = colors[0];
-        
+
         colorSelector.innerHTML = colors.map(col => {
             const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === col);
-            // Normalize for CSS: hex stays as-is; named colors strip spaces ("light green" → "lightgreen")
-            const cleanColor = col.trim().startsWith('#') ? col.trim() : col.trim().toLowerCase().replace(/\s+/g, '');
-            const isWhite = cleanColor === '#ffffff' || cleanColor === 'white';
+            // Normalize for CSS: hex stays as-is; check customColorsMap; otherwise strip spaces
+            let cleanColor = col.trim();
+            if (!cleanColor.startsWith('#')) {
+                const normName = cleanColor.toLowerCase();
+                const normNameNoSpaces = normName.replace(/\s+/g, '');
+                if (window.customColorsMap && window.customColorsMap[normName]) {
+                    cleanColor = window.customColorsMap[normName].hex;
+                } else if (window.customColorsMap && window.customColorsMap[normNameNoSpaces]) {
+                    cleanColor = window.customColorsMap[normNameNoSpaces].hex;
+                } else {
+                    cleanColor = normNameNoSpaces;
+                }
+            }
+            const isWhite = cleanColor === '#ffffff' || cleanColor === 'white' || cleanColor === '#fff';
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
-            
+
             return `
                 <div class="color-chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">
                     ${colorPreview}<span>${v ? v.colorName : formatColorName(col)}</span>
@@ -621,7 +804,7 @@ function selectDetailPattern(pat, el) {
     window.selectedPattern = pat;
     el.parentElement.querySelectorAll('.size-chip, .color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
-    
+
     const p = products.find(x => x.id === activeProductId);
     if (p) updateVariantUI(p);
 }
@@ -630,17 +813,17 @@ function renderDetailPatterns(p) {
     const patternsContainer = document.getElementById('det-patterns-container');
     const patternSelector = document.getElementById('detail-pattern-selector');
     if (!patternsContainer || !patternSelector) return;
-    
+
     // Filter variants that match current size and color, then get unique patterns
     const patterns = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize && v.color === selectedColor).map(v => v.pattern).filter(pat => pat))];
-    
+
     if (patterns.length === 0) {
         patternsContainer.style.display = 'none';
         window.selectedPattern = '';
     } else {
         patternsContainer.style.display = 'block';
         if (!patterns.includes(window.selectedPattern)) window.selectedPattern = patterns[0];
-        
+
         patternSelector.innerHTML = patterns.map(pat => {
             const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === selectedColor && x.pattern === pat);
             const hasImage = v && v.previewImage;
@@ -651,7 +834,7 @@ function renderDetailPatterns(p) {
             // - If has image + showPatternText NOT checked: show only image (no text)
             const displayText = v && v.patternDisplayName ? v.patternDisplayName : pat;
             const shouldShowText = !hasImage || (v && v.showPatternText);
-            
+
             if (hasImage) {
                 const imgHtml = `<img src="${v.previewImage}" style="width:28px; height:28px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); vertical-align:middle; flex-shrink:0;">`;
                 const textHtml = shouldShowText ? `<span style="font-size:11px; font-weight:600; margin-left:5px; line-height:1.2;">${displayText}</span>` : '';
@@ -661,7 +844,7 @@ function renderDetailPatterns(p) {
                 </div>
                 `;
             }
-            
+
             // Text-only pattern
             return `
             <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${displayText}">
@@ -674,48 +857,107 @@ function renderDetailPatterns(p) {
 
 function updateVariantUI(p) {
     const v = getSelectedVariant(p);
-    
+
     // Update Price
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
-    
-    // Update Images
+
+    // Update Images: Include ALL active variant images in the gallery so users can scroll through all colors
     let imagesToDisplay = [];
-    let mainImages = [];
-    let variantImages = [];
     
-    // 1. Variant Images (Shown in details gallery if not hidden for this specific variant)
-    if (v && v.images && v.images.length > 0 && !v.hideDetailsGallery) {
-        variantImages.push(...v.images);
+    // Add all variant images first, tagged with their variant details
+    const imageToVariantMap = [];
+    
+    // Track if a specific image has already been added to avoid exact duplicates
+    const addedImages = new Set();
+
+    // 1. Gather all variant images with their mapping info
+    if (p.normalizedVariants && p.normalizedVariants.length > 0) {
+        p.normalizedVariants.forEach(variant => {
+            if (variant.images && variant.images.length > 0 && !variant.hideDetailsGallery) {
+                variant.images.forEach(img => {
+                    if (!addedImages.has(img)) {
+                        addedImages.add(img);
+                        imagesToDisplay.push(img);
+                        imageToVariantMap.push({
+                            url: img,
+                            color: variant.color || '',
+                            size: variant.size || ''
+                        });
+                    }
+                });
+            }
+        });
     }
-    
-    // 2. Main Images (Shown if not hidden at product level)
-    if (!p.hideMainDetailsCarousel) {
-        if (p.images && p.images.length > 0) {
-            mainImages.push(...p.images);
+
+    // 2. Add main images if they are not hidden and haven't been added yet
+    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
+        p.images.forEach(img => {
+            if (!addedImages.has(img)) {
+                addedImages.add(img);
+                imagesToDisplay.push(img);
+                imageToVariantMap.push({
+                    url: img,
+                    color: '',
+                    size: ''
+                });
+            }
+        });
+    }
+
+    // Render gallery with mapping metadata
+    const galleryHtml = imagesToDisplay.length 
+        ? imagesToDisplay.map((img, index) => {
+            const mapInfo = imageToVariantMap[index] || { color: '', size: '' };
+            return `<img src="${img}" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}">`;
+        }).join('') 
+        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
+
+    const detGallery = document.getElementById('det-gallery');
+    detGallery.innerHTML = galleryHtml;
+    document.getElementById('det-indicators').innerHTML = imagesToDisplay.length > 1 ? imagesToDisplay.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : '';
+
+    // Render thumbnails strip
+    const thumbsContainer = document.getElementById('det-thumbs');
+    if (thumbsContainer) {
+        if (imagesToDisplay.length > 1) {
+            thumbsContainer.style.display = 'flex';
+            thumbsContainer.innerHTML = imagesToDisplay.map((img, idx) => {
+                const mapInfo = imageToVariantMap[idx] || { color: '', size: '' };
+                const isActive = idx === 0; // Default first active
+                const borderStyle = isActive ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
+                return `
+                    <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
+                        <img src="${img}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
+                    </div>
+                `;
+            }).join('');
+        } else {
+            thumbsContainer.style.display = 'none';
         }
     }
-    
-    // Position
-    if (p.mainImagesPosition === 'end') {
-        imagesToDisplay = [...variantImages, ...mainImages];
-    } else {
-        imagesToDisplay = [...mainImages, ...variantImages];
+
+    // Scroll to the current selected variant's first image if we're not triggered by a scroll event
+    if (imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
+        const targetIndex = imageToVariantMap.findIndex(m => m.color === selectedColor && (selectedSize === 'Standard' || m.size === selectedSize));
+        if (targetIndex > -1) {
+            const imgEl = detGallery.children[targetIndex];
+            if (imgEl) {
+                setTimeout(() => {
+                    detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
+                    updateActiveThumbnailBorder(targetIndex);
+                }, 50);
+            }
+        }
     }
-    
-    // Remove duplicates
-    imagesToDisplay = [...new Set(imagesToDisplay)];
-    
-    document.getElementById('det-gallery').innerHTML = imagesToDisplay.length ? imagesToDisplay.map(img => `<img src="${img}">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">'); 
-    document.getElementById('det-indicators').innerHTML = imagesToDisplay.length > 1 ? imagesToDisplay.map((_, i) => `<div class="dot ${i===0?'active':''}"></div>`).join('') : ''; 
-    
+
     // Update Button and Stock Info
     const btn = document.getElementById('det-btn');
     if (!btn) return;
-    
+
     let isOutOfStock = false;
     let lowStockText = '';
-    
+
     if (v && v.trackStock) {
         if ((v.stockCount || 0) <= 0) {
             isOutOfStock = true;
@@ -723,7 +965,7 @@ function updateVariantUI(p) {
             lowStockText = `Only ${v.stockCount} left in stock!`;
         }
     }
-    
+
     // Add low stock warning UI before the button if exists
     let warningContainer = document.getElementById('det-stock-warning');
     if (!warningContainer) {
@@ -733,13 +975,13 @@ function updateVariantUI(p) {
         btn.parentNode.insertBefore(warningContainer, btn);
     }
     warningContainer.innerText = lowStockText;
-    
+
     let qtyInCart = 0;
     if (typeof cart !== 'undefined' && v) {
         const existing = cart.find(item => item.id === p.id && item.variantSize === v.size && item.variantColor === v.color && (item.variantPattern || '') === (window.selectedPattern || ''));
         if (existing) qtyInCart = existing.qty;
     }
-    
+
     if (qtyInCart > 0) {
         btn.style.padding = "0";
         btn.style.background = "var(--gold)";
@@ -765,7 +1007,7 @@ function updateVariantUI(p) {
         btn.style.background = "var(--gold)";
         btn.style.color = "#000";
         btn.disabled = false;
-        
+
         let label = "ADD TO BAG";
         const specs = [];
         if (selectedSize && selectedSize !== 'Standard') specs.push(`Size: ${selectedSize}`);
@@ -781,63 +1023,167 @@ function updateVariantUI(p) {
         }
         if (specs.length > 0) label += ` (${specs.join(', ')})`;
         btn.innerHTML = label;
-        
-        btn.onclick = () => { 
+
+        btn.onclick = () => {
             const uniqueSizes = [...new Set(p.normalizedVariants.map(v => v.size))];
             if (uniqueSizes.length > 0 && !selectedSize) return showToast("Please select a size");
             const availableColors = p.normalizedVariants.filter(x => x.size === selectedSize).map(x => x.color).filter(c => c);
             if (availableColors.length > 0 && !selectedColor) return showToast("Please select a color");
-            
-            addToBagWithSelection(p.id, selectedSize, selectedColor, window.selectedPattern || ''); 
+
+            addToBagWithSelection(p.id, selectedSize, selectedColor, window.selectedPattern || '');
             // Don't close detail instantly, let them use the stepper
             updateVariantUI(p);
         };
     }
 }
 
-function closeDetail() { 
-    document.getElementById('detail-view').style.display = 'none'; 
+function closeDetail() {
+    const detView = document.getElementById('detail-view');
+    detView.style.display = 'none';
+    detView.classList.remove('active-detail-flex');
     window.history.replaceState({}, '', window.location.pathname);
 }
 
 // 4. INTERACTIVITY
-function toggleWish(id) { 
-    if(!currentUser) return showToast("Login first"); 
-    let newWish = wishlist.includes(id) ? wishlist.filter(x => x !== id) : [...wishlist, id]; 
-    db.collection("users").doc(currentUser.uid).set({ wishlist: newWish }, { merge: true }); 
+function toggleWish(id) {
+    if (!currentUser) return showToast("Login first");
+    let newWish = wishlist.includes(id) ? wishlist.filter(x => x !== id) : [...wishlist, id];
+    db.collection("users").doc(currentUser.uid).set({ wishlist: newWish }, { merge: true });
 }
 
-async function shareProduct(id) { 
-    const p = products.find(x => x.id === id); 
+async function shareProduct(id) {
+    const p = products.find(x => x.id === id);
     if (!p) return;
     const shareUrl = `${window.location.origin}${window.location.pathname}?id=${id}`;
     const shareText = `👗 *${p.name}*\n💰 ₹${p.price}\n\n🛍️ Shop now on Swag Stree:\n${shareUrl}`;
-    if (navigator.share) { 
-        try { 
+    if (navigator.share) {
+        try {
             await navigator.share({ title: p.name, text: shareText });
-        } catch (err) {} 
-    } else { 
+        } catch (err) { }
+    } else {
         copyToClipboard(shareUrl);
         showToast('Link copied to clipboard!');
-    } 
+    }
 }
 
-function searchHandler() { 
+function searchHandler() {
     displayedProductsLimit = productsPageLimitSetting;
-    const q = document.getElementById('app_search').value.toLowerCase(); 
-    renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid'); 
+    const q = document.getElementById('app_search').value.toLowerCase();
+    renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
 }
 
-function updateDots(el) { 
-    const idx = Math.round(el.scrollLeft / el.offsetWidth); 
-    const dots = el.parentElement.querySelectorAll('.dot'); 
-    dots.forEach((d, i) => d.classList.toggle('active', i === idx)); 
+function updateDots(el) {
+    const idx = Math.round(el.scrollLeft / el.offsetWidth);
+    const dots = el.parentElement.querySelectorAll('.dot');
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+
+    // For product detail gallery: Automatically switch active variant selections on scroll
+    if (el.id === 'det-gallery') {
+        const activeImg = el.children[idx];
+        if (activeImg) {
+            const imgColor = activeImg.getAttribute('data-color');
+            const imgSize = activeImg.getAttribute('data-size');
+            const p = products.find(x => x.id === activeProductId);
+            
+            if (p) {
+                let changed = false;
+
+                // Sync visible color
+                if (imgColor && imgColor !== selectedColor) {
+                    selectedColor = imgColor;
+                    changed = true;
+                    // Highlight color chip
+                    const colorChips = document.querySelectorAll('#detail-color-selector .color-chip');
+                    colorChips.forEach(chip => {
+                        const clickAttr = chip.getAttribute('onclick') || '';
+                        chip.classList.toggle('active', clickAttr.includes(`'${imgColor}'`));
+                    });
+                }
+
+                // Sync visible size
+                if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
+                    selectedSize = imgSize;
+                    changed = true;
+                    // Highlight size chip
+                    const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
+                    sizeChips.forEach(chip => {
+                        const clickAttr = chip.getAttribute('onclick') || '';
+                        chip.classList.toggle('active', clickAttr.includes(`'${imgSize}'`));
+                    });
+                }
+
+                if (changed) {
+                    // Update selectors and buttons without scrolling the gallery container again
+                    window.detGalleryScrollingNow = true;
+                    renderDetailPatterns(p);
+                    updateVariantUI(p);
+                    window.detGalleryScrollingNow = false;
+                }
+            }
+        }
+        // Update thumbnail borders to show active image indicator
+        updateActiveThumbnailBorder(idx);
+    }
 }
 
-function selectChip(el, type) { 
-    el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); 
-    el.classList.add('active'); 
-    selectedSize = el.innerText; 
+function clickDetThumb(idx) {
+    const detGallery = document.getElementById('det-gallery');
+    if (!detGallery) return;
+    const imgEl = detGallery.children[idx];
+    if (imgEl) {
+        window.detGalleryScrollingNow = true;
+        detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
+        updateActiveThumbnailBorder(idx);
+        
+        // Also sync option selection states matching this thumbnail
+        const imgColor = imgEl.getAttribute('data-color');
+        const imgSize = imgEl.getAttribute('data-size');
+        const p = products.find(x => x.id === activeProductId);
+        if (p) {
+            let changed = false;
+            if (imgColor && imgColor !== selectedColor) {
+                selectedColor = imgColor;
+                changed = true;
+                const colorChips = document.querySelectorAll('#detail-color-selector .color-chip');
+                colorChips.forEach(chip => {
+                    const clickAttr = chip.getAttribute('onclick') || '';
+                    chip.classList.toggle('active', clickAttr.includes(`'${imgColor}'`));
+                });
+            }
+            if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
+                selectedSize = imgSize;
+                changed = true;
+                const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
+                sizeChips.forEach(chip => {
+                    const clickAttr = chip.getAttribute('onclick') || '';
+                    chip.classList.toggle('active', clickAttr.includes(`'${imgSize}'`));
+                });
+            }
+            if (changed) {
+                renderDetailPatterns(p);
+            }
+        }
+        setTimeout(() => {
+            window.detGalleryScrollingNow = false;
+        }, 300);
+    }
+}
+
+function updateActiveThumbnailBorder(idx) {
+    const thumbs = document.querySelectorAll('#det-thumbs .det-thumb-item');
+    thumbs.forEach((thumb, i) => {
+        if (i === idx) {
+            thumb.style.borderColor = 'var(--gold)';
+        } else {
+            thumb.style.borderColor = '#222';
+        }
+    });
+}
+
+function selectChip(el, type) {
+    el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    selectedSize = el.innerText;
 }
 
 // 5. FILTERING SYSTEM
@@ -898,11 +1244,11 @@ function updatePriceSliderUI() {
 
     const minVal = parseFloat(minRange.value);
     const maxVal = parseFloat(maxRange.value);
-    
+
     const min = parseFloat(minRange.min) || 0;
     const max = parseFloat(minRange.max) || 5000;
     const range = max - min;
-    
+
     const minPercent = range > 0 ? ((minVal - min) / range) * 100 : 0;
     const maxPercent = range > 0 ? ((maxVal - min) / range) * 100 : 100;
 
@@ -955,7 +1301,7 @@ function renderFilters() {
         minInput.max = priceAbsoluteMax;
         maxInput.min = priceAbsoluteMin;
         maxInput.max = priceAbsoluteMax;
-        
+
         minInput.value = Math.round(filterMinPrice);
         maxInput.value = Math.round(filterMaxPrice);
     }
@@ -963,7 +1309,7 @@ function renderFilters() {
     updatePriceSliderUI();
 
     if (minRange && maxRange) {
-        minRange.oninput = function() {
+        minRange.oninput = function () {
             let minVal = parseFloat(minRange.value);
             let maxVal = parseFloat(maxRange.value);
             if (minVal > maxVal) {
@@ -975,7 +1321,7 @@ function renderFilters() {
             applySortAndFilter();
         };
 
-        maxRange.oninput = function() {
+        maxRange.oninput = function () {
             let minVal = parseFloat(minRange.value);
             let maxVal = parseFloat(maxRange.value);
             if (maxVal < minVal) {
@@ -989,7 +1335,7 @@ function renderFilters() {
     }
 
     if (minInput && maxInput) {
-        minInput.onchange = function() {
+        minInput.onchange = function () {
             let val = parseFloat(minInput.value);
             if (isNaN(val) || val < priceAbsoluteMin) val = priceAbsoluteMin;
             if (val > filterMaxPrice) val = filterMaxPrice;
@@ -1000,7 +1346,7 @@ function renderFilters() {
             applySortAndFilter();
         };
 
-        maxInput.onchange = function() {
+        maxInput.onchange = function () {
             let val = parseFloat(maxInput.value);
             if (isNaN(val) || val > priceAbsoluteMax) val = priceAbsoluteMax;
             if (val < filterMinPrice) val = filterMinPrice;
@@ -1045,9 +1391,9 @@ function renderFilters() {
                 const patVal = v.pattern.trim();
                 const previewUrl = v.previewImage || '';
                 const displayName = (v.patternDisplayName && v.patternDisplayName.trim()) ? v.patternDisplayName.trim() : patVal;
-                
+
                 const groupKey = previewUrl ? previewUrl : displayName.toLowerCase();
-                
+
                 if (!patternGroups.has(groupKey)) {
                     patternGroups.set(groupKey, {
                         key: groupKey,
@@ -1119,7 +1465,7 @@ function resetFilters() {
     filterActiveSizes = [];
     filterActiveColors = [];
     filterActivePatterns = [];
-    
+
     filterMinPrice = priceAbsoluteMin;
     filterMaxPrice = priceAbsoluteMax;
 
@@ -1129,7 +1475,7 @@ function resetFilters() {
         minRange.value = priceAbsoluteMin;
         maxRange.value = priceAbsoluteMax;
     }
-    
+
     const minInput = document.getElementById('price-min-input');
     const maxInput = document.getElementById('price-max-input');
     if (minInput && maxInput) {
@@ -1201,7 +1547,7 @@ function changeSortLogic() {
 
 function loadMoreProducts() {
     displayedProductsLimit += productsPageLimitSetting;
-    const q = document.getElementById('app_search').value.toLowerCase(); 
+    const q = document.getElementById('app_search').value.toLowerCase();
     if (q) {
         renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
     } else {
@@ -1214,24 +1560,24 @@ function loadMoreWishlist() {
     renderStore();
 }
 
-window.handleFeedbackImageError = function(imgEl, postId) {
+window.handleFeedbackImageError = function (imgEl, postId) {
     if (!postId) return;
     const container = imgEl.parentElement;
     if (!container) return;
-    
+
     container.innerHTML = `
         <iframe src="https://www.instagram.com/p/${postId}/embed" style="width:100%; height:100%; border:none; display:block; background:#fff;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
     `;
-    
+
     if (container.style.aspectRatio) {
         container.style.aspectRatio = 'auto';
         container.style.height = '460px';
     }
 };
 
-window.openFeedbackPost = function(el, allLinks) {
+window.openFeedbackPost = function (el, allLinks) {
     if (!allLinks || allLinks.length === 0) return;
-    
+
     const card = el.closest('.feedback-card');
     let activeIdx = 0;
     if (card) {
@@ -1242,7 +1588,7 @@ window.openFeedbackPost = function(el, allLinks) {
             activeIdx = Math.round(scrollLeft / offsetWidth);
         }
     }
-    
+
     const targetLink = allLinks[activeIdx] || allLinks[0];
     if (targetLink) {
         window.open(targetLink, '_blank');
@@ -1253,10 +1599,10 @@ function getFeedbackCardsHtml() {
     if (!window.feedbacks || window.feedbacks.length === 0) {
         return [];
     }
-    
+
     return window.feedbacks.filter(f => f.active !== false && f.active !== 'false').flatMap(f => {
         const platformIconStyle = 'color:#E1306C; font-size:16px; cursor:pointer;';
-        
+
         let customImages = (f.imageUrls || (f.imageUrl ? [f.imageUrl] : []))
             .filter(url => url && url.trim() !== '')
             .map(url => {
@@ -1270,7 +1616,7 @@ function getFeedbackCardsHtml() {
                 if (url.includes('facebook.com') && !url.includes('fbcdn')) return false;
                 return true;
             });
-        
+
         function normalizeFacebookLink(link) {
             if (!link) return '';
             link = link.trim();
@@ -1294,10 +1640,10 @@ function getFeedbackCardsHtml() {
         const links = f.showMultiple && f.link
             ? f.link.split(',').map(url => normalizeFacebookLink(url.trim())).filter(url => url)
             : [normalizeFacebookLink((f.link || '').trim())];
-        
+
         return links.map(link => {
             let postImgUrls = [];
-            
+
             if (f.showMultiple) {
                 if (link && f.platform === 'instagram') {
                     const match = link.match(/(?:instagram\.com)\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&]+)/i);
@@ -1316,7 +1662,7 @@ function getFeedbackCardsHtml() {
                     }
                 });
             }
-            
+
             const position = f.imgPosition || 'first';
             let images = [...customImages];
             if (postImgUrls.length > 0) {
@@ -1326,23 +1672,23 @@ function getFeedbackCardsHtml() {
                     images = [...customImages, ...postImgUrls];
                 }
             }
-            
+
             // Skip rendering if there is no image, no link, and no text caption
             if (images.length === 0 && !link && !f.text) {
                 return '';
             }
-            
+
             // Skip rendering social media cards if there's no link and no images
             if ((f.platform === 'instagram' || f.platform === 'facebook') && images.length === 0 && !link) {
                 return '';
             }
-            
+
             // Render official Instagram/Facebook iframe embeds if no images to display in carousel
             if (images.length === 0 && link && (f.platform === 'instagram' || f.platform === 'facebook')) {
-                const fallbackLinks = f.showMultiple 
-                    ? [link] 
+                const fallbackLinks = f.showMultiple
+                    ? [link]
                     : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
-                
+
                 if (fallbackLinks.length > 0) {
                     return fallbackLinks.map(fl => {
                         if (fl.includes('instagram.com') && (fl.includes('/p/') || fl.includes('/reel/') || fl.includes('/tv/'))) {
@@ -1388,11 +1734,11 @@ function getFeedbackCardsHtml() {
                     </div>
                     `;
                 }).join('');
-                
+
                 const dotHtml = images.map((_, i) => `
-                    <div class="dot ${i===0?'active':''}" style="cursor:pointer; pointer-events:auto;" onclick="event.stopPropagation(); const c = this.parentElement.previousElementSibling; c.scrollTo({left: ${i} * c.offsetWidth, behavior: 'smooth'});"></div>
+                    <div class="dot ${i === 0 ? 'active' : ''}" style="cursor:pointer; pointer-events:auto;" onclick="event.stopPropagation(); const c = this.parentElement.previousElementSibling; c.scrollTo({left: ${i} * c.offsetWidth, behavior: 'smooth'});"></div>
                 `).join('');
-                
+
                 mediaHtml = `
                 <div class="carousel-box" style="border-radius:10px 10px 0 0; border-bottom: 1px solid #222;">
                     <div class="carousel" onscroll="updateDots(this)">
@@ -1407,14 +1753,14 @@ function getFeedbackCardsHtml() {
             } else {
                 mediaHtml = `<div style="padding:15px 15px 0 15px; color:rgba(255, 215, 0, 0.12); font-size:36px; line-height:1; font-family:serif; font-weight:bold;">“</div>`;
             }
-                
+
             const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s;`;
-            
+
             const allLinksForCard = f.showMultiple
                 ? [link]
                 : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
             const serializedLinks = JSON.stringify(allLinksForCard).replace(/"/g, '&quot;');
-            
+
             let platformIcon = '';
             if (f.platform === 'instagram') {
                 platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})"></i>`;
@@ -1423,7 +1769,7 @@ function getFeedbackCardsHtml() {
             } else {
                 platformIcon = `<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>`;
             }
-            
+
             return `
             <div class="feedback-card" style="${cardStyle}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
@@ -1446,19 +1792,19 @@ function getFeedbackCardsHtml() {
 function renderFeedbacks() {
     const container = document.getElementById('feedback-section-container');
     if (!container) return;
-    
+
     const settings = window.diariesSettings || { placement: 'none' };
     if (!window.feedbacks || window.feedbacks.length === 0 || settings.placement !== 'none') {
         container.style.display = 'none';
         return;
     }
-    
+
     container.style.display = 'block';
     const grid = document.getElementById('feedback-grid');
     if (!grid) return;
-    
+
     grid.innerHTML = getFeedbackCardsHtml().join('');
-    
+
     if (window.instgrm) {
         window.instgrm.Embeds.process();
     } else {

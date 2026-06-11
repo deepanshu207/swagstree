@@ -811,11 +811,15 @@
                 <i class="fa fa-share-alt" onclick="shareProduct(activeProductId)" style="font-size:18px; padding:10px; cursor:pointer;"></i>
             </div>
         </div>
-        <div id="det-box" class="carousel-box">
-            <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
-            <div id="det-indicators" class="indicators"></div>
+        <div id="detail-view-left-col">
+            <div id="det-box" class="carousel-box">
+                <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
+                <div id="det-indicators" class="indicators"></div>
+            </div>
+            <!-- Thumbnail Previews List -->
+            <div id="det-thumbs" style="display:flex; gap:8px; overflow-x:auto; padding:10px 15px; background:#000; scrollbar-width:none;"></div>
         </div>
-        <div style="padding:25px; padding-bottom:80px;">
+        <div id="detail-view-right-col" style="padding:25px; padding-bottom:80px;">
             <h2 id="det-name" style="margin:0;"></h2>
             <div id="det-price" style="color:var(--gold); font-size:24px; font-weight:800; margin:10px 0"></div>
 
