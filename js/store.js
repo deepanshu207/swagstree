@@ -160,6 +160,8 @@ if (typeof formatColorName === 'undefined') {
         'off white': { hex: '#faf0e6', name: 'Off White' },
         'offwhite': { hex: '#faf0e6', name: 'Off White' },
         'charcoal': { hex: '#36454f', name: 'Charcoal' },
+        'charcoal grey': { hex: '#36454f', name: 'Charcoal Grey' },
+        'charcoalgrey': { hex: '#36454f', name: 'Charcoal Grey' },
         'olive': { hex: '#808000', name: 'Olive' },
         'silver': { hex: '#c0c0c0', name: 'Silver' },
         'grey': { hex: '#808080', name: 'Grey' },
@@ -169,7 +171,16 @@ if (typeof formatColorName === 'undefined') {
         'rose gold': { hex: '#b76e79', name: 'Rose Gold' },
         'rosegold': { hex: '#b76e79', name: 'Rose Gold' },
         'copper': { hex: '#b87333', name: 'Copper' },
-        'bronze': { hex: '#cd7f32', name: 'Bronze' }
+        'bronze': { hex: '#cd7f32', name: 'Bronze' },
+        'seafoam': { hex: '#9fe2bf', name: 'Seafoam' },
+        'seafoam green': { hex: '#9fe2bf', name: 'Seafoam Green' },
+        'seafoamgreen': { hex: '#9fe2bf', name: 'Seafoam Green' },
+        'lavender mist': { hex: '#e6e6fa', name: 'Lavender Mist' },
+        'lavendermist': { hex: '#e6e6fa', name: 'Lavender Mist' },
+        'brick brown': { hex: '#8b5a2b', name: 'Brick Brown' },
+        'brickbrown': { hex: '#8b5a2b', name: 'Brick Brown' },
+        'peach puff': { hex: '#ffdab9', name: 'Peach Puff' },
+        'peachpuff': { hex: '#ffdab9', name: 'Peach Puff' }
     };
 
     window.formatColorName = function (col) {
