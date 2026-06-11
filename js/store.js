@@ -927,8 +927,8 @@ function updateVariantUI(p) {
                 const isActive = idx === 0; // Default first active
                 const borderStyle = isActive ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
                 return `
-                    <div class="det-thumb-item" data-index="${idx}" style="width: 50px; height: 50px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
-                        <img src="${img}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
+                        <img src="${img}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
                     </div>
                 `;
             }).join('');
