@@ -82,14 +82,50 @@ body {
 @media (max-width: 1024px), (pointer: coarse) {
     .desktop-nav { display: none !important; }
     .bottom-nav { display: flex !important; }
-    body { padding-bottom: 90px !important; }
+    body { padding-bottom: 120px !important; } /* Add padding to body so fixed footer doesn't overlap content scroll */
+    #app-footer {
+        position: fixed !important;
+        bottom: 58px !important; /* height of bottom nav item is ~56px */
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 1999 !important;
+        background: rgba(10, 10, 10, 0.95) !important;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 -3px 10px rgba(0,0,0,0.6);
+        padding: 12px 15px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+    }
 }
+
+/* Failsafe overrides when footer is hidden */
+#app-footer.hidden {
+    display: none !important;
+}
+body.footer-hidden {
+    padding-bottom: 60px !important;
+}
+
 
 @media (min-width: 1025px) and (pointer: fine) {
     .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
     .bottom-nav { display: none !important; }
     .desktop-nav { display: flex !important; }
     body { padding-bottom: 0 !important; }
+    #app-footer {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        background: #0a0a0a !important;
+        padding: 25px 20px !important;
+        margin-top: 40px !important;
+        display: flex !important;
+        justify-content: center;
+        align-items: center;
+        gap: 30px;
+    }
 }
 
 /* 4. PRODUCT GRID & CARDS */
@@ -825,5 +861,84 @@ body {
 .feedback-card:hover .feedback-img {
     transform: scale(1.05);
 }
+
+/* WYSIWYG Editor Styles */
+.wysiwyg-container {
+    border: 1px solid #222;
+    border-radius: 8px;
+    background: #141414;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin-top: 4px;
+}
+.wysiwyg-toolbar {
+    background: #1c1c1c;
+    border-bottom: 1px solid #222;
+    padding: 6px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.wysiwyg-btn {
+    background: none;
+    border: none;
+    color: #aaa;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+}
+.wysiwyg-btn:hover {
+    background: #2a2a2a;
+    color: var(--gold);
+}
+.wysiwyg-btn.active {
+    background: var(--gold);
+    color: #000;
+}
+.wysiwyg-editor {
+    padding: 12px;
+    min-height: 100px;
+    max-height: 300px;
+    overflow-y: auto;
+    color: #eee;
+    font-size: 12px;
+    line-height: 1.6;
+    outline: none;
+    background: #141414;
+}
+.wysiwyg-editor:focus {
+    background: #171717;
+}
+.wysiwyg-editor[placeholder]:empty::before {
+    content: attr(placeholder);
+    color: #555;
+    cursor: text;
+}
+.wysiwyg-editor ul, .wysiwyg-editor ol {
+    margin: 5px 0 15px 20px;
+    padding: 0;
+}
+.wysiwyg-editor li {
+    margin-bottom: 4px;
+}
+.wysiwyg-editor p {
+    margin: 0 0 10px 0;
+}
+.wysiwyg-editor h3 {
+    margin: 15px 0 8px 0;
+    color: var(--gold);
+    font-size: 14px;
+}
+
 
 

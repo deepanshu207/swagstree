@@ -306,6 +306,18 @@ function loadData() {
             renderFeedbacks();
         }
     });
+
+    db.collection("settings").doc("footer").onSnapshot(snap => {
+        window.footerSettings = snap.exists ? snap.data() : {
+            copyright: "Swagstree",
+            aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+            showGps: true,
+            gpsLat: "28.6139",
+            gpsLng: "77.2090",
+            contactPhone: "8800467686"
+        };
+        if (typeof renderFooter === 'function') renderFooter();
+    });
 }
 
 function renderStore() {
@@ -862,46 +874,47 @@ function updateVariantUI(p) {
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
 
-    // Update Images: Include ALL active variant images in the gallery so users can scroll through all colors
+    // Update Images: Display only selected variant/color images, falling back to main product images
     let imagesToDisplay = [];
-    
-    // Add all variant images first, tagged with their variant details
     const imageToVariantMap = [];
     
-    // Track if a specific image has already been added to avoid exact duplicates
-    const addedImages = new Set();
-
-    // 1. Gather all variant images with their mapping info
-    if (p.normalizedVariants && p.normalizedVariants.length > 0) {
-        p.normalizedVariants.forEach(variant => {
-            if (variant.images && variant.images.length > 0 && !variant.hideDetailsGallery) {
-                variant.images.forEach(img => {
-                    if (!addedImages.has(img)) {
-                        addedImages.add(img);
-                        imagesToDisplay.push(img);
-                        imageToVariantMap.push({
-                            url: img,
-                            color: variant.color || '',
-                            size: variant.size || ''
-                        });
-                    }
-                });
-            }
-        });
-    }
-
-    // 2. Add main images if they are not hidden and haven't been added yet
-    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
-        p.images.forEach(img => {
-            if (!addedImages.has(img)) {
-                addedImages.add(img);
+    if (v) {
+        // 1. Check if the selected variant itself has custom images
+        if (v.images && v.images.length > 0) {
+            v.images.forEach(img => {
                 imagesToDisplay.push(img);
                 imageToVariantMap.push({
                     url: img,
-                    color: '',
-                    size: ''
+                    color: v.color || '',
+                    size: v.size || ''
+                });
+            });
+        }
+        // 2. Otherwise, check if there's another variant of the same color that has images
+        else if (v.color && p.normalizedVariants) {
+            const sameColorV = p.normalizedVariants.find(x => x.color === v.color && x.images && x.images.length > 0);
+            if (sameColorV) {
+                sameColorV.images.forEach(img => {
+                    imagesToDisplay.push(img);
+                    imageToVariantMap.push({
+                        url: img,
+                        color: sameColorV.color || '',
+                        size: sameColorV.size || ''
+                    });
                 });
             }
+        }
+    }
+
+    // 3. Fallback to main product images if no variant-specific images are available
+    if (imagesToDisplay.length === 0 && p.images && p.images.length > 0) {
+        p.images.forEach(img => {
+            imagesToDisplay.push(img);
+            imageToVariantMap.push({
+                url: img,
+                color: '',
+                size: ''
+            });
         });
     }
 
@@ -1822,3 +1835,137 @@ function renderFeedbacks() {
         }
     }
 }
+
+// ── Footer Storefront Render & Navigation ──
+let footerPreviousSectionId = 'home';
+
+function renderFooter() {
+    const settings = window.footerSettings || {
+        showFooter: true,
+        copyright: "Swagstree",
+        aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+        showGps: true,
+        gpsLat: "28.6139",
+        gpsLng: "77.2090",
+        contactPhone: "8800467686"
+    };
+
+    const footerEl = document.getElementById('app-footer');
+    if (footerEl) {
+        const currentSection = document.querySelector('.section.active');
+        const currentId = currentSection ? currentSection.id.replace('-view', '') : 'home';
+        const hasVisibleContent = !!settings.showFooter || settings.showCopyright !== false;
+        const shouldShow = hasVisibleContent && (currentId === 'home' || currentId === 'wish');
+        
+        footerEl.classList.toggle('hidden', !shouldShow);
+        document.body.classList.toggle('footer-hidden', !shouldShow);
+    }
+
+    // Update Copyright Label
+    const copyrightRow = document.getElementById('footer-copyright-row');
+    if (copyrightRow) {
+        copyrightRow.style.display = settings.showCopyright !== false ? 'flex' : 'none';
+    }
+    const copyrightTextEl = document.getElementById('footer-copyright-text');
+    if (copyrightTextEl) {
+        copyrightTextEl.innerText = settings.copyright || 'Swagstree';
+    }
+
+    // Update Links visibility (About Us, Call Us, Privacy Policy) - hidden by default, visible when checked
+    const linksRow = document.getElementById('footer-links-row');
+    if (linksRow) {
+        linksRow.style.display = !!settings.showFooter ? 'flex' : 'none';
+    }
+
+    // Update About Us text description
+    const aboutTextEl = document.getElementById('about-content-text');
+    if (aboutTextEl) {
+        const rawAbout = settings.aboutText || 'Welcome to Swagstree. Premium fashion store.';
+        if (/<[a-z][\s\S]*>/i.test(rawAbout)) {
+            aboutTextEl.innerHTML = rawAbout;
+        } else {
+            aboutTextEl.innerHTML = `<p>${rawAbout.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+        }
+    }
+
+    // Update GPS Maps Support
+    const mapContainer = document.getElementById('about-map-container');
+    const mapWrapper = document.getElementById('about-map-iframe-wrapper');
+    if (mapContainer && mapWrapper) {
+        if (settings.showGps && settings.gpsLat && settings.gpsLng) {
+            mapContainer.style.display = 'block';
+            const lat = encodeURIComponent(settings.gpsLat.trim());
+            const lng = encodeURIComponent(settings.gpsLng.trim());
+            mapWrapper.innerHTML = `<iframe 
+                width="100%" 
+                height="100%" 
+                frameborder="0" 
+                style="border:0;" 
+                src="https://maps.google.com/maps?q=${lat},${lng}&t=&z=15&ie=UTF8&iwloc=&output=embed" 
+                allowfullscreen>
+            </iframe>`;
+        } else {
+            mapContainer.style.display = 'none';
+            mapWrapper.innerHTML = '';
+        }
+    }
+
+    // Update Contact Us Direct Link
+    const contactLink = document.getElementById('footer-contact-link');
+    if (contactLink) {
+        const phone = settings.contactPhone ? settings.contactPhone.trim() : '8800467686';
+        contactLink.href = "tel:" + phone;
+    }
+
+    // Update Privacy Policy content area
+    const privacyContentEl = document.getElementById('privacy-content-text');
+    if (privacyContentEl && settings.privacyText !== undefined) {
+        const rawText = settings.privacyText || '';
+        // If it looks like HTML, render directly. Otherwise, format line breaks.
+        if (/<[a-z][\s\S]*>/i.test(rawText)) {
+            privacyContentEl.innerHTML = rawText;
+        } else {
+            const paragraphs = rawText.split('\n\n').map(p => {
+                const line = p.trim().replace(/\n/g, '<br>');
+                if (line.startsWith('1.') || line.startsWith('2.') || line.startsWith('3.')) {
+                    return `<p><strong>${line}</strong></p>`;
+                }
+                return `<p>${line}</p>`;
+            }).join('');
+            privacyContentEl.innerHTML = paragraphs || `<p>No privacy policy configured.</p>`;
+        }
+    }
+}
+window.renderFooter = renderFooter;
+
+function openFooterPage(pageId) {
+    // Save previous active section to return back to it
+    const activeSection = document.querySelector('.section.active');
+    if (activeSection && activeSection.id !== 'about-view' && activeSection.id !== 'privacy-view') {
+        footerPreviousSectionId = activeSection.id.replace('-view', '');
+    }
+
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+
+    // Show selected footer view section
+    const targetView = document.getElementById(pageId + '-view');
+    if (targetView) {
+        targetView.classList.add('active');
+        window.scrollTo(0, 0);
+    }
+}
+window.openFooterPage = openFooterPage;
+
+function closeFooterPage() {
+    // Restore previous active section
+    if (typeof nav === 'function') {
+        nav(footerPreviousSectionId);
+    } else {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const fallback = document.getElementById(footerPreviousSectionId + '-view');
+        if (fallback) fallback.classList.add('active');
+    }
+}
+window.closeFooterPage = closeFooterPage;
+

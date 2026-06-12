@@ -264,6 +264,17 @@ function nav(id, el) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); 
     document.getElementById(id + '-view').classList.add('active'); 
     
+    // Show footer always on Home and Wish views only if there is visible content enabled
+    const appFooter = document.getElementById('app-footer');
+    if (appFooter) {
+        const isLinksEnabled = window.footerSettings && !!window.footerSettings.showFooter;
+        const isCopyrightEnabled = !window.footerSettings || window.footerSettings.showCopyright !== false;
+        const hasVisibleContent = isLinksEnabled || isCopyrightEnabled;
+        const shouldShow = hasVisibleContent && (id === 'home' || id === 'wish');
+        
+        appFooter.classList.toggle('hidden', !shouldShow);
+        document.body.classList.toggle('footer-hidden', !shouldShow);
+    }
     if (id === 'home' && new URLSearchParams(window.location.search).has('id')) {
         // Clear search params to exit product detail view mode cleanly without hard reloading page
         window.history.replaceState({}, '', window.location.pathname);
@@ -275,17 +286,25 @@ function nav(id, el) {
     if (detailView) detailView.style.display = 'none';
     window.history.replaceState({}, '', window.location.pathname);
     
-    // Sync active state between desktop and mobile nav
+    // Sync active state between desktop and mobile nav strictly
     const desktopNavs = document.querySelectorAll(`.desktop-nav .nav-item`);
     const bottomNavs = document.querySelectorAll(`.bottom-nav .nav-item`);
     
     desktopNavs.forEach(n => {
         const clickAttr = n.getAttribute('onclick') || '';
-        if (clickAttr.includes(`'${id}'`)) n.classList.add('active');
+        if (clickAttr.includes(`'${id}'`)) {
+            n.classList.add('active');
+        } else {
+            n.classList.remove('active');
+        }
     });
     bottomNavs.forEach(n => {
         const clickAttr = n.getAttribute('onclick') || '';
-        if (clickAttr.includes(`'${id}'`)) n.classList.add('active');
+        if (clickAttr.includes(`'${id}'`)) {
+            n.classList.add('active');
+        } else {
+            n.classList.remove('active');
+        }
     }); 
 
     // Reset wishlist page limit when navigating to wishlist
@@ -301,6 +320,7 @@ function nav(id, el) {
         if (typeof loadMaxQtySettings === 'function') loadMaxQtySettings();
         if (typeof loadPromoSettings === 'function') loadPromoSettings();
         if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
+        if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
     }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();

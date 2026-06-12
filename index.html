@@ -58,7 +58,7 @@
     <link rel="stylesheet" href="css/style.css?v=3.0">
 </head>
 
-<body>
+<body class="footer-hidden">
 
     <div id="toast">Message</div>
     <div class="filter-overlay" onclick="toggleFilter()"></div>
@@ -641,6 +641,134 @@
             </div>
         </div>
 
+        <!-- Footer Settings Accordion -->
+        <div id="admin-footer-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-circle-info" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Footer Settings</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage each section details with accordion tabs</p>
+                </div>
+            </div>
+            
+            <!-- Accordion Container -->
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                
+                <!-- Tab 1: General -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-general')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-copyright" style="color:var(--gold); margin-right:8px;"></i>General & Copyright</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-general" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                            <input type="checkbox" id="admin-footer-show-footer" style="margin:0; width:16px; height:16px; cursor:pointer;">
+                            <label for="admin-footer-show-footer" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Enable / Show Footer on App Storefront</label>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                            <input type="checkbox" id="admin-footer-show-copyright" style="margin:0; width:16px; height:16px; cursor:pointer;">
+                            <label for="admin-footer-show-copyright" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Enable / Show Copyright Text Line</label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Copyright text displayed under footer</span>
+                            <input id="admin-footer-copyright" type="text" placeholder="e.g. Swagstree" style="margin:0; font-size:12px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: About Us -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-about')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-circle-info" style="color:var(--gold); margin-right:8px;"></i>About Us details & Map</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-about" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">About Us Content Description</span>
+                            <div class="wysiwyg-container">
+                                <div class="wysiwyg-toolbar">
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Bold')" title="Bold"><i class="fa fa-bold"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Italic')" title="Italic"><i class="fa fa-italic"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Underline')" title="Underline"><i class="fa fa-underline"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<h3>')" title="Heading H3">H3</button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<p>')" title="Paragraph P">P</button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertUnorderedList')" title="Bullet List"><i class="fa fa-list-ul"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertOrderedList')" title="Number List"><i class="fa fa-list-ol"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('removeFormat')" title="Clear formatting"><i class="fa fa-eraser"></i></button>
+                                </div>
+                                <div id="admin-footer-about-text" class="wysiwyg-editor" contenteditable="true" placeholder="About Us details..."></div>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin: 4px 0;">
+                            <input type="checkbox" id="admin-footer-show-gps" style="margin:0; width:16px; height:16px; cursor:pointer;" onchange="document.getElementById('admin-footer-gps-row').style.display = this.checked ? 'flex' : 'none';">
+                            <label for="admin-footer-show-gps" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Show GPS Map on About Us</label>
+                        </div>
+                        <div id="admin-footer-gps-row" style="display:none; gap:10px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:#aaa;">Latitude</span>
+                                <input id="admin-footer-gps-lat" type="text" placeholder="e.g. 28.6139" style="margin:0; font-size:12px;">
+                            </div>
+                            <div style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:#aaa;">Longitude</span>
+                                <input id="admin-footer-gps-lng" type="text" placeholder="e.g. 77.2090" style="margin:0; font-size:12px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Privacy Policy -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-privacy')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-shield-halved" style="color:var(--gold); margin-right:8px;"></i>Privacy Policy content</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-privacy" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Privacy Policy Content (Rich formatted document)</span>
+                            <div class="wysiwyg-container">
+                                <div class="wysiwyg-toolbar">
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Bold')" title="Bold"><i class="fa fa-bold"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Italic')" title="Italic"><i class="fa fa-italic"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Underline')" title="Underline"><i class="fa fa-underline"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<h3>')" title="Heading H3">H3</button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<p>')" title="Paragraph P">P</button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertUnorderedList')" title="Bullet List"><i class="fa fa-list-ul"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertOrderedList')" title="Number List"><i class="fa fa-list-ol"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('removeFormat')" title="Clear formatting"><i class="fa fa-eraser"></i></button>
+                                </div>
+                                <div id="admin-footer-privacy-text" class="wysiwyg-editor" contenteditable="true" placeholder="Enter privacy policy text details..."></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Tab 4: Contact Us -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-contact')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-phone" style="color:var(--gold); margin-right:8px;"></i>Contact Details</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-contact" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Contact Phone Number (Direct Call)</span>
+                            <input id="admin-footer-phone" type="text" placeholder="e.g. 8800467686" style="margin:0; font-size:12px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Action Button -->
+                <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px; margin-top:5px;" onclick="saveAdminFooterSettings()">Save Footer Settings</button>
+            </div>
+        </div>
+
         <div id="admin-list" style="padding:0 20px"></div>
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
     </div>
@@ -1005,6 +1133,70 @@
             </div>
         </div>
     </div>
+
+    <!-- SECTION: About Us View -->
+    <div id="about-view" class="section" style="padding:20px; background:#000; min-height:100vh; box-sizing:border-box;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+            <i class="fa fa-arrow-left" onclick="closeFooterPage()" style="font-size:18px; color:var(--gold); cursor:pointer; padding:10px;"></i>
+            <h3 style="margin:0; text-transform:uppercase; letter-spacing:1.5px;">About Swag Stree</h3>
+        </div>
+        <div style="background:#111; padding:20px; border-radius:18px; border:1px solid #222; line-height:1.7; color:#ccc; font-size:14px;">
+            <p id="about-content-text">Welcome to Swagstree. Premium fashion store.</p>
+            
+            <div id="about-map-container" style="display:none; margin-top:20px;">
+                <p style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:8px;">Our Location</p>
+                <div id="about-map-iframe-wrapper" style="border-radius:12px; overflow:hidden; border:1px solid #333; height:250px; background:#222;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION: Privacy Policy View -->
+    <div id="privacy-view" class="section" style="padding:20px; background:#000; min-height:100vh; box-sizing:border-box;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+            <i class="fa fa-arrow-left" onclick="closeFooterPage()" style="font-size:18px; color:var(--gold); cursor:pointer; padding:10px;"></i>
+            <h3 style="margin:0; text-transform:uppercase; letter-spacing:1.5px;">Privacy Policy</h3>
+        </div>
+        <div style="background:#111; padding:20px; border-radius:18px; border:1px solid #222; line-height:1.7; color:#ccc; font-size:14px;">
+            <div id="privacy-content-text">
+                <p><strong>Privacy Policy & Data Protection</strong></p>
+                <p>At Swag Stree, we take your privacy seriously. This policy details how we collect, use, and protect your information when using our app.</p>
+                <p><strong>1. Information Collection</strong><br>We collect your registration details (such as name, email, and phone number) to process orders and improve your store experience.</p>
+                <p><strong>2. Firebase Authentication</strong><br>All credentials and login methods (Google, Email/Password) are safely handled and securely encrypted through Google Firebase.</p>
+                <p><strong>3. Shipping & Delivery</strong><br>We share only relevant shipping details with logistics partners to ensure prompt delivery of orders.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Persistent Bottom Footer -->
+    <footer id="app-footer" class="hidden" style="background:#0a0a0a; border-top:1px solid #1a1a1a; padding:18px 15px; width:100%; box-sizing:border-box;">
+        <!-- Links Layout -->
+        <div id="footer-links-row" style="display:flex; justify-content:center; align-items:center; gap:3vw; margin-bottom:8px; flex-wrap:nowrap; font-family:'Segoe UI', sans-serif; width:100%;">
+            <!-- About Us -->
+            <div onclick="openFooterPage('about')" style="color:#eee; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
+                <i class="fa fa-circle-info" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> About Us
+            </div>
+            
+            <span style="color:#222; font-weight:400; font-size:11px;">|</span>
+            
+            <!-- Contact Us Call -->
+            <a id="footer-contact-link" href="tel:8800467686" style="color:#eee; text-decoration:none; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
+                <i class="fa fa-phone" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> Call Us
+            </a>
+
+            <span style="color:#222; font-weight:400; font-size:11px;">|</span>
+
+            <!-- Privacy Policy -->
+            <div onclick="openFooterPage('privacy')" style="color:#eee; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
+                <i class="fa fa-shield-halved" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> Privacy Policy
+            </div>
+        </div>
+
+        <!-- Copyright Line -->
+        <div id="footer-copyright-row" style="color:#444; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:4px; margin-top:2px; letter-spacing:0.5px; text-transform:uppercase;">
+            <i class="fa fa-copyright" style="font-size:9px; color:#444;"></i>
+            <span id="footer-copyright-text" style="color:#444;">Swagstree</span>
+        </div>
+    </footer>
 
     <!-- Mobile Bottom Navigation -->
     <nav class="bottom-nav">
