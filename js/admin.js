@@ -1968,6 +1968,142 @@ window.addDiariesLinkInput = function(value = '') {
     renderFeedbackFormPreviews();
 };
 
+// ── Admin Footer Settings ──
+async function loadAdminFooterSettings() {
+    try {
+        const snap = await db.collection('settings').doc('footer').get();
+        const settings = snap.exists ? snap.data() : {
+            showFooter: false,
+            showCopyright: true,
+            copyright: "Swagstree",
+            aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+            showGps: true,
+            gpsLat: "28.6139",
+            gpsLng: "77.2090",
+            contactPhone: "8800467686",
+            privacyText: `Privacy Policy & Data Protection
+
+At Swag Stree, we take your privacy seriously. This policy details how we collect, use, and protect your information when using our app.
+
+1. Information Collection
+We collect your registration details (such as name, email, and phone number) to process orders and improve your store experience.
+
+2. Firebase Authentication
+All credentials and login methods (Google, Email/Password) are safely handled and securely encrypted through Google Firebase.
+
+3. Shipping & Delivery
+We share only relevant shipping details with logistics partners to ensure prompt delivery of orders.`
+        };
+        
+        const showFooterEl = document.getElementById('admin-footer-show-footer');
+        const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
+        const copyrightEl = document.getElementById('admin-footer-copyright');
+        const aboutTextEl = document.getElementById('admin-footer-about-text');
+        const showGpsEl = document.getElementById('admin-footer-show-gps');
+        const gpsLatEl = document.getElementById('admin-footer-gps-lat');
+        const gpsLngEl = document.getElementById('admin-footer-gps-lng');
+        const phoneEl = document.getElementById('admin-footer-phone');
+        const privacyEl = document.getElementById('admin-footer-privacy-text');
+        
+        if (showFooterEl) showFooterEl.checked = !!settings.showFooter;
+        if (showCopyrightEl) showCopyrightEl.checked = settings.showCopyright !== false;
+        if (copyrightEl) copyrightEl.value = settings.copyright || '';
+        
+        if (aboutTextEl) {
+            if (aboutTextEl.tagName === 'DIV') aboutTextEl.innerHTML = settings.aboutText || '';
+            else aboutTextEl.value = settings.aboutText || '';
+        }
+        
+        if (showGpsEl) {
+            showGpsEl.checked = !!settings.showGps;
+            const gpsRow = document.getElementById('admin-footer-gps-row');
+            if (gpsRow) gpsRow.style.display = settings.showGps ? 'flex' : 'none';
+        }
+        if (gpsLatEl) gpsLatEl.value = settings.gpsLat || '';
+        if (gpsLngEl) gpsLngEl.value = settings.gpsLng || '';
+        if (phoneEl) phoneEl.value = settings.contactPhone || '8800467686';
+        
+        if (privacyEl) {
+            if (privacyEl.tagName === 'DIV') privacyEl.innerHTML = settings.privacyText || '';
+            else privacyEl.value = settings.privacyText || '';
+        }
+    } catch (e) {
+        console.error('loadAdminFooterSettings error:', e);
+    }
+}
+window.loadAdminFooterSettings = loadAdminFooterSettings;
+
+async function saveAdminFooterSettings() {
+    const showFooterEl = document.getElementById('admin-footer-show-footer');
+    const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
+    const copyrightEl = document.getElementById('admin-footer-copyright');
+    const aboutTextEl = document.getElementById('admin-footer-about-text');
+    const showGpsEl = document.getElementById('admin-footer-show-gps');
+    const gpsLatEl = document.getElementById('admin-footer-gps-lat');
+    const gpsLngEl = document.getElementById('admin-footer-gps-lng');
+    const phoneEl = document.getElementById('admin-footer-phone');
+    const privacyEl = document.getElementById('admin-footer-privacy-text');
+    
+    const settings = {
+        showFooter: showFooterEl ? showFooterEl.checked : true,
+        showCopyright: showCopyrightEl ? showCopyrightEl.checked : true,
+        copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
+        aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "Welcome to Swagstree. Premium fashion store.",
+        showGps: showGpsEl ? showGpsEl.checked : false,
+        gpsLat: gpsLatEl ? gpsLatEl.value.trim() : "",
+        gpsLng: gpsLngEl ? gpsLngEl.value.trim() : "",
+        contactPhone: phoneEl ? phoneEl.value.trim() : "8800467686",
+        privacyText: privacyEl ? (privacyEl.tagName === 'DIV' ? privacyEl.innerHTML.trim() : privacyEl.value.trim()) : ""
+    };
+    
+    try {
+        await db.collection('settings').doc('footer').set(settings, { merge: true });
+        showToast('✅ Footer settings saved successfully!');
+        if (typeof renderFooter === 'function') renderFooter();
+    } catch(e) {
+        console.error('saveAdminFooterSettings error:', e);
+        showToast('Failed to save footer settings');
+    }
+}
+window.saveAdminFooterSettings = saveAdminFooterSettings;
+
+window.execEditorCommand = function(cmd, value = null) {
+    document.execCommand(cmd, false, value);
+};
+
+window.toggleFooterAccordion = function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    
+    const isHidden = el.style.display === 'none';
+    
+    // Hide all footer accordions first
+    document.querySelectorAll('[id^="footer-acc-"]').forEach(acc => {
+        acc.style.display = 'none';
+        const head = acc.previousElementSibling;
+        if (head) {
+            const icon = head.querySelector('.fa-chevron-up, .fa-chevron-down');
+            if (icon) {
+                icon.className = 'fa fa-chevron-down';
+            }
+        }
+    });
+    
+    // Toggle selected accordion
+    if (isHidden) {
+        el.style.display = 'flex';
+        const head = el.previousElementSibling;
+        if (head) {
+            const icon = head.querySelector('.fa-chevron-up, .fa-chevron-down');
+            if (icon) {
+                icon.className = 'fa fa-chevron-up';
+            }
+        }
+    }
+};
+
+
+
 
 
 
