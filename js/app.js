@@ -326,6 +326,9 @@ function nav(id, el) {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
         if (typeof loadAssignedAdmins === 'function') loadAssignedAdmins();
     }
+    if (id === 'user') {
+        if (typeof loadProfileAddresses === 'function') loadProfileAddresses();
+    }
 }
 
 // Initialize on load

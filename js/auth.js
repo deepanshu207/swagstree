@@ -82,6 +82,12 @@ auth.onAuthStateChanged(user => {
     
     if (user) {
         const emailLower = user.email ? user.email.toLowerCase() : "";
+        
+        // Auto-align any guest orders matching this email to the registered UID
+        if (emailLower) {
+            alignGuestOrders(emailLower, user.uid);
+        }
+        
         isSuperAdmin = (emailLower === SUPER_ADMIN_EMAIL);
         
         const isAdminDeactivated = assignedAdmins.some(a => a.email === ADMIN_EMAIL.toLowerCase() && a.status === "deactivated");
@@ -263,7 +269,11 @@ auth.getRedirectResult().then(result => {
         console.error("Redirect Auth Error:", error);
         // Only show toast for real errors, not the default no-pending-redirect
         if (error.code && error.code !== 'auth/no-current-user') {
-            showToast("Google Login Failed. Try again.");
+            if (error.code === 'auth/account-exists-with-different-credential') {
+                showToast("This email is already registered with email & password. Please login using Email.");
+            } else {
+                showToast("Google Login Failed. Try again.");
+            }
         }
     }
 });
@@ -1021,3 +1031,34 @@ async function cleanEverythingPrompt() {
         showToast("Reset failed.");
     }
 }
+
+async function alignGuestOrders(email, newUid) {
+    if (!email || !newUid) return;
+    try {
+        const emailLower = email.toLowerCase().trim();
+        const ordersRef = db.collection("orders");
+        const snapshot = await ordersRef.where("email", "==", emailLower).get();
+        if (snapshot.empty) return;
+
+        const batch = db.batch();
+        let alignedCount = 0;
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.isGuest || (data.uid && data.uid.startsWith("guest_")) || data.uid !== newUid) {
+                batch.update(doc.ref, {
+                    uid: newUid,
+                    isGuest: false
+                });
+                alignedCount++;
+            }
+        });
+
+        if (alignedCount > 0) {
+            await batch.commit();
+            console.log(`Successfully aligned ${alignedCount} guest orders to registered user profile (${newUid}).`);
+        }
+    } catch (e) {
+        console.error("Error aligning guest orders:", e);
+    }
+}
+window.alignGuestOrders = alignGuestOrders;
