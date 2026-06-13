@@ -867,7 +867,7 @@ function renderDetailPatterns(p) {
     }
 }
 
-function updateVariantUI(p) {
+function updateVariantUI(p, scrollGallery = true) {
     const v = getSelectedVariant(p);
 
     // Update Price
@@ -939,6 +939,12 @@ function updateVariantUI(p) {
         imageToVariantMap = [...mainImagesMap, ...variantImagesMap];
     }
 
+    // Determine targetIndex based on currently selected options
+    const targetIndex = imagesToDisplay.length > 0
+        ? imageToVariantMap.findIndex(m => m.color === selectedColor && (selectedSize === 'Standard' || m.size === selectedSize))
+        : -1;
+    const activeThumbIdx = targetIndex > -1 ? targetIndex : 0;
+
     // Render gallery with mapping metadata
     const galleryHtml = imagesToDisplay.length 
         ? imagesToDisplay.map((img, index) => {
@@ -948,38 +954,55 @@ function updateVariantUI(p) {
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
 
     const detGallery = document.getElementById('det-gallery');
-    detGallery.innerHTML = galleryHtml;
-    document.getElementById('det-indicators').innerHTML = imagesToDisplay.length > 1 ? imagesToDisplay.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : '';
+    if (detGallery && detGallery.innerHTML !== galleryHtml) {
+        detGallery.innerHTML = galleryHtml;
+    }
+    
+    const indicatorsContainer = document.getElementById('det-indicators');
+    if (indicatorsContainer) {
+        indicatorsContainer.innerHTML = imagesToDisplay.length > 1 
+            ? imagesToDisplay.map((_, i) => `<div class="dot ${i === activeThumbIdx ? 'active' : ''}"></div>`).join('') 
+            : '';
+    }
 
     // Render thumbnails strip
     const thumbsContainer = document.getElementById('det-thumbs');
     if (thumbsContainer) {
         if (imagesToDisplay.length > 1) {
             thumbsContainer.style.display = 'flex';
-            thumbsContainer.innerHTML = imagesToDisplay.map((img, idx) => {
+            const thumbsHtml = imagesToDisplay.map((img, idx) => {
                 const mapInfo = imageToVariantMap[idx] || { color: '', size: '' };
-                const isActive = idx === 0; // Default first active
-                const borderStyle = isActive ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
+                const borderStyle = idx === activeThumbIdx ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
                 return `
                     <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
                         <img src="${img}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
                     </div>
                 `;
             }).join('');
+            
+            if (thumbsContainer.innerHTML !== thumbsHtml) {
+                thumbsContainer.innerHTML = thumbsHtml;
+            } else {
+                updateActiveThumbnailBorder(activeThumbIdx);
+            }
         } else {
             thumbsContainer.style.display = 'none';
         }
     }
 
     // Scroll to the current selected variant's first image if we're not triggered by a scroll event
-    if (imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
-        const targetIndex = imageToVariantMap.findIndex(m => m.color === selectedColor && (selectedSize === 'Standard' || m.size === selectedSize));
+    if (scrollGallery && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
         if (targetIndex > -1) {
             const imgEl = detGallery.children[targetIndex];
             if (imgEl) {
+                window.detGalleryScrollingNow = true; // Block scroll listener from interfering during smooth scroll transitions
+                clearTimeout(window.detGalleryScrollEndTimeout);
                 setTimeout(() => {
                     detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
                     updateActiveThumbnailBorder(targetIndex);
+                    setTimeout(() => {
+                        window.detGalleryScrollingNow = false;
+                    }, 800); // Failsafe unlock after 800ms
                 }, 50);
             }
         }
@@ -1113,6 +1136,14 @@ function updateDots(el) {
 
     // For product detail gallery: Automatically switch active variant selections on scroll
     if (el.id === 'det-gallery') {
+        if (window.detGalleryScrollingNow) {
+            // Keep the lock active and refresh the debounce timer as long as scrolling continues
+            clearTimeout(window.detGalleryScrollEndTimeout);
+            window.detGalleryScrollEndTimeout = setTimeout(() => {
+                window.detGalleryScrollingNow = false;
+            }, 200); // Unlock 200ms after the last scroll event finishes
+            return;
+        }
         const activeImg = el.children[idx];
         if (activeImg) {
             const imgColor = activeImg.getAttribute('data-color');
@@ -1138,19 +1169,15 @@ function updateDots(el) {
                 if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
                     selectedSize = imgSize;
                     changed = true;
-                    // Highlight size chip
-                    const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
-                    sizeChips.forEach(chip => {
-                        const clickAttr = chip.getAttribute('onclick') || '';
-                        chip.classList.toggle('active', clickAttr.includes(`'${imgSize}'`));
-                    });
                 }
 
                 if (changed) {
                     // Update selectors and buttons without scrolling the gallery container again
                     window.detGalleryScrollingNow = true;
+                    syncSizeChips();
+                    renderDetailColors(p);
                     renderDetailPatterns(p);
-                    updateVariantUI(p);
+                    updateVariantUI(p, false);
                     window.detGalleryScrollingNow = false;
                 }
             }
@@ -1166,6 +1193,7 @@ function clickDetThumb(idx) {
     const imgEl = detGallery.children[idx];
     if (imgEl) {
         window.detGalleryScrollingNow = true;
+        clearTimeout(window.detGalleryScrollEndTimeout);
         detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
         updateActiveThumbnailBorder(idx);
         
@@ -1178,30 +1206,33 @@ function clickDetThumb(idx) {
             if (imgColor && imgColor !== selectedColor) {
                 selectedColor = imgColor;
                 changed = true;
-                const colorChips = document.querySelectorAll('#detail-color-selector .color-chip');
-                colorChips.forEach(chip => {
-                    const clickAttr = chip.getAttribute('onclick') || '';
-                    chip.classList.toggle('active', clickAttr.includes(`'${imgColor}'`));
-                });
             }
             if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
                 selectedSize = imgSize;
                 changed = true;
-                const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
-                sizeChips.forEach(chip => {
-                    const clickAttr = chip.getAttribute('onclick') || '';
-                    chip.classList.toggle('active', clickAttr.includes(`'${imgSize}'`));
-                });
             }
             if (changed) {
+                syncSizeChips();
+                renderDetailColors(p);
                 renderDetailPatterns(p);
+                updateVariantUI(p, false);
             }
         }
         setTimeout(() => {
             window.detGalleryScrollingNow = false;
-        }, 300);
+        }, 800); // Failsafe unlock after 800ms
     }
 }
+
+function syncSizeChips() {
+    const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
+    sizeChips.forEach(chip => {
+        const sz = chip.innerText.trim();
+        const displaySz = selectedSize === 'Standard' ? 'Free Size' : selectedSize;
+        chip.classList.toggle('active', sz === displaySz);
+    });
+}
+window.syncSizeChips = syncSizeChips;
 
 function updateActiveThumbnailBorder(idx) {
     const thumbs = document.querySelectorAll('#det-thumbs .det-thumb-item');
