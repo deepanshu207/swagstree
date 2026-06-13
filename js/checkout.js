@@ -603,7 +603,14 @@ function openCart() {
             const variantText = specs.length > 0 ? specs.join(' • ') : 'Standard';
             
             let swatchHtml = '';
-            if (it.variantPatternImage) {
+            if (it.variantPatternImage && it.variantColor) {
+                swatchHtml = `
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="width:22px; height:22px; border-radius:4px; object-fit:cover; border:1px solid #333;">
+                        <div style="width:14px; height:14px; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>
+                    </div>
+                `;
+            } else if (it.variantPatternImage) {
                 swatchHtml = `<img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="width:22px; height:22px; border-radius:4px; object-fit:cover; border:1px solid #333;">`;
             } else if (it.variantColor) {
                 swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>`;
@@ -794,16 +801,20 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
             const hasSwatch = !!it.variantPatternImage;
             const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
 
-            const swatchIcon = hasSwatch
+            const patternImgHtml = hasSwatch
                 ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
-                : (it.variantColor ? `
-                    <table width="12" height="12" cellpadding="0" cellspacing="0" style="display:inline-table; border-collapse:collapse; margin-right:6px; vertical-align:middle; line-height:0;">
-                      <tr>
-                        <td width="12" height="12" style="padding:0; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
-                          &nbsp;
-                        </td>
-                      </tr>
-                    </table>` : '');
+                : '';
+
+            const colorCircleHtml = it.variantColor ? `
+                <table width="12" height="12" cellpadding="0" cellspacing="0" style="display:inline-table; border-collapse:collapse; margin-right:6px; vertical-align:middle; line-height:0;">
+                  <tr>
+                    <td width="12" height="12" style="padding:0; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
+                      &nbsp;
+                    </td>
+                  </tr>
+                </table>` : '';
+
+            const swatchIcon = `${patternImgHtml}${colorCircleHtml}`;
 
             const specs = [];
             if (it.variantSize && it.variantSize !== 'Standard') specs.push(`Size: <strong>${it.variantSize}</strong>`);
@@ -1266,9 +1277,11 @@ function loadOrders() {
                             if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
                             const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
 
-                            const swatchIconHtml = i.variantPatternImage ? `
-                                <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
-                                : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+                            const patHtml = i.variantPatternImage ? `
+                                <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
+                            const colHtml = i.variantColor ? `
+                                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
+                            const swatchIconHtml = `${patHtml}${colHtml}`;
 
                             return `
                             <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
@@ -1432,9 +1445,11 @@ function loadOrders() {
                         if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
                         const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
 
-                        const swatchIconHtml = i.variantPatternImage ? `
-                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
-                            : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+                        const patHtml = i.variantPatternImage ? `
+                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
+                        const colHtml = i.variantColor ? `
+                            <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
+                        const swatchIconHtml = `${patHtml}${colHtml}`;
 
                         return `
                         <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
