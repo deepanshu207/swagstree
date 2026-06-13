@@ -187,9 +187,6 @@
         </div>
         <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
             <span id="product-count" class="count-badge" style="display:none;"></span>
-            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
-            </a>
         </div>
         <div id="product-grid" class="grid">
             <div class="premium-loader-container">
@@ -242,9 +239,6 @@
         <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
         <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
             <span id="wish-count" class="count-badge" style="display:none;">0 Items</span>
-            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
-            </a>
         </div>
         <div id="wish-grid" class="grid"></div>
         <div id="wish-load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
@@ -1215,5 +1209,16 @@
     <script src="js/checkout.js?v=9.2"></script>
     <script src="js/auth.js?v=9.2"></script>
     <script src="js/admin.js?v=9.2"></script>
+    <!-- Floating WhatsApp Button -->
+    <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp">
+        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+            <!-- White outer speech bubble shape -->
+            <path fill="#FFF" d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.907h.003c4.368 0 7.927-3.559 7.929-7.929 0-2.122-.82-4.112-2.325-5.617z"/>
+            <!-- Green inner circle -->
+            <circle cx="8" cy="8" r="6.2" fill="#25D366"/>
+            <!-- White phone receiver -->
+            <path fill="#FFF" d="M11.517 9.4c-.192-.096-1.136-.56-1.31-.622-.175-.062-.303-.092-.43.1-.127.19-.49.622-.6.732-.11.11-.22.124-.412.028-.192-.096-.811-.3-1.546-.955-.572-.51-1.01-1.14-1.122-1.333-.111-.193-.012-.298.085-.393.088-.085.192-.224.288-.336.096-.112.128-.19.192-.315.064-.126.03-.238-.016-.33-.046-.092-.43-1.036-.59-1.424-.155-.373-.325-.322-.445-.329-.115-.005-.248-.006-.381-.006-.134 0-.352.05-.536.248-.184.198-.703.687-.703 1.677 0 .99.72 1.948.82 2.082.102.134 1.417 2.163 3.433 3.03.48.207.854.33 1.146.422.482.153.92.132 1.267.08.387-.058 1.136-.464 1.295-.912.16-.447.16-.83.112-.912-.048-.082-.176-.128-.368-.224z"/>
+        </svg>
+    </a>
 </body>
 </html>
