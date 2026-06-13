@@ -15,6 +15,38 @@ let codMinPayment = 100; // Default, loaded from Firestore
 let _pendingOrderArgs = null;
 let globalMaxCartQty = 1;
 
+function resolveCssColor(colorVal) {
+    if (!colorVal) return 'transparent';
+    let cleanColor = colorVal.trim();
+    if (!cleanColor.startsWith('#')) {
+        const normName = cleanColor.toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // Local fallback dictionary for custom colors
+        const localMap = {
+            'mehendigreen': '#4b5320', 'mehndigreen': '#4b5320', 'armygreen': '#4b5320',
+            'rosedarkpink': '#c21e56', 'dustypink': '#dcaebb', 'onionpink': '#dcaebb',
+            'lightorange': '#ffb347', 'darkorange': '#ff8c00', 'peach': '#ffcba4',
+            'mustardyellow': '#e1ad01', 'haldiyellow': '#e1ad01', 'gold': '#ffd700',
+            'navyblue': '#000080', 'royalblue': '#4169e1', 'firozi': '#20b2aa',
+            'winered': '#4e0f1d', 'wine': '#722f37', 'burgundy': '#800020'
+        };
+
+        if (window.customColorsMap) {
+            const rawNorm = cleanColor.toLowerCase();
+            const spaceNorm = rawNorm.replace(/\s+/g, '');
+            if (window.customColorsMap[rawNorm]) return window.customColorsMap[rawNorm].hex;
+            if (window.customColorsMap[spaceNorm]) return window.customColorsMap[spaceNorm].hex;
+        }
+        
+        if (localMap[normName]) {
+            return localMap[normName];
+        }
+        
+        return cleanColor.replace(/\s+/g, '');
+    }
+    return cleanColor;
+}
+
 // ── UPI Configuration ──────────────────────────────────────────────────────
 const UPI_ID   = '7683020636@pthdfc';
 const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
@@ -574,7 +606,7 @@ function openCart() {
             if (it.variantPatternImage) {
                 swatchHtml = `<img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="width:22px; height:22px; border-radius:4px; object-fit:cover; border:1px solid #333;">`;
             } else if (it.variantColor) {
-                swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:${it.variantColor}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>`;
+                swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>`;
             } else {
                 swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:#333; border:1px solid rgba(255,255,255,0.1);"></div>`;
             }
@@ -767,7 +799,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                 : (it.variantColor ? `
                     <table width="12" height="12" cellpadding="0" cellspacing="0" style="display:inline-table; border-collapse:collapse; margin-right:6px; vertical-align:middle; line-height:0;">
                       <tr>
-                        <td width="12" height="12" style="padding:0; border-radius:50%; background:${it.variantColor}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
+                        <td width="12" height="12" style="padding:0; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
                           &nbsp;
                         </td>
                       </tr>
@@ -1236,7 +1268,7 @@ function loadOrders() {
 
                             const swatchIconHtml = i.variantPatternImage ? `
                                 <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
-                                : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${i.variantColor}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+                                : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
 
                             return `
                             <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
@@ -1402,7 +1434,7 @@ function loadOrders() {
 
                         const swatchIconHtml = i.variantPatternImage ? `
                             <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
-                            : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${i.variantColor}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+                            : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
 
                         return `
                         <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
