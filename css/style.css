@@ -944,7 +944,7 @@ body {
 .whatsapp-float {
     position: fixed;
     bottom: 24px;
-    right: 24px;
+    right: 32px;
     width: 50px;
     height: 50px;
     z-index: 2147483647 !important;
@@ -966,7 +966,7 @@ body {
 @media (max-width: 1024px), (pointer: coarse) {
     .whatsapp-float {
         bottom: 80px; /* Positions button nicely above the mobile bottom nav bar */
-        right: 16px;
+        right: 24px;
         width: 45px;
         height: 45px;
         filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
