@@ -1627,16 +1627,14 @@ function loadMoreWishlist() {
 
 window.handleFeedbackImageError = function (imgEl, postId) {
     if (!postId) return;
-    const container = imgEl.parentElement;
-    if (!container) return;
-
-    container.innerHTML = `
-        <iframe src="https://www.instagram.com/p/${postId}/embed" style="width:100%; height:100%; border:none; display:block; background:#fff;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
-    `;
-
-    if (container.style.aspectRatio) {
-        container.style.aspectRatio = 'auto';
-        container.style.height = '460px';
+    const parent = imgEl.parentElement;
+    if (parent) {
+        parent.innerHTML = `
+            <iframe src="https://www.instagram.com/p/${postId}/embed" style="position:absolute; top:0; left:0; width:100%; height:430px; border:none; background:#111;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
+        `;
+        parent.style.position = 'relative';
+        parent.style.overflow = 'hidden';
+        parent.style.background = '#111';
     }
 };
 
@@ -1761,8 +1759,8 @@ function getFeedbackCardsHtml() {
                             if (match && match[1]) {
                                 return `
                                 <div class="feedback-card" style="background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
-                                    <div style="position:relative; width:100%; height:0; padding-bottom:calc(100% + 60px); overflow:hidden; background:#fff;">
-                                        <iframe src="https://www.instagram.com/p/${match[1]}/embed" style="position:absolute; top:0; left:0; width:100%; height:460px; border:none;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
+                                    <div style="position:relative; width:100%; height:370px; overflow:hidden; background:#111;">
+                                        <iframe src="https://www.instagram.com/p/${match[1]}/embed" style="position:absolute; top:0; left:0; width:100%; height:430px; border:none; background:#111;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
                                     </div>
                                 </div>
                                 `;
@@ -1785,7 +1783,7 @@ function getFeedbackCardsHtml() {
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: 1/1; background:#000; border-bottom: 1px solid #222;">
+                <div style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222;">
                      <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s;" class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
@@ -1805,14 +1803,20 @@ function getFeedbackCardsHtml() {
                 `).join('');
 
                 mediaHtml = `
-                <div class="carousel-box" style="border-radius:10px 10px 0 0; border-bottom: 1px solid #222;">
+                <div class="carousel-box" style="border-radius:10px 10px 0 0; border-bottom: 1px solid #222; aspect-ratio: auto; height: 370px; position: relative;">
                     <div class="carousel" onscroll="updateDots(this)">
                         ${slideImages}
                     </div>
-                    <div style="position:absolute; top:50%; left:8px; transform:translateY(-50%); background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px; z-index:2; border:1px solid rgba(255,255,255,0.2);" onclick="event.stopPropagation(); const c = this.parentElement.querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">&lt;</div>
-                    <div style="position:absolute; top:50%; right:8px; transform:translateY(-50%); background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px; z-index:2; border:1px solid rgba(255,255,255,0.2);" onclick="event.stopPropagation(); const c = this.parentElement.querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">&gt;</div>
-                    <div class="indicators">
-                        ${dotHtml}
+                    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(0,0,0,0.85); border:1px solid var(--gold); border-radius:20px; padding:4px 12px; gap:10px; z-index:5; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.carousel-box').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
+                            <i class="fa fa-chevron-left"></i>
+                        </div>
+                        <div class="indicators" style="position:static; transform:none; display:flex; gap:6px;">
+                            ${dotHtml}
+                        </div>
+                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.carousel-box').querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
+                            <i class="fa fa-chevron-right"></i>
+                        </div>
                     </div>
                 </div>`;
             } else {
