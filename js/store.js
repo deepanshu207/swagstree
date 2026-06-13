@@ -874,20 +874,37 @@ function updateVariantUI(p) {
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
 
-    // Update Images: Gather images or placeholders for all variants
+    // Update Images: Gather images or placeholders for all variants and main images
     let imagesToDisplay = [];
-    const imageToVariantMap = [];
+    let imageToVariantMap = [];
     const addedImages = new Set();
 
-    // 1. Gather all variants' images or placeholders
+    const mainImages = [];
+    const mainImagesMap = [];
+    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
+        p.images.forEach(img => {
+            if (!addedImages.has(img)) {
+                addedImages.add(img);
+                mainImages.push(img);
+                mainImagesMap.push({
+                    url: img,
+                    color: '',
+                    size: ''
+                });
+            }
+        });
+    }
+
+    const variantImages = [];
+    const variantImagesMap = [];
     if (p.normalizedVariants && p.normalizedVariants.length > 0) {
         p.normalizedVariants.forEach(variant => {
             if (variant.images && variant.images.length > 0 && !variant.hideDetailsGallery) {
                 variant.images.forEach(img => {
                     if (!addedImages.has(img)) {
                         addedImages.add(img);
-                        imagesToDisplay.push(img);
-                        imageToVariantMap.push({
+                        variantImages.push(img);
+                        variantImagesMap.push({
                             url: img,
                             color: variant.color || '',
                             size: variant.size || ''
@@ -900,8 +917,8 @@ function updateVariantUI(p) {
                 if (!addedImages.has(placeholderKey)) {
                     addedImages.add(placeholderKey);
                     const placeholderImg = "https://placehold.co/400x400/222/FFF?text=No+Image";
-                    imagesToDisplay.push(placeholderImg);
-                    imageToVariantMap.push({
+                    variantImages.push(placeholderImg);
+                    variantImagesMap.push({
                         url: placeholderImg,
                         color: variant.color || '',
                         size: variant.size || '',
@@ -912,19 +929,14 @@ function updateVariantUI(p) {
         });
     }
 
-    // 2. Add main images if they are not hidden and haven't been added yet
-    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
-        p.images.forEach(img => {
-            if (!addedImages.has(img)) {
-                addedImages.add(img);
-                imagesToDisplay.push(img);
-                imageToVariantMap.push({
-                    url: img,
-                    color: '',
-                    size: ''
-                });
-            }
-        });
+    // Combine based on admin-configured position (defaults to 'start')
+    const pos = p.mainImagesPosition || 'start';
+    if (pos === 'end') {
+        imagesToDisplay = [...variantImages, ...mainImages];
+        imageToVariantMap = [...variantImagesMap, ...mainImagesMap];
+    } else {
+        imagesToDisplay = [...mainImages, ...variantImages];
+        imageToVariantMap = [...mainImagesMap, ...variantImagesMap];
     }
 
     // Render gallery with mapping metadata
