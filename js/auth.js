@@ -67,6 +67,9 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadPromoSettings === 'function') loadPromoSettings();
             if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
             if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
+            if (typeof loadEmailSettings === 'function') loadEmailSettings();
+            if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
+            if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
         }
     }
 }, error => {
@@ -130,6 +133,9 @@ auth.onAuthStateChanged(user => {
             if (typeof loadPromoSettings === 'function') loadPromoSettings();
             if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
             if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
+            if (typeof loadEmailSettings === 'function') loadEmailSettings();
+            if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
+            if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
         }
 
         // Update profile header

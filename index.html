@@ -49,7 +49,6 @@
 
     <!-- External Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -59,7 +58,7 @@
     <link rel="stylesheet" href="css/style.css?v=3.0">
 </head>
 
-<body>
+<body class="footer-hidden">
 
     <div id="toast">Message</div>
     <div class="filter-overlay" onclick="toggleFilter()"></div>
@@ -159,10 +158,10 @@
 
         <!-- Socials & Cart -->
         <div class="social-tools">
-            <a href="https://instagram.com/swag_stree" target="_blank"><i class="fab fa-instagram"></i></a>
-            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank"><i
+            <a href="https://instagram.com/swag_stree" target="_blank" id="instagram-menu-btn"><i class="fab fa-instagram"></i></a>
+            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank" id="whatsapp-menu-btn"><i
                     class="fab fa-whatsapp"></i></a>
-            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank"><i class="fab fa-facebook"></i></a>
+            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank" id="facebook-menu-btn"><i class="fab fa-facebook"></i></a>
             <i class="fa fa-sliders" onclick="toggleFilter()"
                 style="color:var(--gold); cursor:pointer; font-size:18px"></i>
         </div>
@@ -188,9 +187,6 @@
         </div>
         <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
             <span id="product-count" class="count-badge" style="display:none;"></span>
-            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
-            </a>
         </div>
         <div id="product-grid" class="grid">
             <div class="premium-loader-container">
@@ -243,9 +239,6 @@
         <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
         <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
             <span id="wish-count" class="count-badge" style="display:none;">0 Items</span>
-            <a href="https://wa.me/918800467686" target="_blank" style="margin-left:auto; background-color:#25D366; color:white; border-radius:30px; padding:6px 15px; display:flex; align-items:center; box-shadow:0 2px 10px rgba(37, 211, 102, 0.3); text-decoration:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                <span style="font-weight:bold; font-size:12px; font-family:'Segoe UI', sans-serif;">Chat with us</span>
-            </a>
         </div>
         <div id="wish-grid" class="grid"></div>
         <div id="wish-load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
@@ -473,33 +466,8 @@
             </div>
         </div>
 
-        <!-- Telegram Admin Alerts Settings -->
-        <div id="admin-telegram-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fab fa-telegram" style="color:#0088cc; font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Telegram Admin Alerts</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Receive real-time order status update alerts on account (+91 9654414891)</p>
-                </div>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <span style="font-size:11px; color:#aaa;">Bot Token</span>
-                    <input id="admin-telegram-token" type="text" placeholder="e.g. 8653322231:AAEEhGVZVjmRcN..." style="margin:0; font-size:12px;">
-                </div>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <span style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; align-items:center;">
-                        <span>Chat IDs (Multiple Accounts)</span>
-                        <button class="btn-gold" style="width:auto; padding:3px 8px; font-size:10px; margin:0;" onclick="addTelegramChatIdInput()">+ Add ID</button>
-                    </span>
-                    <div id="telegram-chat-ids-container" style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-                        <!-- Inputs dynamically generated -->
-                    </div>
-                </div>
-                <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px;" onclick="saveTelegramSettings()">Save Settings</button>
-            </div>
-        </div>
+
+
 
         <!-- Promo Code Settings -->
         <div id="admin-promo-settings"
@@ -576,13 +544,46 @@
                 <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Customer Diaries & Feed</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown on storefront</p>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown on home</p>
                 </div>
             </div>
             
             <!-- List of existing feedbacks -->
             <div id="admin-feedback-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
                 <!-- Feedbacks render here -->
+            </div>
+
+            <div style="background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333; margin-bottom:12px; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" id="admin-fb-show-section" checked style="margin:0; width:16px; height:16px; cursor:pointer;" onchange="toggleFeedbackPlacementInputs()">
+                    <label for="admin-fb-show-section" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Show Customer Diaries Section on Home</label>
+                </div>
+                <div id="admin-fb-placement-controls" style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <span style="font-size:12px; color:#aaa;">Placement:</span>
+                        <select id="admin-fb-placement" onchange="toggleFeedbackPlacementInputs()" style="margin:0; width:150px; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px;">
+                            <option value="last">Last in Grid (Default)</option>
+                            <option value="first">First in Grid</option>
+                            <option value="custom">Custom (Every N items)</option>
+                        </select>
+                        <div id="admin-fb-n-container" style="display:none; align-items:center; gap:8px;">
+                            <span style="font-size:11px; color:#aaa;">Every:</span>
+                            <input id="admin-fb-n-value" type="number" min="1" step="1" value="6" style="margin:0; width:70px; font-size:12px; height:36px; padding:6px 8px;">
+                            <span style="font-size:11px; color:#aaa;">items</span>
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Section Title:</span>
+                            <input id="admin-fb-section-title" type="text" placeholder="✨ CUSTOMER DIARIES" style="margin:0; font-size:12px; padding:6px 12px; height:36px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Section Subtitle:</span>
+                            <input id="admin-fb-section-subtitle" type="text" placeholder="See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured." style="margin:0; font-size:12px; padding:6px 12px; height:36px;">
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; height:36px; align-self:flex-start;" onclick="saveFeedbackPlacementSettings()">Save Settings</button>
             </div>
 
             <!-- Form to add new feedback -->
@@ -596,13 +597,17 @@
                     </select>
                 </div>
                 <textarea id="admin-fb-text" placeholder="Caption/Feedback text..." style="margin:0; font-size:12px; height:60px;"></textarea>
-                <input id="admin-fb-link" oninput="renderFeedbackFormPreviews()" type="text" placeholder="Post URL(s) (comma-separated for multiple)" style="margin:0; font-size:12px;">
+                <div style="display:flex; flex-direction:column; gap:6px; margin:2px 0;">
+                    <span style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Post URLs (Links)</span>
+                        <button class="btn-gold" style="width:auto; padding:3px 8px; font-size:10px; margin:0;" onclick="addDiariesLinkInput()">+ Add Link</button>
+                    </span>
+                    <div id="diaries-links-container" style="display:flex; flex-direction:column; gap:6px;">
+                        <!-- Dynamic inputs -->
+                    </div>
+                </div>
                 <input id="admin-fb-image-urls" oninput="renderFeedbackFormPreviews()" type="text" placeholder="Direct Image CDN URLs (comma-separated, optional)" style="margin:0; font-size:12px; display:none;">
                 <div style="display:flex; align-items:center; gap:15px; margin: 2px 0; flex-wrap:wrap;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" id="admin-fb-active" checked style="margin:0; width:16px; height:16px; cursor:pointer;">
-                        <label for="admin-fb-active" style="font-size:12px; color:#fff; cursor:pointer; user-select:none;">Visible on Storefront</label>
-                    </div>
                     <div style="display:flex; align-items:center; gap:8px;">
                         <input type="checkbox" id="admin-fb-show-multiple" style="margin:0; width:16px; height:16px; cursor:pointer;">
                         <label for="admin-fb-show-multiple" style="font-size:12px; color:#fff; cursor:pointer; user-select:none;">Multiple Posts (Show separate cards)</label>
@@ -616,15 +621,145 @@
                     </select>
                 </div>
                 
-                <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
-                    <div style="display:flex; align-items:center; gap:8px;">
+                <div style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
                         <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; background:#222; border:1px solid #444; color:#fff;" onclick="document.getElementById('admin-fb-file').click()"><i class="fa fa-image"></i> Add Image(s)</button>
                         <input type="file" id="admin-fb-file" accept="image/*" multiple style="display:none;" onchange="handleFeedbackFileSelect(this)">
                         <span id="admin-fb-filename" style="font-size:11px; color:#aaa;">No image selected</span>
                     </div>
-                    <button id="admin-fb-add-btn" class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;" onclick="addFeedbackItem()">Submit</button>
+                    <div id="admin-fb-action-btn-group" style="display:flex; gap:10px; align-items:center; margin-bottom:4px;">
+                        <button id="admin-fb-add-btn" class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;" onclick="addFeedbackItem()">Submit</button>
+                    </div>
                 </div>
                 <div id="admin-fb-img-preview-container" style="display:none; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;"></div>
+            </div>
+        </div>
+
+        <!-- Footer Settings Accordion -->
+        <div id="admin-footer-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-circle-info" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Footer Settings</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage each section details with accordion tabs</p>
+                </div>
+            </div>
+            
+            <!-- Accordion Container -->
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                
+                <!-- Tab 1: General -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-general')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-copyright" style="color:var(--gold); margin-right:8px;"></i>General & Copyright</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-general" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                            <input type="checkbox" id="admin-footer-show-footer" style="margin:0; width:16px; height:16px; cursor:pointer;">
+                            <label for="admin-footer-show-footer" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Enable / Show Footer on App Storefront</label>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                            <input type="checkbox" id="admin-footer-show-copyright" style="margin:0; width:16px; height:16px; cursor:pointer;">
+                            <label for="admin-footer-show-copyright" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Enable / Show Copyright Text Line</label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Copyright text displayed under footer</span>
+                            <input id="admin-footer-copyright" type="text" placeholder="e.g. Swagstree" style="margin:0; font-size:12px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: About Us -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-about')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-circle-info" style="color:var(--gold); margin-right:8px;"></i>About Us details & Map</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-about" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">About Us Content Description</span>
+                            <div class="wysiwyg-container">
+                                <div class="wysiwyg-toolbar">
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Bold')" title="Bold"><i class="fa fa-bold"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Italic')" title="Italic"><i class="fa fa-italic"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Underline')" title="Underline"><i class="fa fa-underline"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<h3>')" title="Heading H3">H3</button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<p>')" title="Paragraph P">P</button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertUnorderedList')" title="Bullet List"><i class="fa fa-list-ul"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertOrderedList')" title="Number List"><i class="fa fa-list-ol"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('removeFormat')" title="Clear formatting"><i class="fa fa-eraser"></i></button>
+                                </div>
+                                <div id="admin-footer-about-text" class="wysiwyg-editor" contenteditable="true" placeholder="About Us details..."></div>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin: 4px 0;">
+                            <input type="checkbox" id="admin-footer-show-gps" style="margin:0; width:16px; height:16px; cursor:pointer;" onchange="document.getElementById('admin-footer-gps-row').style.display = this.checked ? 'flex' : 'none';">
+                            <label for="admin-footer-show-gps" style="font-size:12px; color:#fff; cursor:pointer; user-select:none; font-weight:700;">Show GPS Map on About Us</label>
+                        </div>
+                        <div id="admin-footer-gps-row" style="display:none; gap:10px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:#aaa;">Latitude</span>
+                                <input id="admin-footer-gps-lat" type="text" placeholder="e.g. 28.6139" style="margin:0; font-size:12px;">
+                            </div>
+                            <div style="flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:#aaa;">Longitude</span>
+                                <input id="admin-footer-gps-lng" type="text" placeholder="e.g. 77.2090" style="margin:0; font-size:12px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Privacy Policy -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-privacy')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-shield-halved" style="color:var(--gold); margin-right:8px;"></i>Privacy Policy content</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-privacy" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Privacy Policy Content (Rich formatted document)</span>
+                            <div class="wysiwyg-container">
+                                <div class="wysiwyg-toolbar">
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Bold')" title="Bold"><i class="fa fa-bold"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Italic')" title="Italic"><i class="fa fa-italic"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('Underline')" title="Underline"><i class="fa fa-underline"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<h3>')" title="Heading H3">H3</button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('formatBlock', '<p>')" title="Paragraph P">P</button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertUnorderedList')" title="Bullet List"><i class="fa fa-list-ul"></i></button>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('insertOrderedList')" title="Number List"><i class="fa fa-list-ol"></i></button>
+                                    <span style="color:#333; font-size:10px;">|</span>
+                                    <button type="button" class="wysiwyg-btn" onmousedown="event.preventDefault()" onclick="execEditorCommand('removeFormat')" title="Clear formatting"><i class="fa fa-eraser"></i></button>
+                                </div>
+                                <div id="admin-footer-privacy-text" class="wysiwyg-editor" contenteditable="true" placeholder="Enter privacy policy text details..."></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Tab 4: Contact Us -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-contact')" style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-phone" style="color:var(--gold); margin-right:8px;"></i>Contact Details</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-contact" style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:10px;">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-size:11px; color:#aaa;">Contact Phone Number (Direct Call)</span>
+                            <input id="admin-footer-phone" type="text" placeholder="e.g. 8800467686" style="margin:0; font-size:12px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Action Button -->
+                <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px; margin-top:5px;" onclick="saveAdminFooterSettings()">Save Footer Settings</button>
             </div>
         </div>
 
@@ -636,6 +771,53 @@
     <div id="super-view" class="section">
         <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
             <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Superadmin Panel</h3>
+        </div>
+
+        <!-- Email Settings -->
+        <div id="admin-email-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-envelope" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Email Settings</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Configure Brevo transactional email sending key</p>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:11px; color:#aaa;">Brevo API Key (Sendinblue API Key)</span>
+                    <input id="admin-brevo-key" type="password" placeholder="e.g. xkeysib-..." style="margin:0; font-size:12px;">
+                </div>
+                <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px;" onclick="saveEmailSettings()">Save Settings</button>
+            </div>
+        </div>
+
+        <!-- Telegram Admin Alerts Settings -->
+        <div id="admin-telegram-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fab fa-telegram" style="color:#0088cc; font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Telegram Admin Alerts</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Receive real-time order status update alerts on account (+91 9654414891)</p>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:11px; color:#aaa;">Bot Token</span>
+                    <input id="admin-telegram-token" type="text" placeholder="e.g. 8653322231:AAEEhGVZVjmRcN..." style="margin:0; font-size:12px;">
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Chat IDs (Multiple Accounts)</span>
+                        <button class="btn-gold" style="width:auto; padding:3px 8px; font-size:10px; margin:0;" onclick="addTelegramChatIdInput()">+ Add ID</button>
+                    </span>
+                    <div id="telegram-chat-ids-container" style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+                        <!-- Inputs dynamically generated -->
+                    </div>
+                </div>
+                <button class="btn-gold" style="width:auto; align-self:flex-start; padding:10px 20px; font-size:12px;" onclick="saveTelegramSettings()">Save Settings</button>
+            </div>
         </div>
 
         <!-- Section 1: Manage Admins -->
@@ -751,11 +933,15 @@
                 <i class="fa fa-share-alt" onclick="shareProduct(activeProductId)" style="font-size:18px; padding:10px; cursor:pointer;"></i>
             </div>
         </div>
-        <div id="det-box" class="carousel-box" style="height:400px">
-            <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
-            <div id="det-indicators" class="indicators"></div>
+        <div id="detail-view-left-col">
+            <div id="det-box" class="carousel-box">
+                <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
+                <div id="det-indicators" class="indicators"></div>
+            </div>
+            <!-- Thumbnail Previews List -->
+            <div id="det-thumbs" style="display:flex; gap:8px; overflow-x:auto; padding:10px 15px; background:#000; scrollbar-width:none;"></div>
         </div>
-        <div style="padding:25px; padding-bottom:80px;">
+        <div id="detail-view-right-col" style="padding:25px; padding-bottom:80px;">
             <h2 id="det-name" style="margin:0;"></h2>
             <div id="det-price" style="color:var(--gold); font-size:24px; font-weight:800; margin:10px 0"></div>
 
@@ -852,6 +1038,7 @@
 
             <input id="c-name" placeholder="Recipient Name" autocomplete="name">
             <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
+            <input id="c-email" placeholder="Email Address" type="email">
             <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
 
             <!-- Payment Methods -->
@@ -941,6 +1128,70 @@
         </div>
     </div>
 
+    <!-- SECTION: About Us View -->
+    <div id="about-view" class="section" style="padding:20px; background:#000; min-height:100vh; box-sizing:border-box;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+            <i class="fa fa-arrow-left" onclick="closeFooterPage()" style="font-size:18px; color:var(--gold); cursor:pointer; padding:10px;"></i>
+            <h3 style="margin:0; text-transform:uppercase; letter-spacing:1.5px;">About Swag Stree</h3>
+        </div>
+        <div style="background:#111; padding:20px; border-radius:18px; border:1px solid #222; line-height:1.7; color:#ccc; font-size:14px;">
+            <p id="about-content-text">Welcome to Swagstree. Premium fashion store.</p>
+            
+            <div id="about-map-container" style="display:none; margin-top:20px;">
+                <p style="font-size:11px; color:#666; text-transform:uppercase; margin-bottom:8px;">Our Location</p>
+                <div id="about-map-iframe-wrapper" style="border-radius:12px; overflow:hidden; border:1px solid #333; height:250px; background:#222;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION: Privacy Policy View -->
+    <div id="privacy-view" class="section" style="padding:20px; background:#000; min-height:100vh; box-sizing:border-box;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+            <i class="fa fa-arrow-left" onclick="closeFooterPage()" style="font-size:18px; color:var(--gold); cursor:pointer; padding:10px;"></i>
+            <h3 style="margin:0; text-transform:uppercase; letter-spacing:1.5px;">Privacy Policy</h3>
+        </div>
+        <div style="background:#111; padding:20px; border-radius:18px; border:1px solid #222; line-height:1.7; color:#ccc; font-size:14px;">
+            <div id="privacy-content-text">
+                <p><strong>Privacy Policy & Data Protection</strong></p>
+                <p>At Swag Stree, we take your privacy seriously. This policy details how we collect, use, and protect your information when using our app.</p>
+                <p><strong>1. Information Collection</strong><br>We collect your registration details (such as name, email, and phone number) to process orders and improve your store experience.</p>
+                <p><strong>2. Firebase Authentication</strong><br>All credentials and login methods (Google, Email/Password) are safely handled and securely encrypted through Google Firebase.</p>
+                <p><strong>3. Shipping & Delivery</strong><br>We share only relevant shipping details with logistics partners to ensure prompt delivery of orders.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Persistent Bottom Footer -->
+    <footer id="app-footer" class="hidden" style="background:#0a0a0a; border-top:1px solid #1a1a1a; padding:18px 15px; width:100%; box-sizing:border-box;">
+        <!-- Links Layout -->
+        <div id="footer-links-row" style="display:flex; justify-content:center; align-items:center; gap:3vw; margin-bottom:8px; flex-wrap:nowrap; font-family:'Segoe UI', sans-serif; width:100%;">
+            <!-- About Us -->
+            <div onclick="openFooterPage('about')" style="color:#eee; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
+                <i class="fa fa-circle-info" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> About Us
+            </div>
+            
+            <span style="color:#222; font-weight:400; font-size:11px;">|</span>
+            
+            <!-- Contact Us Call -->
+            <a id="footer-contact-link" href="tel:8800467686" style="color:#eee; text-decoration:none; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
+                <i class="fa fa-phone" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> Call Us
+            </a>
+
+            <span style="color:#222; font-weight:400; font-size:11px;">|</span>
+
+            <!-- Privacy Policy -->
+            <div onclick="openFooterPage('privacy')" style="color:#eee; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
+                <i class="fa fa-shield-halved" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> Privacy Policy
+            </div>
+        </div>
+
+        <!-- Copyright Line -->
+        <div id="footer-copyright-row" style="color:#444; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:4px; margin-top:2px; letter-spacing:0.5px; text-transform:uppercase;">
+            <i class="fa fa-copyright" style="font-size:9px; color:#444;"></i>
+            <span id="footer-copyright-text" style="color:#444;">Swagstree</span>
+        </div>
+    </footer>
+
     <!-- Mobile Bottom Navigation -->
     <nav class="bottom-nav">
         <div class="nav-item active" onclick="nav('home', this)"><i class="fa fa-house"></i>Home</div>
@@ -953,10 +1204,62 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.0"></script>
-    <script src="js/store.js?v=9.0"></script>
-    <script src="js/checkout.js?v=9.0"></script>
-    <script src="js/auth.js?v=9.0"></script>
-    <script src="js/admin.js?v=9.0"></script>
+    <script src="js/app.js?v=9.3"></script>
+    <script src="js/store.js?v=9.3"></script>
+    <script src="js/checkout.js?v=9.3"></script>
+    <script src="js/auth.js?v=9.3"></script>
+    <script src="js/admin.js?v=9.3"></script>
+    <!-- Floating WhatsApp Button -->
+    <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp" id="whatsapp-float-btn">
+        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+            <!-- White outer speech bubble shape -->
+            <path fill="#FFF" d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.907h.003c4.368 0 7.927-3.559 7.929-7.929 0-2.122-.82-4.112-2.325-5.617z"/>
+            <!-- Green inner circle -->
+            <circle cx="8" cy="8" r="6.2" fill="#25D366"/>
+            <!-- White phone receiver -->
+            <path fill="#FFF" d="M11.517 9.4c-.192-.096-1.136-.56-1.31-.622-.175-.062-.303-.092-.43.1-.127.19-.49.622-.6.732-.11.11-.22.124-.412.028-.192-.096-.811-.3-1.546-.955-.572-.51-1.01-1.14-1.122-1.333-.111-.193-.012-.298.085-.393.088-.085.192-.224.288-.336.096-.112.128-.19.192-.315.064-.126.03-.238-.016-.33-.046-.092-.43-1.036-.59-1.424-.155-.373-.325-.322-.445-.329-.115-.005-.248-.006-.381-.006-.134 0-.352.05-.536.248-.184.198-.703.687-.703 1.677 0 .99.72 1.948.82 2.082.102.134 1.417 2.163 3.433 3.03.48.207.854.33 1.146.422.482.153.92.132 1.267.08.387-.058 1.136-.464 1.295-.912.16-.447.16-.83.112-.912-.048-.082-.176-.128-.368-.224z"/>
+        </svg>
+    </a>
+    <script>
+        (function() {
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                var links = [
+                    { id: 'whatsapp-float-btn', app: 'whatsapp://send?phone=918800467686', web: 'https://wa.me/918800467686' },
+                    { id: 'whatsapp-menu-btn', app: 'whatsapp://chat?code=GO2JIzNSswT6KlpJH45hHS', web: 'https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS' },
+                    { id: 'instagram-menu-btn', app: 'instagram://user?username=swag_stree', web: 'https://instagram.com/swag_stree' },
+                    { id: 'facebook-menu-btn', app: 'fb://facewebmodal/f?href=https://www.facebook.com/share/1CRwnQckvY/', web: 'https://www.facebook.com/share/1CRwnQckvY/' }
+                ];
+                
+                links.forEach(function(item) {
+                    var el = document.getElementById(item.id);
+                    if (el) {
+                        el.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            var start = Date.now();
+                            var blurred = false;
+                            
+                            function onBlur() {
+                                blurred = true;
+                                window.removeEventListener('blur', onBlur);
+                            }
+                            window.addEventListener('blur', onBlur);
+                            
+                            // Try opening in native app
+                            window.location.href = item.app;
+                            
+                            // If the browser page does not lose focus, fall back to opening in browser after 1.2s
+                            setTimeout(function() {
+                                window.removeEventListener('blur', onBlur);
+                                if (!blurred && (Date.now() - start < 2000)) {
+                                    window.open(item.web, '_blank');
+                                }
+                            }, 1200);
+                        });
+                    }
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

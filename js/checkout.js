@@ -3,17 +3,49 @@
 // ==========================================
 
 // Global variables fallback definition to prevent browser cache mismatch crashes
-if (typeof products === 'undefined') window.products = [];
-if (typeof selectedSize === 'undefined') window.selectedSize = 'S';
-if (typeof selectedColor === 'undefined') window.selectedColor = '';
-if (typeof cart === 'undefined') window.cart = [];
-if (typeof isAdmin === 'undefined') window.isAdmin = false;
-if (typeof currentUser === 'undefined') window.currentUser = null;
+if (typeof window.products === 'undefined') window.products = [];
+if (typeof window.selectedSize === 'undefined') window.selectedSize = 'S';
+if (typeof window.selectedColor === 'undefined') window.selectedColor = '';
+if (typeof window.cart === 'undefined') window.cart = [];
+if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
+if (typeof window.currentUser === 'undefined') window.currentUser = null;
 
 let activePromo = null;
 let codMinPayment = 100; // Default, loaded from Firestore
 let _pendingOrderArgs = null;
 let globalMaxCartQty = 1;
+
+function resolveCssColor(colorVal) {
+    if (!colorVal) return 'transparent';
+    let cleanColor = colorVal.trim();
+    if (!cleanColor.startsWith('#')) {
+        const normName = cleanColor.toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // Local fallback dictionary for custom colors
+        const localMap = {
+            'mehendigreen': '#4b5320', 'mehndigreen': '#4b5320', 'armygreen': '#4b5320',
+            'rosedarkpink': '#c21e56', 'dustypink': '#dcaebb', 'onionpink': '#dcaebb',
+            'lightorange': '#ffb347', 'darkorange': '#ff8c00', 'peach': '#ffcba4',
+            'mustardyellow': '#e1ad01', 'haldiyellow': '#e1ad01', 'gold': '#ffd700',
+            'navyblue': '#000080', 'royalblue': '#4169e1', 'firozi': '#20b2aa',
+            'winered': '#4e0f1d', 'wine': '#722f37', 'burgundy': '#800020'
+        };
+
+        if (window.customColorsMap) {
+            const rawNorm = cleanColor.toLowerCase();
+            const spaceNorm = rawNorm.replace(/\s+/g, '');
+            if (window.customColorsMap[rawNorm]) return window.customColorsMap[rawNorm].hex;
+            if (window.customColorsMap[spaceNorm]) return window.customColorsMap[spaceNorm].hex;
+        }
+        
+        if (localMap[normName]) {
+            return localMap[normName];
+        }
+        
+        return cleanColor.replace(/\s+/g, '');
+    }
+    return cleanColor;
+}
 
 // ── UPI Configuration ──────────────────────────────────────────────────────
 const UPI_ID   = '7683020636@pthdfc';
@@ -571,10 +603,17 @@ function openCart() {
             const variantText = specs.length > 0 ? specs.join(' • ') : 'Standard';
             
             let swatchHtml = '';
-            if (it.variantPatternImage) {
+            if (it.variantPatternImage && it.variantColor) {
+                swatchHtml = `
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="width:22px; height:22px; border-radius:4px; object-fit:cover; border:1px solid #333;">
+                        <div style="width:14px; height:14px; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>
+                    </div>
+                `;
+            } else if (it.variantPatternImage) {
                 swatchHtml = `<img src="${it.variantPatternImage}" title="Pattern: ${it.variantPattern || ''}" style="width:22px; height:22px; border-radius:4px; object-fit:cover; border:1px solid #333;">`;
             } else if (it.variantColor) {
-                swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:${it.variantColor}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>`;
+                swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid rgba(255,255,255,0.2);" title="Color: ${_colorLabel}"></div>`;
             } else {
                 swatchHtml = `<div style="width:14px; height:14px; border-radius:50%; background:#333; border:1px solid rgba(255,255,255,0.1);"></div>`;
             }
@@ -638,11 +677,15 @@ async function placeOrder() {
     const n = document.getElementById('c-name').value.trim();
     const p = document.getElementById('c-phone').value.trim();
     const a = document.getElementById('c-addr').value.trim();
+    const emailVal = document.getElementById('c-email') ? document.getElementById('c-email').value.trim() : '';
     const activeChip = document.querySelector('.payment-chip.active');
     if (!activeChip) return showToast("Select a payment method");
     const paymentMethod = activeChip.dataset.method;
 
-    if (!n || p.length < 10 || a.length < 5) return showToast("Details incomplete");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!n || p.length < 10 || a.length < 5 || !emailVal || !emailRegex.test(emailVal)) {
+        return showToast("Please fill all details correctly (Name, 10-Digit Phone, Email, Address)");
+    }
     if (cart.length === 0) return showToast("Bag is empty");
     // Guest checkout allowed — no login required
 
@@ -654,13 +697,13 @@ async function placeOrder() {
                 codMinPayment = snap.data().minPayment;
             }
         } catch(e) { /* use cached value */ }
-        _pendingOrderArgs = { n, p, a, paymentMethod };
+        _pendingOrderArgs = { n, p, a, emailVal, paymentMethod };
         _showCodConfirmModal(codMinPayment);
         return;
     }
     // ──────────────────────────────────────────────────────────────────────────
 
-    await _executeOrder({ n, p, a, paymentMethod });
+    await _executeOrder({ n, p, a, emailVal, paymentMethod });
 }
 
 // Called from COD confirmation modal "Confirm & Place Order"
@@ -698,7 +741,7 @@ function _showCodConfirmModal(minAmt) {
     modal.style.display = 'flex';
 }
 
-async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvancePaid }) {
+async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, codAdvancePaid }) {
     const btn = document.getElementById('btn-checkout');
     if (btn) { btn.disabled = true; btn.innerText = 'Placing...'; }
 
@@ -758,16 +801,20 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
             const hasSwatch = !!it.variantPatternImage;
             const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
 
-            const swatchIcon = hasSwatch
+            const patternImgHtml = hasSwatch
                 ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
-                : (it.variantColor ? `
-                    <table width="12" height="12" cellpadding="0" cellspacing="0" style="display:inline-table; border-collapse:collapse; margin-right:6px; vertical-align:middle; line-height:0;">
-                      <tr>
-                        <td width="12" height="12" style="padding:0; border-radius:50%; background:${it.variantColor}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
-                          &nbsp;
-                        </td>
-                      </tr>
-                    </table>` : '');
+                : '';
+
+            const colorCircleHtml = it.variantColor ? `
+                <table width="12" height="12" cellpadding="0" cellspacing="0" style="display:inline-table; border-collapse:collapse; margin-right:6px; vertical-align:middle; line-height:0;">
+                  <tr>
+                    <td width="12" height="12" style="padding:0; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
+                      &nbsp;
+                    </td>
+                  </tr>
+                </table>` : '';
+
+            const swatchIcon = `${patternImgHtml}${colorCircleHtml}`;
 
             const specs = [];
             if (it.variantSize && it.variantSize !== 'Standard') specs.push(`Size: <strong>${it.variantSize}</strong>`);
@@ -844,6 +891,7 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
                      <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">DELIVER TO</div>
                      <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:3px;">${n}</div>
                      <div style="font-size:12px;color:#777;margin-bottom:2px;">&#128241; ${p}</div>
+                     ${emailVal ? `<div style="font-size:12px;color:#777;margin-bottom:2px;">&#9993; ${emailVal}</div>` : ''}
                      <div style="font-size:12px;color:#777;line-height:1.5;">&#128205; ${a}</div>
                    </td>
                    <td style="vertical-align:top;text-align:right;">
@@ -900,13 +948,21 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         recipient: n,
         phone: p,
         address: a,
+        email: emailVal || ((currentUser && currentUser.email) ? currentUser.email : ''),
         items: cart,
         subtotal,
         discount,
         total,
         paymentMethod,
         promoCode: activePromo ? activePromo.code : null,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        notifications: {
+            placed: {
+                customerMailSent: (emailVal || (currentUser && currentUser.email)) ? true : false,
+                adminMailSent: true,
+                adminTelegramSent: false
+            }
+        }
     };
     if (paymentMethod === 'cod') {
         orderDoc.codMinAmount = codMinAmount || codMinPayment;
@@ -1017,9 +1073,66 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
                 }
             }
         }
-        // -----------------------------
-        
-        await emailjs.send('service_pdnmeeb', 'template_pugghm5', { customer_name: n, order_summary: orderTable, order_id: orderId, total_amount: total }, 'k3l2JkCbjMs8WOAXg');
+        // --- BREVO EMAIL SENDING (LOAD KEY FROM FIRESTORE) ---
+        try {
+            const emailSnap = await db.collection('settings').doc('email').get();
+            let brevoKey = '';
+            if (emailSnap.exists) {
+                brevoKey = emailSnap.data().brevoKey || '';
+            }
+
+            if (brevoKey) {
+                const toList = [];
+                const bccList = [];
+                const customerEmail = emailVal || ((currentUser && currentUser.email) ? currentUser.email : '');
+                if (customerEmail) {
+                    toList.push({
+                        email: customerEmail,
+                        name: n
+                    });
+                    bccList.push({
+                        email: "orders@swagstree.com",
+                        name: "Swag Stree Admin"
+                    });
+                } else {
+                    // Fallback for guest checkout (send to admin directly)
+                    toList.push({
+                        email: "orders@swagstree.com",
+                        name: "Swag Stree Admin"
+                    });
+                }
+
+                const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': brevoKey,
+                        'content-type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sender: {
+                            name: "Swag Stree Orders",
+                            email: "orders@swagstree.com"
+                        },
+                        to: toList,
+                        bcc: bccList,
+                        subject: `NEW ORDER (${orderId})`,
+                        htmlContent: orderTable
+                    })
+                });
+                if (!response.ok) {
+                    const errText = await response.text();
+                    console.error("Brevo API returned error status:", response.status, errText);
+                } else {
+                    console.log("Brevo email sent successfully.");
+                }
+            } else {
+                console.error("Brevo API key is not configured in Firestore settings/email");
+            }
+        } catch (mailErr) {
+            console.error("Failed to send email via Brevo", mailErr);
+        }
+        // ----------------------------
         showToast('Success! Order Placed.');
         cart = [];
         activePromo = null;
@@ -1027,9 +1140,11 @@ async function _executeOrder({ n, p, a, paymentMethod, codMinAmount, codAdvanceP
         // Clear checkout form fields for next order
         const nameField = document.getElementById('c-name');
         const phoneField = document.getElementById('c-phone');
+        const emailField = document.getElementById('c-email');
         const addrField = document.getElementById('c-addr');
         if (nameField) nameField.value = '';
         if (phoneField) phoneField.value = '';
+        if (emailField) emailField.value = '';
         if (addrField) addrField.value = '';
         closeModal('cart-modal');
         // Only reload order history for logged-in users
@@ -1138,7 +1253,7 @@ function loadOrders() {
                     <span>#${o.orderId || doc.id.slice(-6).toUpperCase()}</span>
                     <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString('en-IN') : 'New'}</span>
                 </div>
-                ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
+                ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}${o.email ? ` | <b>Email:</b> ${o.email}` : ''}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
                 <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
                 ${(() => {
                     const orderGroups = {};
@@ -1163,9 +1278,11 @@ function loadOrders() {
                             if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
                             const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
 
-                            const swatchIconHtml = i.variantPatternImage ? `
-                                <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
-                                : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${i.variantColor}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+                            const patHtml = i.variantPatternImage ? `
+                                <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
+                            const colHtml = i.variantColor ? `
+                                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
+                            const swatchIconHtml = `${patHtml}${colHtml}`;
 
                             return `
                             <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
@@ -1329,9 +1446,11 @@ function loadOrders() {
                         if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
                         const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
 
-                        const swatchIconHtml = i.variantPatternImage ? `
-                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">`
-                            : (i.variantColor ? `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${i.variantColor}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '');
+                        const patHtml = i.variantPatternImage ? `
+                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
+                        const colHtml = i.variantColor ? `
+                            <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
+                        const swatchIconHtml = `${patHtml}${colHtml}`;
 
                         return `
                         <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
@@ -1392,6 +1511,9 @@ function loadOrders() {
                             <span>👤 ${o.recipient || 'N/A'}</span>
                             <span style="color:#444;">|</span>
                             <span>📱 ${o.phone || 'N/A'}</span>
+                            ${o.email ? `
+                            <span style="color:#444;">|</span>
+                            <span>✉️ ${o.email}</span>` : ''}
                         </div>
                         <div style="color:#aaa;">📍 ${o.address || 'N/A'}</div>
                         <div style="color:#888; margin-top:2px;">💳 Payment: <b style="color:#fff;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
@@ -1438,14 +1560,41 @@ function loadOrders() {
                                 style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; margin:0;">
                         </div>
 
+                        <!-- Notification History Tracking -->
+                        <div style="background:#111; border-radius:6px; padding:8px; margin-top:8px; font-size:10px; border:1px dashed #333; line-height:1.4;">
+                            <div style="font-weight:700; color:#aaa; margin-bottom:4px; text-transform:uppercase; font-size:9px; letter-spacing:0.5px;">🔔 Notification Status Log:</div>
+                            ${(() => {
+                                const notifs = o.notifications || {};
+                                const statusesList = ['placed', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+                                let logHtml = '';
+                                statusesList.forEach(st => {
+                                    const stNode = notifs[st];
+                                    if (stNode && (stNode.customerMailSent || stNode.adminTelegramSent || stNode.adminMailSent)) {
+                                        const logs = [];
+                                        if (stNode.adminTelegramSent) logs.push('Telegram sent to Admin ✅');
+                                        if (stNode.customerMailSent) logs.push('Email sent to Customer ✉️');
+                                        if (stNode.adminMailSent) logs.push('Email sent to Admin ✉️');
+                                        
+                                        const stLabel = ORDER_STATUSES.find(x => x.value === st)?.label || st;
+                                        logHtml += `<div style="margin-bottom:2px; color:#ccc;"><strong>${stLabel}:</strong> ${logs.join(' | ')}</div>`;
+                                    }
+                                });
+                                return logHtml || '<div style="color:#666; font-style:italic;">No notifications sent yet.</div>';
+                            })()}
+                        </div>
+
                         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
-                            <button onclick="saveAdminOrderChanges('${docId}', false)"
-                                style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:12px; font-weight:700; cursor:pointer;">
+                            <button onclick="saveAdminOrderChanges('${docId}', 'none')"
+                                style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:12px; font-weight:700; cursor:pointer; min-width:110px;">
                                 💾 Save Changes
                             </button>
-                            <button onclick="saveAdminOrderChanges('${docId}', true)"
-                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #0088cc; background:transparent; color:#0088cc; font-size:12px; font-weight:700; cursor:pointer;">
+                            <button onclick="saveAdminOrderChanges('${docId}', 'admin')"
+                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #25D366; background:transparent; color:#25D366; font-size:12px; font-weight:700; cursor:pointer; min-width:130px;">
                                 📨 Save & Notify Admin
+                            </button>
+                            <button onclick="saveAdminOrderChanges('${docId}', 'customer')"
+                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #0088cc; background:transparent; color:#0088cc; font-size:12px; font-weight:700; cursor:pointer; min-width:140px;">
+                                ✉️ Save & Notify Customer
                             </button>
                         </div>
                     </div>
@@ -1491,7 +1640,7 @@ function loadMoreOrders() {
     loadOrders();
 }
 
-window.saveAdminOrderChanges = async function(docId, sendNotification) {
+window.saveAdminOrderChanges = async function(docId, notifyType) {
     const statusVal = document.getElementById(`status-sel-${docId}`).value;
     const courierSelect = document.getElementById(`courier-sel-${docId}`).value;
     const trackingVal = document.getElementById(`tracking-input-${docId}`).value.trim();
@@ -1502,20 +1651,72 @@ window.saveAdminOrderChanges = async function(docId, sendNotification) {
         courierVal = customInp ? customInp.value.trim() : 'Other';
     }
     
-    await updateOrderStatus(docId, statusVal, courierVal, trackingVal, sendNotification);
+    try {
+        const snap = await db.collection('orders').doc(docId).get();
+        if (snap.exists) {
+            const orderData = snap.data();
+            const notifications = orderData.notifications || {};
+            const statusNode = notifications[statusVal] || {};
+            
+            if (notifyType === 'admin') {
+                if (statusNode.adminTelegramSent || orderData.status === statusVal) {
+                    const msg = statusNode.adminTelegramSent 
+                        ? `A Telegram notification for "${statusVal}" has already been sent to the admin. Do you want to send it again?`
+                        : `Order status is already "${statusVal}". Do you want to send Telegram notification anyway?`;
+                    if (!confirm(msg)) return;
+                }
+            } else if (notifyType === 'customer') {
+                if (statusNode.customerMailSent || orderData.status === statusVal) {
+                    const msg = statusNode.customerMailSent
+                        ? `An Email notification for "${statusVal}" has already been sent to the customer. Do you want to send it again?`
+                        : `Order status is already "${statusVal}". Do you want to send Email notification anyway?`;
+                    if (!confirm(msg)) return;
+                }
+            }
+        }
+    } catch(err) {
+        console.error("Error checking existing notification status:", err);
+    }
+    
+    await updateOrderStatus(docId, statusVal, courierVal, trackingVal, notifyType);
 };
 
-async function updateOrderStatus(docId, newStatus, courier, trackingId, sendNotification) {
+async function updateOrderStatus(docId, newStatus, courier, trackingId, notifyType) {
     if (!docId) return;
     const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || ORDER_STATUSES[0];
     try {
+        const docRef = db.collection('orders').doc(docId);
+        const snap = await docRef.get();
+        if (!snap.exists) return;
+        const orderData = snap.data();
+        
+        let notifications = orderData.notifications || {};
+        if (!notifications[newStatus]) {
+            notifications[newStatus] = {
+                customerMailSent: false,
+                adminMailSent: false,
+                adminTelegramSent: false
+            };
+        }
+        
         const updateData = {
             status: newStatus,
             courier: courier || '',
             trackingId: trackingId || '',
             statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        await db.collection('orders').doc(docId).update(updateData);
+        
+        if (notifyType === 'admin') {
+            await triggerTelegramNotification(orderData, docId, newStatus, courier, trackingId);
+            notifications[newStatus].adminTelegramSent = true;
+            updateData.notifications = notifications;
+        } else if (notifyType === 'customer') {
+            await triggerEmailNotification(orderData, docId, newStatus, courier, trackingId);
+            notifications[newStatus].customerMailSent = true;
+            updateData.notifications = notifications;
+        }
+        
+        await docRef.update(updateData);
         
         // Flash card confirmation
         const cardEl = document.getElementById(`order-card-${docId}`);
@@ -1534,12 +1735,6 @@ async function updateOrderStatus(docId, newStatus, courier, trackingId, sendNoti
         }
         
         showToast(`✅ Order updated: ${statusInfo.label}`);
-        if (sendNotification) {
-            const snap = await db.collection('orders').doc(docId).get();
-            if (snap.exists) {
-                await triggerTelegramNotification(snap.data(), docId, newStatus, courier, trackingId);
-            }
-        }
     } catch(e) {
         console.error('updateOrderStatus error:', e);
         showToast('Failed to update order: ' + e.message);
@@ -1627,3 +1822,97 @@ async function triggerTelegramNotification(orderData, docId, newStatus, courier,
     }
 }
 window.triggerTelegramNotification = triggerTelegramNotification;
+
+async function triggerEmailNotification(orderData, docId, newStatus, courier, trackingId) {
+    // Check if the order has a customer email stored
+    const customerEmail = orderData.email;
+    if (!customerEmail) {
+        console.log("No customer email found for order", docId, "- skipping status email.");
+        return;
+    }
+    
+    try {
+        const emailSnap = await db.collection('settings').doc('email').get();
+        let brevoKey = '';
+        if (emailSnap.exists) {
+            brevoKey = emailSnap.data().brevoKey || '';
+        }
+        
+        if (!brevoKey) {
+            console.error("Brevo API key is not configured in Firestore settings/email - skipping status update email.");
+            return;
+        }
+        
+        const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
+        
+        // Support dynamic title/msg for any status update
+        const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
+        let statusTitle = `Order status update: ${statusInfo.label}`;
+        let statusMsg = `Your order **#${orderId}** status has been updated to **${statusInfo.label}**.`;
+        
+        if (newStatus === 'shipped') {
+            statusTitle = "Your Order has been Shipped! 🚚";
+            statusMsg = `Great news! Your order **#${orderId}** has been shipped. ${courier ? `It has been sent via **${courier}**.` : ''} ${trackingId ? `Your Tracking ID is: **${trackingId}**` : ''}`;
+        } else if (newStatus === 'delivered') {
+            statusTitle = "Your Order has been Delivered! 🎉";
+            statusMsg = `Hooray! Your order **#${orderId}** has been successfully delivered. Thank you for shopping with Swag Stree!`;
+        } else if (newStatus === 'cancelled') {
+            statusTitle = "Your Order has been Cancelled ❌";
+            statusMsg = `Your order **#${orderId}** has been cancelled.`;
+        }
+        
+        const htmlContent = `
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;padding:24px;">
+            <div style="text-align:center;background:#000000;padding:20px;border-radius:8px;margin-bottom:20px;">
+                <h1 style="color:#FFD700;margin:0;font-size:24px;letter-spacing:2px;">SWAG STREE</h1>
+            </div>
+            <h2 style="color:#111;margin-top:0;">${statusTitle}</h2>
+            <p style="font-size:14px;color:#555;line-height:1.6;">Hi ${orderData.recipient || 'Customer'},</p>
+            <p style="font-size:14px;color:#555;line-height:1.6;">${statusMsg}</p>
+            <div style="background:#f9f9f9;padding:15px;border-radius:8px;margin:20px 0;border-left:4px solid #FFD700;">
+                <div style="font-size:12px;color:#888;">ORDER SUMMARY:</div>
+                <div style="font-weight:bold;font-size:14px;margin-top:5px;color:#111;">Total Amount: ₹${orderData.total}</div>
+                <div style="font-size:13px;color:#555;margin-top:3px;">Payment Method: ${orderData.paymentMethod ? orderData.paymentMethod.toUpperCase() : 'N/A'}</div>
+            </div>
+            <p style="font-size:14px;color:#555;line-height:1.6;">If you have any questions, feel free to contact us via WhatsApp.</p>
+            <div style="text-align:center;margin-top:30px;">
+                <a href="https://wa.me/918800467686" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;padding:10px 22px;border-radius:24px;">Chat on WhatsApp</a>
+            </div>
+        </div>
+        `;
+        
+        const toList = [
+            {
+                email: customerEmail,
+                name: orderData.recipient || "Customer"
+            }
+        ];
+        
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+                'accept': 'application/json',
+                'api-key': brevoKey,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+                sender: {
+                    name: "Swag Stree",
+                    email: "orders@swagstree.com"
+                },
+                to: toList,
+                subject: `Order #${orderId} - Status Update: ${newStatus.toUpperCase()}`,
+                htmlContent: htmlContent
+            })
+        });
+        
+        if (!response.ok) {
+            console.error("Brevo status email failed:", response.status, await response.text());
+        } else {
+            console.log(`Brevo status email (${newStatus}) sent successfully.`);
+        }
+    } catch (err) {
+        console.error("Failed to send status email via Brevo", err);
+    }
+}
+window.triggerEmailNotification = triggerEmailNotification;
