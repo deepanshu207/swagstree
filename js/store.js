@@ -874,47 +874,56 @@ function updateVariantUI(p) {
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
 
-    // Update Images: Display only selected variant/color images, falling back to main product images
+    // Update Images: Gather images or placeholders for all variants
     let imagesToDisplay = [];
     const imageToVariantMap = [];
-    
-    if (v) {
-        // 1. Check if the selected variant itself has custom images
-        if (v.images && v.images.length > 0) {
-            v.images.forEach(img => {
+    const addedImages = new Set();
+
+    // 1. Gather all variants' images or placeholders
+    if (p.normalizedVariants && p.normalizedVariants.length > 0) {
+        p.normalizedVariants.forEach(variant => {
+            if (variant.images && variant.images.length > 0 && !variant.hideDetailsGallery) {
+                variant.images.forEach(img => {
+                    if (!addedImages.has(img)) {
+                        addedImages.add(img);
+                        imagesToDisplay.push(img);
+                        imageToVariantMap.push({
+                            url: img,
+                            color: variant.color || '',
+                            size: variant.size || ''
+                        });
+                    }
+                });
+            } else {
+                // Pre-generate a placeholder key to avoid duplicate placeholders for the same color/size
+                const placeholderKey = `placeholder-${variant.color || ''}-${variant.size || ''}`;
+                if (!addedImages.has(placeholderKey)) {
+                    addedImages.add(placeholderKey);
+                    const placeholderImg = "https://placehold.co/400x400/222/FFF?text=No+Image";
+                    imagesToDisplay.push(placeholderImg);
+                    imageToVariantMap.push({
+                        url: placeholderImg,
+                        color: variant.color || '',
+                        size: variant.size || '',
+                        isPlaceholder: true
+                    });
+                }
+            }
+        });
+    }
+
+    // 2. Add main images if they are not hidden and haven't been added yet
+    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
+        p.images.forEach(img => {
+            if (!addedImages.has(img)) {
+                addedImages.add(img);
                 imagesToDisplay.push(img);
                 imageToVariantMap.push({
                     url: img,
-                    color: v.color || '',
-                    size: v.size || ''
-                });
-            });
-        }
-        // 2. Otherwise, check if there's another variant of the same color that has images
-        else if (v.color && p.normalizedVariants) {
-            const sameColorV = p.normalizedVariants.find(x => x.color === v.color && x.images && x.images.length > 0);
-            if (sameColorV) {
-                sameColorV.images.forEach(img => {
-                    imagesToDisplay.push(img);
-                    imageToVariantMap.push({
-                        url: img,
-                        color: sameColorV.color || '',
-                        size: sameColorV.size || ''
-                    });
+                    color: '',
+                    size: ''
                 });
             }
-        }
-    }
-
-    // 3. Fallback to main product images if no variant-specific images are available
-    if (imagesToDisplay.length === 0 && p.images && p.images.length > 0) {
-        p.images.forEach(img => {
-            imagesToDisplay.push(img);
-            imageToVariantMap.push({
-                url: img,
-                color: '',
-                size: ''
-            });
         });
     }
 
