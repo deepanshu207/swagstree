@@ -1654,6 +1654,38 @@ window.openFeedbackPost = function (el, allLinks) {
 
     const targetLink = allLinks[activeIdx] || allLinks[0];
     if (targetLink) {
+        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            var appUrl = null;
+            if (targetLink.includes('instagram.com/p/')) {
+                var matches = targetLink.match(/instagram\.com\/p\/([^\/\s?#]+)/);
+                if (matches && matches[1]) {
+                    appUrl = 'instagram://p/' + matches[1] + '/';
+                }
+            } else if (targetLink.includes('facebook.com')) {
+                appUrl = 'fb://facewebmodal/fpage?href=' + encodeURIComponent(targetLink);
+            }
+
+            if (appUrl) {
+                var start = Date.now();
+                var blurred = false;
+                function onBlur() {
+                    blurred = true;
+                    window.removeEventListener('blur', onBlur);
+                }
+                window.addEventListener('blur', onBlur);
+                
+                window.location.href = appUrl;
+                
+                setTimeout(function() {
+                    window.removeEventListener('blur', onBlur);
+                    if (!blurred && (Date.now() - start < 2000)) {
+                        window.open(targetLink, '_blank');
+                    }
+                }, 1200);
+                return;
+            }
+        }
         window.open(targetLink, '_blank');
     }
 };

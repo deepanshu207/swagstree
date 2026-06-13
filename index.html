@@ -158,10 +158,10 @@
 
         <!-- Socials & Cart -->
         <div class="social-tools">
-            <a href="https://instagram.com/swag_stree" target="_blank"><i class="fab fa-instagram"></i></a>
-            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank"><i
+            <a href="https://instagram.com/swag_stree" target="_blank" id="instagram-menu-btn"><i class="fab fa-instagram"></i></a>
+            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank" id="whatsapp-menu-btn"><i
                     class="fab fa-whatsapp"></i></a>
-            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank"><i class="fab fa-facebook"></i></a>
+            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank" id="facebook-menu-btn"><i class="fab fa-facebook"></i></a>
             <i class="fa fa-sliders" onclick="toggleFilter()"
                 style="color:var(--gold); cursor:pointer; font-size:18px"></i>
         </div>
@@ -1210,7 +1210,7 @@
     <script src="js/auth.js?v=9.2"></script>
     <script src="js/admin.js?v=9.2"></script>
     <!-- Floating WhatsApp Button -->
-    <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp">
+    <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp" id="whatsapp-float-btn">
         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
             <!-- White outer speech bubble shape -->
             <path fill="#FFF" d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.907h.003c4.368 0 7.927-3.559 7.929-7.929 0-2.122-.82-4.112-2.325-5.617z"/>
@@ -1220,5 +1220,46 @@
             <path fill="#FFF" d="M11.517 9.4c-.192-.096-1.136-.56-1.31-.622-.175-.062-.303-.092-.43.1-.127.19-.49.622-.6.732-.11.11-.22.124-.412.028-.192-.096-.811-.3-1.546-.955-.572-.51-1.01-1.14-1.122-1.333-.111-.193-.012-.298.085-.393.088-.085.192-.224.288-.336.096-.112.128-.19.192-.315.064-.126.03-.238-.016-.33-.046-.092-.43-1.036-.59-1.424-.155-.373-.325-.322-.445-.329-.115-.005-.248-.006-.381-.006-.134 0-.352.05-.536.248-.184.198-.703.687-.703 1.677 0 .99.72 1.948.82 2.082.102.134 1.417 2.163 3.433 3.03.48.207.854.33 1.146.422.482.153.92.132 1.267.08.387-.058 1.136-.464 1.295-.912.16-.447.16-.83.112-.912-.048-.082-.176-.128-.368-.224z"/>
         </svg>
     </a>
+    <script>
+        (function() {
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                var links = [
+                    { id: 'whatsapp-float-btn', app: 'whatsapp://send?phone=918800467686', web: 'https://wa.me/918800467686' },
+                    { id: 'whatsapp-menu-btn', app: 'whatsapp://chat?code=GO2JIzNSswT6KlpJH45hHS', web: 'https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS' },
+                    { id: 'instagram-menu-btn', app: 'instagram://user?username=swag_stree', web: 'https://instagram.com/swag_stree' },
+                    { id: 'facebook-menu-btn', app: 'fb://facewebmodal/fpage?href=https://www.facebook.com/share/1CRwnQckvY/', web: 'https://www.facebook.com/share/1CRwnQckvY/' }
+                ];
+                
+                links.forEach(function(item) {
+                    var el = document.getElementById(item.id);
+                    if (el) {
+                        el.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            var start = Date.now();
+                            var blurred = false;
+                            
+                            function onBlur() {
+                                blurred = true;
+                                window.removeEventListener('blur', onBlur);
+                            }
+                            window.addEventListener('blur', onBlur);
+                            
+                            // Try opening in native app
+                            window.location.href = item.app;
+                            
+                            // If the browser page does not lose focus, fall back to opening in browser after 1.2s
+                            setTimeout(function() {
+                                window.removeEventListener('blur', onBlur);
+                                if (!blurred && (Date.now() - start < 2000)) {
+                                    window.open(item.web, '_blank');
+                                }
+                            }, 1200);
+                        });
+                    }
+                });
+            }
+        })();
+    </script>
 </body>
 </html>
