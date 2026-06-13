@@ -1663,7 +1663,7 @@ window.openFeedbackPost = function (el, allLinks) {
                     appUrl = 'instagram://p/' + matches[1] + '/';
                 }
             } else if (targetLink.includes('facebook.com')) {
-                appUrl = 'fb://facewebmodal/fpage?href=' + encodeURIComponent(targetLink);
+                appUrl = 'fb://facewebmodal/f?href=' + encodeURIComponent(targetLink);
             }
 
             if (appUrl) {
