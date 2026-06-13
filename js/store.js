@@ -256,6 +256,8 @@ function checkDeepLink() {
 
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
+    const color = params.get('color');
+    const size = params.get('size');
 
     if (!id) {
         if (overlay) overlay.style.display = 'none';
@@ -271,7 +273,19 @@ function checkDeepLink() {
 
     // Hide overlay then open product — no flash, URL stays as share link
     if (overlay) overlay.style.display = 'none';
-    showDetail(id);
+    showDetail(id, color, size);
+}
+
+function updateDetailURL() {
+    if (activeProductId) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('id', activeProductId);
+        if (selectedColor) params.set('color', selectedColor);
+        else params.delete('color');
+        if (selectedSize && selectedSize !== 'Standard') params.set('size', selectedSize);
+        else params.delete('size');
+        window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+    }
 }
 
 // 1. DATA LOADING
@@ -707,7 +721,7 @@ function getSelectedVariant(p) {
     return match;
 }
 
-function showDetail(id) {
+function showDetail(id, initialColor = null, initialSize = null) {
     const p = products.find(x => x.id === id);
     if (!p) return;
 
@@ -728,16 +742,21 @@ function showDetail(id) {
         if (uniqueSizes.length === 0) selectedColor = '';
     } else {
         sizesContainer.style.display = 'block';
-        selectedSize = uniqueSizes[0];
+        if (initialSize && uniqueSizes.includes(initialSize)) {
+            selectedSize = initialSize;
+        } else {
+            selectedSize = uniqueSizes[0];
+        }
 
         sizeSelector.innerHTML = uniqueSizes.map(sz => `
             <div class="size-chip ${sz === selectedSize ? 'active' : ''}" onclick="selectDetailSize('${sz}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
         `).join('');
     }
 
-    renderDetailColors(p);
+    renderDetailColors(p, initialColor);
     renderDetailPatterns(p);
     updateVariantUI(p);
+    updateDetailURL();
 
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
@@ -754,6 +773,7 @@ function selectDetailSize(sz, el) {
         renderDetailColors(p);
         renderDetailPatterns(p);
         updateVariantUI(p);
+        updateDetailURL();
     }
 }
 
@@ -766,10 +786,11 @@ function selectDetailColor(col, el) {
     if (p) {
         renderDetailPatterns(p);
         updateVariantUI(p);
+        updateDetailURL();
     }
 }
 
-function renderDetailColors(p) {
+function renderDetailColors(p, initialColor = null) {
     const colorsContainer = document.getElementById('det-colors-container');
     const colorSelector = document.getElementById('detail-color-selector');
     if (!colorsContainer || !colorSelector) return;
@@ -781,8 +802,12 @@ function renderDetailColors(p) {
         selectedColor = '';
     } else {
         colorsContainer.style.display = 'block';
-        // Only reset color if the current selectedColor isn't available for this size
-        if (!colors.includes(selectedColor)) selectedColor = colors[0];
+        if (initialColor && colors.includes(initialColor)) {
+            selectedColor = initialColor;
+        } else {
+            // Only reset color if the current selectedColor isn't available for this size
+            if (!colors.includes(selectedColor)) selectedColor = colors[0];
+        }
 
         colorSelector.innerHTML = colors.map(col => {
             const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === col);
@@ -867,7 +892,7 @@ function renderDetailPatterns(p) {
     }
 }
 
-function updateVariantUI(p, scrollGallery = true) {
+function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const v = getSelectedVariant(p);
 
     // Update Price
@@ -943,7 +968,9 @@ function updateVariantUI(p, scrollGallery = true) {
     const targetIndex = imagesToDisplay.length > 0
         ? imageToVariantMap.findIndex(m => m.color === selectedColor && (selectedSize === 'Standard' || m.size === selectedSize))
         : -1;
-    const activeThumbIdx = targetIndex > -1 ? targetIndex : 0;
+    const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
+        ? overrideActiveIdx
+        : (targetIndex > -1 ? targetIndex : 0);
 
     // Render gallery with mapping metadata
     const galleryHtml = imagesToDisplay.length 
@@ -954,8 +981,12 @@ function updateVariantUI(p, scrollGallery = true) {
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
 
     const detGallery = document.getElementById('det-gallery');
-    if (detGallery && detGallery.innerHTML !== galleryHtml) {
-        detGallery.innerHTML = galleryHtml;
+    const imageListString = imagesToDisplay.join(',');
+    if (detGallery) {
+        if (detGallery.getAttribute('data-loaded-images') !== imageListString) {
+            detGallery.innerHTML = galleryHtml;
+            detGallery.setAttribute('data-loaded-images', imageListString);
+        }
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
@@ -980,8 +1011,9 @@ function updateVariantUI(p, scrollGallery = true) {
                 `;
             }).join('');
             
-            if (thumbsContainer.innerHTML !== thumbsHtml) {
+            if (thumbsContainer.getAttribute('data-loaded-images') !== imageListString) {
                 thumbsContainer.innerHTML = thumbsHtml;
+                thumbsContainer.setAttribute('data-loaded-images', imageListString);
             } else {
                 updateActiveThumbnailBorder(activeThumbIdx);
             }
@@ -992,14 +1024,14 @@ function updateVariantUI(p, scrollGallery = true) {
 
     // Scroll to the current selected variant's first image if we're not triggered by a scroll event
     if (scrollGallery && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
-        if (targetIndex > -1) {
-            const imgEl = detGallery.children[targetIndex];
+        if (activeThumbIdx > -1) {
+            const imgEl = detGallery.children[activeThumbIdx];
             if (imgEl) {
                 window.detGalleryScrollingNow = true; // Block scroll listener from interfering during smooth scroll transitions
                 clearTimeout(window.detGalleryScrollEndTimeout);
                 setTimeout(() => {
                     detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
-                    updateActiveThumbnailBorder(targetIndex);
+                    updateActiveThumbnailBorder(activeThumbIdx);
                     setTimeout(() => {
                         window.detGalleryScrollingNow = false;
                     }, 800); // Failsafe unlock after 800ms
@@ -1111,7 +1143,17 @@ function toggleWish(id) {
 async function shareProduct(id) {
     const p = products.find(x => x.id === id);
     if (!p) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?id=${id}`;
+    
+    const params = new URLSearchParams();
+    params.set('id', id);
+    if (selectedColor && activeProductId === id) {
+        params.set('color', selectedColor);
+    }
+    if (selectedSize && selectedSize !== 'Standard' && activeProductId === id) {
+        params.set('size', selectedSize);
+    }
+    
+    const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
     const shareText = `👗 *${p.name}*\n💰 ₹${p.price}\n\n🛍️ Shop now on Swag Stree:\n${shareUrl}`;
     if (navigator.share) {
         try {
@@ -1177,7 +1219,8 @@ function updateDots(el) {
                     syncSizeChips();
                     renderDetailColors(p);
                     renderDetailPatterns(p);
-                    updateVariantUI(p, false);
+                    updateVariantUI(p, false, idx);
+                    updateDetailURL();
                     window.detGalleryScrollingNow = false;
                 }
             }
@@ -1215,7 +1258,8 @@ function clickDetThumb(idx) {
                 syncSizeChips();
                 renderDetailColors(p);
                 renderDetailPatterns(p);
-                updateVariantUI(p, false);
+                updateVariantUI(p, false, idx);
+                updateDetailURL();
             }
         }
         setTimeout(() => {
@@ -1489,9 +1533,21 @@ function renderFilters() {
     const colorsContainer = document.getElementById('filter-colors');
     if (colorsContainer) {
         colorsContainer.innerHTML = Array.from(allColors.entries()).map(([colorVal, info]) => {
-            const isWhite = colorVal.toLowerCase() === '#ffffff' || colorVal.toLowerCase() === 'white';
+            let cleanColor = colorVal.trim();
+            if (!cleanColor.startsWith('#')) {
+                const normName = cleanColor.toLowerCase();
+                const normNameNoSpaces = normName.replace(/\s+/g, '');
+                if (window.customColorsMap && window.customColorsMap[normName]) {
+                    cleanColor = window.customColorsMap[normName].hex;
+                } else if (window.customColorsMap && window.customColorsMap[normNameNoSpaces]) {
+                    cleanColor = window.customColorsMap[normNameNoSpaces].hex;
+                } else {
+                    cleanColor = normNameNoSpaces;
+                }
+            }
+            const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
             const indicatorBorder = isWhite ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.15)';
-            const colorPreview = `<span class="color-indicator" style="background:${colorVal}; border:${indicatorBorder};"></span>`;
+            const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
             const safeVal = colorVal.replace(/'/g, "\\'");
             return `
                 <div class="color-chip ${filterActiveColors.includes(colorVal) ? 'active' : ''}" onclick="setFilterColor(this, '${safeVal}')">
