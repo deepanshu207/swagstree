@@ -891,6 +891,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                      <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">DELIVER TO</div>
                      <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:3px;">${n}</div>
                      <div style="font-size:12px;color:#777;margin-bottom:2px;">&#128241; ${p}</div>
+                     ${emailVal ? `<div style="font-size:12px;color:#777;margin-bottom:2px;">&#9993; ${emailVal}</div>` : ''}
                      <div style="font-size:12px;color:#777;line-height:1.5;">&#128205; ${a}</div>
                    </td>
                    <td style="vertical-align:top;text-align:right;">
@@ -1252,7 +1253,7 @@ function loadOrders() {
                     <span>#${o.orderId || doc.id.slice(-6).toUpperCase()}</span>
                     <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString('en-IN') : 'New'}</span>
                 </div>
-                ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
+                ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}${o.email ? ` | <b>Email:</b> ${o.email}` : ''}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
                 <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
                 ${(() => {
                     const orderGroups = {};
@@ -1510,6 +1511,9 @@ function loadOrders() {
                             <span>👤 ${o.recipient || 'N/A'}</span>
                             <span style="color:#444;">|</span>
                             <span>📱 ${o.phone || 'N/A'}</span>
+                            ${o.email ? `
+                            <span style="color:#444;">|</span>
+                            <span>✉️ ${o.email}</span>` : ''}
                         </div>
                         <div style="color:#aaa;">📍 ${o.address || 'N/A'}</div>
                         <div style="color:#888; margin-top:2px;">💳 Payment: <b style="color:#fff;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
