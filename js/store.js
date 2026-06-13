@@ -1533,9 +1533,21 @@ function renderFilters() {
     const colorsContainer = document.getElementById('filter-colors');
     if (colorsContainer) {
         colorsContainer.innerHTML = Array.from(allColors.entries()).map(([colorVal, info]) => {
-            const isWhite = colorVal.toLowerCase() === '#ffffff' || colorVal.toLowerCase() === 'white';
+            let cleanColor = colorVal.trim();
+            if (!cleanColor.startsWith('#')) {
+                const normName = cleanColor.toLowerCase();
+                const normNameNoSpaces = normName.replace(/\s+/g, '');
+                if (window.customColorsMap && window.customColorsMap[normName]) {
+                    cleanColor = window.customColorsMap[normName].hex;
+                } else if (window.customColorsMap && window.customColorsMap[normNameNoSpaces]) {
+                    cleanColor = window.customColorsMap[normNameNoSpaces].hex;
+                } else {
+                    cleanColor = normNameNoSpaces;
+                }
+            }
+            const isWhite = cleanColor.toLowerCase() === '#ffffff' || cleanColor.toLowerCase() === 'white';
             const indicatorBorder = isWhite ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.15)';
-            const colorPreview = `<span class="color-indicator" style="background:${colorVal}; border:${indicatorBorder};"></span>`;
+            const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
             const safeVal = colorVal.replace(/'/g, "\\'");
             return `
                 <div class="color-chip ${filterActiveColors.includes(colorVal) ? 'active' : ''}" onclick="setFilterColor(this, '${safeVal}')">
