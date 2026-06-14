@@ -671,6 +671,13 @@ function openCart() {
     // Promos display removed
 
     document.getElementById('cart-modal').style.display = 'flex';
+
+    // Hide WhatsApp icon when checkout is open
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+
+    if (typeof autoPopulateCheckoutDetails === 'function') {
+        autoPopulateCheckoutDetails();
+    }
 }
 
 async function placeOrder() {
@@ -744,6 +751,14 @@ function _showCodConfirmModal(minAmt) {
 async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, codAdvancePaid }) {
     const btn = document.getElementById('btn-checkout');
     if (btn) { btn.disabled = true; btn.innerText = 'Placing...'; }
+
+    // Cache details locally for guests/future prepopulation
+    if (!currentUser) {
+        localStorage.setItem("swagstree_guest_name", n);
+        localStorage.setItem("swagstree_guest_phone", p);
+        localStorage.setItem("swagstree_guest_email", emailVal);
+        localStorage.setItem("swagstree_guest_address", a);
+    }
 
     let subtotal = cart.reduce((s,i) => s + (i.price * i.qty), 0);
     let discount = activePromo ? Math.floor(subtotal * activePromo.discount) : 0;
@@ -1916,3 +1931,526 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
     }
 }
 window.triggerEmailNotification = triggerEmailNotification;
+
+// ── Checkout Auto-population from Saved Profile Address ──────────────────
+async function syncDefaultAddressToCheckout() {
+    const addrField = document.getElementById('c-addr');
+    if (!addrField) return;
+
+    if (currentUser) {
+        try {
+            const addrSnap = await db.collection("users").doc(currentUser.uid).collection("addresses").where("isDefault", "==", true).limit(1).get();
+            if (!addrSnap.empty) {
+                addrField.value = addrSnap.docs[0].data().address || '';
+            } else {
+                const homeSnap = await db.collection("users").doc(currentUser.uid).collection("addresses").where("tag", "==", "Home").limit(1).get();
+                if (!homeSnap.empty) {
+                    addrField.value = homeSnap.docs[0].data().address || '';
+                } else {
+                    const anyAddrSnap = await db.collection("users").doc(currentUser.uid).collection("addresses").limit(1).get();
+                    if (!anyAddrSnap.empty) {
+                        addrField.value = anyAddrSnap.docs[0].data().address || '';
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error syncing default address to checkout:", e);
+        }
+    } else {
+        let localAddresses = [];
+        try {
+            localAddresses = JSON.parse(localStorage.getItem("swagstree_addresses") || "[]");
+        } catch (e) {
+            localAddresses = [];
+        }
+        const defaultLocal = localAddresses.find(a => a.isDefault);
+        if (defaultLocal) {
+            addrField.value = defaultLocal.address;
+        } else {
+            const homeLocal = localAddresses.find(a => a.tag === 'Home');
+            if (homeLocal) {
+                addrField.value = homeLocal.address;
+            } else if (localAddresses.length > 0) {
+                addrField.value = localAddresses[0].address;
+            }
+        }
+    }
+}
+
+async function autoPopulateCheckoutDetails() {
+    const nameField = document.getElementById('c-name');
+    const phoneField = document.getElementById('c-phone');
+    const emailField = document.getElementById('c-email');
+    const addrField = document.getElementById('c-addr');
+
+    if (currentUser) {
+        // Logged-in user: Prefill name & email
+        if (nameField && !nameField.value.trim()) {
+            nameField.value = currentUser.displayName || '';
+        }
+        if (emailField && !emailField.value.trim()) {
+            emailField.value = currentUser.email || '';
+        }
+        
+        try {
+            const userDoc = await db.collection("users").doc(currentUser.uid).get();
+            if (userDoc.exists) {
+                const uData = userDoc.data();
+                if (nameField && !nameField.value.trim() && uData.displayName) {
+                    nameField.value = uData.displayName;
+                }
+                if (phoneField && !phoneField.value.trim() && uData.phone) {
+                    phoneField.value = uData.phone;
+                }
+            }
+
+            // Prefill with default profile address from Firestore
+            if (addrField && !addrField.value.trim()) {
+                await syncDefaultAddressToCheckout();
+            }
+        } catch (e) {
+            console.error("Error populating from Firestore:", e);
+        }
+    } else {
+        // Guest user: Prefill from localStorage cache of previous checkouts
+        if (nameField && !nameField.value.trim()) {
+            nameField.value = localStorage.getItem("swagstree_guest_name") || '';
+        }
+        if (phoneField && !phoneField.value.trim()) {
+            phoneField.value = localStorage.getItem("swagstree_guest_phone") || '';
+        }
+        if (emailField && !emailField.value.trim()) {
+            emailField.value = localStorage.getItem("swagstree_guest_email") || '';
+        }
+        if (addrField && !addrField.value.trim()) {
+            await syncDefaultAddressToCheckout();
+        }
+    }
+}
+
+// ── Profile Address Accordion Functions ────────────────────────
+let activeProfAddressTag = 'Home';
+let profLeafletMap = null;
+let profLeafletMarker = null;
+let editingProfileAddressId = null;
+
+async function reverseGeocodeOSM(lat, lon) {
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`, {
+            headers: {
+                'Accept-Language': 'en'
+            }
+        });
+        if (!response.ok) return '';
+        const data = await response.json();
+        return data.display_name || '';
+    } catch (e) {
+        console.error("OSM Geocoding failed:", e);
+        return '';
+    }
+}
+
+function toggleProfileAddressAccordion() {
+    const content = document.getElementById('prof-addr-accord-content');
+    const icon = document.getElementById('prof-addr-accord-icon');
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        if (icon) icon.style.transform = 'rotate(180deg)';
+        loadProfileAddresses();
+    } else {
+        content.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(0deg)';
+    }
+}
+
+function selectProfAddrTag(tag) {
+    activeProfAddressTag = tag;
+    document.querySelectorAll('.prof-addr-tag').forEach(btn => {
+        if (btn.dataset.tag === tag) {
+            btn.classList.add('active');
+            btn.style.border = '1px solid var(--gold)';
+            btn.style.color = '#fff';
+        } else {
+            btn.classList.remove('active');
+            btn.style.border = '1px solid #333';
+            btn.style.color = '#888';
+        }
+    });
+    // On switching from home to office to other, clear the address text if NOT editing an existing address
+    if (!editingProfileAddressId) {
+        const textInput = document.getElementById('prof-new-addr-text');
+        if (textInput) textInput.value = '';
+    }
+}
+
+function toggleProfileMapPicker() {
+    const container = document.getElementById('prof-map-picker-container');
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        initProfileLeafletMap();
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+function initProfileLeafletMap() {
+    if (profLeafletMap) {
+        setTimeout(() => profLeafletMap.invalidateSize(), 200);
+        return;
+    }
+    const defaultLat = 28.6139;
+    const defaultLon = 77.2090;
+
+    profLeafletMap = L.map('prof-map-picker-container').setView([defaultLat, defaultLon], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(profLeafletMap);
+
+    profLeafletMarker = L.marker([defaultLat, defaultLon], { draggable: true }).addTo(profLeafletMap);
+
+    const updateFromCoords = async (lat, lon) => {
+        profLeafletMarker.setLatLng([lat, lon]);
+        profLeafletMap.panTo([lat, lon]);
+        const addrText = await reverseGeocodeOSM(lat, lon);
+        if (addrText) {
+            document.getElementById('prof-new-addr-text').value = addrText;
+        }
+    };
+
+    profLeafletMap.on('click', (e) => {
+        updateFromCoords(e.latlng.lat, e.latlng.lng);
+    });
+
+    profLeafletMarker.on('dragend', () => {
+        const pos = profLeafletMarker.getLatLng();
+        updateFromCoords(pos.lat, pos.lng);
+    });
+}
+
+function useProfileCurrentLocation() {
+    if (!navigator.geolocation) {
+        return showToast("Geolocation is not supported by your browser");
+    }
+    
+    showToast("📍 Requesting current location...");
+
+    const successCallback = async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        showToast("📍 Location found! Fetching address...");
+        
+        const container = document.getElementById('prof-map-picker-container');
+        if (container && container.style.display === 'none') {
+            container.style.display = 'block';
+        }
+
+        if (profLeafletMap) {
+            profLeafletMap.setView([lat, lon], 15);
+            profLeafletMarker.setLatLng([lat, lon]);
+            setTimeout(() => profLeafletMap.invalidateSize(), 200);
+        } else {
+            initProfileLeafletMap();
+            profLeafletMap.setView([lat, lon], 15);
+            profLeafletMarker.setLatLng([lat, lon]);
+            setTimeout(() => profLeafletMap.invalidateSize(), 200);
+        }
+        
+        const addrText = await reverseGeocodeOSM(lat, lon);
+        if (addrText) {
+            document.getElementById('prof-new-addr-text').value = addrText;
+            showToast("Address populated.");
+        }
+    };
+
+    const errorCallback = (err) => {
+        console.error("Geolocation error:", err);
+        if (err.code === 3 || err.code === 2) {
+            // Fallback to lower accuracy if high accuracy timed out or is unavailable (common in mobile browsers indoors)
+            showToast("GPS timed out. Trying cell/Wi-Fi geolocation...");
+            navigator.geolocation.getCurrentPosition(successCallback, (fallbackErr) => {
+                console.error("Fallback geolocation error:", fallbackErr);
+                showToast("Unable to retrieve location. Make sure Location Services (GPS) are enabled.");
+            }, { enableHighAccuracy: false, timeout: 8000 });
+        } else if (err.code === 1) {
+            showToast("Location permission denied. Please allow location access.");
+        } else {
+            showToast("Unable to retrieve location. Please check your GPS settings.");
+        }
+    };
+
+    navigator.geolocation.getCurrentPosition(successCallback, errorCallback, {
+        enableHighAccuracy: true,
+        timeout: 6000,
+        maximumAge: 0
+    });
+}
+
+async function loadProfileAddresses() {
+    const listContainer = document.getElementById('prof-saved-addresses-list');
+    if (!listContainer) return;
+
+    let addresses = [];
+    if (currentUser) {
+        try {
+            const snap = await db.collection("users").doc(currentUser.uid).collection("addresses").get();
+            snap.forEach(doc => {
+                addresses.push({ id: doc.id, ...doc.data() });
+            });
+        } catch (err) {
+            console.error("Error loading addresses:", err);
+        }
+    } else {
+        const localData = localStorage.getItem("swagstree_addresses");
+        if (localData) {
+            try {
+                addresses = JSON.parse(localData);
+            } catch (e) {
+                addresses = [];
+            }
+        }
+    }
+
+    if (addresses.length === 0) {
+        listContainer.innerHTML = `<p style="text-align:center; color:#555; font-size:11px; margin:5px 0;">No saved addresses. Add one below.</p>`;
+        return;
+    }
+
+    addresses.sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0));
+
+    let html = '';
+    addresses.forEach(addr => {
+        const badge = addr.isDefault ? `<span style="background:var(--gold); color:#000; font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px; margin-left:6px;">DEFAULT</span>` : '';
+        const radioChecked = addr.isDefault ? 'checked' : '';
+        
+        const onSelect = `selectProfileAddressDefault('${addr.id || addr.address.replace(/'/g, "\\'")}')`;
+        const onDelete = `deleteProfileAddress('${addr.id || addr.address.replace(/'/g, "\\'")}')`;
+        const onEdit = `editProfileAddress('${addr.id || addr.address.replace(/'/g, "\\'")}')`;
+        
+        html += `
+            <div style="background:#1a1a1a; padding:10px; border-radius:8px; border:1px solid #222; display:flex; align-items:flex-start; gap:10px;">
+                <input type="radio" name="selected_profile_address" ${radioChecked} onclick="${onSelect}" style="margin-top:3px; accent-color:var(--gold);">
+                <div style="flex:1; font-size:12px;">
+                    <div style="font-weight:700; color:#fff; display:flex; align-items:center; gap:5px;">
+                        <span>📍 ${addr.tag}</span>${badge}
+                    </div>
+                    <div style="color:#aaa; margin-top:3px; line-height:1.4;">${addr.address}</div>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; margin-top:3px;">
+                    <i class="fa fa-edit" onclick="${onEdit}" style="color:var(--gold); cursor:pointer; font-size:12px;" title="Edit Address"></i>
+                    <i class="fa fa-trash" onclick="${onDelete}" style="color:var(--red); cursor:pointer; font-size:12px;" title="Delete Address"></i>
+                </div>
+            </div>
+        `;
+    });
+    listContainer.innerHTML = html;
+}
+
+async function selectProfileAddressDefault(id) {
+    if (currentUser) {
+        try {
+            const userRef = db.collection("users").doc(currentUser.uid);
+            const snapshot = await userRef.collection("addresses").get();
+            const batch = db.batch();
+            snapshot.forEach(doc => {
+                batch.update(doc.ref, { isDefault: (doc.id === id) });
+            });
+            await batch.commit();
+            showToast("Default address updated!");
+            loadProfileAddresses();
+            await syncDefaultAddressToCheckout();
+        } catch (err) {
+            console.error("Error setting default address:", err);
+        }
+    } else {
+        let localData = [];
+        try {
+            localData = JSON.parse(localStorage.getItem("swagstree_addresses") || "[]");
+        } catch (e) {
+            localData = [];
+        }
+        localData.forEach(a => a.isDefault = (a.id === id));
+        localStorage.setItem("swagstree_addresses", JSON.stringify(localData));
+        showToast("Default address updated!");
+        loadProfileAddresses();
+        await syncDefaultAddressToCheckout();
+    }
+}
+
+async function editProfileAddress(id) {
+    let addr = null;
+    if (currentUser) {
+        try {
+            const doc = await db.collection("users").doc(currentUser.uid).collection("addresses").doc(id).get();
+            if (doc.exists) {
+                addr = { id: doc.id, ...doc.data() };
+            }
+        } catch (err) {
+            console.error("Error fetching address for edit:", err);
+        }
+    } else {
+        let localData = [];
+        try {
+            localData = JSON.parse(localStorage.getItem("swagstree_addresses") || "[]");
+        } catch (e) {
+            localData = [];
+        }
+        addr = localData.find(a => a.id === id || a.address === id);
+    }
+
+    if (!addr) {
+        return showToast("Address not found");
+    }
+
+    editingProfileAddressId = id;
+    
+    const titleEl = document.getElementById('prof-addr-form-title');
+    if (titleEl) titleEl.innerText = "Edit Address";
+    
+    const saveBtn = document.getElementById('prof-save-addr-btn');
+    if (saveBtn) saveBtn.innerText = "Update Address";
+    
+    const cancelBtn = document.getElementById('prof-cancel-addr-btn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+    selectProfAddrTag(addr.tag);
+    
+    const textInput = document.getElementById('prof-new-addr-text');
+    if (textInput) textInput.value = addr.address;
+    
+    const defaultCheckbox = document.getElementById('prof-new-addr-default');
+    if (defaultCheckbox) defaultCheckbox.checked = addr.isDefault;
+
+    const container = document.getElementById('prof-new-addr-text');
+    if (container) {
+        container.focus();
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function cancelProfileAddressEdit() {
+    editingProfileAddressId = null;
+    
+    const titleEl = document.getElementById('prof-addr-form-title');
+    if (titleEl) titleEl.innerText = "Add New Address";
+    
+    const saveBtn = document.getElementById('prof-save-addr-btn');
+    if (saveBtn) saveBtn.innerText = "Save Address";
+    
+    const cancelBtn = document.getElementById('prof-cancel-addr-btn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+
+    const textInput = document.getElementById('prof-new-addr-text');
+    if (textInput) textInput.value = '';
+    const defaultCheckbox = document.getElementById('prof-new-addr-default');
+    if (defaultCheckbox) defaultCheckbox.checked = false;
+}
+
+async function addNewProfileAddress() {
+    const text = document.getElementById('prof-new-addr-text').value.trim();
+    const isDefault = document.getElementById('prof-new-addr-default').checked;
+
+    if (!text) {
+        return showToast("Please enter address details or select on map");
+    }
+
+    const newAddrObj = {
+        tag: activeProfAddressTag,
+        address: text,
+        isDefault: isDefault,
+        createdAt: new Date().toISOString()
+    };
+
+    if (currentUser) {
+        try {
+            const userRef = db.collection("users").doc(currentUser.uid);
+            if (isDefault) {
+                const existing = await userRef.collection("addresses").where("isDefault", "==", true).get();
+                const batch = db.batch();
+                existing.forEach(doc => {
+                    if (!editingProfileAddressId || doc.id !== editingProfileAddressId) {
+                        batch.update(doc.ref, { isDefault: false });
+                    }
+                });
+                await batch.commit();
+            }
+
+            if (editingProfileAddressId) {
+                await userRef.collection("addresses").doc(editingProfileAddressId).update(newAddrObj);
+                showToast("Address updated!");
+            } else {
+                await userRef.collection("addresses").add(newAddrObj);
+                showToast("Address added to Profile!");
+            }
+        } catch (err) {
+            console.error("Error saving profile address:", err);
+            showToast("Failed to save address");
+        }
+    } else {
+        let localData = [];
+        try {
+            localData = JSON.parse(localStorage.getItem("swagstree_addresses") || "[]");
+        } catch (e) {
+            localData = [];
+        }
+
+        if (isDefault) {
+            localData.forEach(a => {
+                if (!editingProfileAddressId || (a.id !== editingProfileAddressId && a.address !== editingProfileAddressId)) {
+                    a.isDefault = false;
+                }
+            });
+        }
+
+        if (editingProfileAddressId) {
+            const index = localData.findIndex(a => a.id === editingProfileAddressId || a.address === editingProfileAddressId);
+            if (index !== -1) {
+                localData[index] = { ...localData[index], ...newAddrObj };
+                showToast("Address updated locally!");
+            } else {
+                newAddrObj.id = Math.random().toString(36).substring(2, 9);
+                localData.push(newAddrObj);
+                showToast("Address added locally!");
+            }
+        } else {
+            newAddrObj.id = Math.random().toString(36).substring(2, 9);
+            localData.push(newAddrObj);
+            showToast("Address added locally!");
+        }
+        localStorage.setItem("swagstree_addresses", JSON.stringify(localData));
+    }
+
+    cancelProfileAddressEdit();
+    loadProfileAddresses();
+    await syncDefaultAddressToCheckout();
+}
+
+async function deleteProfileAddress(id) {
+    if (!confirm("Are you sure you want to delete this address?")) return;
+
+    if (editingProfileAddressId === id) {
+        cancelProfileAddressEdit();
+    }
+
+    if (currentUser) {
+        try {
+            await db.collection("users").doc(currentUser.uid).collection("addresses").doc(id).delete();
+            showToast("Address deleted from Profile.");
+        } catch (err) {
+            console.error("Failed deleting address:", err);
+        }
+    } else {
+        let localData = [];
+        try {
+            localData = JSON.parse(localStorage.getItem("swagstree_addresses") || "[]");
+        } catch (e) {
+            localData = [];
+        }
+        localData = localData.filter(a => (a.id !== id && a.address !== id));
+        localStorage.setItem("swagstree_addresses", JSON.stringify(localData));
+        showToast("Address deleted.");
+    }
+    loadProfileAddresses();
+    await syncDefaultAddressToCheckout();
+}
+
+

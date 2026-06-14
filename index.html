@@ -54,6 +54,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
+    <!-- Leaflet Map library for address geolocator picker -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css?v=3.0">
 </head>
@@ -326,6 +330,51 @@
 
                 <label class="field-label">Phone Number</label>
                 <input id="prof-phone" type="tel" placeholder="+91XXXXXXXXXX" autocomplete="tel">
+
+                <!-- Profile Address Accordion for Selectable/Manageable Multiple Addresses -->
+                <div class="checkout-accordion" id="profile-address-accordion" style="margin-top:10px; margin-bottom:12px; background:#111; border:1px solid #222; border-radius:10px; overflow:hidden;">
+                    <div class="accordion-header" onclick="toggleProfileAddressAccordion()" style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#1a1a1a; cursor:pointer; font-size:12px; font-weight:700; color:#fff; border-bottom:1px solid #222;">
+                        <span><i class="fa fa-map-marker-alt" style="margin-right:8px; color:var(--gold);"></i>MY SAVED ADDRESSES</span>
+                        <i class="fa fa-chevron-down" id="prof-addr-accord-icon" style="transition: transform 0.3s;"></i>
+                    </div>
+                    <div class="accordion-content" id="prof-addr-accord-content" style="display:none; padding:12px; border-top:1px solid #222;">
+                        <!-- Saved Addresses list -->
+                        <div id="prof-saved-addresses-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
+                        
+                        <!-- Geolocation & Map tools -->
+                        <div style="display:flex; gap:8px; margin-bottom:10px;">
+                            <button type="button" class="btn-gold" onclick="useProfileCurrentLocation()" style="margin:0; font-size:11px; padding:8px 12px; flex:1; background:#222; color:#fff; border:1px solid #444; text-transform:none;">
+                                <i class="fa fa-location-arrow" style="margin-right:6px; color:var(--gold);"></i>Use My Location
+                            </button>
+                            <button type="button" class="btn-gold" onclick="toggleProfileMapPicker()" style="margin:0; font-size:11px; padding:8px 12px; flex:1; background:#222; color:#fff; border:1px solid #444; text-transform:none;">
+                                <i class="fa fa-map" style="margin-right:6px; color:var(--gold);"></i>Locate on Map
+                            </button>
+                        </div>
+
+                        <!-- Leaflet map container -->
+                        <div id="prof-map-picker-container" style="display:none; height:180px; border-radius:8px; overflow:hidden; margin-bottom:10px; border:1px solid #333;"></div>
+
+                        <!-- Add New Address form -->
+                        <div style="border-top:1px dashed #222; padding-top:10px; margin-top:10px;">
+                            <div id="prof-addr-form-title" style="font-size:10px; color:#888; font-weight:bold; margin-bottom:6px; text-transform:uppercase;">Add New Address</div>
+                            <div style="display:flex; gap:6px; margin-bottom:6px;">
+                                <button type="button" class="prof-addr-tag active" data-tag="Home" onclick="selectProfAddrTag('Home')" style="flex:1; padding:6px; background:#1a1a1a; color:#fff; border:1px solid var(--gold); border-radius:6px; font-size:10px; cursor:pointer;">Home</button>
+                                <button type="button" class="prof-addr-tag" data-tag="Office" onclick="selectProfAddrTag('Office')" style="flex:1; padding:6px; background:#1a1a1a; color:#888; border:1px solid #333; border-radius:6px; font-size:10px; cursor:pointer;">Office</button>
+                                <button type="button" class="prof-addr-tag" data-tag="Other" onclick="selectProfAddrTag('Other')" style="flex:1; padding:6px; background:#1a1a1a; color:#888; border:1px solid #333; border-radius:6px; font-size:10px; cursor:pointer;">Other</button>
+                            </div>
+                            <textarea id="prof-new-addr-text" placeholder="Type or click map to fill address..." style="width:100%; box-sizing:border-box; background:#111; border:1px solid #333; color:#fff; border-radius:8px; padding:8px; font-size:11px; margin-bottom:6px; min-height:50px; outline:none; resize:none;"></textarea>
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                                <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#aaa; cursor:pointer; user-select:none;">
+                                    <input type="checkbox" id="prof-new-addr-default" style="margin:0; accent-color:var(--gold);"> Set as Default
+                                </label>
+                                <div style="display:flex; gap:6px;">
+                                    <button type="button" class="btn-gold" id="prof-save-addr-btn" onclick="addNewProfileAddress()" style="width:auto; padding:6px 12px; font-size:11px; margin:0;">Save Address</button>
+                                    <button type="button" id="prof-cancel-addr-btn" onclick="cancelProfileAddressEdit()" style="display:none; width:auto; padding:6px 12px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff; border-radius:5px; cursor:pointer;">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <button class="btn-gold" onclick="saveProfile()" style="margin-top:5px;">
                     <i class="fa fa-save"></i> &nbsp;Save Changes
@@ -1204,11 +1253,11 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.3"></script>
-    <script src="js/store.js?v=9.3"></script>
-    <script src="js/checkout.js?v=9.3"></script>
-    <script src="js/auth.js?v=9.3"></script>
-    <script src="js/admin.js?v=9.3"></script>
+    <script src="js/app.js?v=9.5"></script>
+    <script src="js/store.js?v=9.5"></script>
+    <script src="js/checkout.js?v=9.5"></script>
+    <script src="js/auth.js?v=9.5"></script>
+    <script src="js/admin.js?v=9.5"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp" id="whatsapp-float-btn">
         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">

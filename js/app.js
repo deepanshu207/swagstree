@@ -256,6 +256,51 @@ function copyToClipboard(text) {
 
 function closeModal(id) { 
     document.getElementById(id).style.display = 'none'; 
+    // Refresh WhatsApp visibility when any modal closes
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+}
+
+// WhatsApp Floating Icon Visibility Controller
+// Rules:
+// - NEVER show on: product detail
+// - Show on: filter slider, checkout modal (allowed)
+// - Admin/Superadmin: show ONLY on home and wishlist tabs
+// - Customer: show on home, wishlist, profile/orders tabs
+function updateWhatsAppVisibility() {
+    const btn = document.getElementById('whatsapp-float-btn');
+    if (!btn) return;
+
+    // 1. Hide if product detail overlay is open
+    const detailView = document.getElementById('detail-view');
+    if (detailView && (detailView.style.display === 'block' || detailView.classList.contains('active-detail-flex'))) {
+        btn.style.display = 'none';
+        return;
+    }
+
+    // 2. Determine which section/tab is currently active
+    const activeSection = document.querySelector('.section.active');
+    if (!activeSection) {
+        btn.style.display = 'none';
+        return;
+    }
+    const sectionId = activeSection.id; // e.g. 'home-view', 'wish-view', 'user-view', 'admin-view', 'super-view'
+
+    // 3. Apply role-based rules
+    if (isAdmin || isSuperAdmin) {
+        // Admin/Superadmin: ONLY show on home and wishlist
+        if (sectionId === 'home-view' || sectionId === 'wish-view') {
+            btn.style.display = 'flex';
+        } else {
+            btn.style.display = 'none';
+        }
+    } else {
+        // Customer: show on home, wishlist, profile/orders (user-view)
+        if (sectionId === 'home-view' || sectionId === 'wish-view' || sectionId === 'user-view') {
+            btn.style.display = 'flex';
+        } else {
+            btn.style.display = 'none';
+        }
+    }
 }
 
 // 4. NAVIGATION SYSTEM
@@ -326,6 +371,12 @@ function nav(id, el) {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
         if (typeof loadAssignedAdmins === 'function') loadAssignedAdmins();
     }
+    if (id === 'user') {
+        if (typeof loadProfileAddresses === 'function') loadProfileAddresses();
+    }
+
+    // Update WhatsApp floating icon visibility based on current tab and user role
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
 
 // Initialize on load
