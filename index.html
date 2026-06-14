@@ -586,6 +586,8 @@
             </div>
         </div>
 
+
+
         <!-- Feedback / Instagram Feed Settings -->
         <div id="admin-feedback-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
@@ -822,6 +824,27 @@
             <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Superadmin Panel</h3>
         </div>
 
+        <!-- Session Timeout Settings -->
+        <div id="admin-session-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-user-clock" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Session Timeout Settings</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set inactivity duration (in minutes) before auto-logout (default 30)</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <input id="admin-session-timeout" type="number" min="1" step="1" value="30"
+                        style="margin:0;" placeholder="Default is 30">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveSessionSettings()">Save</button>
+            </div>
+        </div>
+
+
         <!-- Email Settings -->
         <div id="admin-email-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
@@ -1047,7 +1070,7 @@
                 <label style="font-size:12px; color:#aaa; margin:0;">If not hidden, show Main Images at:</label>
                 <select id="m-main-pos" style="background:#222; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px; font-size:12px; outline:none; margin:0;">
                     <option value="start">Start</option>
-                    <option value="end">End</option>
+                    <option value="end" selected>End</option>
                 </select>
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:15px; justify-content:flex-start;">
@@ -1253,11 +1276,11 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.5"></script>
-    <script src="js/store.js?v=9.5"></script>
-    <script src="js/checkout.js?v=9.5"></script>
-    <script src="js/auth.js?v=9.5"></script>
-    <script src="js/admin.js?v=9.5"></script>
+    <script src="js/app.js?v=9.9"></script>
+    <script src="js/store.js?v=9.9"></script>
+    <script src="js/checkout.js?v=9.9"></script>
+    <script src="js/auth.js?v=9.9"></script>
+    <script src="js/admin.js?v=9.9"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp" id="whatsapp-float-btn">
         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
