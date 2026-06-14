@@ -450,9 +450,24 @@ function setupInfiniteScrollObserver() {
     });
 }
 
+function isProductOutOfStock(p) {
+    const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
+    if (activeVariants.length > 0) {
+        const trackingVariants = activeVariants.filter(v => v.trackStock);
+        if (trackingVariants.length > 0 && trackingVariants.every(v => (v.stockCount || 0) <= 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+window.isProductOutOfStock = isProductOutOfStock;
+
 function renderProducts(items, targetId) {
     const container = document.getElementById(targetId);
     if (!container) return;
+
+    // Filter out completely out-of-stock products for storefront and wishlist
+    items = items.filter(p => !isProductOutOfStock(p));
 
     if (targetId === 'product-grid') {
         const loadMoreBtnContainer = document.getElementById('load-more-container');
@@ -1084,6 +1099,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     }
 
     if (qtyInCart > 0) {
+        const reachedLimit = v && ((v.trackStock && qtyInCart >= v.stockCount) || (!v.trackStock && qtyInCart >= (typeof globalMaxCartQty !== 'undefined' ? globalMaxCartQty : 1)));
         btn.style.padding = "0";
         btn.style.background = "var(--gold)";
         btn.style.color = "#000";
@@ -1092,7 +1108,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             <div style="display:flex; width:100%; align-items:center; justify-content:space-between; font-size:24px;">
                 <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', '${window.selectedPattern || ''}', -1)">-</div>
                 <div style="padding:15px; flex:2; font-size:16px; text-align:center; white-space:nowrap; font-weight:900;">${qtyInCart} IN BAG</div>
-                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', '${window.selectedPattern || ''}', 1)">+</div>
+                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08); ${reachedLimit ? 'opacity:0.3; pointer-events:none;' : ''}" onclick="event.stopPropagation(); ${reachedLimit ? '' : `updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', '${window.selectedPattern || ''}', 1)`}">+</div>
             </div>
         `;
         btn.onclick = null;
