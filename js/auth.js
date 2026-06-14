@@ -37,6 +37,9 @@ function updateAdminPrivilegesUI() {
     if (isSuperAdmin && typeof loadAssignedAdmins === 'function') {
         loadAssignedAdmins();
     }
+
+    // Update WhatsApp icon visibility when user role changes
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
 
 // Global real-time listener for admins
