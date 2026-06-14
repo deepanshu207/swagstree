@@ -586,6 +586,8 @@
             </div>
         </div>
 
+
+
         <!-- Feedback / Instagram Feed Settings -->
         <div id="admin-feedback-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
@@ -821,6 +823,27 @@
         <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
             <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Superadmin Panel</h3>
         </div>
+
+        <!-- Session Timeout Settings -->
+        <div id="admin-session-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-user-clock" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Session Timeout Settings</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set inactivity duration (in minutes) before auto-logout (default 30)</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <input id="admin-session-timeout" type="number" min="1" step="1" value="30"
+                        style="margin:0;" placeholder="Default is 30">
+                </div>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveSessionSettings()">Save</button>
+            </div>
+        </div>
+
 
         <!-- Email Settings -->
         <div id="admin-email-settings"

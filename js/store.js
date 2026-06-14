@@ -301,6 +301,15 @@ function loadData() {
         renderFilters();
         if (typeof renderAdmin === "function") renderAdmin();
         checkDeepLink(); // open shared product link if present
+        
+        // Refresh cart contents and badge to reflect any stock updates
+        if (typeof updateCartUI === 'function') updateCartUI();
+        if (typeof openCart === 'function') {
+            const cartModal = document.getElementById('cart-modal');
+            if (cartModal && cartModal.style.display === 'flex') {
+                openCart();
+            }
+        }
     }, error => {
         console.error("Firestore products onSnapshot error:", error);
     });

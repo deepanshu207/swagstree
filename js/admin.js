@@ -1304,6 +1304,7 @@ window.saveCodSettings = saveCodSettings;
 window.loadMaxQtySettings = loadMaxQtySettings;
 window.loadPromoSettings = loadPromoSettings;
 
+
 async function loadTelegramSettings() {
     try {
         const snap = await db.collection('settings').doc('telegram').get();
