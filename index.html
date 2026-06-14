@@ -59,7 +59,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=3.0">
+    <link rel="stylesheet" href="css/style.css?v=3.8">
 </head>
 
 <body class="footer-hidden">
@@ -1234,33 +1234,31 @@
     </div>
 
     <!-- Persistent Bottom Footer -->
-    <footer id="app-footer" class="hidden" style="background:#0a0a0a; border-top:1px solid #1a1a1a; padding:18px 15px; width:100%; box-sizing:border-box;">
-        <!-- Links Layout -->
-        <div id="footer-links-row" style="display:flex; justify-content:center; align-items:center; gap:3vw; margin-bottom:8px; flex-wrap:nowrap; font-family:'Segoe UI', sans-serif; width:100%;">
-            <!-- About Us -->
-            <div onclick="openFooterPage('about')" style="color:#eee; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
-                <i class="fa fa-circle-info" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> About Us
+    <footer id="app-footer" class="hidden">
+        <div class="footer-container">
+            <!-- Links Layout -->
+            <div id="footer-links-row">
+                <!-- About Us -->
+                <div onclick="openFooterPage('about')" class="footer-chip">
+                    <i class="fa fa-circle-info"></i> About Us
+                </div>
+                
+                <!-- Contact Us Call -->
+                <a id="footer-contact-link" href="tel:8800467686" class="footer-chip">
+                    <i class="fa fa-phone"></i> Call Us
+                </a>
+
+                <!-- Privacy Policy -->
+                <div onclick="openFooterPage('privacy')" class="footer-chip">
+                    <i class="fa fa-shield-halved"></i> Privacy Policy
+                </div>
             </div>
-            
-            <span style="color:#222; font-weight:400; font-size:11px;">|</span>
-            
-            <!-- Contact Us Call -->
-            <a id="footer-contact-link" href="tel:8800467686" style="color:#eee; text-decoration:none; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
-                <i class="fa fa-phone" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> Call Us
-            </a>
 
-            <span style="color:#222; font-weight:400; font-size:11px;">|</span>
-
-            <!-- Privacy Policy -->
-            <div onclick="openFooterPage('privacy')" style="color:#eee; cursor:pointer; font-size:clamp(9px, 2.5vw, 11px); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px; transition:color 0.2s; white-space:nowrap;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='#eee'">
-                <i class="fa fa-shield-halved" style="color:var(--gold); font-size:clamp(10px, 2.8vw, 12px);"></i> Privacy Policy
+            <!-- Copyright Line -->
+            <div id="footer-copyright-row">
+                <i class="fa fa-copyright"></i>
+                <span id="footer-copyright-text">Swagstree</span>
             </div>
-        </div>
-
-        <!-- Copyright Line -->
-        <div id="footer-copyright-row" style="color:#444; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:4px; margin-top:2px; letter-spacing:0.5px; text-transform:uppercase;">
-            <i class="fa fa-copyright" style="font-size:9px; color:#444;"></i>
-            <span id="footer-copyright-text" style="color:#444;">Swagstree</span>
         </div>
     </footer>
 
