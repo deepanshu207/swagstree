@@ -25,13 +25,13 @@ function updateAdminPrivilegesUI() {
     // Redirect to home if user is in admin view but no longer admin
     const adminView = document.getElementById('admin-view');
     if (adminView && adminView.classList.contains('active') && !isAdmin) {
-        nav('home');
+        if (typeof nav === 'function') nav('home');
     }
     
     // Redirect to home if user is in super view but no longer superadmin
     const superView = document.getElementById('super-view');
     if (superView && superView.classList.contains('active') && !isSuperAdmin) {
-        nav('home');
+        if (typeof nav === 'function') nav('home');
     }
 
     if (isSuperAdmin && typeof loadAssignedAdmins === 'function') {
@@ -73,6 +73,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadEmailSettings === 'function') loadEmailSettings();
             if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
+            if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
         }
     }
 }, error => {
@@ -90,6 +91,37 @@ auth.onAuthStateChanged(user => {
         if (emailLower) {
             alignGuestOrders(emailLower, user.uid);
         }
+        
+        // Start the session inactivity tracker and load current duration
+        if (typeof startSessionTracker === 'function') {
+            startSessionTracker();
+            loadSessionSettings();
+        }
+
+        // Load and merge user cart from Firestore
+        db.collection("users").doc(user.uid).get().then(doc => {
+            if (doc.exists && doc.data().cart) {
+                const savedCart = doc.data().cart;
+                if (Array.isArray(savedCart)) {
+                    if (typeof mergeCarts === 'function') {
+                        const merged = mergeCarts(cart, savedCart);
+                        cart.length = 0;
+                        merged.forEach(item => cart.push(item));
+                    }
+                    if (typeof saveCartToStorage === 'function') {
+                        saveCartToStorage();
+                    }
+                }
+            } else {
+                if (typeof syncCartToFirestore === 'function') {
+                    syncCartToFirestore();
+                }
+            }
+            if (typeof updateCartUI === 'function') updateCartUI();
+        }).catch(err => {
+            console.error("Error loading/merging user cart:", err);
+        });
+
         
         isSuperAdmin = (emailLower === SUPER_ADMIN_EMAIL);
         
@@ -145,6 +177,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadEmailSettings === 'function') loadEmailSettings();
             if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
+            if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
         }
 
         // Update profile header
@@ -187,7 +220,19 @@ auth.onAuthStateChanged(user => {
         document.getElementById('auth-ui').style.display = 'block';
         document.getElementById('dash-ui').style.display = 'none';
         wishlist = [];
+        
+        // Clear cart on logout/timeout
+        cart.length = 0;
+        if (typeof saveCartToStorage === 'function') {
+            saveCartToStorage();
+        }
+        
         renderStore();
+        
+        // Stop the session inactivity tracker
+        if (typeof stopSessionTracker === 'function') {
+            stopSessionTracker();
+        }
     }
 
     updateAdminPrivilegesUI();
@@ -1065,3 +1110,117 @@ async function alignGuestOrders(email, newUid) {
     }
 }
 window.alignGuestOrders = alignGuestOrders;
+
+// ── Session Timeout Inactivity Tracker ───────────────────────────────────────
+let sessionTimeoutMinutes = 30;
+let sessionCheckInterval = null;
+let activityListenersAttached = false;
+
+function updateSessionTimeoutInterval(minutes) {
+    sessionTimeoutMinutes = minutes;
+    console.log(`[Session] Timeout updated to: ${minutes} minutes`);
+}
+window.updateSessionTimeoutInterval = updateSessionTimeoutInterval;
+
+function recordActivity() {
+    if (!currentUser) return;
+    localStorage.setItem('swag_last_activity', Date.now().toString());
+}
+
+function attachActivityListeners() {
+    if (activityListenersAttached) return;
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(evt => {
+        window.addEventListener(evt, recordActivity, { passive: true });
+    });
+    activityListenersAttached = true;
+}
+
+function removeActivityListeners() {
+    if (!activityListenersAttached) return;
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(evt => {
+        window.removeEventListener(evt, recordActivity);
+    });
+    activityListenersAttached = false;
+}
+
+async function loadSessionSettings() {
+    try {
+        const snap = await db.collection('settings').doc('session').get();
+        if (snap.exists && typeof snap.data().timeoutMinutes === 'number') {
+            sessionTimeoutMinutes = snap.data().timeoutMinutes;
+            const inp = document.getElementById('admin-session-timeout');
+            if (inp) inp.value = sessionTimeoutMinutes;
+        }
+    } catch (e) {
+        console.error("Error loading session settings:", e);
+    }
+}
+window.loadSessionSettings = loadSessionSettings;
+window.fetchSessionSettings = loadSessionSettings;
+
+async function saveSessionSettings() {
+    const inp = document.getElementById('admin-session-timeout');
+    if (!inp) return;
+    let val = parseInt(inp.value, 10);
+    if (isNaN(val) || val < 1) val = 30;
+    inp.value = val;
+    try {
+        await db.collection('settings').doc('session').set({ timeoutMinutes: val }, { merge: true });
+        sessionTimeoutMinutes = val;
+        showToast('✅ Session timeout saved: ' + val + ' minutes');
+    } catch(e) {
+        console.error('saveSessionSettings error:', e);
+        showToast('Failed to save session settings');
+    }
+}
+window.saveSessionSettings = saveSessionSettings;
+
+function checkSessionTimeout() {
+    if (!currentUser) {
+        stopSessionTracker();
+        return;
+    }
+
+    const lastActivityStr = localStorage.getItem('swag_last_activity');
+    if (!lastActivityStr) {
+        recordActivity();
+        return;
+    }
+
+    const lastActivity = parseInt(lastActivityStr, 10);
+    const elapsedMinutes = (Date.now() - lastActivity) / (60 * 1000);
+
+    if (elapsedMinutes >= sessionTimeoutMinutes) {
+        console.log(`[Session] Timeout reached. ${elapsedMinutes.toFixed(1)} mins elapsed. Logging out.`);
+        stopSessionTracker();
+        auth.signOut().then(() => {
+            showToast("⚠️ Your session has timed out due to inactivity. Please log in again.");
+        }).catch(err => {
+            console.error("Sign out error on session timeout:", err);
+        });
+    }
+}
+
+function startSessionTracker() {
+    recordActivity();
+    attachActivityListeners();
+    
+    if (!sessionCheckInterval) {
+        sessionCheckInterval = setInterval(checkSessionTimeout, 5000);
+    }
+    window.addEventListener('focus', checkSessionTimeout);
+}
+window.startSessionTracker = startSessionTracker;
+
+function stopSessionTracker() {
+    removeActivityListeners();
+    if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval);
+        sessionCheckInterval = null;
+    }
+    window.removeEventListener('focus', checkSessionTimeout);
+    localStorage.removeItem('swag_last_activity');
+}
+window.stopSessionTracker = stopSessionTracker;
