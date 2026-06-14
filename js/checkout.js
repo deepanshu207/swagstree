@@ -671,6 +671,10 @@ function openCart() {
     // Promos display removed
 
     document.getElementById('cart-modal').style.display = 'flex';
+
+    // Hide WhatsApp icon when checkout is open
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+
     if (typeof autoPopulateCheckoutDetails === 'function') {
         autoPopulateCheckoutDetails();
     }

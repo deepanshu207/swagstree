@@ -761,6 +761,9 @@ function showDetail(id, initialColor = null, initialSize = null) {
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
     detView.classList.add('active-detail-flex');
+
+    // Hide WhatsApp icon on product detail
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
 
 function selectDetailSize(sz, el) {
@@ -1131,6 +1134,9 @@ function closeDetail() {
     detView.style.display = 'none';
     detView.classList.remove('active-detail-flex');
     window.history.replaceState({}, '', window.location.pathname);
+
+    // Restore WhatsApp icon visibility when closing product detail
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
 
 // 4. INTERACTIVITY
@@ -1301,6 +1307,9 @@ function toggleFilter() {
     const overlay = document.querySelector('.filter-overlay');
     slider.classList.toggle('active');
     overlay.style.display = slider.classList.contains('active') ? 'block' : 'none';
+
+    // Hide/show WhatsApp icon when filter slider toggles
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
 
 function setFilterSize(el, sz) {
