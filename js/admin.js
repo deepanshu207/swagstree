@@ -481,7 +481,7 @@ function openEdit(id) {
     document.getElementById('m-desc').value = p.description || ""; 
     document.getElementById('m-hide-main').checked = !!p.hideMainCarousel;
     document.getElementById('m-hide-main-details').checked = !!p.hideMainDetailsCarousel;
-    document.getElementById('m-main-pos').value = p.mainImagesPosition || 'start';
+    document.getElementById('m-main-pos').value = p.mainImagesPosition || 'end';
     document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])]; 
@@ -573,7 +573,7 @@ function openAdd() {
     document.getElementById('m-desc').value = "";
     document.getElementById('m-hide-main').checked = false;
     document.getElementById('m-hide-main-details').checked = false;
-    document.getElementById('m-main-pos').value = 'start';
+    document.getElementById('m-main-pos').value = 'end';
     document.getElementById('m-main-pos-container').style.display = 'flex';
     document.getElementById('m-hide-main-placeholder').checked = false;
     
@@ -817,7 +817,7 @@ function copyProduct(id) {
     document.getElementById('m-desc').value = p.description || ""; 
     document.getElementById('m-hide-main').checked = !!p.hideMainCarousel;
     document.getElementById('m-hide-main-details').checked = !!p.hideMainDetailsCarousel;
-    document.getElementById('m-main-pos').value = p.mainImagesPosition || 'start';
+    document.getElementById('m-main-pos').value = p.mainImagesPosition || 'end';
     document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])]; 

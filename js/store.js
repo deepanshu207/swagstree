@@ -951,7 +951,11 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const variantImagesMap = [];
     if (p.normalizedVariants && p.normalizedVariants.length > 0) {
         p.normalizedVariants.forEach(variant => {
-            if (variant.images && variant.images.length > 0 && !variant.hideDetailsGallery) {
+            const shouldHide = variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true';
+            if (shouldHide) {
+                return; // Skip this variant's images and placeholder entirely
+            }
+            if (variant.images && variant.images.length > 0) {
                 variant.images.forEach(img => {
                     if (!addedImages.has(img)) {
                         addedImages.add(img);
@@ -981,8 +985,8 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         });
     }
 
-    // Combine based on admin-configured position (defaults to 'start')
-    const pos = p.mainImagesPosition || 'start';
+    // Combine based on admin-configured position (defaults to 'end')
+    const pos = p.mainImagesPosition || 'end';
     if (pos === 'end') {
         imagesToDisplay = [...variantImages, ...mainImages];
         imageToVariantMap = [...variantImagesMap, ...mainImagesMap];
