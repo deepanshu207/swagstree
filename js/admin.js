@@ -400,10 +400,65 @@ function renderAdmin() {
             const vWithImg = p.variants.find(v => v.images && v.images.length > 0);
             if (vWithImg) thumbUrl = vWithImg.images[0];
         }
+
+        const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
+        let isOutOfStock = false;
+        if (activeVariants.length > 0) {
+            const trackingVariants = activeVariants.filter(v => v.trackStock);
+            if (trackingVariants.length > 0 && trackingVariants.every(v => (v.stockCount || 0) <= 0)) {
+                isOutOfStock = true;
+            }
+        }
+
+        let stockHtml = '';
+        if (activeVariants.length > 0) {
+            stockHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;">`;
+            activeVariants.forEach(v => {
+                let badgeColor = '#888';
+                let badgeBg = 'rgba(255,255,255,0.05)';
+                let border = '1px solid rgba(255,255,255,0.1)';
+                let label = '';
+                
+                const nameParts = [];
+                if (v.size && v.size !== 'Standard') nameParts.push(v.size);
+                if (v.colorName) nameParts.push(v.colorName);
+                else if (v.color) nameParts.push(v.color);
+                if (v.patternName) nameParts.push(v.patternName);
+                else if (v.pattern) nameParts.push(v.pattern);
+                
+                const varName = nameParts.join(' / ') || 'Standard';
+                
+                if (v.trackStock) {
+                    const stock = v.stockCount || 0;
+                    if (stock <= 0) {
+                        badgeColor = '#ff4d4d';
+                        badgeBg = 'rgba(255, 77, 77, 0.1)';
+                        border = '1px solid rgba(255, 77, 77, 0.2)';
+                        label = `${varName}: 0 Left (OOS)`;
+                    } else {
+                        badgeColor = '#FFD700';
+                        badgeBg = 'rgba(255, 215, 0, 0.05)';
+                        border = '1px solid rgba(255, 215, 0, 0.2)';
+                        label = `${varName}: ${stock} Left`;
+                    }
+                } else {
+                    label = `${varName}: Unlimited`;
+                }
+                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:nowrap;">${label}</span>`;
+            });
+            stockHtml += `</div>`;
+        }
+
         return `
         <div style="display:flex; align-items:center; gap:12px; background:#111; padding:12px; border-radius:15px; margin-bottom:12px; border:1px solid #222">
             <img src="${thumbUrl}" style="width:40px;height:40px;border-radius:5px;object-fit:cover">
-            <div style="flex:1"><b>${p.name}</b></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:4px; min-width:0;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <b>${p.name}</b>
+                    ${isOutOfStock ? `<span style="background:rgba(255, 77, 77, 0.15); color:#ff4d4d; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; border:1px solid rgba(255, 77, 77, 0.3); letter-spacing:0.5px; text-transform:uppercase; display:inline-block;">OUT OF STOCK</span>` : ''}
+                </div>
+                ${stockHtml}
+            </div>
             <div style="display:flex; gap:15px; align-items:center;">
                 <i class="fa fa-copy" style="color:#aaa; cursor:pointer;" title="Copy Product" onclick="copyProduct('${p.id}')"></i>
                 <i class="fa fa-edit" style="color:var(--gold); cursor:pointer" onclick="openEdit('${p.id}')"></i>
