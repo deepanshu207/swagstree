@@ -59,7 +59,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=3.8">
+    <link rel="stylesheet" href="css/style.css?v=3.9">
 </head>
 
 <body class="footer-hidden">
@@ -422,6 +422,28 @@
 
             <!-- My Orders -->
             <div class="profile-section">
+                <!-- Brevo Quota Status Tracker Card -->
+                <div id="admin-brevo-quota-card" style="margin: 0 0 20px 0; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:none; align-items:center; justify-content:space-between; gap:15px; flex-wrap:wrap; font-family:'Segoe UI', 'Outfit', sans-serif;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="background:rgba(255,215,0,0.1); border:1px solid rgba(255,215,0,0.3); width:36px; height:36px; border-radius:10px; display:grid; place-items:center; flex-shrink:0;">
+                            <i class="fa fa-envelope" style="color:var(--gold); font-size:16px;"></i>
+                        </div>
+                        <div>
+                            <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; letter-spacing:0.5px;">Brevo Email Usage Today</h4>
+                            <p style="margin:3px 0 0 0; font-size:11px; color:#666;" id="admin-brevo-quota-text">Loading daily usage details...</p>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <!-- Usage progress bar -->
+                        <div style="width:120px; height:6px; background:#222; border-radius:3px; overflow:hidden; display:none;" id="admin-brevo-progress-container">
+                            <div id="admin-brevo-progress-bar" style="width:0%; height:100%; background:var(--gold); transition:width 0.4s ease; border-radius:3px;"></div>
+                        </div>
+                        <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; letter-spacing:0.5px; background:#222; border:1px solid #444; color:#fff; display:flex; align-items:center; gap:6px;" onclick="refreshBrevoQuota()">
+                            <i class="fa fa-rotate-right"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
                 <h4 class="section-label" style="display:flex; justify-content:space-between; align-items:center;"><span
                         style="display:flex; align-items:center; gap:8px;"><i class="fa fa-box"></i> My Orders</span>
                     <span id="orders-count" class="count-badge" style="display:none;">0 Orders</span>
@@ -1274,11 +1296,11 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.9"></script>
+    <script src="js/app.js?v=9.10"></script>
     <script src="js/store.js?v=9.9"></script>
-    <script src="js/checkout.js?v=9.9"></script>
+    <script src="js/checkout.js?v=9.10"></script>
     <script src="js/auth.js?v=9.9"></script>
-    <script src="js/admin.js?v=9.9"></script>
+    <script src="js/admin.js?v=9.10"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp" id="whatsapp-float-btn">
         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
