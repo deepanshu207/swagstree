@@ -1108,6 +1108,9 @@ body {
     transition: transform 0.2s;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
+.whatsapp-float.hidden-btn {
+    display: none !important;
+}
 .whatsapp-float:hover {
     transform: scale(1.08);
 }

@@ -273,14 +273,14 @@ function updateWhatsAppVisibility() {
     // 1. Hide if product detail overlay is open
     const detailView = document.getElementById('detail-view');
     if (detailView && (detailView.style.display === 'block' || detailView.classList.contains('active-detail-flex'))) {
-        btn.style.display = 'none';
+        btn.classList.add('hidden-btn');
         return;
     }
 
     // 2. Determine which section/tab is currently active
     const activeSection = document.querySelector('.section.active');
     if (!activeSection) {
-        btn.style.display = 'none';
+        btn.classList.add('hidden-btn');
         return;
     }
     const sectionId = activeSection.id; // e.g. 'home-view', 'wish-view', 'user-view', 'admin-view', 'super-view'
@@ -289,16 +289,16 @@ function updateWhatsAppVisibility() {
     if (isAdmin || isSuperAdmin) {
         // Admin/Superadmin: ONLY show on home and wishlist
         if (sectionId === 'home-view' || sectionId === 'wish-view') {
-            btn.style.display = 'flex';
+            btn.classList.remove('hidden-btn');
         } else {
-            btn.style.display = 'none';
+            btn.classList.add('hidden-btn');
         }
     } else {
         // Customer: show on home, wishlist, profile/orders (user-view)
         if (sectionId === 'home-view' || sectionId === 'wish-view' || sectionId === 'user-view') {
-            btn.style.display = 'flex';
+            btn.classList.remove('hidden-btn');
         } else {
-            btn.style.display = 'none';
+            btn.classList.add('hidden-btn');
         }
     }
 }
