@@ -2165,8 +2165,8 @@ async function refreshBrevoQuota() {
     const progressBar = document.getElementById('admin-brevo-progress-bar');
     if (!card || !textNode) return;
 
-    // Show card if user is admin
-    if (typeof isAdmin !== 'undefined' && isAdmin) {
+    // Show card if user is admin or superadmin
+    if ((typeof isAdmin !== 'undefined' && isAdmin) || (typeof isSuperAdmin !== 'undefined' && isSuperAdmin)) {
         card.style.display = 'flex';
     } else {
         card.style.display = 'none';
