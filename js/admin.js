@@ -2158,6 +2158,87 @@ window.toggleFooterAccordion = function(id) {
     }
 };
 
+async function refreshBrevoQuota() {
+    const card = document.getElementById('admin-brevo-quota-card');
+    const textNode = document.getElementById('admin-brevo-quota-text');
+    const progressContainer = document.getElementById('admin-brevo-progress-container');
+    const progressBar = document.getElementById('admin-brevo-progress-bar');
+    if (!card || !textNode) return;
+
+    // Show card if user is admin
+    if (typeof isAdmin !== 'undefined' && isAdmin) {
+        card.style.display = 'flex';
+    } else {
+        card.style.display = 'none';
+        return;
+    }
+    textNode.innerText = "Fetching real-time usage data...";
+
+    try {
+        const emailSnap = await db.collection('settings').doc('email').get();
+        if (!emailSnap.exists) {
+            textNode.innerText = "Configure Brevo API key under settings/email to enable tracking.";
+            return;
+        }
+        const brevoKey = emailSnap.data().brevoKey;
+        if (!brevoKey) {
+            textNode.innerText = "Configure Brevo API key under settings/email to enable tracking.";
+            return;
+        }
+
+        const response = await fetch('https://api.brevo.com/v3/smtp/statistics/reports?limit=10', {
+            method: 'GET',
+            headers: {
+                'accept': 'application/json',
+                'api-key': brevoKey
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`API returned status ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Match UTC date first (since Brevo quota resets at UTC midnight) and fallback to local date string
+        const localDateStr = new Date().toLocaleDateString('sv-SE');
+        const utcDateStr = new Date().toISOString().split('T')[0];
+        
+        const reports = data.reports || [];
+        let todayReport = reports.find(r => r.date === utcDateStr);
+        if (!todayReport && localDateStr !== utcDateStr) {
+            todayReport = reports.find(r => r.date === localDateStr);
+        }
+
+        let sentToday = 0;
+        if (todayReport) {
+            sentToday = todayReport.requests || 0;
+        }
+
+        const limit = 300;
+        const percentage = Math.min((sentToday / limit) * 100, 100);
+
+        textNode.innerHTML = `Sent Today: <b>${sentToday}</b> / <b>${limit}</b> emails (Remaining: <b>${Math.max(0, limit - sentToday)}</b>)`;
+        
+        if (progressContainer && progressBar) {
+            progressContainer.style.display = 'block';
+            progressBar.style.width = `${percentage}%`;
+            if (percentage >= 90) {
+                progressBar.style.background = '#e74c3c';
+            } else if (percentage >= 70) {
+                progressBar.style.background = '#e67e22';
+            } else {
+                progressBar.style.background = 'var(--gold)';
+            }
+        }
+
+    } catch (err) {
+        console.error("refreshBrevoQuota error:", err);
+        textNode.innerText = "Failed to load usage data. Check API key configuration.";
+    }
+}
+window.refreshBrevoQuota = refreshBrevoQuota;
+
 
 
 

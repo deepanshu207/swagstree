@@ -328,7 +328,10 @@ function nav(id, el) {
     // Close any open modals and detail overlays to ensure the main section is visible
     document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
     const detailView = document.getElementById('detail-view');
-    if (detailView) detailView.style.display = 'none';
+    if (detailView) {
+        detailView.style.display = 'none';
+        detailView.classList.remove('active-detail-flex');
+    }
     window.history.replaceState({}, '', window.location.pathname);
     
     // Sync active state between desktop and mobile nav strictly
@@ -366,6 +369,7 @@ function nav(id, el) {
         if (typeof loadPromoSettings === 'function') loadPromoSettings();
         if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
         if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
+        if (typeof refreshBrevoQuota === 'function') refreshBrevoQuota();
     }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
@@ -374,6 +378,7 @@ function nav(id, el) {
     }
     if (id === 'user') {
         if (typeof loadProfileAddresses === 'function') loadProfileAddresses();
+        if (typeof refreshBrevoQuota === 'function') refreshBrevoQuota();
     }
 
     // Update WhatsApp floating icon visibility based on current tab and user role
