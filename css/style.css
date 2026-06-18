@@ -235,7 +235,17 @@ body.footer-hidden {
     .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
     .bottom-nav { display: none !important; }
     .desktop-nav { display: flex !important; }
-    body { padding-bottom: 0 !important; }
+    /* Sticky footer: body as flex column so footer is always at bottom */
+    body {
+        padding-bottom: 0 !important;
+        min-height: 100vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    /* Active section grows to push footer down */
+    .section.active {
+        flex: 1 !important;
+    }
     #app-footer {
         position: relative !important;
         bottom: auto !important;
@@ -389,6 +399,14 @@ input[type="checkbox"], input[type="radio"] {
 /* 7. DASHBOARD & SPECIFIC UI */
 .section { display: none; }
 .section.active { display: block; }
+
+/* Ensure home and wishlist sections fill the viewport so footer stays at bottom */
+/* On mobile: footer is position:fixed, no issue */
+/* On desktop: use flex-grow to push footer to bottom */
+#home-view.active,
+#wish-view.active {
+    flex: 1;
+}
 .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
 .thumb-wrap { position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
 .thumb-del { position: absolute; top: 2px; right: 2px; background: rgba(255,0,0,0.8); color: white; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; cursor: pointer; font-weight: bold; }
@@ -1127,4 +1145,46 @@ body {
         height: 45px;
         filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
     }
+}
+
+/* ADMIN ORDERS SEARCH AND STATUS TABS */
+.admin-orders-tabs {
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    padding: 6px 2px !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+.admin-orders-tabs::-webkit-scrollbar {
+    display: none !important;
+}
+.status-tab {
+    padding: 8px 16px !important;
+    background: #151515 !important;
+    border: 1px solid #333 !important;
+    color: #bbb !important;
+    border-radius: 20px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    transition: all 0.2s ease-in-out !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    line-height: 1 !important;
+}
+.status-tab:hover {
+    color: #fff !important;
+    border-color: var(--gold) !important;
+    background: #1c1c1c !important;
+}
+.status-tab.active {
+    background: rgba(255, 215, 0, 0.12) !important;
+    border-color: var(--gold) !important;
+    color: var(--gold) !important;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2) !important;
 }

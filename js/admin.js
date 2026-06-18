@@ -2376,13 +2376,15 @@ async function runBackup(isAuto = false) {
     const now = new Date();
     const dateStr = now.toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
     const filename = `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
-    
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    
+    showToast(`Backup download started: ${filename}`);
+    
     URL.revokeObjectURL(url);
     
     // Update last backup timestamp in settings/backup
@@ -2394,8 +2396,6 @@ async function runBackup(isAuto = false) {
     if (statusEl) {
         statusEl.innerHTML = `Last Backup Time: <b>${new Date(nowMs).toLocaleString()}</b>`;
     }
-    
-    showToast(`Backup download started: ${filename}`);
 }
 
 async function restoreBackupFromFile(input) {
