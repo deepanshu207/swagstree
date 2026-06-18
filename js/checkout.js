@@ -2318,6 +2318,7 @@ window.recalculateAutoRefund = function() {
 
 window.saveAdminOrderChanges = async function(docId, notifyType) {
     const overallStatusVal = document.getElementById('adm-overall-status').value;
+    const statusLabel = ORDER_STATUSES.find(s => s.value === overallStatusVal)?.label || overallStatusVal;
     const showOverallStatusVal = document.getElementById('adm-show-overall-status')?.checked || false;
     const items = window.editingOrderDoc?.data?.items || [];
     
@@ -2370,8 +2371,8 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
             if (notifyType === 'admin') {
                 if (statusNode.adminTelegramSent || orderData.status === overallStatusVal) {
                     const msg = statusNode.adminTelegramSent 
-                        ? `A Telegram notification for "${overallStatusVal}" has already been sent to the admin. Do you want to send it again?`
-                        : `Order status is already "${overallStatusVal}". Do you want to send Telegram notification anyway?`;
+                        ? `A Telegram notification for "${statusLabel}" has already been sent to the admin. Do you want to send it again?`
+                        : `Order status is already "${statusLabel}". Do you want to send Telegram notification anyway?`;
                     if (!confirm(msg)) return;
                 }
             } else if (notifyType === 'customer') {
@@ -2387,8 +2388,8 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
                 } else {
                     if (statusNode.customerMailSent || orderData.status === overallStatusVal) {
                         const msg = statusNode.customerMailSent
-                            ? `An Email notification for "${overallStatusVal}" has already been sent to the customer. Do you want to send it again?`
-                            : `Order status is already "${overallStatusVal}". Do you want to send Email notification anyway?`;
+                            ? `An Email notification for "${statusLabel}" has already been sent to the customer. Do you want to send it again?`
+                            : `Order status is already "${statusLabel}". Do you want to send Email notification anyway?`;
                         if (!confirm(msg)) return;
                     }
                 }
