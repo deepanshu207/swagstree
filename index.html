@@ -914,6 +914,52 @@
             </div>
         </div>
 
+        <!-- Section: Backup & Restore Settings -->
+        <div id="admin-backup-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-database" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Database Backup & Restore</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Export/Import Firestore collection data backups</p>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+                
+                <!-- Auto Backup Config -->
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <span style="font-size:12px; color:#aaa; min-width:130px;">Auto Backup Interval:</span>
+                    <select id="admin-backup-interval" style="margin:0; width:160px; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px;">
+                        <option value="disabled">Disabled</option>
+                        <option value="hour">Every Hour</option>
+                        <option value="day">Every Day</option>
+                        <option value="week">Every Week (Default)</option>
+                        <option value="month">Every Month</option>
+                        <option value="year">Every Year</option>
+                    </select>
+                    <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; height:36px;" onclick="saveBackupSettings()">Save Interval</button>
+                </div>
+
+                <div style="font-size:11px; color:#888; margin-top:2px;" id="admin-backup-status-text">
+                    Last Auto-Backup: Loading...
+                </div>
+
+                <div style="height:1px; background:#222; margin:5px 0;"></div>
+
+                <!-- Manual Controls -->
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:5px;">
+                    <button class="btn-gold" style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px;" onclick="triggerManualBackup()">
+                        <i class="fa fa-download"></i> Download Backup JSON
+                    </button>
+                    
+                    <button class="btn-gold" style="width:auto; padding:10px 16px; font-size:11px; background:#222; border:1px solid #444; color:#fff; display:flex; align-items:center; gap:6px;" onclick="document.getElementById('backup-restore-file').click()">
+                        <i class="fa fa-upload"></i> Restore from JSON
+                    </button>
+                    <input type="file" id="backup-restore-file" accept=".json" style="display:none;" onchange="restoreBackupFromFile(this)">
+                </div>
+            </div>
+        </div>
+
         <!-- Section 1: Manage Admins -->
         <div style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
@@ -1296,11 +1342,11 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.10"></script>
-    <script src="js/store.js?v=9.9"></script>
-    <script src="js/checkout.js?v=9.10"></script>
-    <script src="js/auth.js?v=9.9"></script>
-    <script src="js/admin.js?v=9.10"></script>
+    <script src="js/app.js?v=9.11"></script>
+    <script src="js/store.js?v=9.11"></script>
+    <script src="js/checkout.js?v=9.11"></script>
+    <script src="js/auth.js?v=9.11"></script>
+    <script src="js/admin.js?v=9.11"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp" id="whatsapp-float-btn">
         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
