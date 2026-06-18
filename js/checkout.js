@@ -149,12 +149,20 @@ const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
         }
     }).catch(() => {});
 
-    // Load Product Pagination settings
+    // Load Product and Orders Pagination settings
     db.collection('settings').doc('pagination').get().then(doc => {
-        if (doc.exists && typeof doc.data().limit === 'number') {
-            productsPageLimitSetting = doc.data().limit;
+        if (doc.exists) {
+            const data = doc.data();
+            
+            // Products page limit
+            productsPageLimitSetting = typeof data.limit === 'number' ? data.limit : 20;
             displayedProductsLimit = productsPageLimitSetting;
             displayedWishlistLimit = productsPageLimitSetting;
+            
+            // Profile & Orders page limit
+            ordersPageLimitSetting = typeof data.ordersLimit === 'number' ? data.ordersLimit : 20;
+            displayedOrdersLimit = ordersPageLimitSetting;
+            
             if (typeof renderStore === 'function') renderStore();
         }
     }).catch(() => {});
@@ -1583,15 +1591,24 @@ function renderOrdersList(docs) {
             const hasMore = visibleCount > displayedOrdersLimit && !window.allDatabaseOrdersLoaded;
             countContainer.innerHTML = hasMore ? `Showing ${displayedOrdersLimit}+ Orders` : `${visibleCount} Orders`;
         } else {
-            countContainer.innerHTML = `Showing ${visibleCount} of ${visibleCount} Orders`;
+            const shownCount = Math.min(visibleCount, displayedOrdersLimit);
+            countContainer.innerHTML = `Showing ${shownCount} of ${visibleCount} Orders`;
         }
         countContainer.style.display = 'inline-flex';
     }
     
-    const isSearching = (document.getElementById('admin-orders-search-input')?.value.trim() !== '') || 
-                        (document.querySelector('#admin-orders-search-container .status-tab.active')?.dataset.status !== 'all');
+    const isSearching = isAdmin && ((document.getElementById('admin-orders-search-input')?.value.trim() !== '') || 
+                        (document.querySelector('#admin-orders-search-container .status-tab.active')?.dataset.status !== 'all'));
+    
+    let hasMoreToShow = false;
+    if (isAdmin) {
+        hasMoreToShow = !isSearching && docs.length > displayedOrdersLimit && !window.allDatabaseOrdersLoaded;
+    } else {
+        hasMoreToShow = docs.length > displayedOrdersLimit;
+    }
+    
     if (loadMoreBtnContainer) {
-        if (!isSearching && isAdmin && docs.length > displayedOrdersLimit && !window.allDatabaseOrdersLoaded) {
+        if (hasMoreToShow) {
             loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;" onclick="loadMoreOrders()">LOAD MORE ORDERS</button>`;
         } else {
             loadMoreBtnContainer.innerHTML = '';
@@ -1599,7 +1616,7 @@ function renderOrdersList(docs) {
     }
     
     let renderDocs = docs;
-    if (!isSearching && isAdmin && docs.length > displayedOrdersLimit && !window.allDatabaseOrdersLoaded) {
+    if (hasMoreToShow) {
         renderDocs = docs.slice(0, displayedOrdersLimit);
     }
     
@@ -2060,7 +2077,7 @@ function loadOrders() {
 }
 
 function loadMoreOrders() {
-    displayedOrdersLimit += 20;
+    displayedOrdersLimit += ordersPageLimitSetting;
     loadOrders();
 }
 

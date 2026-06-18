@@ -23,6 +23,7 @@ var isAdmin = false;
 var isSuperAdmin = false;
 var assignedAdmins = [];
 var productsPageLimitSetting = 20;
+var ordersPageLimitSetting = 20;
 var editingId = null;
 
 // UI State
@@ -310,15 +311,19 @@ function nav(id, el) {
     document.getElementById(id + '-view').classList.add('active'); 
     
     // Show footer always on Home and Wish views only if there is visible content enabled
-    const appFooter = document.getElementById('app-footer');
-    if (appFooter) {
-        const isLinksEnabled = window.footerSettings && !!window.footerSettings.showFooter;
-        const isCopyrightEnabled = !window.footerSettings || window.footerSettings.showCopyright !== false;
-        const hasVisibleContent = isLinksEnabled || isCopyrightEnabled;
-        const shouldShow = hasVisibleContent && (id === 'home' || id === 'wish');
-        
-        appFooter.classList.toggle('hidden', !shouldShow);
-        document.body.classList.toggle('footer-hidden', !shouldShow);
+    if (typeof renderFooter === 'function') {
+        renderFooter();
+    } else {
+        const appFooter = document.getElementById('app-footer');
+        if (appFooter) {
+            const isLinksEnabled = window.footerSettings && !!window.footerSettings.showFooter;
+            const isCopyrightEnabled = !window.footerSettings || window.footerSettings.showCopyright !== false;
+            const hasVisibleContent = isLinksEnabled || isCopyrightEnabled;
+            const shouldShow = hasVisibleContent && (id === 'home' || id === 'wish');
+            
+            appFooter.classList.toggle('hidden', !shouldShow);
+            document.body.classList.toggle('footer-hidden', !shouldShow);
+        }
     }
     if (id === 'home' && new URLSearchParams(window.location.search).has('id')) {
         // Clear search params to exit product detail view mode cleanly without hard reloading page

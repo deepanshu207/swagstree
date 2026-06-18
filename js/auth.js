@@ -212,7 +212,7 @@ auth.onAuthStateChanged(user => {
         document.getElementById('dash-ui').style.display = 'block';
 
         if (typeof loadOrders === "function") {
-            displayedOrdersLimit = 20;
+            displayedOrdersLimit = ordersPageLimitSetting;
             loadOrders();
         }
     } else {

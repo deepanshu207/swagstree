@@ -1052,17 +1052,31 @@ window.saveMaxQtySettings = async function() {
     }
 }
 
-// ── Products Pagination Settings ─────────────────────────────────────────────
+// ── Products & Orders Pagination Settings ─────────────────────────────────────
 window.loadPaginationSettings = async function() {
     try {
         const snap = await db.collection('settings').doc('pagination').get();
-        if (snap.exists && typeof snap.data().limit !== 'undefined') {
-            const val = snap.data().limit;
-            const inp = document.getElementById('admin-products-page-limit');
-            if (inp) inp.value = val;
-            if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
-            if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
-            if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+        if (snap.exists) {
+            const data = snap.data();
+            
+            // Products limit
+            if (typeof data.limit !== 'undefined') {
+                const val = data.limit;
+                const inp = document.getElementById('admin-products-page-limit');
+                if (inp) inp.value = val;
+                if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
+                if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
+                if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+            }
+            
+            // Orders limit
+            if (typeof data.ordersLimit !== 'undefined') {
+                const val = data.ordersLimit;
+                const inp = document.getElementById('admin-orders-page-limit');
+                if (inp) inp.value = val;
+                if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = val;
+                if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = val;
+            }
         }
     } catch(e) {
         console.error('loadPaginationSettings error:', e);
@@ -1071,17 +1085,36 @@ window.loadPaginationSettings = async function() {
 
 window.savePaginationSettings = async function() {
     const inp = document.getElementById('admin-products-page-limit');
-    if (!inp) return;
-    let val = parseInt(inp.value, 10);
-    if (isNaN(val) || val < 1) val = 20;
-    inp.value = val;
+    const inpOrders = document.getElementById('admin-orders-page-limit');
+    
+    let val = 20;
+    if (inp) {
+        val = parseInt(inp.value, 10);
+        if (isNaN(val) || val < 1) val = 20;
+        inp.value = val;
+    }
+    
+    let valOrders = 20;
+    if (inpOrders) {
+        valOrders = parseInt(inpOrders.value, 10);
+        if (isNaN(valOrders) || valOrders < 1) valOrders = 20;
+        inpOrders.value = valOrders;
+    }
+    
     try {
-        await db.collection('settings').doc('pagination').set({ limit: val }, { merge: true });
+        const payload = { limit: val, ordersLimit: valOrders };
+        await db.collection('settings').doc('pagination').set(payload, { merge: true });
+        
         if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
         if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
         if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
-        showToast('✅ Products page limit saved: ' + val);
+        
+        if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = valOrders;
+        if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = valOrders;
+        
+        showToast('✅ Pagination settings saved successfully!');
         if (typeof renderStore === 'function') renderStore();
+        if (typeof loadOrders === 'function') loadOrders();
     } catch(e) {
         console.error('savePaginationSettings error:', e);
         showToast('Failed to save pagination settings');
@@ -2032,32 +2065,36 @@ async function loadAdminFooterSettings() {
             showFooter: false,
             showCopyright: true,
             copyright: "Swagstree",
-            aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+            aboutText: `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
             gpsLat: "28.6139",
             gpsLng: "77.2090",
+            gpsQuery: "Swag Stree, Delhi",
             contactPhone: "8800467686",
-            privacyText: `Privacy Policy & Data Protection
-
-At Swag Stree, we take your privacy seriously. This policy details how we collect, use, and protect your information when using our app.
-
-1. Information Collection
-We collect your registration details (such as name, email, and phone number) to process orders and improve your store experience.
-
-2. Firebase Authentication
-All credentials and login methods (Google, Email/Password) are safely handled and securely encrypted through Google Firebase.
-
-3. Shipping & Delivery
-We share only relevant shipping details with logistics partners to ensure prompt delivery of orders.`
+            contactAddress: "Shop No. 12, Swag Stree, Delhi",
+            privacyText: `<h3>Privacy Policy & Order Processing</h3><p>At Swag Stree, we value the trust you place in us and are fully committed to protecting your personal information. Below, we explain our data practices and how your order is processed through each status update.</p><h3>1. Information We Collect</h3><p>When you place an order or interact with our app, we collect relevant information to process transactions, including:</p><ul><li>Contact details (Name, phone number, email address).</li><li>Delivery and billing address details.</li></ul><h3>2. Order Status Walkthrough</h3><p>To keep you informed at every stage of your purchase, your order progresses through these standard phases:</p><ul><li><b>Pending:</b> Your order has been successfully placed and is awaiting verification by our team.</li><li><b>Confirmed:</b> The payment/order details have been verified, and we are preparing your items for packaging.</li><li><b>Shipped:</b> Your package has been handed over to our courier partner. Tracking details will be shared via WhatsApp/SMS.</li><li><b>Delivered:</b> Your order has been successfully delivered to your specified shipping address.</li><li><b>Cancelled:</b> The order was cancelled by either the customer or our system due to stock limitations or payment issues.</li></ul><h3>3. Data Security & Storage</h3><p>Your session details, account credentials, and transactions are fully secured. We use Google Firebase for secure user authentication, password hashing, and token encryption. We strictly share shipping info with authorized delivery partners only.</p>`
         };
+        
+        // Auto-upgrade simple placeholders to premium templates
+        const premiumAbout = `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`;
+        const premiumPrivacy = `<h3>Privacy Policy & Order Processing</h3><p>At Swag Stree, we value the trust you place in us and are fully committed to protecting your personal information. Below, we explain our data practices and how your order is processed through each status update.</p><h3>1. Information We Collect</h3><p>When you place an order or interact with our app, we collect relevant information to process transactions, including:</p><ul><li>Contact details (Name, phone number, email address).</li><li>Delivery and billing address details.</li></ul><h3>2. Order Status Walkthrough</h3><p>To keep you informed at every stage of your purchase, your order progresses through these standard phases:</p><ul><li><b>Pending:</b> Your order has been successfully placed and is awaiting verification by our team.</li><li><b>Confirmed:</b> The payment/order details have been verified, and we are preparing your items for packaging.</li><li><b>Shipped:</b> Your package has been handed over to our courier partner. Tracking details will be shared via WhatsApp/SMS.</li><li><b>Delivered:</b> Your order has been successfully delivered to your specified shipping address.</li><li><b>Cancelled:</b> The order was cancelled by either the customer or our system due to stock limitations or payment issues.</li></ul><h3>3. Data Security & Storage</h3><p>Your session details, account credentials, and transactions are fully secured. We use Google Firebase for secure user authentication, password hashing, and token encryption. We strictly share shipping info with authorized delivery partners only.</p>`;
+        
+        if (!settings.aboutText || !settings.aboutText.includes('2018')) {
+            settings.aboutText = premiumAbout;
+        }
+        if (!settings.privacyText || !settings.privacyText.includes('Pending') || !settings.privacyText.includes('Confirmed') || !settings.privacyText.includes('Shipped')) {
+            settings.privacyText = premiumPrivacy;
+        }
         
         const showFooterEl = document.getElementById('admin-footer-show-footer');
         const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
         const copyrightEl = document.getElementById('admin-footer-copyright');
         const aboutTextEl = document.getElementById('admin-footer-about-text');
+        const addressEl = document.getElementById('admin-footer-address');
         const showGpsEl = document.getElementById('admin-footer-show-gps');
         const gpsLatEl = document.getElementById('admin-footer-gps-lat');
         const gpsLngEl = document.getElementById('admin-footer-gps-lng');
+        const gpsQueryEl = document.getElementById('admin-footer-gps-query');
         const phoneEl = document.getElementById('admin-footer-phone');
         const privacyEl = document.getElementById('admin-footer-privacy-text');
         
@@ -2069,6 +2106,7 @@ We share only relevant shipping details with logistics partners to ensure prompt
             if (aboutTextEl.tagName === 'DIV') aboutTextEl.innerHTML = settings.aboutText || '';
             else aboutTextEl.value = settings.aboutText || '';
         }
+        if (addressEl) addressEl.value = settings.contactAddress || '';
         
         if (showGpsEl) {
             showGpsEl.checked = !!settings.showGps;
@@ -2077,6 +2115,7 @@ We share only relevant shipping details with logistics partners to ensure prompt
         }
         if (gpsLatEl) gpsLatEl.value = settings.gpsLat || '';
         if (gpsLngEl) gpsLngEl.value = settings.gpsLng || '';
+        if (gpsQueryEl) gpsQueryEl.value = settings.gpsQuery || '';
         if (phoneEl) phoneEl.value = settings.contactPhone || '8800467686';
         
         if (privacyEl) {
@@ -2094,9 +2133,11 @@ async function saveAdminFooterSettings() {
     const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
     const copyrightEl = document.getElementById('admin-footer-copyright');
     const aboutTextEl = document.getElementById('admin-footer-about-text');
+    const addressEl = document.getElementById('admin-footer-address');
     const showGpsEl = document.getElementById('admin-footer-show-gps');
     const gpsLatEl = document.getElementById('admin-footer-gps-lat');
     const gpsLngEl = document.getElementById('admin-footer-gps-lng');
+    const gpsQueryEl = document.getElementById('admin-footer-gps-query');
     const phoneEl = document.getElementById('admin-footer-phone');
     const privacyEl = document.getElementById('admin-footer-privacy-text');
     
@@ -2104,10 +2145,12 @@ async function saveAdminFooterSettings() {
         showFooter: showFooterEl ? showFooterEl.checked : true,
         showCopyright: showCopyrightEl ? showCopyrightEl.checked : true,
         copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
-        aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "Welcome to Swagstree. Premium fashion store.",
+        aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "",
+        contactAddress: addressEl ? addressEl.value.trim() : "",
         showGps: showGpsEl ? showGpsEl.checked : false,
         gpsLat: gpsLatEl ? gpsLatEl.value.trim() : "",
         gpsLng: gpsLngEl ? gpsLngEl.value.trim() : "",
+        gpsQuery: gpsQueryEl ? gpsQueryEl.value.trim() : "",
         contactPhone: phoneEl ? phoneEl.value.trim() : "8800467686",
         privacyText: privacyEl ? (privacyEl.tagName === 'DIV' ? privacyEl.innerHTML.trim() : privacyEl.value.trim()) : ""
     };
@@ -2123,8 +2166,39 @@ async function saveAdminFooterSettings() {
 }
 window.saveAdminFooterSettings = saveAdminFooterSettings;
 
+window.useCurrentLocation = function() {
+    if (!navigator.geolocation) {
+        showToast("❌ Geolocation is not supported by your browser");
+        return;
+    }
+    showToast("Detecting location...");
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude.toFixed(6);
+            const lng = position.coords.longitude.toFixed(6);
+            const latInp = document.getElementById('admin-footer-gps-lat');
+            const lngInp = document.getElementById('admin-footer-gps-lng');
+            if (latInp) latInp.value = lat;
+            if (lngInp) lngInp.value = lng;
+            showToast(`✅ Current location loaded: ${lat}, ${lng}`);
+        },
+        (error) => {
+            console.error("Error getting location:", error);
+            showToast("❌ Unable to retrieve location: " + error.message);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+};
+
 window.execEditorCommand = function(cmd, value = null) {
-    document.execCommand(cmd, false, value);
+    if (cmd === 'createLink') {
+        const url = prompt('Enter the link URL (e.g. https://google.com):');
+        if (url) {
+            document.execCommand(cmd, false, url);
+        }
+    } else {
+        document.execCommand(cmd, false, value);
+    }
 };
 
 window.toggleFooterAccordion = function(id) {

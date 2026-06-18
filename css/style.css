@@ -100,9 +100,9 @@ body {
         border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
     
-    /* WhatsApp Floating Button on mobile - perfectly equalized spacing */
+    /* WhatsApp Floating Button on mobile - constant position to clear bottom nav nicely */
     .whatsapp-float {
-        bottom: 74px !important; /* Spacing from bottom nav matches right margin (74px - 58px = 16px) */
+        bottom: 80px !important; /* Constant, compact height resting above bottom nav bar */
         right: 16px !important;  /* Spacing from right edge */
         width: 44px !important;
         height: 44px !important;
@@ -131,11 +131,15 @@ body {
 
 @media (max-width: 1024px) {
     #footer-links-row {
-        justify-content: center !important; /* Group chips together and center them */
-        padding-left: 12px !important;      /* Inset from the left edge */
-        padding-right: 64px !important;     /* Offset from the right edge to clear WhatsApp icon perfectly */
+        justify-content: center !important; /* Center chips perfectly on mobile */
+        padding-left: 16px !important;      
+        padding-right: 54px !important;     /* Shifts chips slightly left to make room for WhatsApp button on the right */
         box-sizing: border-box !important;
         gap: 6px !important;
+    }
+    #footer-links-row .footer-chip {
+        padding: 6px 12px !important;
+        font-size: 9.5px !important;
     }
 }
 
@@ -1137,15 +1141,7 @@ body {
     height: 100%;
     display: block;
 }
-@media (max-width: 1024px), (pointer: coarse) {
-    .whatsapp-float {
-        bottom: 80px; /* Positions button nicely above the mobile bottom nav bar */
-        right: 24px;
-        width: 45px;
-        height: 45px;
-        filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
-    }
-}
+/* Removed duplicate whatsapp-float mobile styling overrides to maintain a single source of truth */
 
 /* ADMIN ORDERS SEARCH AND STATUS TABS */
 .admin-orders-tabs {
@@ -1187,4 +1183,52 @@ body {
     border-color: var(--gold) !important;
     color: var(--gold) !important;
     box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2) !important;
+}
+
+/* Storefront Footer Page Styling (About Us & Privacy Policy Document Layout) */
+#about-content-text, #privacy-content-text {
+    font-family: 'Outfit', 'Segoe UI', sans-serif;
+    color: #ddd;
+}
+#about-content-text h3, #privacy-content-text h3 {
+    color: var(--gold);
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-left: 3px solid var(--gold);
+    padding-left: 10px;
+}
+#about-content-text h3:first-of-type, #privacy-content-text h3:first-of-type {
+    margin-top: 0;
+}
+#about-content-text p, #privacy-content-text p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #bbb;
+    margin-bottom: 16px;
+}
+#about-content-text ul, #privacy-content-text ul {
+    margin-bottom: 20px;
+    padding-left: 20px;
+}
+#about-content-text li, #privacy-content-text li {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #bbb;
+    margin-bottom: 8px;
+}
+#about-content-text b, #privacy-content-text b, #about-content-text strong, #privacy-content-text strong {
+    color: #fff;
+    font-weight: 600;
+}
+#about-content-text a, #privacy-content-text a {
+    color: var(--gold);
+    text-decoration: underline;
+    transition: color 0.2s;
+}
+#about-content-text a:hover, #privacy-content-text a:hover {
+    color: #fff;
 }
