@@ -1131,6 +1131,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         total,
         paymentMethod,
         promoCode: activePromo ? activePromo.code : null,
+        status: 'pending',
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         notifications: {
             placed: {
@@ -1262,43 +1263,24 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                 const bccList = [];
                 const customerEmail = emailVal || ((currentUser && currentUser.email) ? currentUser.email : '');
                 
-                // Build admin recipient list dynamically based on active admins
-                const adminRecipients = [];
-                adminRecipients.push({
-                    email: "superadmin@swagstree.com",
-                    name: "Superadmin"
-                });
-                
-                const isDefaultAdminDeactivated = (typeof assignedAdmins !== 'undefined') && assignedAdmins.some(a => a.email === "admin@swagstree.com" && a.status === "deactivated");
-                if (!isDefaultAdminDeactivated) {
-                    adminRecipients.push({
-                        email: "admin@swagstree.com",
+                // Build admin recipient list - only deepsrisharora@gmail.com gets BCC'd as admin
+                const adminRecipients = [
+                    {
+                        email: "deepsrisharora@gmail.com",
                         name: "Admin"
-                    });
-                }
-
-                if (typeof assignedAdmins !== 'undefined' && Array.isArray(assignedAdmins)) {
-                    assignedAdmins.forEach(adm => {
-                        const emailLower = adm.email ? adm.email.toLowerCase() : "";
-                        if (adm.status === "active" && emailLower !== "admin@swagstree.com" && emailLower !== "superadmin@swagstree.com") {
-                            adminRecipients.push({
-                                email: adm.email,
-                                name: `Admin (${adm.email.split('@')[0]})`
-                            });
-                        }
-                    });
-                }
+                    }
+                ];
 
                 if (customerEmail) {
                     toList.push({
                         email: customerEmail,
                         name: n
                     });
-                    // BCC all active admins, filtering out the customer's email to prevent duplicate recipient errors in Brevo
+                    // BCC admin recipient, filtering out if customer is also the admin to prevent duplicate recipient errors in Brevo
                     const filteredBcc = adminRecipients.filter(r => r.email.toLowerCase() !== customerEmail.toLowerCase());
                     filteredBcc.forEach(r => bccList.push(r));
                 } else {
-                    // Fallback for guest checkout (send to admins directly as To recipients)
+                    // Fallback (send to admin directly as To recipient)
                     adminRecipients.forEach(r => toList.push(r));
                 }
 
@@ -1522,11 +1504,13 @@ function loadOrders() {
 
 const ORDER_STATUSES = [
     { value: 'pending', label: '⏳ Pending' },
+    { value: 'partially_confirmed', label: '🟡 Partially Confirmed' },
     { value: 'confirmed', label: '✅ Confirmed' },
-    { value: 'payment_processed', label: '💳 Payment Processed' },
-    { value: 'processing', label: '⚙️ Processing' },
+    { value: 'processing', label: '📦 Preparing Order' },
     { value: 'shipped', label: '🚚 Shipped' },
-    { value: 'delivered', label: '📦 Delivered' },
+    { value: 'delivered', label: '🎉 Delivered' },
+    { value: 'partially_returned', label: '↩️ Partially Returned' },
+    { value: 'returned', label: '↩️ Returned' },
     { value: 'cancelled', label: '❌ Cancelled' }
 ];
 
@@ -1767,7 +1751,7 @@ function loadOrders() {
                             <div style="font-weight:700; color:#aaa; margin-bottom:4px; text-transform:uppercase; font-size:9px; letter-spacing:0.5px;">🔔 Notification Status Log:</div>
                             ${(() => {
                                 const notifs = o.notifications || {};
-                                const statusesList = ['placed', 'pending', 'confirmed', 'payment_processed', 'processing', 'shipped', 'delivered', 'cancelled'];
+                                const statusesList = ['placed', 'pending', 'partially_confirmed', 'confirmed', 'payment_processed', 'processing', 'shipped', 'delivered', 'partially_returned', 'returned', 'cancelled'];
                                 let logHtml = '';
                                 statusesList.forEach(st => {
                                     const stNode = notifs[st];
@@ -1871,6 +1855,7 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
                 const customerEmail = orderData.email ? orderData.email.toLowerCase().trim() : '';
                 const isCustAdmin = customerEmail === 'superadmin@swagstree.com' ||
                                     customerEmail === 'admin@swagstree.com' ||
+                                    customerEmail === 'deepsrisharora@gmail.com' ||
                                     (typeof assignedAdmins !== 'undefined' && Array.isArray(assignedAdmins) && assignedAdmins.some(a => a.email && a.email.toLowerCase() === customerEmail && a.status === 'active'));
                 
                 if (isCustAdmin) {
@@ -2064,7 +2049,19 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
         let statusTitle = `Order status update: ${statusInfo.label}`;
         let statusMsg = `Your order **#${orderId}** status has been updated to **${statusInfo.label}**.`;
         
-        if (newStatus === 'payment_processed') {
+        if (newStatus === 'pending') {
+            statusTitle = "Your Order is Pending ⏳";
+            statusMsg = `Your order **#${orderId}** has been received and is currently pending verification. We will update you shortly.`;
+        } else if (newStatus === 'partially_confirmed') {
+            statusTitle = "Order Partially Confirmed 🟡";
+            statusMsg = `Your order **#${orderId}** has been partially confirmed. We will contact you or update the order status once verification is completed.`;
+        } else if (newStatus === 'confirmed') {
+            statusTitle = "Order Confirmed! ✅";
+            statusMsg = `Great news! Your order **#${orderId}** has been confirmed. We are starting to process it now.`;
+        } else if (newStatus === 'processing') {
+            statusTitle = "Your Order is being Prepared! 📦";
+            statusMsg = `We are preparing your order **#${orderId}** for shipment. We will notify you once it's shipped.`;
+        } else if (newStatus === 'payment_processed') {
             statusTitle = "Payment Received & Processed! 💳";
             statusMsg = `Thank you! Your payment for order **#${orderId}** has been successfully processed. We are preparing your order for shipment.`;
         } else if (newStatus === 'shipped') {
@@ -2073,6 +2070,12 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
         } else if (newStatus === 'delivered') {
             statusTitle = "Your Order has been Delivered! 🎉";
             statusMsg = `Hooray! Your order **#${orderId}** has been successfully delivered. Thank you for shopping with Swag Stree!`;
+        } else if (newStatus === 'partially_returned') {
+            statusTitle = "Order Partially Returned ↩️";
+            statusMsg = `Your order **#${orderId}** has been marked as partially returned. If you have any queries, please let us know.`;
+        } else if (newStatus === 'returned') {
+            statusTitle = "Order Returned ↩️";
+            statusMsg = `Your order **#${orderId}** has been returned. We hope to serve you again in the future.`;
         } else if (newStatus === 'cancelled') {
             statusTitle = "Your Order has been Cancelled ❌";
             statusMsg = `Your order **#${orderId}** has been cancelled.`;
