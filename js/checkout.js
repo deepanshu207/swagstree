@@ -1131,6 +1131,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         total,
         paymentMethod,
         promoCode: activePromo ? activePromo.code : null,
+        status: 'pending',
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         notifications: {
             placed: {
@@ -1261,21 +1262,26 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                 const toList = [];
                 const bccList = [];
                 const customerEmail = emailVal || ((currentUser && currentUser.email) ? currentUser.email : '');
+                
+                // Build admin recipient list - only deepsrisharora@gmail.com gets BCC'd as admin
+                const adminRecipients = [
+                    {
+                        email: "deepsrisharora@gmail.com",
+                        name: "Admin"
+                    }
+                ];
+
                 if (customerEmail) {
                     toList.push({
                         email: customerEmail,
                         name: n
                     });
-                    bccList.push({
-                        email: "orders@swagstree.com",
-                        name: "Swag Stree Admin"
-                    });
+                    // BCC admin recipient, filtering out if customer is also the admin to prevent duplicate recipient errors in Brevo
+                    const filteredBcc = adminRecipients.filter(r => r.email.toLowerCase() !== customerEmail.toLowerCase());
+                    filteredBcc.forEach(r => bccList.push(r));
                 } else {
-                    // Fallback for guest checkout (send to admin directly)
-                    toList.push({
-                        email: "orders@swagstree.com",
-                        name: "Swag Stree Admin"
-                    });
+                    // Fallback (send to admin directly as To recipient)
+                    adminRecipients.forEach(r => toList.push(r));
                 }
 
                 const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -1498,10 +1504,13 @@ function loadOrders() {
 
 const ORDER_STATUSES = [
     { value: 'pending', label: '⏳ Pending' },
+    { value: 'partially_confirmed', label: '🟡 Partially Confirmed' },
     { value: 'confirmed', label: '✅ Confirmed' },
-    { value: 'processing', label: '⚙️ Processing' },
+    { value: 'processing', label: '📦 Preparing Order' },
     { value: 'shipped', label: '🚚 Shipped' },
-    { value: 'delivered', label: '📦 Delivered' },
+    { value: 'delivered', label: '🎉 Delivered' },
+    { value: 'partially_returned', label: '↩️ Partially Returned' },
+    { value: 'returned', label: '↩️ Returned' },
     { value: 'cancelled', label: '❌ Cancelled' }
 ];
 
@@ -1742,7 +1751,7 @@ function loadOrders() {
                             <div style="font-weight:700; color:#aaa; margin-bottom:4px; text-transform:uppercase; font-size:9px; letter-spacing:0.5px;">🔔 Notification Status Log:</div>
                             ${(() => {
                                 const notifs = o.notifications || {};
-                                const statusesList = ['placed', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+                                const statusesList = ['placed', 'pending', 'partially_confirmed', 'confirmed', 'payment_processed', 'processing', 'shipped', 'delivered', 'partially_returned', 'returned', 'cancelled'];
                                 let logHtml = '';
                                 statusesList.forEach(st => {
                                     const stNode = notifs[st];
@@ -1843,11 +1852,22 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
                     if (!confirm(msg)) return;
                 }
             } else if (notifyType === 'customer') {
-                if (statusNode.customerMailSent || orderData.status === statusVal) {
-                    const msg = statusNode.customerMailSent
-                        ? `An Email notification for "${statusVal}" has already been sent to the customer. Do you want to send it again?`
-                        : `Order status is already "${statusVal}". Do you want to send Email notification anyway?`;
-                    if (!confirm(msg)) return;
+                const customerEmail = orderData.email ? orderData.email.toLowerCase().trim() : '';
+                const isCustAdmin = customerEmail === 'superadmin@swagstree.com' ||
+                                    customerEmail === 'admin@swagstree.com' ||
+                                    customerEmail === 'deepsrisharora@gmail.com' ||
+                                    (typeof assignedAdmins !== 'undefined' && Array.isArray(assignedAdmins) && assignedAdmins.some(a => a.email && a.email.toLowerCase() === customerEmail && a.status === 'active'));
+                
+                if (isCustAdmin) {
+                    showToast("⚠️ Customer is Admin/Superadmin. Skip sending email.");
+                    notifyType = 'none';
+                } else {
+                    if (statusNode.customerMailSent || orderData.status === statusVal) {
+                        const msg = statusNode.customerMailSent
+                            ? `An Email notification for "${statusVal}" has already been sent to the customer. Do you want to send it again?`
+                            : `Order status is already "${statusVal}". Do you want to send Email notification anyway?`;
+                        if (!confirm(msg)) return;
+                    }
                 }
             }
         }
@@ -1920,6 +1940,13 @@ async function updateOrderStatus(docId, newStatus, courier, trackingId, notifyTy
 window.updateOrderStatus = updateOrderStatus;
 
 async function triggerTelegramNotification(orderData, docId, newStatus, courier, trackingId) {
+    function escapeHTML(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
     try {
         const cfgSnap = await db.collection('settings').doc('telegram').get();
         if (!cfgSnap.exists) {
@@ -1944,44 +1971,39 @@ async function triggerTelegramNotification(orderData, docId, newStatus, courier,
         const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
         const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
         const itemsList = (orderData.items || [])
-            .map(i => `• ${i.name} (×${i.qty || 1}) — ₹${(i.price || 0) * (i.qty || 1)}`)
+            .map(i => `• ${escapeHTML(i.name)} (×${i.qty || 1}) — ₹${(i.price || 0) * (i.qty || 1)}`)
             .join('\n');
 
         const message = [
-            `🛍️ *SWAG STREE — Order Update*`,
+            `🛍️ <b>SWAG STREE — Order Update</b>`,
             ``,
-            `📋 *Order ID:* #${orderId}`,
-            `📦 *New Status:* ${statusInfo.label}`,
-            courier ? `🚚 *Courier:* ${courier}` : '',
-            trackingId ? `🎫 *Tracking ID:* \`${trackingId}\`` : '',
+            `📋 <b>Order ID:</b> #${escapeHTML(orderId)}`,
+            `📦 <b>New Status:</b> ${escapeHTML(statusInfo.label)}`,
+            courier ? `🚚 <b>Courier:</b> ${escapeHTML(courier)}` : '',
+            trackingId ? `🎫 <b>Tracking ID:</b> <code>${escapeHTML(trackingId)}</code>` : '',
             ``,
-            `👤 *Customer:* ${orderData.recipient || 'N/A'}`,
-            `📱 *Phone:* ${orderData.phone || 'N/A'}`,
-            `📍 *Address:* ${orderData.address || 'N/A'}`,
+            `👤 <b>Customer:</b> ${escapeHTML(orderData.recipient || 'N/A')}`,
+            `📱 <b>Phone:</b> ${escapeHTML(orderData.phone || 'N/A')}`,
+            `📍 <b>Address:</b> ${escapeHTML(orderData.address || 'N/A')}`,
             ``,
-            `🧾 *Items:*`,
+            `🧾 <b>Items:</b>`,
             itemsList,
             ``,
-            `💰 *Total:* ₹${orderData.total || 0}`,
-            `💳 *Payment:* ${orderData.paymentMethod ? orderData.paymentMethod.toUpperCase() : 'N/A'}`,
+            `💰 <b>Total:</b> ₹${orderData.total || 0}`,
+            `💳 <b>Payment:</b> ${orderData.paymentMethod ? escapeHTML(orderData.paymentMethod.toUpperCase()) : 'N/A'}`,
         ].filter(line => line !== '').join('\n');
 
         // Dispatch notifications to all configured Chat IDs asynchronously
         let successCount = 0;
         await Promise.all(chatIds.map(async (chatId) => {
             try {
-                const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: chatId,
-                        text: message,
-                        parse_mode: 'Markdown'
-                    })
-                });
+                const url = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(message)}&parse_mode=HTML`;
+                const res = await fetch(url, { method: 'GET' });
                 const data = await res.json();
                 if (data.ok) {
                     successCount++;
+                } else {
+                    console.error("Telegram API returned error:", data);
                 }
             } catch (err) {
                 console.error(`Error sending telegram to ${chatId}:`, err);
@@ -2027,12 +2049,33 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
         let statusTitle = `Order status update: ${statusInfo.label}`;
         let statusMsg = `Your order **#${orderId}** status has been updated to **${statusInfo.label}**.`;
         
-        if (newStatus === 'shipped') {
+        if (newStatus === 'pending') {
+            statusTitle = "Your Order is Pending ⏳";
+            statusMsg = `Your order **#${orderId}** has been received and is currently pending verification. We will update you shortly.`;
+        } else if (newStatus === 'partially_confirmed') {
+            statusTitle = "Order Partially Confirmed 🟡";
+            statusMsg = `Your order **#${orderId}** has been partially confirmed. We will contact you or update the order status once verification is completed.`;
+        } else if (newStatus === 'confirmed') {
+            statusTitle = "Order Confirmed! ✅";
+            statusMsg = `Great news! Your order **#${orderId}** has been confirmed. We are starting to process it now.`;
+        } else if (newStatus === 'processing') {
+            statusTitle = "Your Order is being Prepared! 📦";
+            statusMsg = `We are preparing your order **#${orderId}** for shipment. We will notify you once it's shipped.`;
+        } else if (newStatus === 'payment_processed') {
+            statusTitle = "Payment Received & Processed! 💳";
+            statusMsg = `Thank you! Your payment for order **#${orderId}** has been successfully processed. We are preparing your order for shipment.`;
+        } else if (newStatus === 'shipped') {
             statusTitle = "Your Order has been Shipped! 🚚";
             statusMsg = `Great news! Your order **#${orderId}** has been shipped. ${courier ? `It has been sent via **${courier}**.` : ''} ${trackingId ? `Your Tracking ID is: **${trackingId}**` : ''}`;
         } else if (newStatus === 'delivered') {
             statusTitle = "Your Order has been Delivered! 🎉";
             statusMsg = `Hooray! Your order **#${orderId}** has been successfully delivered. Thank you for shopping with Swag Stree!`;
+        } else if (newStatus === 'partially_returned') {
+            statusTitle = "Order Partially Returned ↩️";
+            statusMsg = `Your order **#${orderId}** has been marked as partially returned. If you have any queries, please let us know.`;
+        } else if (newStatus === 'returned') {
+            statusTitle = "Order Returned ↩️";
+            statusMsg = `Your order **#${orderId}** has been returned. We hope to serve you again in the future.`;
         } else if (newStatus === 'cancelled') {
             statusTitle = "Your Order has been Cancelled ❌";
             statusMsg = `Your order **#${orderId}** has been cancelled.`;

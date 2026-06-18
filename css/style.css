@@ -82,20 +82,144 @@ body {
 @media (max-width: 1024px), (pointer: coarse) {
     .desktop-nav { display: none !important; }
     .bottom-nav { display: flex !important; }
-    body { padding-bottom: 120px !important; } /* Add padding to body so fixed footer doesn't overlap content scroll */
+    body { padding-bottom: 105px !important; } /* Compact body padding */
     #app-footer {
         position: fixed !important;
         bottom: 58px !important; /* height of bottom nav item is ~56px */
         left: 0 !important;
         right: 0 !important;
         z-index: 1999 !important;
-        background: rgba(10, 10, 10, 0.95) !important;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 -3px 10px rgba(0,0,0,0.6);
-        padding: 12px 15px !important;
+        background: rgba(10, 10, 10, 0.94) !important;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
+        padding: 8px 12px !important; /* Minimal height bar */
         display: flex !important;
         flex-direction: column !important;
+        gap: 4px !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    /* WhatsApp Floating Button on mobile - perfectly equalized spacing */
+    .whatsapp-float {
+        bottom: 74px !important; /* Spacing from bottom nav matches right margin (74px - 58px = 16px) */
+        right: 16px !important;  /* Spacing from right edge */
+        width: 44px !important;
+        height: 44px !important;
+        display: flex !important;
+        z-index: 2147483647 !important;
+        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) !important; /* Removed box-shadow to prevent black rectangle box rendering */
+    }
+}
+
+/* Footer Container & Spacing */
+.footer-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    align-items: center;
+    gap: 5px;
+}
+
+#footer-links-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    flex-wrap: nowrap; /* Forces single line to prevent layout wrapping */
+    font-family: 'Segoe UI', 'Outfit', 'Inter', sans-serif;
+}
+
+@media (max-width: 1024px) {
+    #footer-links-row {
+        justify-content: center !important; /* Group chips together and center them */
+        padding-left: 12px !important;      /* Inset from the left edge */
+        padding-right: 64px !important;     /* Offset from the right edge to clear WhatsApp icon perfectly */
+        box-sizing: border-box !important;
         gap: 6px !important;
+    }
+}
+
+/* Premium Footer Option Chips (Gold & Black Luxury Theme) */
+.footer-chip {
+    color: #eee;
+    cursor: pointer;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 7px 15px;
+    border-radius: 30px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(229, 184, 11, 0.02));
+    border: 1px solid rgba(229, 184, 11, 0.12); /* Subtle Gold border to match Swag Stree logo */
+    white-space: nowrap;
+    text-decoration: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.footer-chip i {
+    color: var(--gold);
+    font-size: 11px;
+    transition: transform 0.2s ease;
+}
+
+.footer-chip:hover {
+    color: var(--gold) !important;
+    border-color: rgba(229, 184, 11, 0.45) !important;
+    background: rgba(229, 184, 11, 0.07) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(229, 184, 11, 0.2);
+}
+
+.footer-chip:hover i {
+    transform: scale(1.1);
+}
+
+#footer-copyright-row {
+    color: #444;
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 1px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+/* Hidden mobile native whatsapp trigger classes */
+.footer-whatsapp-btn {
+    display: none !important;
+}
+
+@media (max-width: 480px) {
+    .footer-chip {
+        font-size: 9.5px !important; /* Increased size slightly for enhanced readability */
+        padding: 5px 10px !important;
+        gap: 4px !important;
+        border-radius: 20px !important;
+    }
+    .footer-chip i {
+        font-size: 10px !important;
+    }
+    #footer-links-row {
+        gap: 4px !important;
+    }
+}
+
+/* Extra small devices (iPhone SE/320px width) */
+@media (max-width: 360px) {
+    .footer-chip {
+        font-size: 8.5px !important; /* Slightly increased for readability on tiny screens */
+        padding: 4px 8px !important;
+        letter-spacing: 0.5px !important;
+    }
+    .footer-chip i {
+        font-size: 9px !important;
     }
 }
 
@@ -106,7 +230,6 @@ body {
 body.footer-hidden {
     padding-bottom: 60px !important;
 }
-
 
 @media (min-width: 1025px) and (pointer: fine) {
     .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
@@ -119,12 +242,19 @@ body.footer-hidden {
         left: auto !important;
         right: auto !important;
         background: #0a0a0a !important;
-        padding: 25px 20px !important;
-        margin-top: 40px !important;
+        padding: 30px 40px !important;
+        margin-top: 50px !important;
         display: flex !important;
-        justify-content: center;
-        align-items: center;
-        gap: 30px;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 15px !important;
+        border-top: 1px solid #151515 !important;
+    }
+    #footer-links-row {
+        justify-content: center !important; /* Center links perfectly on desktop */
+        gap: 32px !important;
+        padding-right: 0 !important; /* Reset offset padding */
     }
 }
 
@@ -977,6 +1107,9 @@ body {
     text-decoration: none;
     transition: transform 0.2s;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+.whatsapp-float.hidden-btn {
+    display: none !important;
 }
 .whatsapp-float:hover {
     transform: scale(1.08);

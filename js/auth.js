@@ -40,6 +40,12 @@ function updateAdminPrivilegesUI() {
 
     // Update WhatsApp icon visibility when user role changes
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+
+    // Show/hide Brevo quota card based on admin privileges
+    const brevoCard = document.getElementById('admin-brevo-quota-card');
+    if (brevoCard) {
+        brevoCard.style.display = (isAdmin || isSuperAdmin) ? 'flex' : 'none';
+    }
 }
 
 // Global real-time listener for admins
@@ -74,6 +80,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
+            if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
     }
 }, error => {
@@ -178,6 +185,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
+            if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
 
         // Update profile header

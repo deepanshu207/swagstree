@@ -2158,6 +2158,325 @@ window.toggleFooterAccordion = function(id) {
     }
 };
 
+async function refreshBrevoQuota() {
+    const card = document.getElementById('admin-brevo-quota-card');
+    const textNode = document.getElementById('admin-brevo-quota-text');
+    const progressContainer = document.getElementById('admin-brevo-progress-container');
+    const progressBar = document.getElementById('admin-brevo-progress-bar');
+    if (!card || !textNode) return;
+
+    // Show card if user is admin or superadmin
+    if ((typeof isAdmin !== 'undefined' && isAdmin) || (typeof isSuperAdmin !== 'undefined' && isSuperAdmin)) {
+        card.style.display = 'flex';
+    } else {
+        card.style.display = 'none';
+        return;
+    }
+    textNode.innerText = "Fetching real-time usage data...";
+
+    try {
+        const emailSnap = await db.collection('settings').doc('email').get();
+        if (!emailSnap.exists) {
+            textNode.innerText = "Configure Brevo API key under settings/email to enable tracking.";
+            return;
+        }
+        const brevoKey = emailSnap.data().brevoKey;
+        if (!brevoKey) {
+            textNode.innerText = "Configure Brevo API key under settings/email to enable tracking.";
+            return;
+        }
+
+        const response = await fetch('https://api.brevo.com/v3/smtp/statistics/reports?limit=10', {
+            method: 'GET',
+            headers: {
+                'accept': 'application/json',
+                'api-key': brevoKey
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`API returned status ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Match UTC date first (since Brevo quota resets at UTC midnight) and fallback to local date string
+        const localDateStr = new Date().toLocaleDateString('sv-SE');
+        const utcDateStr = new Date().toISOString().split('T')[0];
+        
+        const reports = data.reports || [];
+        let todayReport = reports.find(r => r.date === utcDateStr);
+        if (!todayReport && localDateStr !== utcDateStr) {
+            todayReport = reports.find(r => r.date === localDateStr);
+        }
+
+        let sentToday = 0;
+        if (todayReport) {
+            sentToday = todayReport.requests || 0;
+        }
+
+        const limit = 300;
+        const percentage = Math.min((sentToday / limit) * 100, 100);
+
+        textNode.innerHTML = `Sent Today: <b>${sentToday}</b> / <b>${limit}</b> emails (Remaining: <b>${Math.max(0, limit - sentToday)}</b>)`;
+        
+        if (progressContainer && progressBar) {
+            progressContainer.style.display = 'block';
+            progressBar.style.width = `${percentage}%`;
+            if (percentage >= 90) {
+                progressBar.style.background = '#e74c3c';
+            } else if (percentage >= 70) {
+                progressBar.style.background = '#e67e22';
+            } else {
+                progressBar.style.background = 'var(--gold)';
+            }
+        }
+
+    } catch (err) {
+        console.error("refreshBrevoQuota error:", err);
+        textNode.innerText = "Failed to load usage data. Check API key configuration.";
+    }
+}
+window.refreshBrevoQuota = refreshBrevoQuota;
+
+// ── Backup & Restore (Superadmin only) ──
+class FirestoreBatcher {
+    constructor() {
+        this.batch = db.batch();
+        this.count = 0;
+    }
+    async set(ref, data) {
+        this.batch.set(ref, data);
+        this.count++;
+        if (this.count >= 400) {
+            await this.batch.commit();
+            this.batch = db.batch();
+            this.count = 0;
+        }
+    }
+    async commit() {
+        if (this.count > 0) {
+            await this.batch.commit();
+        }
+    }
+}
+
+async function loadBackupSettings() {
+    try {
+        const snap = await db.collection('settings').doc('backup').get();
+        const intervalEl = document.getElementById('admin-backup-interval');
+        const statusEl = document.getElementById('admin-backup-status-text');
+        
+        let interval = 'disabled';
+        let lastBackupTime = null;
+        
+        if (snap.exists) {
+            const data = snap.data();
+            interval = data.interval || 'disabled';
+            lastBackupTime = data.lastBackupTime || null;
+        }
+        
+        if (intervalEl) intervalEl.value = interval;
+        
+        if (statusEl) {
+            if (lastBackupTime) {
+                const dateStr = new Date(lastBackupTime).toLocaleString();
+                statusEl.innerHTML = `Last Backup Time: <b>${dateStr}</b>`;
+            } else {
+                statusEl.innerHTML = `Last Backup Time: <b>Never</b>`;
+            }
+        }
+        
+        // Run auto-backup check
+        if (interval !== 'disabled') {
+            await checkAndRunAutoBackup(interval, lastBackupTime);
+        }
+    } catch(e) {
+        console.error("loadBackupSettings error:", e);
+    }
+}
+
+async function saveBackupSettings() {
+    const val = document.getElementById('admin-backup-interval').value;
+    try {
+        await db.collection('settings').doc('backup').set({ interval: val }, { merge: true });
+        showToast("Backup settings saved successfully!");
+        await loadBackupSettings();
+    } catch(e) {
+        console.error("saveBackupSettings error:", e);
+        showToast("Failed to save backup settings");
+    }
+}
+
+async function checkAndRunAutoBackup(interval, lastBackupTime) {
+    let threshold = 0;
+    if (interval === 'hour') threshold = 60 * 60 * 1000;
+    else if (interval === 'day') threshold = 24 * 60 * 60 * 1000;
+    else if (interval === 'week') threshold = 7 * 24 * 60 * 60 * 1000;
+    else if (interval === 'month') threshold = 30 * 24 * 60 * 60 * 1000;
+    else if (interval === 'year') threshold = 365 * 24 * 60 * 60 * 1000;
+    else return;
+    
+    const now = Date.now();
+    if (!lastBackupTime || (now - lastBackupTime >= threshold)) {
+        console.log(`Auto-backup threshold met for interval: ${interval}. Executing backup...`);
+        showToast("⏳ Running automated backup...");
+        try {
+            await runBackup(true); // pass true for auto backup
+        } catch(err) {
+            console.error("Auto backup failed:", err);
+            showToast("⚠️ Automated backup failed");
+        }
+    }
+}
+
+async function triggerManualBackup() {
+    showToast("⏳ Preparing database backup... Please wait.");
+    try {
+        await runBackup(false);
+    } catch(err) {
+        console.error("Manual backup failed:", err);
+        showToast("Failed to generate backup");
+    }
+}
+
+async function runBackup(isAuto = false) {
+    const collections = ['products', 'orders', 'feedbacks', 'admins', 'settings'];
+    const backupData = {};
+    
+    // Fetch regular collections
+    for (const col of collections) {
+        const snap = await db.collection(col).get();
+        const docs = [];
+        snap.forEach(doc => {
+            docs.push({ id: doc.id, data: doc.data() });
+        });
+        backupData[col] = docs;
+    }
+    
+    // Fetch users collection with subcollection addresses
+    const usersSnap = await db.collection('users').get();
+    const usersList = [];
+    for (const doc of usersSnap.docs) {
+        const userData = doc.data();
+        const addrSnap = await db.collection('users').doc(doc.id).collection('addresses').get();
+        const addresses = [];
+        addrSnap.forEach(aDoc => {
+            addresses.push({ id: aDoc.id, data: aDoc.data() });
+        });
+        usersList.push({ id: doc.id, data: userData, addresses: addresses });
+    }
+    backupData['users'] = usersList;
+    
+    // Convert to JSON and trigger download
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const now = new Date();
+    const dateStr = now.toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
+    const filename = `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    // Update last backup timestamp in settings/backup
+    const nowMs = Date.now();
+    await db.collection('settings').doc('backup').set({ lastBackupTime: nowMs }, { merge: true });
+    
+    // Refresh status text
+    const statusEl = document.getElementById('admin-backup-status-text');
+    if (statusEl) {
+        statusEl.innerHTML = `Last Backup Time: <b>${new Date(nowMs).toLocaleString()}</b>`;
+    }
+    
+    showToast(`Backup download started: ${filename}`);
+}
+
+async function restoreBackupFromFile(input) {
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            // Validation
+            if (!data.products || !data.orders || !data.feedbacks || !data.settings || !data.users || !data.admins) {
+                showToast("⚠️ Invalid backup file format!");
+                input.value = '';
+                return;
+            }
+            
+            const confirmMsg = "CRITICAL WARNING:\n\n" +
+                               "Restoring this backup will insert or overwrite documents in all collections (products, orders, feedbacks, users, settings, admins).\n" +
+                               "It is highly recommended to download a backup of your current database first.\n\n" +
+                               "To proceed with the restore operation, please type \"RESTORE\" in the prompt below:";
+            
+            const promptVal = prompt(confirmMsg);
+            if (promptVal !== 'RESTORE') {
+                showToast("Restore operation cancelled.");
+                input.value = '';
+                return;
+            }
+            
+            showToast("⏳ Restoring database in batches... Do not close the window.");
+            
+            const batcher = new FirestoreBatcher();
+            
+            // Restore regular collections
+            const cols = ['products', 'orders', 'feedbacks', 'admins', 'settings'];
+            for (const col of cols) {
+                if (data[col] && Array.isArray(data[col])) {
+                    for (const doc of data[col]) {
+                        await batcher.set(db.collection(col).doc(doc.id), doc.data);
+                    }
+                }
+            }
+            
+            // Restore users and subcollection addresses
+            if (data.users && Array.isArray(data.users)) {
+                for (const user of data.users) {
+                    await batcher.set(db.collection('users').doc(user.id), user.data);
+                    
+                    if (user.addresses && Array.isArray(user.addresses)) {
+                        for (const addr of user.addresses) {
+                            await batcher.set(
+                                db.collection('users').doc(user.id).collection('addresses').doc(addr.id),
+                                addr.data
+                            );
+                        }
+                    }
+                }
+            }
+            
+            await batcher.commit();
+            showToast("✅ Database restored successfully! Reloading page...");
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+            
+        } catch(err) {
+            console.error("Error restoring backup:", err);
+            showToast("Failed to restore backup. Please ensure the file is valid JSON.");
+        } finally {
+            input.value = '';
+        }
+    };
+    reader.readAsText(file);
+}
+
+window.loadBackupSettings = loadBackupSettings;
+window.saveBackupSettings = saveBackupSettings;
+window.triggerManualBackup = triggerManualBackup;
+window.restoreBackupFromFile = restoreBackupFromFile;
+
 
 
 
