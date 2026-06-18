@@ -1262,43 +1262,24 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                 const bccList = [];
                 const customerEmail = emailVal || ((currentUser && currentUser.email) ? currentUser.email : '');
                 
-                // Build admin recipient list dynamically based on active admins
-                const adminRecipients = [];
-                adminRecipients.push({
-                    email: "superadmin@swagstree.com",
-                    name: "Superadmin"
-                });
-                
-                const isDefaultAdminDeactivated = (typeof assignedAdmins !== 'undefined') && assignedAdmins.some(a => a.email === "admin@swagstree.com" && a.status === "deactivated");
-                if (!isDefaultAdminDeactivated) {
-                    adminRecipients.push({
-                        email: "admin@swagstree.com",
+                // Build admin recipient list - only deepsrisharora@gmail.com gets BCC'd as admin
+                const adminRecipients = [
+                    {
+                        email: "deepsrisharora@gmail.com",
                         name: "Admin"
-                    });
-                }
-
-                if (typeof assignedAdmins !== 'undefined' && Array.isArray(assignedAdmins)) {
-                    assignedAdmins.forEach(adm => {
-                        const emailLower = adm.email ? adm.email.toLowerCase() : "";
-                        if (adm.status === "active" && emailLower !== "admin@swagstree.com" && emailLower !== "superadmin@swagstree.com") {
-                            adminRecipients.push({
-                                email: adm.email,
-                                name: `Admin (${adm.email.split('@')[0]})`
-                            });
-                        }
-                    });
-                }
+                    }
+                ];
 
                 if (customerEmail) {
                     toList.push({
                         email: customerEmail,
                         name: n
                     });
-                    // BCC all active admins, filtering out the customer's email to prevent duplicate recipient errors in Brevo
+                    // BCC admin recipient, filtering out if customer is also the admin to prevent duplicate recipient errors in Brevo
                     const filteredBcc = adminRecipients.filter(r => r.email.toLowerCase() !== customerEmail.toLowerCase());
                     filteredBcc.forEach(r => bccList.push(r));
                 } else {
-                    // Fallback for guest checkout (send to admins directly as To recipients)
+                    // Fallback (send to admin directly as To recipient)
                     adminRecipients.forEach(r => toList.push(r));
                 }
 
