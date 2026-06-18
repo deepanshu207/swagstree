@@ -23,6 +23,7 @@ var isAdmin = false;
 var isSuperAdmin = false;
 var assignedAdmins = [];
 var productsPageLimitSetting = 20;
+var ordersPageLimitSetting = 20;
 var editingId = null;
 
 // UI State

@@ -16,9 +16,11 @@ if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
 if (typeof window.products === 'undefined') window.products = [];
 if (typeof window.productsLoaded === 'undefined') window.productsLoaded = false;
 
-if (typeof window.displayedProductsLimit === 'undefined') window.displayedProductsLimit = (typeof window.productsPageLimitSetting !== 'undefined' ? window.productsPageLimitSetting : 20);
-if (typeof window.displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = (typeof window.productsPageLimitSetting !== 'undefined' ? window.productsPageLimitSetting : 20);
-if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = 20;
+if (typeof window.productsPageLimitSetting === 'undefined') window.productsPageLimitSetting = 20;
+if (typeof window.ordersPageLimitSetting === 'undefined') window.ordersPageLimitSetting = 20;
+if (typeof window.displayedProductsLimit === 'undefined') window.displayedProductsLimit = window.productsPageLimitSetting;
+if (typeof window.displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = window.productsPageLimitSetting;
+if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = window.ordersPageLimitSetting;
 if (typeof window.ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
 if (typeof window.deepLinkHandled === 'undefined') window.deepLinkHandled = false;
 
@@ -2076,10 +2078,23 @@ function renderFooter() {
         linksRow.style.display = !!settings.showFooter ? 'flex' : 'none';
     }
 
+    // Auto-upgrade simple placeholders to premium templates
+    const premiumAbout = `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`;
+    const premiumPrivacy = `<h3>Privacy Policy & Order Processing</h3><p>At Swag Stree, we value the trust you place in us and are fully committed to protecting your personal information. Below, we explain our data practices and how your order is processed through each status update.</p><h3>1. Information We Collect</h3><p>When you place an order or interact with our app, we collect relevant information to process transactions, including:</p><ul><li>Contact details (Name, phone number, email address).</li><li>Delivery and billing address details.</li></ul><h3>2. Order Status Walkthrough</h3><p>To keep you informed at every stage of your purchase, your order progresses through these standard phases:</p><ul><li><b>Pending:</b> Your order has been successfully placed and is awaiting verification by our team.</li><li><b>Confirmed:</b> The payment/order details have been verified, and we are preparing your items for packaging.</li><li><b>Shipped:</b> Your package has been handed over to our courier partner. Tracking details will be shared via WhatsApp/SMS.</li><li><b>Delivered:</b> Your order has been successfully delivered to your specified shipping address.</li><li><b>Cancelled:</b> The order was cancelled by either the customer or our system due to stock limitations or payment issues.</li></ul><h3>3. Data Security & Storage</h3><p>Your session details, account credentials, and transactions are fully secured. We use Google Firebase for secure user authentication, password hashing, and token encryption. We strictly share shipping info with authorized delivery partners only.</p>`;
+    
+    let rawAbout = settings.aboutText || '';
+    if (!rawAbout || !rawAbout.includes('2018')) {
+        rawAbout = premiumAbout;
+    }
+    
+    let rawPrivacy = settings.privacyText || '';
+    if (!rawPrivacy || !rawPrivacy.includes('Pending') || !rawPrivacy.includes('Confirmed') || !rawPrivacy.includes('Shipped')) {
+        rawPrivacy = premiumPrivacy;
+    }
+
     // Update About Us text description
     const aboutTextEl = document.getElementById('about-content-text');
     if (aboutTextEl) {
-        const rawAbout = settings.aboutText || '<h3>About Swag Stree</h3><p>Welcome to Swag Stree. Premium fashion destination.</p>';
         if (/<[a-z][\s\S]*>/i.test(rawAbout)) {
             aboutTextEl.innerHTML = rawAbout;
         } else {
@@ -2087,23 +2102,60 @@ function renderFooter() {
         }
     }
 
-    // Update GPS Maps Support
+    // Update GPS Maps & Address Support
     const mapContainer = document.getElementById('about-map-container');
     const mapWrapper = document.getElementById('about-map-iframe-wrapper');
+    const addressTextEl = document.getElementById('about-address-text');
+    const addressCardEl = document.getElementById('about-address-card');
+    
     if (mapContainer && mapWrapper) {
-        if (settings.showGps && settings.gpsLat && settings.gpsLng) {
+        const hasAddress = !!(settings.contactAddress && settings.contactAddress.trim());
+        if (hasAddress) {
             mapContainer.style.display = 'block';
-            const lat = encodeURIComponent(settings.gpsLat.trim());
-            const lng = encodeURIComponent(settings.gpsLng.trim());
-            mapWrapper.innerHTML = `<iframe 
-                width="100%" 
-                height="100%" 
-                frameborder="0" 
-                style="border:0;" 
-                src="https://maps.google.com/maps?q=${lat},${lng}&t=&z=15&ie=UTF8&iwloc=&output=embed" 
-                allowfullscreen>
-            </iframe>`;
+            if (addressTextEl) addressTextEl.textContent = settings.contactAddress.trim();
+            if (addressCardEl) addressCardEl.style.display = 'flex';
+            
+            let mapSrc = '';
+            if (settings.gpsQuery && settings.gpsQuery.trim()) {
+                const query = settings.gpsQuery.trim();
+                if (query.includes('src="') && query.includes('iframe')) {
+                    const match = query.match(/src="([^"]+)"/);
+                    mapSrc = match ? match[1] : '';
+                } else if (query.startsWith('http')) {
+                    mapSrc = query;
+                } else {
+                    mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+                }
+            } else if (settings.gpsLat && settings.gpsLng) {
+                const lat = encodeURIComponent(settings.gpsLat.trim());
+                const lng = encodeURIComponent(settings.gpsLng.trim());
+                mapSrc = `https://maps.google.com/maps?q=${lat},${lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+            } else {
+                // Default to using address text for search query directly!
+                mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(settings.contactAddress.trim())}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+            }
+            
+            if (settings.showGps !== false && mapSrc) {
+                mapWrapper.style.display = 'block';
+                mapWrapper.innerHTML = `<iframe 
+                    width="100%" 
+                    height="100%" 
+                    frameborder="0" 
+                    style="border:0;" 
+                    src="${mapSrc}" 
+                    allowfullscreen>
+                </iframe>`;
+                // Ensure heading "Find Us On Map" sibling p element is visible
+                const mapHeading = mapWrapper.previousElementSibling;
+                if (mapHeading) mapHeading.style.display = 'block';
+            } else {
+                mapWrapper.style.display = 'none';
+                mapWrapper.innerHTML = '';
+                const mapHeading = mapWrapper.previousElementSibling;
+                if (mapHeading) mapHeading.style.display = 'none';
+            }
         } else {
+            // Hide the entire location container if no address is set
             mapContainer.style.display = 'none';
             mapWrapper.innerHTML = '';
         }
@@ -2118,13 +2170,11 @@ function renderFooter() {
 
     // Update Privacy Policy content area
     const privacyContentEl = document.getElementById('privacy-content-text');
-    if (privacyContentEl && settings.privacyText !== undefined) {
-        const rawText = settings.privacyText || '';
-        // If it looks like HTML, render directly. Otherwise, format line breaks.
-        if (/<[a-z][\s\S]*>/i.test(rawText)) {
-            privacyContentEl.innerHTML = rawText;
+    if (privacyContentEl) {
+        if (/<[a-z][\s\S]*>/i.test(rawPrivacy)) {
+            privacyContentEl.innerHTML = rawPrivacy;
         } else {
-            const paragraphs = rawText.split('\n\n').map(p => {
+            const paragraphs = rawPrivacy.split('\n\n').map(p => {
                 const line = p.trim().replace(/\n/g, '<br>');
                 if (line.startsWith('1.') || line.startsWith('2.') || line.startsWith('3.')) {
                     return `<p><strong>${line}</strong></p>`;
