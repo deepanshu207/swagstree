@@ -82,7 +82,7 @@ body {
 @media (max-width: 1024px), (pointer: coarse) {
     .desktop-nav { display: none !important; }
     .bottom-nav { display: flex !important; }
-    body { padding-bottom: 105px !important; } /* Compact body padding */
+    body { padding-bottom: 110px !important; } /* Fallback body padding */
     #app-footer {
         position: fixed !important;
         bottom: 58px !important; /* height of bottom nav item is ~56px */
@@ -93,16 +93,16 @@ body {
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
-        padding: 8px 12px !important; /* Minimal height bar */
+        padding: 8px 12px !important; /* Minimal height bar with equal left/right padding */
         display: flex !important;
         flex-direction: column !important;
         gap: 4px !important;
         border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
     
-    /* WhatsApp Floating Button on mobile - constant position to clear bottom nav nicely */
+    /* WhatsApp Floating Button on mobile - sits perfectly above the fixed footer bar */
     .whatsapp-float {
-        bottom: 80px !important; /* Constant, compact height resting above bottom nav bar */
+        bottom: 112px !important; /* Resting elegantly above the fixed footer bar (58px + ~45px = 103px) */
         right: 16px !important;  /* Spacing from right edge */
         width: 44px !important;
         height: 44px !important;
@@ -125,21 +125,26 @@ body {
     display: flex;
     width: 100%;
     align-items: center;
-    flex-wrap: nowrap; /* Forces single line to prevent layout wrapping */
+    justify-content: center !important;
+    flex-wrap: nowrap !important; /* Forces single line to prevent layout wrapping */
     font-family: 'Segoe UI', 'Outfit', 'Inter', sans-serif;
+    gap: 8px !important;
 }
 
 @media (max-width: 1024px) {
     #footer-links-row {
         justify-content: center !important; /* Center chips perfectly on mobile */
-        padding-left: 16px !important;      
-        padding-right: 54px !important;     /* Shifts chips slightly left to make room for WhatsApp button on the right */
+        padding-left: 10px !important;      
+        padding-right: 10px !important;     /* Equal spacing on left and right! */
         box-sizing: border-box !important;
-        gap: 6px !important;
+        gap: clamp(3px, 1.2vw, 8px) !important;
     }
     #footer-links-row .footer-chip {
-        padding: 6px 12px !important;
-        font-size: 9.5px !important;
+        font-size: clamp(8px, 2.5vw, 10px) !important; /* Fluid font sizing based on viewport width */
+        padding: 5px clamp(6px, 1.8vw, 12px) !important; /* Fluid horizontal padding */
+        gap: 4px !important;
+        border-radius: 20px !important;
+        white-space: nowrap !important;
     }
 }
 
