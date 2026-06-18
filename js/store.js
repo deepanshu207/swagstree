@@ -333,7 +333,7 @@ function loadData() {
     db.collection("settings").doc("footer").onSnapshot(snap => {
         window.footerSettings = snap.exists ? snap.data() : {
             copyright: "Swagstree",
-            aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+            aboutText: `<h3>Who We Are</h3><p>Swag Stree is a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
             gpsLat: "28.6139",
             gpsLng: "77.2090",
@@ -2041,6 +2041,23 @@ function renderFooter() {
         
         footerEl.classList.toggle('hidden', !shouldShow);
         document.body.classList.toggle('footer-hidden', !shouldShow);
+
+        // Dynamically adjust body padding to prevent grid clipping using compact heights (on mobile only)
+        if (shouldShow && window.innerWidth <= 1024) {
+            const hasCopyright = settings.showCopyright !== false;
+            const hasLinks = !!settings.showFooter;
+            
+            let bodyPadding = '75px';
+            if (hasLinks && hasCopyright) {
+                bodyPadding = '115px';
+            } else if (hasLinks || hasCopyright) {
+                bodyPadding = '95px';
+            }
+            document.body.style.setProperty('padding-bottom', bodyPadding, 'important');
+        } else {
+            // On desktop or when footer is hidden, let CSS handle it (clear JS overrides)
+            document.body.style.removeProperty('padding-bottom');
+        }
     }
 
     // Update Copyright Label
@@ -2062,7 +2079,7 @@ function renderFooter() {
     // Update About Us text description
     const aboutTextEl = document.getElementById('about-content-text');
     if (aboutTextEl) {
-        const rawAbout = settings.aboutText || 'Welcome to Swagstree. Premium fashion store.';
+        const rawAbout = settings.aboutText || '<h3>About Swag Stree</h3><p>Welcome to Swag Stree. Premium fashion destination.</p>';
         if (/<[a-z][\s\S]*>/i.test(rawAbout)) {
             aboutTextEl.innerHTML = rawAbout;
         } else {

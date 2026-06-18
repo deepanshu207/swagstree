@@ -2032,23 +2032,12 @@ async function loadAdminFooterSettings() {
             showFooter: false,
             showCopyright: true,
             copyright: "Swagstree",
-            aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+            aboutText: `<h3>Who We Are</h3><p>Swag Stree is a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
             gpsLat: "28.6139",
             gpsLng: "77.2090",
             contactPhone: "8800467686",
-            privacyText: `Privacy Policy & Data Protection
-
-At Swag Stree, we take your privacy seriously. This policy details how we collect, use, and protect your information when using our app.
-
-1. Information Collection
-We collect your registration details (such as name, email, and phone number) to process orders and improve your store experience.
-
-2. Firebase Authentication
-All credentials and login methods (Google, Email/Password) are safely handled and securely encrypted through Google Firebase.
-
-3. Shipping & Delivery
-We share only relevant shipping details with logistics partners to ensure prompt delivery of orders.`
+            privacyText: `<h3>Privacy Policy & Data Security</h3><p>At Swag Stree, we value the trust you place in us and are fully committed to protecting your personal information. This Privacy Policy outlines our data practices.</p><h3>1. Information We Collect</h3><p>When you place an order or interact with our app, we collect relevant information to process transactions, including:</p><ul><li>Contact details (Name, phone number, email address).</li><li>Delivery and billing address details.</li></ul><h3>2. Secure Authentication</h3><p>Your account credentials and login sessions are fully protected. We use Google Firebase for secure user authentication, password hashing, and token encryption.</p><h3>3. Sharing & Logistics</h3><p>We strictly share your shipping address and contact details with recognized courier partners only to ensure safe, prompt delivery of your purchases. We do not sell or lease your personal information to third parties.</p>`
         };
         
         const showFooterEl = document.getElementById('admin-footer-show-footer');
@@ -2104,7 +2093,7 @@ async function saveAdminFooterSettings() {
         showFooter: showFooterEl ? showFooterEl.checked : true,
         showCopyright: showCopyrightEl ? showCopyrightEl.checked : true,
         copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
-        aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "Welcome to Swagstree. Premium fashion store.",
+        aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "<h3>About Swag Stree</h3><p>Welcome to Swag Stree. Premium fashion destination.</p>",
         showGps: showGpsEl ? showGpsEl.checked : false,
         gpsLat: gpsLatEl ? gpsLatEl.value.trim() : "",
         gpsLng: gpsLngEl ? gpsLngEl.value.trim() : "",
@@ -2124,7 +2113,14 @@ async function saveAdminFooterSettings() {
 window.saveAdminFooterSettings = saveAdminFooterSettings;
 
 window.execEditorCommand = function(cmd, value = null) {
-    document.execCommand(cmd, false, value);
+    if (cmd === 'createLink') {
+        const url = prompt('Enter the link URL (e.g. https://google.com):');
+        if (url) {
+            document.execCommand(cmd, false, url);
+        }
+    } else {
+        document.execCommand(cmd, false, value);
+    }
 };
 
 window.toggleFooterAccordion = function(id) {
