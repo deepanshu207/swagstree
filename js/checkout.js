@@ -1851,7 +1851,10 @@ function renderOrdersList(docs) {
                 ${refundSectionHtml}
                 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid #222;">
-                    <span style="font-size:11px; color:#888;">Overall: <b style="color:#fff;">${statusInfo.label}</b></span>
+                    ${o.showOverallStatus === true 
+                        ? `<span style="font-size:11px; color:#888;">Overall: <b style="color:#fff;">${statusInfo.label}</b></span>`
+                        : `<span style="font-size:11px; color:#666;">Status: <b style="color:#555;">Item-level tracking</b></span>`
+                    }
                     <button onclick="showAdminOrderDetailsModal('${docId}')"
                         style="padding:8px 15px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px;">
                         ⚙️ Manage Order
@@ -1913,10 +1916,11 @@ function renderOrdersList(docs) {
                     </div>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0;">
                         <div style="font-size:14px; font-weight:700; color:var(--gold);">₹${o.total || 0}</div>
+                        ${o.showOverallStatus === true ? `
                         <div style="display:flex; align-items:center; gap:5px; font-size:10px; color:#aaa; background:#1a1a1a; padding:2px 7px; border-radius:12px; border:1px solid #333;">
                             <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${dotColor}; flex-shrink:0;"></span>
                             <span style="font-weight:600;">${statusInfo.label}</span>
-                        </div>
+                        </div>` : ''}
                     </div>
                 </div>
 
@@ -2165,6 +2169,13 @@ window.showAdminOrderDetailsModal = async function(docId) {
                 style="width:100%; padding:10px; border-radius:8px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:12px; cursor:pointer; margin:0; box-sizing:border-box;">
                 ${overallStatusOptionsHtml}
             </select>
+            <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; cursor:pointer; padding-top:8px; border-top:1px solid #333;">
+                <input type="checkbox" id="adm-show-overall-status" ${o.showOverallStatus === true ? 'checked' : ''} style="margin-top:2px; accent-color:var(--gold);">
+                <div style="line-height:1.4;">
+                    <span style="font-weight:700; color:#ccc; font-size:11px;">Enable Overall Status & Notifications</span>
+                    <p style="margin:2px 0 0; font-size:9px; color:#666;">If unchecked (default), overall status is hidden and generic "Order Update" emails are sent relying cleanly on individual item statuses.</p>
+                </div>
+            </label>
         </div>
         `;
 
@@ -2307,6 +2318,7 @@ window.recalculateAutoRefund = function() {
 
 window.saveAdminOrderChanges = async function(docId, notifyType) {
     const overallStatusVal = document.getElementById('adm-overall-status').value;
+    const showOverallStatusVal = document.getElementById('adm-show-overall-status')?.checked || false;
     const items = window.editingOrderDoc?.data?.items || [];
     
     const globalCourierSelect = document.getElementById('adm-global-courier')?.value || '';
@@ -2386,10 +2398,10 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
         console.error("Error checking existing notification status:", err);
     }
     
-    await updateOrderStatus(docId, overallStatusVal, updatedItems, refundAmountVal, notifyType);
+    await updateOrderStatus(docId, overallStatusVal, updatedItems, refundAmountVal, notifyType, showOverallStatusVal);
 };
 
-async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal, notifyType) {
+async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal, notifyType, showOverallStatusVal) {
     if (!docId) return;
     const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || ORDER_STATUSES[0];
     try {
@@ -2411,13 +2423,15 @@ async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal
             ...orderData,
             status: newStatus,
             items: updatedItems,
-            refundAmount: refundAmountVal
+            refundAmount: refundAmountVal,
+            showOverallStatus: showOverallStatusVal
         };
         
         const updateData = {
             status: newStatus,
             items: updatedItems,
             refundAmount: refundAmountVal,
+            showOverallStatus: showOverallStatusVal,
             statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
@@ -2595,7 +2609,10 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
         let statusTitle = `Order Status Update: ${statusInfo.label}`;
         let statusMsg = `Your order <strong>#${orderId}</strong> overall status has been updated to <strong>${statusInfo.label}</strong>.`;
         
-        if (newStatus === 'pending') {
+        if (!orderData.showOverallStatus) {
+            statusTitle = "Order Fulfillment Update 📦";
+            statusMsg = `There has been an update regarding your order <strong>#${orderId}</strong>. Please check the individual item details below.`;
+        } else if (newStatus === 'pending') {
             statusTitle = "Your Order is Pending ⏳";
             statusMsg = `Your order <strong>#${orderId}</strong> has been received and is currently pending verification. We will update you shortly.`;
         } else if (newStatus === 'partially_confirmed') {
