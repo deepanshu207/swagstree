@@ -154,8 +154,10 @@ auth.onAuthStateChanged(user => {
 
             const profName = document.getElementById('prof-name');
             const profPhone = document.getElementById('prof-phone');
+            const profEmailReadOnly = document.getElementById('prof-email-readonly-text');
             if (profName) profName.value = savedName;
             if (profPhone) profPhone.value = savedPhone;
+            if (profEmailReadOnly) profEmailReadOnly.textContent = user.email || '';
 
             renderStore();
         });
@@ -201,6 +203,10 @@ auth.onAuthStateChanged(user => {
 
         const emailDisplay = document.getElementById('profile-email-display');
         if (emailDisplay) emailDisplay.innerText = email;
+
+        // Populate the read-only email field in Edit Profile form
+        const profEmailReadonly = document.getElementById('prof-email-readonly-text');
+        if (profEmailReadonly) profEmailReadonly.textContent = email;
 
         document.getElementById('auth-ui').style.display = 'none';
         document.getElementById('dash-ui').style.display = 'block';

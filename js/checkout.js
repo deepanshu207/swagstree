@@ -1347,171 +1347,79 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
     if (btn) { btn.disabled = false; btn.innerText = 'Place Order'; }
 }
 
-function loadOrders() { 
-    const container = document.getElementById('order-history'); 
-    if (!currentUser) return; 
-    
-    const countContainer = document.getElementById('orders-count');
-    if (countContainer) countContainer.style.display = 'none';
-    
-    container.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
-            <div class="premium-loader"></div>
-            <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Syncing orders</p>
-        </div>
-    `; 
-    
-    // Unsubscribe from old listener to prevent memory leaks on limit changes
-    if (ordersUnsubscribe) {
-        ordersUnsubscribe();
-        ordersUnsubscribe = null;
+
+
+window.copyTextToClipboard = function(text, successMessage) {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        const dummy = document.createElement("textarea"); 
+        document.body.appendChild(dummy); 
+        dummy.value = text; 
+        dummy.select(); 
+        document.execCommand("copy"); 
+        document.body.removeChild(dummy); 
+        showToast(successMessage || "Copied to clipboard!");
+        return;
     }
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            showToast(successMessage || "Copied to clipboard!");
+        })
+        .catch(err => {
+            console.error("Clipboard copy failed:", err);
+            showToast("Failed to copy to clipboard");
+        });
+};
+
+window.openWhatsApp = function(phone, text) {
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+    if (!cleanPhone) {
+        showToast("No valid phone number for WhatsApp.");
+        return;
+    }
+    const encodedText = encodeURIComponent(text || '');
+    const webUrl = `https://wa.me/91${cleanPhone}?text=${encodedText}`;
+    const appUrl = `whatsapp://send?phone=91${cleanPhone}&text=${encodedText}`;
     
-    let ordersRef = db.collection("orders"); 
-    
-    // Admin query is sorted and limited on Firestore side.
-    // User query fetches all matching docs to avoid composite index requirement, and paginates client-side.
-    let query = isAdmin 
-        ? ordersRef.orderBy("timestamp", "desc").limit(displayedOrdersLimit + 1) 
-        : ordersRef.where("uid", "==", currentUser.uid); 
-    
-    ordersUnsubscribe = query.onSnapshot(snap => { 
-        const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
-        const countContainer = document.getElementById('orders-count');
-        if (snap.empty) { 
-            container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
-            if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
-            if (countContainer) {
-                countContainer.innerHTML = '0 Orders';
-                countContainer.style.display = 'inline-flex';
-            }
-            return; 
-        } 
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+        let blurred = false;
+        const start = Date.now();
         
-        let docs = snap.docs;
-        let showLoadMore = false;
-        
-        if (isAdmin) {
-            if (docs.length > displayedOrdersLimit) {
-                showLoadMore = true;
-                docs = docs.slice(0, displayedOrdersLimit);
-            }
-        } else {
-            // Sort user orders client-side by timestamp desc
-            docs = docs.sort((a, b) => {
-                const tsA = a.data().timestamp ? a.data().timestamp.toMillis() : 0;
-                const tsB = b.data().timestamp ? b.data().timestamp.toMillis() : 0;
-                return tsB - tsA;
-            });
-            if (docs.length > displayedOrdersLimit) {
-                showLoadMore = true;
-                docs = docs.slice(0, displayedOrdersLimit);
-            }
+        function onBlur() {
+            blurred = true;
+            window.removeEventListener('blur', onBlur);
         }
+        window.addEventListener('blur', onBlur);
         
-        // Show/hide Load More button and update count display
-        const visibleCount = docs.length;
-        if (loadMoreBtnContainer) {
-            if (showLoadMore) {
-                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;" onclick="loadMoreOrders()">LOAD MORE ORDERS</button>`;
-            } else {
-                loadMoreBtnContainer.innerHTML = '';
-            }
-        }
-        if (countContainer) {
-            if (isAdmin) {
-                countContainer.innerHTML = showLoadMore ? `Showing ${visibleCount}+ Orders` : `${visibleCount} Orders`;
-            } else {
-                countContainer.innerHTML = `Showing ${visibleCount} of ${snap.docs.length} Orders`;
-            }
-            countContainer.style.display = 'inline-flex';
-        }
+        // Try opening in native app
+        window.location.href = appUrl;
         
-        container.innerHTML = docs.map(doc => { 
-            const o = doc.data(); 
-            const promoInfo = o.discount > 0 ? `<div style="font-size:11px; color:#e74c3c; margin-bottom:5px;">Discount: -₹${o.discount}</div>` : '';
-            return `
-            <div class="order-card">
-                <div style="display:flex; justify-content:space-between; font-size:10px; color:#666; margin-bottom:8px">
-                    <span>#${o.orderId || doc.id.slice(-6).toUpperCase()}</span>
-                    <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString('en-IN') : 'New'}</span>
-                </div>
-                ${isAdmin ? `<div style="color:var(--gold); font-size:11px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid #333;"><b>Customer:</b> ${o.recipient || 'N/A'} | <b>Phone:</b> ${o.phone || 'N/A'}${o.email ? ` | <b>Email:</b> ${o.email}` : ''}<br><b>Address:</b> ${o.address || 'N/A'}</div>` : ''}
-                <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
-                ${(() => {
-                    const orderGroups = {};
-                    (o.items || []).forEach(i => {
-                        const prodId = i.id || i.name;
-                        if (!orderGroups[prodId]) {
-                            orderGroups[prodId] = {
-                                name: i.name,
-                                image: (i.images && i.images.length) ? i.images[0] : '',
-                                variants: []
-                            };
-                        }
-                        orderGroups[prodId].variants.push(i);
-                    });
-
-                    return Object.values(orderGroups).map(g => {
-                        const variantListHtml = g.variants.map(i => {
-                            const specs = [];
-                            if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
-                            const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
-                            if (_oColorLabel) specs.push(_oColorLabel);
-                            if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
-                            const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
-
-                            const patHtml = i.variantPatternImage ? `
-                                <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
-                            const colHtml = i.variantColor ? `
-                                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
-                            const swatchIconHtml = `${patHtml}${colHtml}`;
-
-                            return `
-                            <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
-                                <div style="display:flex; align-items:center;">
-                                    ${swatchIconHtml}
-                                    <span>${variantDesc}</span>
-                                </div>
-                                <div style="margin-left:auto; text-align:right;">
-                                    <span style="color:#666; margin-right:8px;">×${i.qty||1}</span>
-                                    <span style="color:var(--gold)">₹${i.price * (i.qty||1)}</span>
-                                </div>
-                            </div>`;
-                        }).join('');
-
-                        return `
-                        <div style="display:flex; gap:10px; margin-bottom:10px; background:#111; padding:8px; border-radius:8px; border:1px solid #222;">
-                            <img src="${g.image}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">
-                            <div style="flex:1;">
-                                <div style="font-size:12px; font-weight:bold; color:#fff; margin-bottom:5px;">${g.name}</div>
-                                <div style="padding-left:5px;">
-                                    ${variantListHtml}
-                                </div>
-                            </div>
-                        </div>`;
-                    }).join('');
-                })()}
-                ${promoInfo}
-                <div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right; font-size:16px;">Total: ₹${o.total || 0}</div>
-            </div>`; 
-        }).join(''); 
-    }, error => {
-        console.error("Orders load error:", error);
-        container.innerHTML = `<p style="text-align:center;color:#e74c3c;font-size:12px;">Error loading orders. Please try again.</p>`;
-    }); 
-}
+        // Fallback to web link after a delay if focus wasn't lost
+        setTimeout(() => {
+            window.removeEventListener('blur', onBlur);
+            if (!blurred && (Date.now() - start < 2000)) {
+                window.open(webUrl, '_blank');
+            }
+        }, 1200);
+    } else {
+        window.open(webUrl, '_blank');
+    }
+};
 
 const ORDER_STATUSES = [
     { value: 'pending', label: '⏳ Pending' },
     { value: 'partially_confirmed', label: '🟡 Partially Confirmed' },
     { value: 'confirmed', label: '✅ Confirmed' },
     { value: 'processing', label: '📦 Preparing Order' },
+    { value: 'partially_shipped', label: '🚚 Partially Shipped' },
     { value: 'shipped', label: '🚚 Shipped' },
     { value: 'delivered', label: '🎉 Delivered' },
     { value: 'partially_returned', label: '↩️ Partially Returned' },
     { value: 'returned', label: '↩️ Returned' },
-    { value: 'cancelled', label: '❌ Cancelled' }
+    { value: 'cancelled', label: '❌ Cancelled' },
+    // Legacy / payment gateway statuses - map to friendly labels
+    { value: 'payment_processed', label: '✅ Payment Confirmed' },
+    { value: 'out_of_stock', label: '⚠️ Out of Stock' },
 ];
 
 const COURIER_COMPANIES = [
@@ -1525,6 +1433,542 @@ const COURIER_COMPANIES = [
     { value: 'Other', label: 'Other / Hand Delivery' }
 ];
 
+window.allDatabaseOrdersLoaded = false;
+window.fetchingAllOrders = false;
+window.allOrders = [];
+let adminSearchListenersAttached = false;
+
+async function triggerFullDatabaseLoad() {
+    if (window.allDatabaseOrdersLoaded) return Promise.resolve();
+    if (window.fetchingAllOrders) {
+        return new Promise((resolve) => {
+            const checkInterval = setInterval(() => {
+                if (window.allDatabaseOrdersLoaded) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 100);
+        });
+    }
+    
+    window.fetchingAllOrders = true;
+    showToast("🔍 Searching all historical orders...");
+    
+    try {
+        const allSnap = await db.collection("orders").orderBy("timestamp", "desc").get();
+        window.allOrders = allSnap.docs;
+        window.allDatabaseOrdersLoaded = true;
+        window.fetchingAllOrders = false;
+        return;
+    } catch (err) {
+        console.error("Error loading all orders for search:", err);
+        window.fetchingAllOrders = false;
+        throw err;
+    }
+}
+
+function setupAdminOrdersSearchListeners() {
+    if (adminSearchListenersAttached) return;
+    adminSearchListenersAttached = true;
+    
+    const searchInp = document.getElementById('admin-orders-search-input');
+    if (searchInp) {
+        searchInp.value = '';
+        searchInp.addEventListener('input', () => {
+            if (isAdmin) {
+                triggerFullDatabaseLoad().then(() => {
+                    filterAndRenderOrders();
+                });
+            } else {
+                filterAndRenderOrders();
+            }
+        });
+    }
+    
+    const tabs = document.querySelectorAll('#admin-orders-search-container .status-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const status = this.dataset.status;
+            if (status === 'all') {
+                tabs.forEach(t => {
+                    if (t.dataset.status === 'all') t.classList.add('active');
+                    else t.classList.remove('active');
+                });
+            } else {
+                this.classList.toggle('active');
+                const allTab = Array.from(tabs).find(t => t.dataset.status === 'all');
+                if (allTab) allTab.classList.remove('active');
+                
+                const activeCount = Array.from(tabs).filter(t => t.classList.contains('active') && t.dataset.status !== 'all').length;
+                if (activeCount === 0 && allTab) {
+                    allTab.classList.add('active');
+                }
+            }
+            if (isAdmin) {
+                triggerFullDatabaseLoad().then(() => {
+                    filterAndRenderOrders();
+                });
+            } else {
+                filterAndRenderOrders();
+            }
+        });
+    });
+}
+
+window.filterAndRenderOrders = function() {
+    let searchVal = (document.getElementById('admin-orders-search-input')?.value || '').toLowerCase().trim();
+    searchVal = searchVal.replace(/#/g, '');
+    const activeTabs = Array.from(document.querySelectorAll('#admin-orders-search-container .status-tab.active'))
+        .map(tab => tab.dataset.status);
+    
+    let filteredDocs = window.allOrders || [];
+    
+    if (activeTabs.length > 0 && !activeTabs.includes('all')) {
+        filteredDocs = filteredDocs.filter(doc => {
+            const o = doc.data();
+            return activeTabs.includes(o.status || 'pending');
+        });
+    }
+    
+    if (searchVal) {
+        filteredDocs = filteredDocs.filter(doc => {
+            const o = doc.data();
+            const orderId = (o.orderId || doc.id.slice(-6).toUpperCase()).toLowerCase();
+            const customerName = (o.recipient || '').toLowerCase();
+            const phone = (o.phone || '').toLowerCase();
+            const email = (o.email || '').toLowerCase();
+            const address = (o.address || '').toLowerCase();
+            const payment = (o.paymentMethod || '').toLowerCase();
+            
+            const matchesItems = (o.items || []).some(item => {
+                return (item.name || '').toLowerCase().includes(searchVal) ||
+                       (item.variantSize || '').toLowerCase().includes(searchVal) ||
+                       (item.variantColorName || '').toLowerCase().includes(searchVal) ||
+                       (item.variantPattern || '').toLowerCase().includes(searchVal) ||
+                       (item.trackingId || '').toLowerCase().includes(searchVal) ||
+                       (item.courier || '').toLowerCase().includes(searchVal) ||
+                       (item.status || 'pending').toLowerCase().includes(searchVal);
+            });
+            
+            return orderId.includes(searchVal) ||
+                   customerName.includes(searchVal) ||
+                   phone.includes(searchVal) ||
+                   email.includes(searchVal) ||
+                   address.includes(searchVal) ||
+                   payment.includes(searchVal) ||
+                   matchesItems;
+        });
+    }
+    
+    renderOrdersList(filteredDocs);
+};
+
+function renderOrdersList(docs) {
+    const container = document.getElementById('order-history');
+    const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
+    const countContainer = document.getElementById('orders-count');
+    
+    if (docs.length === 0) {
+        container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px;padding:20px 0;">No matching orders found.</p>`;
+        if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+        if (countContainer) {
+            countContainer.innerHTML = '0 Orders';
+        }
+        return;
+    }
+    
+    const visibleCount = docs.length;
+    if (countContainer) {
+        if (isAdmin) {
+            const hasMore = visibleCount > displayedOrdersLimit && !window.allDatabaseOrdersLoaded;
+            countContainer.innerHTML = hasMore ? `Showing ${displayedOrdersLimit}+ Orders` : `${visibleCount} Orders`;
+        } else {
+            countContainer.innerHTML = `Showing ${visibleCount} of ${visibleCount} Orders`;
+        }
+        countContainer.style.display = 'inline-flex';
+    }
+    
+    const isSearching = (document.getElementById('admin-orders-search-input')?.value.trim() !== '') || 
+                        (document.querySelector('#admin-orders-search-container .status-tab.active')?.dataset.status !== 'all');
+    if (loadMoreBtnContainer) {
+        if (!isSearching && isAdmin && docs.length > displayedOrdersLimit && !window.allDatabaseOrdersLoaded) {
+            loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;" onclick="loadMoreOrders()">LOAD MORE ORDERS</button>`;
+        } else {
+            loadMoreBtnContainer.innerHTML = '';
+        }
+    }
+    
+    let renderDocs = docs;
+    if (!isSearching && isAdmin && docs.length > displayedOrdersLimit && !window.allDatabaseOrdersLoaded) {
+        renderDocs = docs.slice(0, displayedOrdersLimit);
+    }
+    
+    container.innerHTML = renderDocs.map(doc => {
+        const o = doc.data();
+        const docId = doc.id;
+        const orderIdStr = o.orderId || docId.slice(-6).toUpperCase();
+        const promoInfo = o.discount > 0 ? `<div style="font-size:11px; color:#e74c3c; margin-bottom:5px;">Discount: -₹${o.discount}</div>` : '';
+        const statusVal = o.status || 'pending';
+        const statusInfo = ORDER_STATUSES.find(s => s.value === statusVal) || ORDER_STATUSES[0];
+        
+        // Pre-calculate unique shipments for banner vs internal display
+        const shippedItemsForBanner = (o.items || []).filter(i => i.trackingId);
+        const seenShipments = new Set();
+        const uniqueShipments = [];
+        shippedItemsForBanner.forEach(i => {
+            const key = `${i.courier || i.courierCustom || 'Courier'}::${i.trackingId}`;
+            if (!seenShipments.has(key)) {
+                seenShipments.add(key);
+                uniqueShipments.push({ courier: i.courierCustom || i.courier || 'Courier', trackingId: i.trackingId });
+            }
+        });
+        const hasSingleShipment = uniqueShipments.length === 1;
+
+        const itemsHtml = (() => {
+            const orderGroups = {};
+            (o.items || []).forEach(i => {
+                const prodId = i.id || i.name;
+                if (!orderGroups[prodId]) {
+                    orderGroups[prodId] = {
+                        name: i.name,
+                        image: (i.images && i.images.length) ? i.images[0] : '',
+                        variants: []
+                    };
+                }
+                orderGroups[prodId].variants.push(i);
+            });
+
+            return Object.values(orderGroups).map(g => {
+                const variantListHtml = g.variants.map(i => {
+                    const specs = [];
+                    if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
+                    const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
+                    if (_oColorLabel) specs.push(_oColorLabel);
+                    if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
+                    const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
+
+                    const patHtml = i.variantPatternImage ? `
+                        <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
+                    const colHtml = i.variantColor ? `
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
+                    const swatchIconHtml = `${patHtml}${colHtml}`;
+                    
+                    let itemStatusBadge = '';
+                    if (!isAdmin) {
+                        const iStatus = i.status || statusVal;
+                        const iStatusInfo = ORDER_STATUSES.find(x => x.value === iStatus) || { label: iStatus };
+                        let badgeColor = '#999';
+                        if (iStatus === 'shipped' || iStatus === 'partially_shipped') badgeColor = '#3498db';
+                        else if (iStatus === 'delivered') badgeColor = '#2ecc71';
+                        else if (iStatus === 'cancelled' || iStatus === 'out_of_stock') badgeColor = '#e74c3c';
+                        else if (iStatus === 'returned' || iStatus === 'partially_returned') badgeColor = '#e67e22';
+                        else if (iStatus === 'processing') badgeColor = '#f1c40f';
+                        else if (iStatus === 'confirmed' || iStatus === 'partially_confirmed' || iStatus === 'payment_processed') badgeColor = '#2ecc71';
+                        
+                        // Show tracking for any item that has a trackingId (not just 'shipped')
+                        let trackingInfo = '';
+                        if (i.trackingId && !hasSingleShipment) {
+                            const courierName = i.courierCustom || i.courier || 'Courier';
+                            trackingInfo = `
+                            <div style="display:flex; align-items:center; gap:6px; margin-top:4px; padding:4px 8px; background:rgba(52,152,219,0.08); border:1px solid rgba(52,152,219,0.2); border-radius:6px; flex-wrap:wrap;">
+                                <span style="font-size:9px; color:#888;">🚚</span>
+                                <span style="font-size:9.5px; color:#aaa; font-weight:600;">${courierName}</span>
+                                <span style="font-size:9px; color:#666;">•</span>
+                                <span style="font-size:9.5px; color:var(--gold); font-family:monospace; user-select:all; font-weight:700; letter-spacing:0.5px;">${i.trackingId}</span>
+                            </div>`;
+                        }
+                        
+                        itemStatusBadge = `
+                        <div style="margin-top:3px; display:flex; flex-direction:column; gap:3px;">
+                            <span style="font-size:9px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px; width:fit-content; color:${badgeColor}; font-weight:600;">${iStatusInfo.label}</span>
+                            ${trackingInfo}
+                        </div>`;
+                    }
+
+                    return `
+                    <div style="font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <div style="display:flex; align-items:center;">
+                                ${swatchIconHtml}
+                                <span>${variantDesc}</span>
+                            </div>
+                            <div style="margin-left:auto; text-align:right;">
+                                <span style="color:#666; margin-right:8px;">×${i.qty||1}</span>
+                                <span style="color:var(--gold)">₹${i.price * (i.qty||1)}</span>
+                            </div>
+                        </div>
+                        ${itemStatusBadge}
+                    </div>`;
+                }).join('');
+
+                return `
+                <div style="display:flex; gap:10px; margin-bottom:10px; background:#111; padding:8px; border-radius:8px; border:1px solid #222;">
+                    <img src="${g.image}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">
+                    <div style="flex:1;">
+                        <div style="font-size:12px; font-weight:bold; color:#fff; margin-bottom:5px;">${g.name}</div>
+                        <div style="padding-left:5px;">
+                            ${variantListHtml}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        })();
+        
+        if (isAdmin) {
+            const items = o.items || [];
+            
+            // Calculate refund or adjusted COD collection
+            let totalRefundableCalculated = 0;
+            items.forEach(i => {
+                const itemTotal = (i.price || 0) * (i.qty || 1);
+                const iStatus = i.status || statusVal;
+                if (iStatus === 'cancelled' || iStatus === 'returned') {
+                    totalRefundableCalculated += itemTotal;
+                }
+            });
+
+            const finalRefundAmount = o.refundAmount !== undefined ? o.refundAmount : totalRefundableCalculated;
+            const isCustomAdjustment = o.refundAmount !== undefined && o.refundAmount !== totalRefundableCalculated;
+
+            let refundSectionHtml = '';
+            if (finalRefundAmount > 0) {
+                if (o.paymentMethod && o.paymentMethod.toLowerCase() === 'cod') {
+                    const adjustedCod = Math.max(0, (o.total || 0) - finalRefundAmount);
+                    refundSectionHtml = `
+                    <div style="margin-top:6px; padding:6px 10px; background:rgba(230, 126, 34, 0.08); border:1px solid rgba(230, 126, 34, 0.2); border-radius:8px; font-size:10.5px; color:#e67e22; font-weight:600; line-height:1.4;">
+                        ⚖️ Adjusted COD Collection: ₹${adjustedCod} <span style="color:#888; font-weight:normal;">(₹${finalRefundAmount} deducted${isCustomAdjustment ? ' - manual override' : ''})</span>
+                    </div>`;
+                } else {
+                    refundSectionHtml = `
+                    <div style="margin-top:6px; padding:6px 10px; background:rgba(231, 76, 60, 0.08); border:1px solid rgba(231, 76, 60, 0.2); border-radius:8px; font-size:10.5px; color:#e74c3c; font-weight:600; line-height:1.4;">
+                        💸 Refund Due to Customer: ₹${finalRefundAmount} <span style="color:#888; font-weight:normal;">(for Returned/Cancelled items${isCustomAdjustment ? ' - manual override' : ''})</span>
+                    </div>`;
+                }
+            }
+
+            // Create items summary list
+            const itemsSummaryHtml = items.map(i => {
+                const iStatus = i.status || statusVal;
+                const iStatusInfo = ORDER_STATUSES.find(x => x.value === iStatus) || { label: iStatus };
+                
+                let badgeColor = '#999';
+                if (iStatus === 'shipped') badgeColor = '#3498db';
+                else if (iStatus === 'delivered') badgeColor = '#2ecc71';
+                else if (iStatus === 'cancelled' || iStatus === 'returned') badgeColor = '#e74c3c';
+                else if (iStatus === 'processing') badgeColor = '#f1c40f';
+                
+                let trackingStr = '';
+                if (i.trackingId) {
+                    trackingStr = ` <span style="color:#666;">via</span> <strong style="color:#aaa;">${i.courier || 'Courier'}</strong> (<code style="color:var(--gold); font-family:monospace; user-select:all;">${i.trackingId}</code>)`;
+                }
+                
+                const specs = [];
+                if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
+                const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
+                if (_oColorLabel) specs.push(_oColorLabel);
+                if (i.variantPattern && !i.variantPattern.startsWith('Design-')) specs.push(i.variantPattern);
+                const specStr = specs.length > 0 ? ` (${specs.join(' • ')})` : '';
+
+                const hasSwatch = !!i.variantPatternImage;
+                const patternImgHtml = hasSwatch
+                    ? `<img src="${i.variantPatternImage}" width="16" height="16" style="border-radius:4px; border:1px solid #444; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:4px;" title="Pattern">`
+                    : '';
+                const colorCircleHtml = i.variantColor ? `
+                    <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid #444; vertical-align:middle; margin-right:4px;" title="Color"></span>` : '';
+                const swatchIcon = `${patternImgHtml}${colorCircleHtml}`;
+
+                return `
+                <div style="padding:5px 0; border-bottom:1px dashed #222; display:flex; flex-direction:column; gap:4px; line-height:1.4;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                        <div style="display:flex; align-items:flex-start; gap:6px;">
+                            ${swatchIcon ? `<div style="display:flex; align-items:center; margin-top:1px;">${swatchIcon}</div>` : ''}
+                            <span style="color:#eee; font-weight:600; font-size:11px;">${i.name}${specStr}</span>
+                        </div>
+                        <span style="color:#888; font-size:11px; white-space:nowrap;">×${i.qty || 1} <strong style="color:var(--gold); margin-left:4px;">₹${(i.price || 0) * (i.qty || 1)}</strong></span>
+                    </div>
+                    <div style="font-size:10px; color:#aaa; display:flex; align-items:center; justify-content:space-between; margin-top:2px;">
+                        <span>Status: <strong style="color:${badgeColor};">${iStatusInfo.label}</strong>${trackingStr}</span>
+                    </div>
+                </div>`;
+            }).join('');
+
+            return `
+            <div id="order-card-${docId}" class="order-card" style="border:1px solid #222; margin-bottom:15px; background:#111; padding:15px; border-radius:15px; transition: background-color 0.4s ease, border-color 0.4s ease;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #222; padding-bottom:10px;">
+                    <div>
+                        <span style="font-size:12px; font-weight:700; color:#fff; display:block;">Order #${orderIdStr}</span>
+                        <span style="font-size:10px; color:#666;">${o.timestamp ? o.timestamp.toDate().toLocaleString('en-IN') : 'New'}</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                        ${finalRefundAmount > 0 
+                            ? `<span style="font-size:9px; color:#888;">Original Total:</span>
+                               <div style="font-size:11px; background:#1a1a1a; padding:4px 8px; border-radius:6px; border:1px solid #333; color:var(--gold); font-weight:bold; text-decoration:line-through;">
+                                   ₹${o.total || 0}
+                               </div>`
+                            : `<div style="font-size:11px; background:#1a1a1a; padding:4px 8px; border-radius:6px; border:1px solid #333; color:var(--gold); font-weight:bold;">
+                                   ₹${o.total || 0}
+                               </div>`
+                        }
+                    </div>
+                </div>
+
+                <div style="font-size:11px; margin-bottom:12px; color:#aaa; line-height:1.5;">
+                    <div style="color:#fff; font-weight:600; font-size:12px; margin-bottom:4px;">👤 ${o.recipient || 'N/A'}</div>
+                    <div style="display:flex; flex-direction:column; gap:2px; color:#888;">
+                        <div>📱 Phone: <span style="color:#ccc;">${o.phone || 'N/A'}</span></div>
+                        <div>✉️ Email: <span style="color:#ccc;">${o.email || 'N/A'}</span></div>
+                        <div>📍 Address: <span style="color:#ccc;">${o.address || 'N/A'}</span></div>
+                    </div>
+                    <div style="margin-top:4px;">💳 Payment: <b style="color:#ccc;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
+                    
+                    <!-- Quick Customer Action Bar -->
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
+                        <button onclick="window.copyTextToClipboard('${(o.phone || '').replace(/'/g, "\\'")}', 'Customer phone number copied!')" 
+                            style="background:#1a1a1a; border:1px solid #333; color:#ccc; padding:5px 9px; border-radius:6px; font-size:10px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
+                            <i class="fa fa-copy" style="font-size:10px;"></i> Copy Phone
+                        </button>
+                        <button onclick="window.copyTextToClipboard(\`${(o.address || '').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, 'Customer address copied!')" 
+                            style="background:#1a1a1a; border:1px solid #333; color:#ccc; padding:5px 9px; border-radius:6px; font-size:10px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
+                            <i class="fa fa-map-marker-alt" style="font-size:10px;"></i> Copy Address
+                        </button>
+                        <a href="tel:${o.phone || ''}" 
+                            style="background:rgba(255, 215, 0, 0.08); border:1px solid rgba(255, 215, 0, 0.2); color:var(--gold); padding:5px 9px; border-radius:6px; font-size:10px; font-weight:700; text-decoration:none; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
+                            <i class="fa fa-phone" style="font-size:10px;"></i> Call
+                        </a>
+                        <button onclick="window.openWhatsApp('${(o.phone || '').replace(/'/g, "\\'")}', 'Hi ${(o.recipient || '').replace(/'/g, "\\'")}, this is Swag Stree regarding your order #${orderIdStr}')"
+                            style="background:rgba(37, 211, 102, 0.08); border:1px solid rgba(37, 211, 102, 0.2); color:#25D366; padding:5px 9px; border-radius:6px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
+                            <i class="fab fa-whatsapp" style="font-size:10px;"></i> WhatsApp
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Detailed Fulfillment & Items List -->
+                <div style="background:#0a0a0a; border:1px solid #222; border-radius:10px; padding:10px; margin-bottom:12px;">
+                    <div style="font-weight:700; color:#888; font-size:9px; text-transform:uppercase; margin-bottom:6px; letter-spacing:0.5px;">📦 Order Fulfillment Details & Items:</div>
+                    ${itemsSummaryHtml}
+                </div>
+
+                ${refundSectionHtml}
+                
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid #222;">
+                    <span style="font-size:11px; color:#888;">Overall: <b style="color:#fff;">${statusInfo.label}</b></span>
+                    <button onclick="showAdminOrderDetailsModal('${docId}')"
+                        style="padding:8px 15px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                        ⚙️ Manage Order
+                    </button>
+                </div>
+            </div>`;
+        } else {
+            // --- CUSTOMER VIEW: Premium card matching admin aesthetics ---
+
+            // Aggregate per-item tracking info for the summary outside
+            let trackingBannerHtml = '';
+            if (hasSingleShipment) {
+                const shipmentsHtml = uniqueShipments.map(s => `
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 10px; background:rgba(52,152,219,0.07); border:1px solid rgba(52,152,219,0.18); border-radius:8px; margin-bottom:5px;">
+                            <span style="font-size:11px; font-weight:700; color:#aaa;">🚚 ${s.courier}</span>
+                            <span style="font-size:10px; color:#666;">Tracking ID:</span>
+                            <code style="font-size:11px; color:var(--gold); font-family:monospace; user-select:all; font-weight:700; letter-spacing:0.5px;">${s.trackingId}</code>
+                        </div>`).join('');
+                    trackingBannerHtml = `
+                    <div style="margin-bottom:10px;">
+                        <div style="font-size:9px; font-weight:700; color:#555; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:5px;">📦 Shipment Info</div>
+                        ${shipmentsHtml}
+                    </div>`;
+            }
+
+            // Status dot color
+            let dotColor = '#f1c40f';
+            if (statusVal === 'delivered') dotColor = '#2ecc71';
+            else if (statusVal === 'cancelled') dotColor = '#e74c3c';
+            else if (statusVal === 'shipped' || statusVal === 'partially_shipped') dotColor = '#3498db';
+            else if (statusVal === 'returned' || statusVal === 'partially_returned') dotColor = '#e67e22';
+            else if (statusVal === 'confirmed' || statusVal === 'payment_processed') dotColor = '#2ecc71';
+
+            // Refund/adjustment banner for customer
+            let customerRefundHtml = '';
+            if (o.refundAmount > 0) {
+                if (o.paymentMethod && o.paymentMethod.toLowerCase() === 'cod') {
+                    const adjCod = Math.max(0, (o.total || 0) - o.refundAmount);
+                    customerRefundHtml = `
+                    <div style="margin-bottom:10px; padding:8px 12px; background:rgba(230,126,34,0.08); border:1px solid rgba(230,126,34,0.2); border-radius:8px; font-size:11px; color:#e67e22; font-weight:600;">
+                        ⚖️ Adjusted COD Payable: ₹${adjCod} <span style="color:#888; font-weight:normal;">(₹${o.refundAmount} deducted)</span>
+                    </div>`;
+                } else {
+                    customerRefundHtml = `
+                    <div style="margin-bottom:10px; padding:8px 12px; background:rgba(231,76,60,0.08); border:1px solid rgba(231,76,60,0.2); border-radius:8px; font-size:11px; color:#e74c3c; font-weight:600;">
+                        💸 Refund Due: ₹${o.refundAmount} <span style="color:#888; font-weight:normal;">(for returned/cancelled items)</span>
+                    </div>`;
+                }
+            }
+
+            return `
+            <div class="order-card" id="order-card-cust-${docId}" style="border:1px solid #222; margin-bottom:15px; background:#111; padding:15px; border-radius:15px; transition: background-color 0.4s ease, border-color 0.4s ease;">
+
+                <!-- Header row: order ID, status, total, date -->
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #1e1e1e; gap:8px;">
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:12px; font-weight:700; color:#fff; margin-bottom:2px;">#${orderIdStr}</div>
+                        <div style="font-size:10px; color:#555;">${o.timestamp ? o.timestamp.toDate().toLocaleString('en-IN') : 'New'}</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0;">
+                        <div style="font-size:14px; font-weight:700; color:var(--gold);">₹${o.total || 0}</div>
+                        <div style="display:flex; align-items:center; gap:5px; font-size:10px; color:#aaa; background:#1a1a1a; padding:2px 7px; border-radius:12px; border:1px solid #333;">
+                            <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${dotColor}; flex-shrink:0;"></span>
+                            <span style="font-weight:600;">${statusInfo.label}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment info row -->
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:10px; font-size:11px; color:#888;">
+                    <span>💳</span>
+                    <span>Payment:</span>
+                    <b style="color:#ccc;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>
+                    ${o.paymentMethod === 'cod' && o.codMinAmount ? `<span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}
+                </div>
+
+                <!-- Tracking/shipment banner (if any items have tracking) -->
+                ${trackingBannerHtml}
+
+                <!-- Refund banner -->
+                ${customerRefundHtml}
+
+                <!-- Items section -->
+                <div style="background:#0a0a0a; border:1px solid #1e1e1e; border-radius:10px; padding:10px; margin-bottom:10px;">
+                    <div style="font-weight:700; color:#666; font-size:9px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.5px;">📦 Items</div>
+                    ${itemsHtml}
+                </div>
+
+                ${promoInfo}
+
+                <!-- Footer: total -->
+                <div style="display:flex; justify-content:flex-end; align-items:center; margin-top:8px; padding-top:8px; border-top:1px solid #1e1e1e;">
+                    ${(() => {
+                        if (o.refundAmount > 0) {
+                            if (o.paymentMethod === 'cod') {
+                                const adjCod = Math.max(0, (o.total || 0) - o.refundAmount);
+                                return `
+                                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                                    <div style="font-weight:500; color:#888; font-size:12px; text-decoration:line-through;">Original Total: ₹${o.total || 0}</div>
+                                    <div style="font-weight:700; color:var(--gold); font-size:15px;">New Total: ₹${adjCod}</div>
+                                </div>`;
+                            } else {
+                                return `
+                                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                                    <div style="font-weight:700; color:var(--gold); font-size:15px;">Paid Total: ₹${o.total || 0}</div>
+                                    <div style="font-weight:600; color:#e74c3c; font-size:12px;">Refund Processing: ₹${o.refundAmount}</div>
+                                </div>`;
+                            }
+                        }
+                        return `<div style="font-weight:700; color:var(--gold); font-size:15px;">Total: ₹${o.total || 0}</div>`;
+                    })()}
+                </div>
+            </div>`;
+        }
+    }).join('');
+}
+
 function loadOrders() { 
     const container = document.getElementById('order-history'); 
     if (!currentUser) return; 
@@ -1539,6 +1983,22 @@ function loadOrders() {
         </div>
     `; 
     
+    const searchContainer = document.getElementById('admin-orders-search-container');
+    if (searchContainer) {
+        searchContainer.style.display = 'flex';
+        
+        const searchInp = document.getElementById('admin-orders-search-input');
+        if (searchInp) {
+            if (isAdmin) {
+                searchInp.placeholder = "Search by Order ID, Customer Name, Phone, Item...";
+            } else {
+                searchInp.placeholder = "Search by Order ID, Item name, tracking ID...";
+            }
+        }
+        
+        setupAdminOrdersSearchListeners();
+    }
+
     if (ordersUnsubscribe) {
         ordersUnsubscribe();
         ordersUnsubscribe = null;
@@ -1550,10 +2010,9 @@ function loadOrders() {
         : ordersRef.where("uid", "==", currentUser.uid); 
     
     ordersUnsubscribe = query.onSnapshot(snap => { 
-        const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
-        const countContainer = document.getElementById('orders-count');
         if (snap.empty) { 
             container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
+            const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
                 countContainer.innerHTML = '0 Orders';
@@ -1562,259 +2021,34 @@ function loadOrders() {
             return; 
         } 
         
-        let docs = snap.docs;
-        let showLoadMore = false;
-        
         if (isAdmin) {
-            if (docs.length > displayedOrdersLimit) {
-                showLoadMore = true;
-                docs = docs.slice(0, displayedOrdersLimit);
+            if (!window.allDatabaseOrdersLoaded) {
+                window.allOrders = snap.docs;
+            } else {
+                snap.docs.forEach(newDoc => {
+                    const idx = window.allOrders.findIndex(d => d.id === newDoc.id);
+                    if (idx > -1) {
+                        window.allOrders[idx] = newDoc;
+                    } else {
+                        window.allOrders.unshift(newDoc);
+                    }
+                });
+                window.allOrders.sort((a, b) => {
+                    const tsA = a.data().timestamp ? (a.data().timestamp.toMillis ? a.data().timestamp.toMillis() : 0) : 0;
+                    const tsB = b.data().timestamp ? (b.data().timestamp.toMillis ? b.data().timestamp.toMillis() : 0) : 0;
+                    return tsB - tsA;
+                });
             }
+            filterAndRenderOrders();
         } else {
-            docs = docs.sort((a, b) => {
+            let docs = snap.docs.sort((a, b) => {
                 const tsA = a.data().timestamp ? a.data().timestamp.toMillis() : 0;
                 const tsB = b.data().timestamp ? b.data().timestamp.toMillis() : 0;
                 return tsB - tsA;
             });
-            if (docs.length > displayedOrdersLimit) {
-                showLoadMore = true;
-                docs = docs.slice(0, displayedOrdersLimit);
-            }
+            window.allOrders = docs;
+            filterAndRenderOrders();
         }
-        
-        const visibleCount = docs.length;
-        if (loadMoreBtnContainer) {
-            if (showLoadMore) {
-                loadMoreBtnContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;" onclick="loadMoreOrders()">LOAD MORE ORDERS</button>`;
-            } else {
-                loadMoreBtnContainer.innerHTML = '';
-            }
-        }
-        if (countContainer) {
-            if (isAdmin) {
-                countContainer.innerHTML = showLoadMore ? `Showing ${visibleCount}+ Orders` : `${visibleCount} Orders`;
-            } else {
-                countContainer.innerHTML = `Showing ${visibleCount} of ${snap.docs.length} Orders`;
-            }
-            countContainer.style.display = 'inline-flex';
-        }
-        
-        container.innerHTML = docs.map(doc => { 
-            const o = doc.data(); 
-            const docId = doc.id;
-            const orderIdStr = o.orderId || docId.slice(-6).toUpperCase();
-            const promoInfo = o.discount > 0 ? `<div style="font-size:11px; color:#e74c3c; margin-bottom:5px;">Discount: -₹${o.discount}</div>` : '';
-            const statusVal = o.status || 'pending';
-            const statusInfo = ORDER_STATUSES.find(s => s.value === statusVal) || ORDER_STATUSES[0];
-            const currentCourier = o.courier || '';
-            const trackingId = o.trackingId || '';
-            
-            const itemsHtml = (() => {
-                const orderGroups = {};
-                (o.items || []).forEach(i => {
-                    const prodId = i.id || i.name;
-                    if (!orderGroups[prodId]) {
-                        orderGroups[prodId] = {
-                            name: i.name,
-                            image: (i.images && i.images.length) ? i.images[0] : '',
-                            variants: []
-                        };
-                    }
-                    orderGroups[prodId].variants.push(i);
-                });
-
-                return Object.values(orderGroups).map(g => {
-                    const variantListHtml = g.variants.map(i => {
-                        const specs = [];
-                        if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
-                        const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
-                        if (_oColorLabel) specs.push(_oColorLabel);
-                        if (i.variantPattern && !i.variantPattern.startsWith('Design-') && !i.variantPatternImage) specs.push(i.variantPattern);
-                        const variantDesc = specs.length > 0 ? specs.join(' • ') : 'Standard';
-
-                        const patHtml = i.variantPatternImage ? `
-                            <img src="${i.variantPatternImage}" title="Pattern: ${i.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
-                        const colHtml = i.variantColor ? `
-                            <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(i.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
-                        const swatchIconHtml = `${patHtml}${colHtml}`;
-
-                        return `
-                        <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#aaa; padding:4px 0; border-bottom:1px dashed #222;">
-                            <div style="display:flex; align-items:center;">
-                                ${swatchIconHtml}
-                                <span>${variantDesc}</span>
-                            </div>
-                            <div style="margin-left:auto; text-align:right;">
-                                <span style="color:#666; margin-right:8px;">×${i.qty||1}</span>
-                                <span style="color:var(--gold)">₹${i.price * (i.qty||1)}</span>
-                            </div>
-                        </div>`;
-                    }).join('');
-
-                    return `
-                    <div style="display:flex; gap:10px; margin-bottom:10px; background:#111; padding:8px; border-radius:8px; border:1px solid #222;">
-                        <img src="${g.image}" style="width:40px; height:40px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">
-                        <div style="flex:1;">
-                            <div style="font-size:12px; font-weight:bold; color:#fff; margin-bottom:5px;">${g.name}</div>
-                            <div style="padding-left:5px;">
-                                ${variantListHtml}
-                            </div>
-                        </div>
-                    </div>`;
-                }).join('');
-            })();
-
-            if (isAdmin) {
-                // Admin detailed card with edit/status/tracking/courier controls
-                const statusOptions = ORDER_STATUSES.map(s => `
-                    <option value="${s.value}" ${s.value === statusVal ? 'selected' : ''}>${s.label}</option>
-                `).join('');
-                
-                // Check if currentCourier is in the predefined list
-                const isPredefined = COURIER_COMPANIES.some(c => c.value === currentCourier);
-                const courierSelectValue = currentCourier ? (isPredefined ? currentCourier : 'Other') : '';
-                const showCustomInput = courierSelectValue === 'Other';
-                
-                const courierOptions = COURIER_COMPANIES.map(c => `
-                    <option value="${c.value}" ${c.value === courierSelectValue ? 'selected' : ''}>${c.label}</option>
-                `).join('');
-
-                return `
-                <div id="order-card-${docId}" class="order-card" style="border:1px solid #333; margin-bottom:15px; background:#111; padding:15px; border-radius:15px; transition: background-color 0.4s ease, border-color 0.4s ease;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #222; padding-bottom:10px;">
-                        <div>
-                            <span style="font-size:12px; font-weight:700; color:#fff; display:block;">Order #${orderIdStr}</span>
-                            <span style="font-size:10px; color:#666;">${o.timestamp ? o.timestamp.toDate().toLocaleString('en-IN') : 'New'}</span>
-                        </div>
-                        <div style="font-size:11px; background:#1a1a1a; padding:4px 8px; border-radius:6px; border:1px solid #333; color:var(--gold); font-weight:bold;">
-                            ₹${o.total || 0}
-                        </div>
-                    </div>
-
-                    <!-- Customer Profile & Info -->
-                    <div style="background:#1a1a1a; border-radius:8px; padding:10px; margin-bottom:12px; font-size:11px; line-height:1.7; border:1px solid #222;">
-                        <div style="display:flex; gap:8px; flex-wrap:wrap; font-weight:600; color:#fff; margin-bottom:4px;">
-                            <span>👤 ${o.recipient || 'N/A'}</span>
-                            <span style="color:#444;">|</span>
-                            <span>📱 ${o.phone || 'N/A'}</span>
-                            ${o.email ? `
-                            <span style="color:#444;">|</span>
-                            <span>✉️ ${o.email}</span>` : ''}
-                        </div>
-                        <div style="color:#aaa;">📍 ${o.address || 'N/A'}</div>
-                        <div style="color:#888; margin-top:2px;">💳 Payment: <b style="color:#fff;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
-                    </div>
-
-                    <!-- Order Items -->
-                    <div style="margin-bottom:12px;">${itemsHtml}</div>
-                    ${promoInfo}
-
-                    <!-- Admin Status, Courier and Tracking Update Form -->
-                    <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #222;">
-                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                            <div style="flex:1; min-width:140px;">
-                                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Order Status</label>
-                                <select id="status-sel-${docId}" 
-                                    style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; cursor:pointer;">
-                                    ${statusOptions}
-                                </select>
-                            </div>
-                            <div style="flex:1; min-width:140px;">
-                                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Courier Partner</label>
-                                <select id="courier-sel-${docId}" 
-                                    onchange="const customInp = document.getElementById('courier-custom-row-${docId}'); if (this.value === 'Other') { customInp.style.display = 'block'; } else { customInp.style.display = 'none'; }"
-                                    style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; cursor:pointer;">
-                                    <option value="">-- Select Courier --</option>
-                                    ${courierOptions}
-                                </select>
-                            </div>
-                            <div style="flex:1; min-width:160px;">
-                                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Tracking / AWB ID</label>
-                                <input id="tracking-input-${docId}" type="text" 
-                                    placeholder="e.g. 78291829029"
-                                    value="${trackingId}"
-                                    style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; font-family:monospace; margin:0;">
-                            </div>
-                        </div>
-                        
-                        <!-- Custom Courier input if 'Other' selected -->
-                        <div id="courier-custom-row-${docId}" style="display:${showCustomInput ? 'block' : 'none'}; margin-top:2px;">
-                            <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Custom Delivery Partner Name</label>
-                            <input id="courier-custom-input-${docId}" type="text" 
-                                placeholder="Enter courier name..."
-                                value="${!isPredefined ? currentCourier : ''}"
-                                style="width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#fff; font-size:12px; margin:0;">
-                        </div>
-
-                        <!-- Notification History Tracking -->
-                        <div style="background:#111; border-radius:6px; padding:8px; margin-top:8px; font-size:10px; border:1px dashed #333; line-height:1.4;">
-                            <div style="font-weight:700; color:#aaa; margin-bottom:4px; text-transform:uppercase; font-size:9px; letter-spacing:0.5px;">🔔 Notification Status Log:</div>
-                            ${(() => {
-                                const notifs = o.notifications || {};
-                                const statusesList = ['placed', 'pending', 'partially_confirmed', 'confirmed', 'payment_processed', 'processing', 'shipped', 'delivered', 'partially_returned', 'returned', 'cancelled'];
-                                let logHtml = '';
-                                statusesList.forEach(st => {
-                                    const stNode = notifs[st];
-                                    if (stNode && (stNode.customerMailSent || stNode.adminTelegramSent || stNode.adminMailSent)) {
-                                        const logs = [];
-                                        if (stNode.adminTelegramSent) logs.push('Telegram sent to Admin ✅');
-                                        if (stNode.customerMailSent) logs.push('Email sent to Customer ✉️');
-                                        if (stNode.adminMailSent) logs.push('Email sent to Admin ✉️');
-                                        
-                                        const stLabel = ORDER_STATUSES.find(x => x.value === st)?.label || st;
-                                        logHtml += `<div style="margin-bottom:2px; color:#ccc;"><strong>${stLabel}:</strong> ${logs.join(' | ')}</div>`;
-                                    }
-                                });
-                                return logHtml || '<div style="color:#666; font-style:italic;">No notifications sent yet.</div>';
-                            })()}
-                        </div>
-
-                        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
-                            <button onclick="saveAdminOrderChanges('${docId}', 'none')"
-                                style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--gold); color:#000; font-size:12px; font-weight:700; cursor:pointer; min-width:110px;">
-                                💾 Save Changes
-                            </button>
-                            <button onclick="saveAdminOrderChanges('${docId}', 'admin')"
-                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #25D366; background:transparent; color:#25D366; font-size:12px; font-weight:700; cursor:pointer; min-width:130px;">
-                                📨 Save & Notify Admin
-                            </button>
-                            <button onclick="saveAdminOrderChanges('${docId}', 'customer')"
-                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #0088cc; background:transparent; color:#0088cc; font-size:12px; font-weight:700; cursor:pointer; min-width:140px;">
-                                ✉️ Save & Notify Customer
-                            </button>
-                        </div>
-                    </div>
-                </div>`;
-            } else {
-                // Customer read-only card (exactly matching original layout)
-                let trackingHtml = '';
-                if (trackingId) {
-                    const courierLabel = currentCourier || 'Courier';
-                    trackingHtml = `
-                    <div style="background:#1a1a1a; border:1px solid #222; border-radius:8px; padding:8px 12px; margin-bottom:10px; font-size:11px;">
-                        <span style="color:#aaa;">Delivery Partner:</span> <b style="color:#fff;">${courierLabel}</b><br>
-                        <span style="color:#aaa;">Tracking ID:</span> <b style="color:var(--gold); font-family:monospace;">${trackingId}</b>
-                    </div>`;
-                }
-
-                return `
-                <div class="order-card">
-                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#666; margin-bottom:8px">
-                        <span>#${orderIdStr}</span>
-                        <span style="display:flex; align-items:center; gap:4px;">
-                            <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${statusVal === 'delivered' ? '#2ecc71' : statusVal === 'cancelled' ? '#e74c3c' : '#f1c40f'}"></span>
-                            ${statusInfo.label}
-                        </span>
-                        <span>${o.timestamp ? o.timestamp.toDate().toLocaleDateString('en-IN') : 'New'}</span>
-                    </div>
-                    <div style="font-size: 11px; color: #aaa; margin-bottom: 8px;">Payment: <b>${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22; font-size:10px;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
-                    ${trackingHtml}
-                    ${itemsHtml}
-                    ${promoInfo}
-                    <div style="margin-top:10px; font-weight:bold; color:var(--gold); text-align:right; font-size:16px;">Total: ₹${o.total || 0}</div>
-                </div>`; 
-            }
-        }).join(''); 
     }, error => {
         console.error("Orders load error:", error);
         container.innerHTML = `<p style="text-align:center;color:#e74c3c;font-size:12px;">Error loading orders. Please try again.</p>`;
@@ -1826,29 +2060,306 @@ function loadMoreOrders() {
     loadOrders();
 }
 
-window.saveAdminOrderChanges = async function(docId, notifyType) {
-    const statusVal = document.getElementById(`status-sel-${docId}`).value;
-    const courierSelect = document.getElementById(`courier-sel-${docId}`).value;
-    const trackingVal = document.getElementById(`tracking-input-${docId}`).value.trim();
-    
-    let courierVal = courierSelect;
-    if (courierSelect === 'Other') {
-        const customInp = document.getElementById(`courier-custom-input-${docId}`);
-        courierVal = customInp ? customInp.value.trim() : 'Other';
+window.showAdminOrderDetailsModal = async function(docId) {
+    try {
+        const snap = await db.collection('orders').doc(docId).get();
+        if (!snap.exists) {
+            showToast("Order not found.");
+            return;
+        }
+        const o = snap.data();
+        window.editingOrderDoc = { id: docId, data: o };
+        
+        const orderIdStr = o.orderId || docId.slice(-6).toUpperCase();
+        document.getElementById('adm-ord-modal-title').innerText = `Manage Order #${orderIdStr}`;
+        
+        const dateStr = o.timestamp ? o.timestamp.toDate().toLocaleString('en-IN') : 'New';
+        document.getElementById('adm-ord-modal-date').innerText = `Placed on: ${dateStr}`;
+        
+        const itemRowsHtml = (o.items || []).map((item, idx) => {
+            const iStatus = item.status || o.status || 'pending';
+            const iCourier = item.courier || '';
+            const iTrackingId = item.trackingId || '';
+            
+            const specs = [];
+            if (item.variantSize && item.variantSize !== 'Standard' && item.variantSize !== 'N/A') specs.push(item.variantSize);
+            const _oColorLabel = item.variantColorName || (item.variantColor ? formatColorName(item.variantColor) : '');
+            if (_oColorLabel) specs.push(_oColorLabel);
+            if (item.variantPattern && !item.variantPattern.startsWith('Design-') && !item.variantPatternImage) specs.push(item.variantPattern);
+            const specStr = specs.length > 0 ? specs.join(' • ') : 'Standard';
+            
+            const patHtml = item.variantPatternImage ? `
+                <img src="${item.variantPatternImage}" title="Pattern: ${item.variantPattern || ''}" style="width:16px; height:16px; border-radius:3px; object-fit:cover; border:1px solid #1a1a1a; margin-right:5px; vertical-align:middle;">` : '';
+            const colHtml = item.variantColor ? `
+                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${resolveCssColor(item.variantColor)}; border:1px solid rgba(255,255,255,0.2); margin-right:5px; vertical-align:middle;"></span>` : '';
+            const swatchIconHtml = `${patHtml}${colHtml}`;
+            
+            const image = (item.images && item.images.length) ? item.images[0] : '';
+            
+            const statusOptionsHtml = ORDER_STATUSES.map(s => `
+                <option value="${s.value}" ${s.value === iStatus ? 'selected' : ''}>${s.label}</option>
+            `).join('');
+            
+            const isPredefined = COURIER_COMPANIES.some(c => c.value === iCourier);
+            const courierSelectValue = iCourier ? (isPredefined ? iCourier : 'Other') : '';
+            const courierOptionsHtml = COURIER_COMPANIES.map(c => `
+                <option value="${c.value}" ${c.value === courierSelectValue ? 'selected' : ''}>${c.label}</option>
+            `).join('');
+            
+            return `
+            <div style="background:#151515; padding:12px; border-radius:10px; border:1px solid #222; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <img src="${image}" style="width:45px; height:45px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none'">
+                    <div style="flex:1;">
+                        <div style="font-size:12px; font-weight:700; color:#fff;">${item.name}</div>
+                        <div style="font-size:10px; color:#888; display:flex; align-items:center; gap:5px;">
+                            ${swatchIconHtml}
+                            <span>${specStr} | Qty: ${item.qty || 1} | ₹${item.price}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:5px; border-top:1px solid #222; padding-top:8px;">
+                    <div style="flex:1; min-width:110px;">
+                        <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Item Status</label>
+                        <select id="adm-item-status-${idx}"
+                            style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; cursor:pointer; margin:0; box-sizing:border-box;">
+                            ${statusOptionsHtml}
+                        </select>
+                    </div>
+                    <div style="flex:1; min-width:110px;">
+                        <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Courier Partner</label>
+                        <select id="adm-item-courier-${idx}" onchange="toggleItemCustomCourier(${idx})"
+                            style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; cursor:pointer; margin:0; box-sizing:border-box;">
+                            <option value="">-- Select Courier --</option>
+                            ${courierOptionsHtml}
+                        </select>
+                    </div>
+                    <div style="flex:1.2; min-width:130px;">
+                        <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Tracking ID</label>
+                        <input id="adm-item-tracking-${idx}" type="text" placeholder="AWB ID..." value="${iTrackingId}"
+                            style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; font-family:monospace; margin:0; box-sizing:border-box;">
+                    </div>
+                </div>
+                
+                <div id="adm-item-courier-custom-row-${idx}" style="display:${courierSelectValue === 'Other' ? 'block' : 'none'}; margin-top:2px;">
+                    <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Custom Courier Name</label>
+                    <input id="adm-item-courier-custom-${idx}" type="text" placeholder="Enter courier name..." value="${!isPredefined ? iCourier : ''}"
+                        style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; margin:0; box-sizing:border-box;">
+                </div>
+            </div>
+            `;
+        }).join('');
+        
+        const overallStatusOptionsHtml = ORDER_STATUSES.map(s => `
+            <option value="${s.value}" ${s.value === o.status ? 'selected' : ''}>${s.label}</option>
+        `).join('');
+        
+        const overallHtml = `
+        <div style="background:#1a1a1a; padding:12px; border-radius:10px; border:1px solid #222; font-size:12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="font-weight:700; color:#fff; font-size:13px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                <span>📦 Overall Order Status</span>
+                <span style="font-size:10.5px; color:#888; font-weight:normal;" id="overall-status-calc-hint">Manual Selection</span>
+            </div>
+            <select id="adm-overall-status" 
+                style="width:100%; padding:10px; border-radius:8px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:12px; cursor:pointer; margin:0; box-sizing:border-box;">
+                ${overallStatusOptionsHtml}
+            </select>
+        </div>
+        `;
+
+        const calculatedRefund = (o.items || []).reduce((acc, i) => {
+            const iStatus = i.status || o.status || 'pending';
+            if (iStatus === 'cancelled' || iStatus === 'returned') {
+                return acc + (i.price || 0) * (i.qty || 1);
+            }
+            return acc;
+        }, 0);
+        const currentRefundVal = o.refundAmount !== undefined ? o.refundAmount : calculatedRefund;
+
+        const refundHtml = `
+        <div style="background:#1a1a1a; padding:12px; border-radius:10px; border:1px solid #222; font-size:12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="font-weight:700; color:#fff; font-size:13px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                <span>💰 Refund / Adjustment Amount (₹)</span>
+                <span style="font-size:10px; color:var(--gold); cursor:pointer; text-decoration:underline;" onclick="window.recalculateAutoRefund()">Auto-calculate</span>
+            </div>
+            <input id="adm-refund-amount" type="number" placeholder="Enter refund/adjustment amount..." value="${currentRefundVal}"
+                style="width:100%; padding:10px; border-radius:8px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:12px; margin:0; box-sizing:border-box;">
+            <p style="font-size:9.5px; color:#666; margin:0; line-height:1.3;">
+                Calculated refund sum is ₹<span id="adm-auto-refund-calc-hint">${calculatedRefund}</span> (Returned/Cancelled items). You can override this manually.
+            </p>
+        </div>
+        `;
+        
+        const notifications = o.notifications || {};
+        const statusesList = ['placed', 'pending', 'partially_confirmed', 'confirmed', 'payment_processed', 'processing', 'partially_shipped', 'shipped', 'delivered', 'partially_returned', 'returned', 'cancelled'];
+        let notifLogHtml = '';
+        statusesList.forEach(st => {
+            const stNode = notifications[st];
+            if (stNode && (stNode.customerMailSent || stNode.adminTelegramSent || stNode.adminMailSent)) {
+                const logs = [];
+                if (stNode.adminTelegramSent) logs.push('Telegram sent to Admin ✅');
+                if (stNode.customerMailSent) logs.push('Email sent to Customer ✉️');
+                if (stNode.adminMailSent) logs.push('Email sent to Admin ✉️');
+                
+                const stLabel = ORDER_STATUSES.find(x => x.value === st)?.label || st;
+                notifLogHtml += `<div style="margin-bottom:4px; color:#ccc;"><strong>${stLabel}:</strong> ${logs.join(' | ')}</div>`;
+            }
+        });
+        if (!notifLogHtml) notifLogHtml = '<div style="color:#666; font-style:italic;">No notifications sent yet.</div>';
+        
+        const notifHtml = `
+        <div style="background:#1a1a1a; padding:12px; border-radius:10px; border:1px solid #222; font-size:11px; line-height:1.4;">
+            <div style="font-weight:700; color:#aaa; margin-bottom:8px; text-transform:uppercase; font-size:9px; letter-spacing:0.5px;">🔔 Notification Status Log:</div>
+            ${notifLogHtml}
+        </div>
+        `;
+        
+        const globalShippingHtml = `
+        <div style="background:#1a1a1a; padding:12px; border-radius:10px; border:1px solid #222; font-size:12px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+            <div style="font-weight:700; color:#fff; font-size:13px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                <span>🌍 Global Shipment Override</span>
+                <span style="font-size:10px; color:#aaa; font-weight:normal;">Applies to items without tracking</span>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:110px;">
+                    <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Global Courier</label>
+                    <select id="adm-global-courier" onchange="toggleGlobalCustomCourier()"
+                        style="width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; cursor:pointer; margin:0; box-sizing:border-box;">
+                        <option value="">-- Leave Blank --</option>
+                        ${COURIER_COMPANIES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="flex:1.2; min-width:130px;">
+                    <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Global Tracking ID</label>
+                    <input id="adm-global-tracking" type="text" placeholder="Global AWB..." value=""
+                        style="width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; font-family:monospace; margin:0; box-sizing:border-box;">
+                </div>
+            </div>
+            <div id="adm-global-courier-custom-row" style="display:none; margin-top:2px;">
+                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Custom Courier Name</label>
+                <input id="adm-global-courier-custom" type="text" placeholder="Enter custom courier name..." value=""
+                    style="width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; margin:0; box-sizing:border-box;">
+            </div>
+        </div>`;
+
+        document.getElementById('adm-ord-modal-content').innerHTML = `
+            ${globalShippingHtml}
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="font-weight:700; color:#fff; font-size:13px; margin:5px 0 0;">📦 Order Items Fulfillment</div>
+                ${itemRowsHtml}
+            </div>
+            ${overallHtml}
+            ${refundHtml}
+            ${notifHtml}
+        `;
+        
+        document.getElementById('adm-ord-save-btn').onclick = () => saveAdminOrderChanges(docId, 'none');
+        document.getElementById('adm-ord-notify-admin-btn').onclick = () => saveAdminOrderChanges(docId, 'admin');
+        document.getElementById('adm-ord-notify-customer-btn').onclick = () => saveAdminOrderChanges(docId, 'customer');
+        
+        document.getElementById('admin-order-details-modal').style.display = 'flex';
+    } catch(err) {
+        console.error("Error opening admin order details modal:", err);
+        showToast("Error loading details: " + err.message);
     }
+};
+
+window.toggleGlobalCustomCourier = function() {
+    const courierSelect = document.getElementById('adm-global-courier')?.value;
+    const customRow = document.getElementById('adm-global-courier-custom-row');
+    if (customRow) {
+        customRow.style.display = courierSelect === 'Other' ? 'block' : 'none';
+    }
+};
+
+window.toggleItemCustomCourier = function(idx) {
+    const courierSelect = document.getElementById(`adm-item-courier-${idx}`).value;
+    const customRow = document.getElementById(`adm-item-courier-custom-row-${idx}`);
+    if (customRow) {
+        customRow.style.display = courierSelect === 'Other' ? 'block' : 'none';
+    }
+};
+
+window.recalculateAutoRefund = function() {
+    const o = window.editingOrderDoc?.data;
+    if (!o || !o.items) return;
+    let total = 0;
+    o.items.forEach((item, idx) => {
+        const select = document.getElementById(`adm-item-status-${idx}`);
+        if (select) {
+            const statusVal = select.value;
+            if (statusVal === 'returned' || statusVal === 'cancelled') {
+                total += (item.price || 0) * (item.qty || 1);
+            }
+        }
+    });
+    const input = document.getElementById('adm-refund-amount');
+    if (input) {
+        input.value = total;
+    }
+    const hint = document.getElementById('adm-auto-refund-calc-hint');
+    if (hint) {
+        hint.innerText = total;
+    }
+    showToast("🔄 Auto-calculated refund amount filled: ₹" + total);
+};
+
+window.saveAdminOrderChanges = async function(docId, notifyType) {
+    const overallStatusVal = document.getElementById('adm-overall-status').value;
+    const items = window.editingOrderDoc?.data?.items || [];
+    
+    const globalCourierSelect = document.getElementById('adm-global-courier')?.value || '';
+    let globalCourierVal = globalCourierSelect;
+    if (globalCourierSelect === 'Other') {
+        globalCourierVal = document.getElementById('adm-global-courier-custom')?.value.trim() || 'Other';
+    }
+    const globalTrackingVal = document.getElementById('adm-global-tracking')?.value.trim() || '';
+
+    const updatedItems = items.map((item, idx) => {
+        const itemStatusSelect = document.getElementById(`adm-item-status-${idx}`);
+        const itemCourierSelect = document.getElementById(`adm-item-courier-${idx}`);
+        const itemTrackingInput = document.getElementById(`adm-item-tracking-${idx}`);
+        
+        const newStatus = itemStatusSelect ? itemStatusSelect.value : (item.status || window.editingOrderDoc.data.status || 'pending');
+        const courierSelectValue = itemCourierSelect ? itemCourierSelect.value : '';
+        let courierVal = courierSelectValue;
+        if (courierSelectValue === 'Other') {
+            const customInp = document.getElementById(`adm-item-courier-custom-${idx}`);
+            courierVal = customInp ? customInp.value.trim() : 'Other';
+        }
+        const trackingVal = itemTrackingInput ? itemTrackingInput.value.trim() : '';
+        
+        let finalTrackingVal = trackingVal || globalTrackingVal;
+        let finalCourierVal = courierVal || globalCourierVal;
+        
+        const oldStatus = item.status || window.editingOrderDoc.data.status || 'pending';
+        const statusChanged = newStatus !== oldStatus;
+        
+        return {
+            ...item,
+            status: newStatus,
+            courier: finalCourierVal || '',
+            trackingId: finalTrackingVal || '',
+            statusUpdatedAt: statusChanged ? Date.now() : (item.statusUpdatedAt || Date.now())
+        };
+    });
+
+    const refundAmountInput = document.getElementById('adm-refund-amount');
+    const refundAmountVal = refundAmountInput ? parseFloat(refundAmountInput.value) || 0 : 0;
     
     try {
         const snap = await db.collection('orders').doc(docId).get();
         if (snap.exists) {
             const orderData = snap.data();
             const notifications = orderData.notifications || {};
-            const statusNode = notifications[statusVal] || {};
+            const statusNode = notifications[overallStatusVal] || {};
             
             if (notifyType === 'admin') {
-                if (statusNode.adminTelegramSent || orderData.status === statusVal) {
+                if (statusNode.adminTelegramSent || orderData.status === overallStatusVal) {
                     const msg = statusNode.adminTelegramSent 
-                        ? `A Telegram notification for "${statusVal}" has already been sent to the admin. Do you want to send it again?`
-                        : `Order status is already "${statusVal}". Do you want to send Telegram notification anyway?`;
+                        ? `A Telegram notification for "${overallStatusVal}" has already been sent to the admin. Do you want to send it again?`
+                        : `Order status is already "${overallStatusVal}". Do you want to send Telegram notification anyway?`;
                     if (!confirm(msg)) return;
                 }
             } else if (notifyType === 'customer') {
@@ -1862,10 +2373,10 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
                     showToast("⚠️ Customer is Admin/Superadmin. Skip sending email.");
                     notifyType = 'none';
                 } else {
-                    if (statusNode.customerMailSent || orderData.status === statusVal) {
+                    if (statusNode.customerMailSent || orderData.status === overallStatusVal) {
                         const msg = statusNode.customerMailSent
-                            ? `An Email notification for "${statusVal}" has already been sent to the customer. Do you want to send it again?`
-                            : `Order status is already "${statusVal}". Do you want to send Email notification anyway?`;
+                            ? `An Email notification for "${overallStatusVal}" has already been sent to the customer. Do you want to send it again?`
+                            : `Order status is already "${overallStatusVal}". Do you want to send Email notification anyway?`;
                         if (!confirm(msg)) return;
                     }
                 }
@@ -1875,10 +2386,10 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
         console.error("Error checking existing notification status:", err);
     }
     
-    await updateOrderStatus(docId, statusVal, courierVal, trackingVal, notifyType);
+    await updateOrderStatus(docId, overallStatusVal, updatedItems, refundAmountVal, notifyType);
 };
 
-async function updateOrderStatus(docId, newStatus, courier, trackingId, notifyType) {
+async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal, notifyType) {
     if (!docId) return;
     const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || ORDER_STATUSES[0];
     try {
@@ -1896,32 +2407,50 @@ async function updateOrderStatus(docId, newStatus, courier, trackingId, notifyTy
             };
         }
         
+        const mergedOrderData = {
+            ...orderData,
+            status: newStatus,
+            items: updatedItems,
+            refundAmount: refundAmountVal
+        };
+        
         const updateData = {
             status: newStatus,
-            courier: courier || '',
-            trackingId: trackingId || '',
+            items: updatedItems,
+            refundAmount: refundAmountVal,
             statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
         if (notifyType === 'admin') {
-            await triggerTelegramNotification(orderData, docId, newStatus, courier, trackingId);
-            notifications[newStatus].adminTelegramSent = true;
+            try {
+                const telegramOk = await triggerTelegramNotification(mergedOrderData, docId, newStatus);
+                notifications[newStatus].adminTelegramSent = telegramOk;
+            } catch (telegramErr) {
+                console.error("Telegram notification dispatch failed:", telegramErr);
+                showToast("⚠️ Telegram failed, but order changes will be saved.");
+            }
             updateData.notifications = notifications;
         } else if (notifyType === 'customer') {
-            await triggerEmailNotification(orderData, docId, newStatus, courier, trackingId);
-            notifications[newStatus].customerMailSent = true;
+            try {
+                const emailOk = await triggerEmailNotification(mergedOrderData, docId, newStatus);
+                notifications[newStatus].customerMailSent = emailOk;
+            } catch (emailErr) {
+                console.error("Email notification dispatch failed:", emailErr);
+                showToast("⚠️ Email failed, but order changes will be saved.");
+            }
             updateData.notifications = notifications;
         }
         
         await docRef.update(updateData);
         
-        // Flash card confirmation
+        closeModal('admin-order-details-modal');
+        showToast(`✅ Order updated: ${statusInfo.label}`);
+        
         const cardEl = document.getElementById(`order-card-${docId}`);
         if (cardEl) {
             const originalBg = cardEl.style.backgroundColor;
             const originalBorder = cardEl.style.borderColor;
             
-            // Flashing gold/green effect
             cardEl.style.backgroundColor = 'rgba(212, 175, 55, 0.15)';
             cardEl.style.borderColor = 'var(--gold)';
             
@@ -1930,8 +2459,6 @@ async function updateOrderStatus(docId, newStatus, courier, trackingId, notifyTy
                 cardEl.style.borderColor = originalBorder;
             }, 600);
         }
-        
-        showToast(`✅ Order updated: ${statusInfo.label}`);
     } catch(e) {
         console.error('updateOrderStatus error:', e);
         showToast('Failed to update order: ' + e.message);
@@ -1939,7 +2466,7 @@ async function updateOrderStatus(docId, newStatus, courier, trackingId, notifyTy
 }
 window.updateOrderStatus = updateOrderStatus;
 
-async function triggerTelegramNotification(orderData, docId, newStatus, courier, trackingId) {
+async function triggerTelegramNotification(orderData, docId, newStatus) {
     function escapeHTML(str) {
         if (!str) return '';
         return String(str)
@@ -1951,7 +2478,7 @@ async function triggerTelegramNotification(orderData, docId, newStatus, courier,
         const cfgSnap = await db.collection('settings').doc('telegram').get();
         if (!cfgSnap.exists) {
             showToast('⚠️ Telegram not configured in Admin panel.');
-            return;
+            return false;
         }
         const cfg = cfgSnap.data();
         const botToken = cfg.token;
@@ -1965,35 +2492,54 @@ async function triggerTelegramNotification(orderData, docId, newStatus, courier,
         
         if (!botToken || chatIds.length === 0) {
             showToast('⚠️ Missing Telegram Bot Token or Chat ID.');
-            return;
+            return false;
         }
 
         const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
         const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
-        const itemsList = (orderData.items || [])
-            .map(i => `• ${escapeHTML(i.name)} (×${i.qty || 1}) — ₹${(i.price || 0) * (i.qty || 1)}`)
-            .join('\n');
+        
+        const itemsListTelegram = (orderData.items || []).map(i => {
+            const iStatus = i.status || newStatus || 'pending';
+            const iStatusLabel = ORDER_STATUSES.find(s => s.value === iStatus)?.label || iStatus;
+            const trackingStr = i.trackingId ? `\n   ↳ 🚚 ${escapeHTML(i.courier || 'Courier')}: <code>${escapeHTML(i.trackingId)}</code>` : '';
+            
+            const specs = [];
+            if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
+            const _oColorLabel = i.variantColorName || (i.variantColor ? formatColorName(i.variantColor) : '');
+            if (_oColorLabel) specs.push(_oColorLabel);
+            if (i.variantPattern && !i.variantPattern.startsWith('Design-')) specs.push(i.variantPattern);
+            const specStr = specs.length > 0 ? ` (${specs.join(' • ')})` : '';
+
+            return `• <b>${escapeHTML(i.name)}</b>${escapeHTML(specStr)} (×${i.qty || 1}) - ${escapeHTML(iStatusLabel)}${trackingStr}`;
+        }).join('\n');
+
+        let refundTelegram = '';
+        if (orderData.refundAmount && orderData.refundAmount > 0) {
+            if (orderData.paymentMethod && orderData.paymentMethod.toLowerCase() === 'cod') {
+                const adjustedCod = Math.max(0, (orderData.total || 0) - orderData.refundAmount);
+                refundTelegram = `\n⚖️ <b>Adjusted COD Collection:</b> ₹${adjustedCod} (₹${orderData.refundAmount} deducted)`;
+            } else {
+                refundTelegram = `\n💸 <b>Refund Due:</b> ₹${orderData.refundAmount}`;
+            }
+        }
 
         const message = [
             `🛍️ <b>SWAG STREE — Order Update</b>`,
             ``,
             `📋 <b>Order ID:</b> #${escapeHTML(orderId)}`,
-            `📦 <b>New Status:</b> ${escapeHTML(statusInfo.label)}`,
-            courier ? `🚚 <b>Courier:</b> ${escapeHTML(courier)}` : '',
-            trackingId ? `🎫 <b>Tracking ID:</b> <code>${escapeHTML(trackingId)}</code>` : '',
+            `📦 <b>Overall Status:</b> ${escapeHTML(statusInfo.label)}`,
             ``,
             `👤 <b>Customer:</b> ${escapeHTML(orderData.recipient || 'N/A')}`,
             `📱 <b>Phone:</b> ${escapeHTML(orderData.phone || 'N/A')}`,
             `📍 <b>Address:</b> ${escapeHTML(orderData.address || 'N/A')}`,
             ``,
-            `🧾 <b>Items:</b>`,
-            itemsList,
+            `🧾 <b>Fulfillment Details & Items:</b>`,
+            itemsListTelegram,
             ``,
-            `💰 <b>Total:</b> ₹${orderData.total || 0}`,
+            `💰 <b>Total:</b> ₹${orderData.total || 0}${refundTelegram}`,
             `💳 <b>Payment:</b> ${orderData.paymentMethod ? escapeHTML(orderData.paymentMethod.toUpperCase()) : 'N/A'}`,
         ].filter(line => line !== '').join('\n');
 
-        // Dispatch notifications to all configured Chat IDs asynchronously
         let successCount = 0;
         await Promise.all(chatIds.map(async (chatId) => {
             try {
@@ -2012,22 +2558,24 @@ async function triggerTelegramNotification(orderData, docId, newStatus, courier,
 
         if (successCount > 0) {
             showToast(`📨 Sent notification to ${successCount} admin account(s)!`);
+            return true;
         } else {
             showToast('⚠️ Telegram notification dispatch failed.');
+            return false;
         }
     } catch(e) {
         console.error('triggerTelegramNotification error:', e);
         showToast('Telegram send failed: ' + e.message);
+        return false;
     }
 }
 window.triggerTelegramNotification = triggerTelegramNotification;
 
-async function triggerEmailNotification(orderData, docId, newStatus, courier, trackingId) {
-    // Check if the order has a customer email stored
+async function triggerEmailNotification(orderData, docId, newStatus) {
     const customerEmail = orderData.email;
     if (!customerEmail) {
         console.log("No customer email found for order", docId, "- skipping status email.");
-        return;
+        return false;
     }
     
     try {
@@ -2039,48 +2587,143 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
         
         if (!brevoKey) {
             console.error("Brevo API key is not configured in Firestore settings/email - skipping status update email.");
-            return;
+            return false;
         }
         
         const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
-        
-        // Support dynamic title/msg for any status update
         const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
-        let statusTitle = `Order status update: ${statusInfo.label}`;
-        let statusMsg = `Your order **#${orderId}** status has been updated to **${statusInfo.label}**.`;
+        let statusTitle = `Order Status Update: ${statusInfo.label}`;
+        let statusMsg = `Your order <strong>#${orderId}</strong> overall status has been updated to <strong>${statusInfo.label}</strong>.`;
         
         if (newStatus === 'pending') {
             statusTitle = "Your Order is Pending ⏳";
-            statusMsg = `Your order **#${orderId}** has been received and is currently pending verification. We will update you shortly.`;
+            statusMsg = `Your order <strong>#${orderId}</strong> has been received and is currently pending verification. We will update you shortly.`;
         } else if (newStatus === 'partially_confirmed') {
             statusTitle = "Order Partially Confirmed 🟡";
-            statusMsg = `Your order **#${orderId}** has been partially confirmed. We will contact you or update the order status once verification is completed.`;
+            statusMsg = `Your order <strong>#${orderId}</strong> has been partially confirmed. We will contact you or update the order status once verification is completed.`;
         } else if (newStatus === 'confirmed') {
             statusTitle = "Order Confirmed! ✅";
-            statusMsg = `Great news! Your order **#${orderId}** has been confirmed. We are starting to process it now.`;
+            statusMsg = `Great news! Your order <strong>#${orderId}</strong> has been confirmed. We are starting to process it now.`;
         } else if (newStatus === 'processing') {
             statusTitle = "Your Order is being Prepared! 📦";
-            statusMsg = `We are preparing your order **#${orderId}** for shipment. We will notify you once it's shipped.`;
+            statusMsg = `We are preparing your order <strong>#${orderId}</strong> for shipment. We will notify you once it's shipped.`;
         } else if (newStatus === 'payment_processed') {
             statusTitle = "Payment Received & Processed! 💳";
-            statusMsg = `Thank you! Your payment for order **#${orderId}** has been successfully processed. We are preparing your order for shipment.`;
+            statusMsg = `Thank you! Your payment for order <strong>#${orderId}</strong> has been successfully processed. We are preparing your order for shipment.`;
+        } else if (newStatus === 'partially_shipped') {
+            statusTitle = "Your Order is Partially Shipped! 🚚";
+            statusMsg = `Great news! Some items from your order <strong>#${orderId}</strong> have been shipped. Please check details below.`;
         } else if (newStatus === 'shipped') {
             statusTitle = "Your Order has been Shipped! 🚚";
-            statusMsg = `Great news! Your order **#${orderId}** has been shipped. ${courier ? `It has been sent via **${courier}**.` : ''} ${trackingId ? `Your Tracking ID is: **${trackingId}**` : ''}`;
+            statusMsg = `Great news! Your order <strong>#${orderId}</strong> has been shipped. Please check tracking links below.`;
         } else if (newStatus === 'delivered') {
             statusTitle = "Your Order has been Delivered! 🎉";
-            statusMsg = `Hooray! Your order **#${orderId}** has been successfully delivered. Thank you for shopping with Swag Stree!`;
+            statusMsg = `Hooray! Your order <strong>#${orderId}</strong> has been successfully delivered. Thank you for shopping with Swag Stree!`;
         } else if (newStatus === 'partially_returned') {
             statusTitle = "Order Partially Returned ↩️";
-            statusMsg = `Your order **#${orderId}** has been marked as partially returned. If you have any queries, please let us know.`;
+            statusMsg = `Your order <strong>#${orderId}</strong> has been marked as partially returned. If you have any queries, please let us know.`;
         } else if (newStatus === 'returned') {
             statusTitle = "Order Returned ↩️";
-            statusMsg = `Your order **#${orderId}** has been returned. We hope to serve you again in the future.`;
+            statusMsg = `Your order <strong>#${orderId}</strong> has been returned. We hope to serve you again in the future.`;
         } else if (newStatus === 'cancelled') {
             statusTitle = "Your Order has been Cancelled ❌";
-            statusMsg = `Your order **#${orderId}** has been cancelled.`;
+            statusMsg = `Your order <strong>#${orderId}</strong> has been cancelled.`;
         }
         
+        const emailGroups = {};
+        (orderData.items || []).forEach(it => {
+            if (!emailGroups[it.id]) {
+                emailGroups[it.id] = {
+                    name: it.name,
+                    image: it.image || it.variantImage || (it.images && it.images[0]) || 'https://placehold.co/400x400/222/FFF?text=No+Image',
+                    variants: []
+                };
+            }
+            emailGroups[it.id].variants.push(it);
+        });
+
+        const itemsListEmailHtml = Object.values(emailGroups).map(g => {
+            const variantRowsHtml = g.variants.map(it => {
+                const iStatus = it.status || newStatus || 'pending';
+                const iStatusLabel = ORDER_STATUSES.find(s => s.value === iStatus)?.label || iStatus;
+                
+                const colorLabel = it.variantColorName || (it.variantColor ? formatColorName(it.variantColor) : '');
+                const hasSwatch = !!it.variantPatternImage;
+                const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
+
+                const patternImgHtml = hasSwatch
+                    ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
+                    : '';
+
+                const colorCircleHtml = it.variantColor ? `
+                    <table width="12" height="12" cellpadding="0" cellspacing="0" style="display:inline-table; border-collapse:collapse; margin-right:6px; vertical-align:middle; line-height:0;">
+                      <tr>
+                        <td width="12" height="12" style="padding:0; border-radius:50%; background:${resolveCssColor(it.variantColor)}; border:1px solid #ddd; font-size:0px; line-height:0; overflow:hidden;">
+                          &nbsp;
+                        </td>
+                      </tr>
+                    </table>` : '';
+
+                const swatchIcon = `${patternImgHtml}${colorCircleHtml}`;
+
+                const specs = [];
+                if (it.variantSize && it.variantSize !== 'Standard') specs.push(`Size: <strong>${it.variantSize}</strong>`);
+                if (colorLabel) specs.push(`Color: <strong>${colorLabel}</strong>`);
+                if (showPatternText) specs.push(`Pattern: <strong>${it.variantPattern}</strong>`);
+                const specsString = specs.length > 0 ? specs.join(' &nbsp;•&nbsp; ') : 'Standard';
+
+                let logisticsInfo = '';
+                if (iStatus === 'shipped' && it.trackingId) {
+                    logisticsInfo = `<div style="font-size:11px; color:#555; margin-top:4px;">🚚 Courier: <strong>${it.courier || 'Courier'}</strong> &nbsp;|&nbsp; AWB: <strong style="color:#e67e22; font-family:monospace;">${it.trackingId}</strong></div>`;
+                }
+
+                return `
+                <tr>
+                  <td style="padding:8px 0; border-bottom:1px dashed #eee; font-size:12px; color:#555; vertical-align:middle; line-height:1.4;">
+                    ${swatchIcon}${specsString}
+                    ${logisticsInfo}
+                  </td>
+                  <td style="padding:8px 0; border-bottom:1px dashed #eee; font-size:12px; color:#111; text-align:right; vertical-align:middle; white-space:nowrap; width:120px;">
+                    <div style="margin-bottom:4px;">
+                      <span style="color:#777; font-size:11px; margin-right:8px;">Qty: ${it.qty || 1}</span>
+                      <strong style="font-size:13px; font-weight:700;">&#8377;${(it.price || 0) * (it.qty || 1)}</strong>
+                    </div>
+                    <span style="background:#f4f4f4; border:1px solid #ddd; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:#555; display:inline-block; white-space:nowrap;">${iStatusLabel}</span>
+                  </td>
+                </tr>`;
+            }).join('');
+
+            return `
+            <tr>
+              <td style="padding:14px 0; border-bottom:1px solid #f3f3f3; vertical-align:top; width:54px;">
+                <img src="${g.image}" width="54" height="54"
+                     style="border-radius:8px; object-fit:cover; display:block; border:1px solid #eee;" alt="product">
+              </td>
+              <td style="padding:14px 0 14px 12px; border-bottom:1px solid #f3f3f3; vertical-align:top;">
+                <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:8px; line-height:1.35;">${g.name}</div>
+                <table style="width:100%; border-collapse:collapse; margin:0; background:#fafafa; border-radius:8px; border:1px solid #f0f0f0;">
+                  <tr>
+                    <td style="padding:4px 10px;">
+                      <table style="width:100%; border-collapse:collapse; margin:0;">
+                        ${variantRowsHtml}
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>`;
+        }).join('');
+
+        let refundSummaryEmail = '';
+        if (orderData.refundAmount && orderData.refundAmount > 0) {
+            if (orderData.paymentMethod && orderData.paymentMethod.toLowerCase() === 'cod') {
+                const adjustedCod = Math.max(0, (orderData.total || 0) - orderData.refundAmount);
+                refundSummaryEmail = `<div style="font-size:13px;color:#e67e22;margin-top:5px;font-weight:bold;">Adjusted COD Collection: ₹${adjustedCod} (₹${orderData.refundAmount} deducted for Returned/Cancelled items)</div>`;
+            } else {
+                refundSummaryEmail = `<div style="font-size:13px;color:#e74c3c;margin-top:5px;font-weight:bold;">Refund Processed/Due: ₹${orderData.refundAmount} (for Returned/Cancelled items)</div>`;
+            }
+        }
+
         const htmlContent = `
         <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;padding:24px;">
             <div style="text-align:center;background:#000000;padding:20px;border-radius:8px;margin-bottom:20px;">
@@ -2089,9 +2732,20 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
             <h2 style="color:#111;margin-top:0;">${statusTitle}</h2>
             <p style="font-size:14px;color:#555;line-height:1.6;">Hi ${orderData.recipient || 'Customer'},</p>
             <p style="font-size:14px;color:#555;line-height:1.6;">${statusMsg}</p>
+            
+            <div style="padding:14px 0 0;">
+               <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid #eee;">ITEMS ORDERED</div>
+            </div>
+            <table style="width:100%; border-collapse:collapse; margin:10px 0;">
+                <tbody>
+                    ${itemsListEmailHtml}
+                </tbody>
+            </table>
+
             <div style="background:#f9f9f9;padding:15px;border-radius:8px;margin:20px 0;border-left:4px solid #FFD700;">
                 <div style="font-size:12px;color:#888;">ORDER SUMMARY:</div>
                 <div style="font-weight:bold;font-size:14px;margin-top:5px;color:#111;">Total Amount: ₹${orderData.total}</div>
+                ${refundSummaryEmail}
                 <div style="font-size:13px;color:#555;margin-top:3px;">Payment Method: ${orderData.paymentMethod ? orderData.paymentMethod.toUpperCase() : 'N/A'}</div>
             </div>
             <p style="font-size:14px;color:#555;line-height:1.6;">If you have any questions, feel free to contact us via WhatsApp.</p>
@@ -2128,11 +2782,14 @@ async function triggerEmailNotification(orderData, docId, newStatus, courier, tr
         
         if (!response.ok) {
             console.error("Brevo status email failed:", response.status, await response.text());
+            return false;
         } else {
             console.log(`Brevo status email (${newStatus}) sent successfully.`);
+            return true;
         }
     } catch (err) {
         console.error("Failed to send status email via Brevo", err);
+        return false;
     }
 }
 window.triggerEmailNotification = triggerEmailNotification;
