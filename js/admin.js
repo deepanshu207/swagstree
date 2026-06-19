@@ -444,7 +444,7 @@ function renderAdmin() {
                 } else {
                     label = `${varName}: Unlimited`;
                 }
-                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:nowrap;">${label}</span>`;
+                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:normal; display:inline-block; max-width:100%; word-break:break-word;">${label}</span>`;
             });
             stockHtml += `</div>`;
         }
