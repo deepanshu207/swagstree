@@ -1734,18 +1734,27 @@ window.handleFeedbackImageError = function (imgEl, postId) {
     }
 };
 
-window.openFeedbackPost = function (el, allLinks) {
+window.openFeedbackPost = function (el) {
+    // Read links from the nearest feedback-card's data attribute
+    const card = el.closest('.feedback-card');
+    if (!card) return;
+
+    let allLinks = [];
+    try {
+        allLinks = JSON.parse(card.dataset.links || '[]');
+    } catch (e) {
+        allLinks = [];
+    }
     if (!allLinks || allLinks.length === 0) return;
 
-    const card = el.closest('.feedback-card');
     let activeIdx = 0;
-    if (card) {
-        const carousel = card.querySelector('.carousel');
-        if (carousel) {
-            const scrollLeft = carousel.scrollLeft;
-            const offsetWidth = carousel.offsetWidth || 1;
-            activeIdx = Math.round(scrollLeft / offsetWidth);
-        }
+    const carousel = card.querySelector('.carousel');
+    if (carousel) {
+        const scrollLeft = carousel.scrollLeft;
+        const offsetWidth = carousel.offsetWidth || 1;
+        activeIdx = Math.round(scrollLeft / offsetWidth);
+        // Clamp index to links array bounds
+        if (activeIdx >= allLinks.length) activeIdx = 0;
     }
 
     const targetLink = allLinks[activeIdx] || allLinks[0];
@@ -1769,9 +1778,9 @@ window.openFeedbackPost = function (el, allLinks) {
                     window.removeEventListener('blur', onBlur);
                 }
                 window.addEventListener('blur', onBlur);
-                
+
                 window.location.href = appUrl;
-                
+
                 setTimeout(function() {
                     window.removeEventListener('blur', onBlur);
                     if (!blurred && (Date.now() - start < 2000)) {
@@ -1904,11 +1913,12 @@ function getFeedbackCardsHtml() {
                 }
             }
 
-            // Compute links early so they are available inside mediaHtml template strings
+            // Compute links for this card (stored in data-links attribute to avoid HTML encoding issues)
             const allLinksForCard = f.showMultiple
                 ? [link]
                 : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
-            const serializedLinks = JSON.stringify(allLinksForCard).replace(/"/g, '&quot;');
+            // Escape for HTML attribute (used in data-links)
+            const dataLinksAttr = JSON.stringify(allLinksForCard).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
             let mediaHtml = '';
             if (images.length === 1) {
@@ -1916,7 +1926,7 @@ function getFeedbackCardsHtml() {
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="window.openFeedbackPost(this, ${serializedLinks})" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222; cursor:pointer;">
+                <div onclick="window.openFeedbackPost(this)" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222; cursor:pointer;">
                      <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
@@ -1925,7 +1935,7 @@ function getFeedbackCardsHtml() {
                     const postId = match ? match[1] : '';
                     const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                     return `
-                    <div onclick="window.openFeedbackPost(this, ${serializedLinks})" style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center; cursor:pointer;">
+                    <div onclick="window.openFeedbackPost(this)" style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center; cursor:pointer;">
                         <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; pointer-events:none;">
                     </div>
                     `;
@@ -1960,15 +1970,15 @@ function getFeedbackCardsHtml() {
 
             let platformIcon = '';
             if (f.platform === 'instagram') {
-                platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})"></i>`;
+                platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
             } else if (f.platform === 'facebook') {
-                platformIcon = `<i class="fab fa-facebook" style="color:#1877F2; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})"></i>`;
+                platformIcon = `<i class="fab fa-facebook" style="color:#1877F2; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
             } else {
                 platformIcon = `<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>`;
             }
 
             return `
-            <div class="feedback-card" style="${cardStyle}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
+            <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
                 <div style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -1978,7 +1988,7 @@ function getFeedbackCardsHtml() {
                         ${platformIcon}
                     </div>
                     <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
-                    ${allLinksForCard.length > 0 ? `<div onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})" style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif; cursor:pointer;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
+                    ${allLinksForCard.length > 0 ? `<div onclick="event.stopPropagation(); window.openFeedbackPost(this)" style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif; cursor:pointer;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
                 </div>
             </div>
             `;
