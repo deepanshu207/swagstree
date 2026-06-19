@@ -1082,6 +1082,15 @@ async function cleanEverythingPrompt() {
         const ordersCount = await batchDeleteCollection("orders");
         const adminsCount = await batchDeleteCollection("admins");
 
+        // Clear backup logs
+        const backupSnapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
+        const backupBatch = db.batch();
+        backupSnapshot.forEach(doc => {
+            backupBatch.delete(doc.ref);
+        });
+        await backupBatch.commit();
+        await db.collection("settings").doc("backup").delete();
+
         await db.collection("settings").doc("cod").delete();
         await db.collection("settings").doc("cart").delete();
         await db.collection("settings").doc("promos").delete();
@@ -1091,6 +1100,36 @@ async function cleanEverythingPrompt() {
     } catch (e) {
         console.error("Error in factory reset:", e);
         showToast("Reset failed.");
+    }
+}
+
+window.deleteFirebaseBackupsPrompt = async function() {
+    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!confirm("🚨 WARNING: This will permanently delete all backup email records for backup@swagstree.com and reset your backup timestamp. Continue?")) return;
+    
+    try {
+        showToast("Deleting backup email records...");
+        const snapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
+        if (snapshot.empty) {
+            showToast("No backup records found.");
+            return;
+        }
+        
+        const batch = db.batch();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        
+        await db.collection("settings").doc("backup").delete();
+        showToast(`✅ Deleted ${snapshot.size} backup records.`);
+        
+        const statusEl = document.getElementById('admin-backup-status-text');
+        if (statusEl) statusEl.innerHTML = "Last Auto-Backup: Never";
+        
+    } catch (e) {
+        console.error("Error deleting backups:", e);
+        showToast("Failed to delete backup logs.");
     }
 }
 
