@@ -431,43 +431,44 @@
                 </button>
             </div>
 
-            <!-- Change Email (with verification) -->
-            <div class="profile-section">
-                <h4 class="section-label"><i class="fa fa-envelope"></i> Change Email</h4>
-                <p style="font-size:12px; color:#888; margin:0 0 12px;">A verification link will be sent to your new
-                    email before it takes effect.</p>
+            <!-- Linked Accounts / Login Options -->
+            <div class="profile-section" id="profile-linking-section">
+                <h4 class="section-label"><i class="fa fa-link"></i> Sign-in Methods</h4>
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">Link both Google and Email/Password to log in using either method.</p>
+                
+                <!-- Google Link Status -->
+                <div id="link-google-status" style="display:flex; justify-content:space-between; align-items:center; background:#111; padding:12px; border-radius:10px; margin-bottom:10px; border:1px solid #222;">
+                    <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i class="fab fa-google" style="color:#db4437;"></i> Google Account</span>
+                    <span id="link-google-btn-container"></span>
+                </div>
+                <!-- Email Link Status -->
+                <div id="link-email-status" style="display:flex; flex-direction:column; background:#111; padding:12px; border-radius:10px; border:1px solid #222;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i class="fa fa-envelope" style="color:var(--gold);"></i> Email & Password Login</span>
+                        <span id="link-email-btn-container"></span>
+                    </div>
 
-                <label class="field-label">New Email Address</label>
-                <input id="prof-new-email" type="email" placeholder="New email address" autocomplete="email">
+                    <!-- Form to add Password (shown if Google user wants to enable email/password) -->
+                    <div id="link-email-form" style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Set Password for Email Login</label>
+                        <input id="link-email-password" type="password" placeholder="Min 6 characters" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        <button class="btn-gold" onclick="linkEmailPassword()" style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Enable Email Login</button>
+                    </div>
 
-                <label class="field-label">Current Password (to confirm)</label>
-                <input id="prof-curr-pass" type="password" placeholder="Your current password">
-
-                <button class="btn-gold" onclick="changeEmail()"
-                    style="background:#222; border:1px solid #555; color:#fff;">
-                    <i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change
-                </button>
-            </div>
-
-            <!-- Change Password (with re-auth) -->
-            <div class="profile-section">
-                <h4 class="section-label"><i class="fa fa-lock"></i> Change Password</h4>
-                <p style="font-size:12px; color:#888; margin:0 0 12px;">For security, please enter your current password
-                    to set a new one.</p>
-
-                <label class="field-label">Current Password</label>
-                <input id="prof-pass-current" type="password" placeholder="Your current password">
-
-                <label class="field-label">New Password</label>
-                <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)">
-
-                <label class="field-label">Confirm New Password</label>
-                <input id="prof-pass-confirm" type="password" placeholder="Confirm new password">
-
-                <button class="btn-gold" onclick="changePassword()"
-                    style="background:#222; border:1px solid #555; color:#fff;">
-                    <i class="fa fa-lock"></i> &nbsp;Change Password
-                </button>
+                    <!-- Form to change Password (shown if user wants to update their existing password) -->
+                    <div id="change-password-form" style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Current Password</label>
+                        <input id="prof-pass-current" type="password" placeholder="Your current password" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">New Password</label>
+                        <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Confirm New Password</label>
+                        <input id="prof-pass-confirm" type="password" placeholder="Confirm new password" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        
+                        <button class="btn-gold" onclick="changePassword()" style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Change Password</button>
+                    </div>
+                </div>
             </div>
 
             <!-- My Orders -->
@@ -1262,7 +1263,7 @@
                 oninput="resetSuperCustomerLimitAndFilter()" style="margin-bottom:12px; font-size:13px;">
 
             <div id="super-customer-list"
-                style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:5px;">
+                style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:12px;">
                 <!-- Customers list -->
             </div>
 
@@ -1356,6 +1357,22 @@
             <button class="btn-gold" id="sec-save-btn" onclick="saveCustomerDetails()">Save Changes</button>
             <button onclick="closeModal('super-edit-cust-modal')"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Superadmin View Customer Orders -->
+    <div id="super-view-orders-modal" class="modal">
+        <div class="modal-box" style="max-width: 600px; width: 90%;">
+            <h3 style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span>Customer Order History</span>
+                <span id="super-orders-cust-email" style="font-size:12px; color:#888; font-weight:normal;"></span>
+            </h3>
+            
+            <div id="super-customer-orders-list" style="max-height: 400px; overflow-y: auto; display:flex; flex-direction:column; gap:12px; margin-top:15px; padding-right:5px;">
+                <!-- Orders loaded dynamically -->
+            </div>
+            
+            <button onclick="closeModal('super-view-orders-modal')" class="btn-gold" style="width:100%; margin-top:15px; background:#222; border:1px solid #444; color:#fff;">Close</button>
         </div>
     </div>
 
@@ -1497,6 +1514,7 @@
             <input id="c-name" placeholder="Recipient Name" autocomplete="name">
             <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
             <input id="c-email" placeholder="Email Address" type="email">
+            <div id="checkout-email-msg" style="display:none; font-size:11px; margin-top:-8px; margin-bottom:12px; font-weight:500; text-align:left; transition:all 0.3s; line-height:1.4;"></div>
             <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
 
             <!-- Payment Methods -->
@@ -1728,11 +1746,11 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.21"></script>
-    <script src="js/store.js?v=9.21"></script>
-    <script src="js/checkout.js?v=9.21"></script>
-    <script src="js/auth.js?v=9.21"></script>
-    <script src="js/admin.js?v=9.21"></script>
+    <script src="js/app.js?v=9.25"></script>
+    <script src="js/store.js?v=9.25"></script>
+    <script src="js/checkout.js?v=9.25"></script>
+    <script src="js/auth.js?v=9.25"></script>
+    <script src="js/admin.js?v=9.25"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

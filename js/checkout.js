@@ -2910,6 +2910,53 @@ async function autoPopulateCheckoutDetails() {
     const emailField = document.getElementById('c-email');
     const addrField = document.getElementById('c-addr');
 
+    if (emailField && !emailField.dataset.listenerAdded) {
+        emailField.dataset.listenerAdded = 'true';
+        
+        const checkEmailStatus = async () => {
+            const msgEl = document.getElementById('checkout-email-msg');
+            if (!msgEl) return;
+            
+            if (currentUser) {
+                msgEl.style.display = 'none';
+                return;
+            }
+            
+            const emailVal = emailField.value.trim();
+            if (!emailVal) {
+                msgEl.style.display = 'none';
+                return;
+            }
+            
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(emailVal)) {
+                msgEl.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const methods = await auth.fetchSignInMethodsForEmail(emailVal);
+                if (methods && methods.length > 0) {
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#ff4757';
+                    msgEl.innerHTML = `<i class="fa fa-exclamation-triangle"></i> This email is registered. <span style="text-decoration:underline; cursor:pointer; color:var(--gold); font-weight:700;" onclick="nav('user'); closeModal('cart-modal');">Log in</span> to checkout faster, or continue as guest.`;
+                } else {
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#25D366';
+                    msgEl.innerHTML = `<i class="fa fa-info-circle"></i> Checking out as Guest. This email will receive order updates.`;
+                }
+            } catch (e) {
+                console.error("Error checking checkout email status:", e);
+            }
+        };
+        
+        emailField.addEventListener('blur', checkEmailStatus);
+        emailField.addEventListener('input', () => {
+            const msgEl = document.getElementById('checkout-email-msg');
+            if (msgEl) msgEl.style.display = 'none';
+        });
+    }
+
     if (currentUser) {
         // Logged-in user: Prefill name & email
         if (nameField && !nameField.value.trim()) {
@@ -2948,6 +2995,11 @@ async function autoPopulateCheckoutDetails() {
         }
         if (emailField && !emailField.value.trim()) {
             emailField.value = localStorage.getItem("swagstree_guest_email") || '';
+            // Manually run check on initial auto-populate for guests if they have cached email
+            setTimeout(() => {
+                const event = new Event('blur');
+                emailField.dispatchEvent(event);
+            }, 100);
         }
         if (addrField && !addrField.value.trim()) {
             await syncDefaultAddressToCheckout();
