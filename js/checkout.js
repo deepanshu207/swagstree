@@ -2242,31 +2242,44 @@ window.showAdminOrderDetailsModal = async function(docId) {
             ${notifLogHtml}
         </div>
         `;
-        
+        const go = o.globalOverrides || {};
+        const goStatus = go.status || '';
+        const goCourier = go.courier || '';
+        const goCustomCourier = go.customCourier || '';
+        const goTracking = go.tracking || '';
+
         const globalShippingHtml = `
         <div style="background:#1a1a1a; padding:12px; border-radius:10px; border:1px solid #222; font-size:12px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
             <div style="font-weight:700; color:#fff; font-size:13px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
-                <span>🌍 Global Shipment Override</span>
-                <span style="font-size:10px; color:#aaa; font-weight:normal;">Applies to items without tracking</span>
+                <span>🌍 Global Override Options</span>
+                <span style="font-size:10px; color:#aaa; font-weight:normal;">Applies to items without overrides</span>
+            </div>
+            <div style="margin-bottom:4px;">
+                <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Global Status</label>
+                <select id="adm-global-item-status"
+                    style="width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; cursor:pointer; margin:0; box-sizing:border-box;">
+                    <option value="" ${goStatus === '' ? 'selected' : ''}>-- Leave Blank --</option>
+                    ${ORDER_STATUSES.map(s => `<option value="${s.value}" ${goStatus === s.value ? 'selected' : ''}>${s.label}</option>`).join('')}
+                </select>
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <div style="flex:1; min-width:110px;">
                     <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Global Courier</label>
                     <select id="adm-global-courier" onchange="toggleGlobalCustomCourier()"
                         style="width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; cursor:pointer; margin:0; box-sizing:border-box;">
-                        <option value="">-- Leave Blank --</option>
-                        ${COURIER_COMPANIES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
+                        <option value="" ${goCourier === '' ? 'selected' : ''}>-- Leave Blank --</option>
+                        ${COURIER_COMPANIES.map(c => `<option value="${c.value}" ${goCourier === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
                     </select>
                 </div>
                 <div style="flex:1.2; min-width:130px;">
                     <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Global Tracking ID</label>
-                    <input id="adm-global-tracking" type="text" placeholder="Global AWB..." value=""
+                    <input id="adm-global-tracking" type="text" placeholder="Global AWB..." value="${goTracking}"
                         style="width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; font-family:monospace; margin:0; box-sizing:border-box;">
                 </div>
             </div>
-            <div id="adm-global-courier-custom-row" style="display:none; margin-top:2px;">
+            <div id="adm-global-courier-custom-row" style="display:${goCourier === 'Other' ? 'block' : 'none'}; margin-top:2px;">
                 <label style="font-size:9px; color:#666; text-transform:uppercase; font-weight:700; display:block; margin-bottom:4px;">Custom Courier Name</label>
-                <input id="adm-global-courier-custom" type="text" placeholder="Enter custom courier name..." value=""
+                <input id="adm-global-courier-custom" type="text" placeholder="Enter custom courier name..." value="${goCustomCourier}"
                     style="width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0d0d0d; color:#fff; font-size:11px; margin:0; box-sizing:border-box;">
             </div>
         </div>`;
@@ -2339,6 +2352,7 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
     const showOverallStatusVal = document.getElementById('adm-show-overall-status')?.checked || false;
     const items = window.editingOrderDoc?.data?.items || [];
     
+    const globalItemStatus = document.getElementById('adm-global-item-status')?.value || '';
     const globalCourierSelect = document.getElementById('adm-global-courier')?.value || '';
     let globalCourierVal = globalCourierSelect;
     if (globalCourierSelect === 'Other') {
@@ -2351,7 +2365,14 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
         const itemCourierSelect = document.getElementById(`adm-item-courier-${idx}`);
         const itemTrackingInput = document.getElementById(`adm-item-tracking-${idx}`);
         
-        const newStatus = itemStatusSelect ? itemStatusSelect.value : (item.status || window.editingOrderDoc.data.status || 'pending');
+        const originalStatus = item.status || window.editingOrderDoc.data.status || 'pending';
+        let newStatus = itemStatusSelect ? itemStatusSelect.value : originalStatus;
+        
+        // Apply Global Status override only to items that are currently 'pending' (i.e. not yet processed)
+        if (globalItemStatus && newStatus === originalStatus && originalStatus === 'pending') {
+            newStatus = globalItemStatus;
+        }
+
         const courierSelectValue = itemCourierSelect ? itemCourierSelect.value : '';
         let courierVal = courierSelectValue;
         if (courierSelectValue === 'Other') {
@@ -2416,10 +2437,17 @@ window.saveAdminOrderChanges = async function(docId, notifyType) {
         console.error("Error checking existing notification status:", err);
     }
     
-    await updateOrderStatus(docId, overallStatusVal, updatedItems, refundAmountVal, notifyType, showOverallStatusVal);
+    const globalOverrides = {
+        status: globalItemStatus,
+        courier: globalCourierSelect,
+        customCourier: globalCourierSelect === 'Other' ? (document.getElementById('adm-global-courier-custom')?.value.trim() || '') : '',
+        tracking: globalTrackingVal
+    };
+    
+    await updateOrderStatus(docId, overallStatusVal, updatedItems, refundAmountVal, notifyType, showOverallStatusVal, globalOverrides);
 };
 
-async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal, notifyType, showOverallStatusVal) {
+async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal, notifyType, showOverallStatusVal, globalOverrides = null) {
     if (!docId) return;
     const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || ORDER_STATUSES[0];
     try {
@@ -2442,7 +2470,8 @@ async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal
             status: newStatus,
             items: updatedItems,
             refundAmount: refundAmountVal,
-            showOverallStatus: showOverallStatusVal
+            showOverallStatus: showOverallStatusVal,
+            ...(globalOverrides && { globalOverrides })
         };
         
         const updateData = {
@@ -2450,7 +2479,8 @@ async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal
             items: updatedItems,
             refundAmount: refundAmountVal,
             showOverallStatus: showOverallStatusVal,
-            statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            ...(globalOverrides && { globalOverrides })
         };
         
         if (notifyType === 'admin') {

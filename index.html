@@ -53,6 +53,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
     <!-- Leaflet Map library for address geolocator picker -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -1182,7 +1183,13 @@
                     <button class="btn-gold"
                         style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px;"
                         onclick="triggerManualBackup()">
-                        <i class="fa fa-download"></i> Download Backup JSON
+                        <i class="fa fa-download"></i> Download JSON
+                    </button>
+                    
+                    <button class="btn-gold"
+                        style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px; background:#111; color:#fff; border:1px solid var(--gold);"
+                        onclick="triggerManualBackupEmail()">
+                        <i class="fa fa-envelope"></i> Email Backup
                     </button>
 
                     <button class="btn-gold"
@@ -1696,11 +1703,11 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.11"></script>
-    <script src="js/store.js?v=9.11"></script>
-    <script src="js/checkout.js?v=9.12"></script>
-    <script src="js/auth.js?v=9.11"></script>
-    <script src="js/admin.js?v=9.11"></script>
+    <script src="js/app.js?v=9.14"></script>
+    <script src="js/store.js?v=9.14"></script>
+    <script src="js/checkout.js?v=9.14"></script>
+    <script src="js/auth.js?v=9.14"></script>
+    <script src="js/admin.js?v=9.14"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

@@ -2407,14 +2407,24 @@ async function checkAndRunAutoBackup(interval, lastBackupTime) {
 async function triggerManualBackup() {
     showToast("⏳ Preparing database backup... Please wait.");
     try {
-        await runBackup(false);
+        await runBackup(false, false);
     } catch(err) {
         console.error("Manual backup failed:", err);
         showToast("Failed to generate backup");
     }
 }
 
-async function runBackup(isAuto = false) {
+async function triggerManualBackupEmail() {
+    showToast("⏳ Preparing database backup for email... Please wait.");
+    try {
+        await runBackup(false, true);
+    } catch(err) {
+        console.error("Manual email backup failed:", err);
+        showToast("Failed to generate backup");
+    }
+}
+
+async function runBackup(isAuto = false, forceEmail = false) {
     const collections = ['products', 'orders', 'feedbacks', 'admins', 'settings'];
     const backupData = {};
     
@@ -2442,22 +2452,54 @@ async function runBackup(isAuto = false) {
     }
     backupData['users'] = usersList;
     
-    // Convert to JSON and trigger download
+    // Convert to JSON and trigger download/email
     const jsonString = JSON.stringify(backupData, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     
     const now = new Date();
-    const dateStr = now.toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
+    const dateStr = now.toISOString().replace(/T/, '_').replace(/\\.+/, '').replace(/:/g, '-');
     const filename = `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
     
-    showToast(`Backup download started: ${filename}`);
+    if (isAuto || forceEmail) {
+        try {
+            showToast("⏳ Uploading backup to secure storage...");
+            
+            const fd = new FormData();
+            fd.append("file", blob, filename);
+            fd.append("upload_preset", typeof PRESET !== 'undefined' ? PRESET : "swagstree_upload");
+            const cloudName = typeof CLOUD_NAME !== 'undefined' ? CLOUD_NAME : "mysharecloud";
+            
+            const r = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+                method: "POST",
+                body: fd
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ? d.error.message : "Cloudinary upload failed");
+            
+            const downloadUrl = d.secure_url;
+            
+            await db.collection('mail').add({
+                to: 'backup@swagstree.com',
+                message: {
+                    subject: `Swag Stree ${isAuto ? 'Auto' : 'Manual'} Backup: ${filename}`,
+                    text: `Your ${isAuto ? 'automated' : 'manual'} database backup is ready.\n\nDownload Link: ${downloadUrl}\n\nNote: This file is stored securely in your Cloudinary Storage.\n\nGenerated at: ${now.toLocaleString()}`
+                }
+            });
+            showToast(`✅ Backup completed and emailed to backup@swagstree.com!`);
+        } catch (err) {
+            console.error("Backup upload/email failed:", err);
+            showToast("⚠️ Backup failed to email (CORS or Storage error)");
+        }
+    } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast(`Backup download started: ${filename}`);
+    }
     
     URL.revokeObjectURL(url);
     
