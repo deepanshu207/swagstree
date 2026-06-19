@@ -6,7 +6,8 @@
 const firebaseConfig = { 
     apiKey: "AIzaSyAKXSFKuhQXMGvmtjh0CHnz48vbYz9a_4A", 
     authDomain: "swagstree-web.firebaseapp.com", 
-    projectId: "swagstree-web" 
+    projectId: "swagstree-web",
+    storageBucket: "swagstree-web.appspot.com"
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();

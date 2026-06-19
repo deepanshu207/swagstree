@@ -53,13 +53,14 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
     <!-- Leaflet Map library for address geolocator picker -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=4.3">
+    <link rel="stylesheet" href="css/style.css?v=4.4">
 </head>
 
 <body class="footer-hidden">
@@ -343,9 +344,11 @@
                 <input id="prof-name" placeholder="Your full name" autocomplete="name">
 
                 <label class="field-label">Email Address</label>
-                <div id="prof-email-readonly" style="width:100%; padding:15px; background:#0a0a0a; border:1px solid #1e1e1e; color:#555; border-radius:12px; box-sizing:border-box; font-size:14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; user-select:none; cursor:not-allowed;">
+                <div id="prof-email-readonly"
+                    style="width:100%; padding:15px; background:#0a0a0a; border:1px solid #1e1e1e; color:#555; border-radius:12px; box-sizing:border-box; font-size:14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; user-select:none; cursor:not-allowed;">
                     <i class="fa fa-lock" style="font-size:12px; color:#333; flex-shrink:0;"></i>
-                    <span id="prof-email-readonly-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;"></span>
+                    <span id="prof-email-readonly-text"
+                        style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;"></span>
                 </div>
 
                 <label class="field-label">Phone Number</label>
@@ -428,43 +431,44 @@
                 </button>
             </div>
 
-            <!-- Change Email (with verification) -->
-            <div class="profile-section">
-                <h4 class="section-label"><i class="fa fa-envelope"></i> Change Email</h4>
-                <p style="font-size:12px; color:#888; margin:0 0 12px;">A verification link will be sent to your new
-                    email before it takes effect.</p>
+            <!-- Linked Accounts / Login Options -->
+            <div class="profile-section" id="profile-linking-section">
+                <h4 class="section-label"><i class="fa fa-link"></i> Sign-in Methods</h4>
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">Link both Google and Email/Password to log in using either method.</p>
+                
+                <!-- Google Link Status -->
+                <div id="link-google-status" style="display:flex; justify-content:space-between; align-items:center; background:#111; padding:12px; border-radius:10px; margin-bottom:10px; border:1px solid #222;">
+                    <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i class="fab fa-google" style="color:#db4437;"></i> Google Account</span>
+                    <span id="link-google-btn-container"></span>
+                </div>
+                <!-- Email Link Status -->
+                <div id="link-email-status" style="display:flex; flex-direction:column; background:#111; padding:12px; border-radius:10px; border:1px solid #222;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i class="fa fa-envelope" style="color:var(--gold);"></i> Email & Password Login</span>
+                        <span id="link-email-btn-container"></span>
+                    </div>
 
-                <label class="field-label">New Email Address</label>
-                <input id="prof-new-email" type="email" placeholder="New email address" autocomplete="email">
+                    <!-- Form to add Password (shown if Google user wants to enable email/password) -->
+                    <div id="link-email-form" style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Set Password for Email Login</label>
+                        <input id="link-email-password" type="password" placeholder="Min 6 characters" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        <button class="btn-gold" onclick="linkEmailPassword()" style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Enable Email Login</button>
+                    </div>
 
-                <label class="field-label">Current Password (to confirm)</label>
-                <input id="prof-curr-pass" type="password" placeholder="Your current password">
-
-                <button class="btn-gold" onclick="changeEmail()"
-                    style="background:#222; border:1px solid #555; color:#fff;">
-                    <i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change
-                </button>
-            </div>
-
-            <!-- Change Password (with re-auth) -->
-            <div class="profile-section">
-                <h4 class="section-label"><i class="fa fa-lock"></i> Change Password</h4>
-                <p style="font-size:12px; color:#888; margin:0 0 12px;">For security, please enter your current password
-                    to set a new one.</p>
-
-                <label class="field-label">Current Password</label>
-                <input id="prof-pass-current" type="password" placeholder="Your current password">
-
-                <label class="field-label">New Password</label>
-                <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)">
-
-                <label class="field-label">Confirm New Password</label>
-                <input id="prof-pass-confirm" type="password" placeholder="Confirm new password">
-
-                <button class="btn-gold" onclick="changePassword()"
-                    style="background:#222; border:1px solid #555; color:#fff;">
-                    <i class="fa fa-lock"></i> &nbsp;Change Password
-                </button>
+                    <!-- Form to change Password (shown if user wants to update their existing password) -->
+                    <div id="change-password-form" style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Current Password</label>
+                        <input id="prof-pass-current" type="password" placeholder="Your current password" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">New Password</label>
+                        <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Confirm New Password</label>
+                        <input id="prof-pass-confirm" type="password" placeholder="Confirm new password" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        
+                        <button class="btn-gold" onclick="changePassword()" style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Change Password</button>
+                    </div>
+                </div>
             </div>
 
             <!-- My Orders -->
@@ -691,17 +695,20 @@
             </div>
             <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Products Page Limit</span>
-                    <input id="admin-products-page-limit" type="number" min="1" step="1" value="20" style="margin:0; font-size:12px;"
-                        placeholder="Default is 20">
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Products Page
+                        Limit</span>
+                    <input id="admin-products-page-limit" type="number" min="1" step="1" value="20"
+                        style="margin:0; font-size:12px;" placeholder="Default is 20">
                 </div>
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Profile & Orders Page Limit</span>
-                    <input id="admin-orders-page-limit" type="number" min="1" step="1" value="20" style="margin:0; font-size:12px;"
-                        placeholder="Default is 20">
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Profile & Orders Page
+                        Limit</span>
+                    <input id="admin-orders-page-limit" type="number" min="1" step="1" value="20"
+                        style="margin:0; font-size:12px;" placeholder="Default is 20">
                 </div>
             </div>
-            <button class="btn-gold" style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
+            <button class="btn-gold"
+                style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
                 onclick="savePaginationSettings()">Save Pagination Settings</button>
         </div>
 
@@ -935,11 +942,13 @@
                             </div>
                         </div>
                         <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
-                            <span style="font-size:11px; color:#aaa; font-weight:700;">Store Address (Map & Location will show only if this is set)</span>
+                            <span style="font-size:11px; color:#aaa; font-weight:700;">Store Address (Map & Location
+                                will show only if this is set)</span>
                             <textarea id="admin-footer-address" placeholder="e.g. Shop No. 12, Swag Stree, Delhi"
                                 style="margin:0; font-size:12px; height:50px; background:#222; color:#fff; border:1px solid #333; border-radius:8px; padding:8px; resize:vertical; font-family:inherit;"></textarea>
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px; margin: 8px 0 4px 0; border-top: 1px dashed #222; padding-top:10px;">
+                        <div
+                            style="display:flex; align-items:center; gap:8px; margin: 8px 0 4px 0; border-top: 1px dashed #222; padding-top:10px;">
                             <input type="checkbox" id="admin-footer-show-gps"
                                 style="margin:0; width:16px; height:16px; cursor:pointer;"
                                 onchange="document.getElementById('admin-footer-gps-row').style.display = this.checked ? 'flex' : 'none';">
@@ -959,13 +968,17 @@
                                     style="margin:0; font-size:12px;">
                             </div>
                             <div style="width:100%; display:flex; flex-direction:column; gap:4px; margin-top:2px;">
-                                <button type="button" class="btn-gold" style="width:fit-content; padding:6px 12px; font-size:11px; margin:0;" onclick="useCurrentLocation()">
+                                <button type="button" class="btn-gold"
+                                    style="width:fit-content; padding:6px 12px; font-size:11px; margin:0;"
+                                    onclick="useCurrentLocation()">
                                     <i class="fa fa-location-crosshairs"></i> Use My Current Location
                                 </button>
                             </div>
                             <div style="width:100%; display:flex; flex-direction:column; gap:4px; margin-top:4px;">
-                                <span style="font-size:11px; color:#aaa;">Or Map Query / Google Maps Embed Link Override</span>
-                                <input id="admin-footer-gps-query" type="text" placeholder="e.g. Custom address search or map embed link"
+                                <span style="font-size:11px; color:#aaa;">Or Map Query / Google Maps Embed Link
+                                    Override</span>
+                                <input id="admin-footer-gps-query" type="text"
+                                    placeholder="e.g. Custom address search or map embed link"
                                     style="margin:0; font-size:12px;">
                             </div>
                         </div>
@@ -1182,7 +1195,13 @@
                     <button class="btn-gold"
                         style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px;"
                         onclick="triggerManualBackup()">
-                        <i class="fa fa-download"></i> Download Backup JSON
+                        <i class="fa fa-download"></i> Download JSON
+                    </button>
+
+                    <button class="btn-gold"
+                        style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px; background:#111; color:#fff; border:1px solid var(--gold);"
+                        onclick="triggerManualBackupEmail()">
+                        <i class="fa fa-envelope"></i> Firebase Collection Backup
                     </button>
 
                     <button class="btn-gold"
@@ -1244,7 +1263,7 @@
                 oninput="resetSuperCustomerLimitAndFilter()" style="margin-bottom:12px; font-size:13px;">
 
             <div id="super-customer-list"
-                style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:5px;">
+                style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:12px;">
                 <!-- Customers list -->
             </div>
 
@@ -1293,6 +1312,17 @@
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete Firebase Backups</span>
+                        <span style="font-size:10px; color:#666;">Clear all backup records from the firebase collection</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteFirebaseBackupsPrompt()">Clear Backups</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
                         <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Clean
                             Everything</span>
                         <span style="font-size:10px; color:#666;">Factory reset: Erase all products, orders, promos,
@@ -1327,6 +1357,22 @@
             <button class="btn-gold" id="sec-save-btn" onclick="saveCustomerDetails()">Save Changes</button>
             <button onclick="closeModal('super-edit-cust-modal')"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Superadmin View Customer Orders -->
+    <div id="super-view-orders-modal" class="modal">
+        <div class="modal-box" style="max-width: 600px; width: 90%;">
+            <h3 style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span>Customer Order History</span>
+                <span id="super-orders-cust-email" style="font-size:12px; color:#888; font-weight:normal;"></span>
+            </h3>
+            
+            <div id="super-customer-orders-list" style="max-height: 400px; overflow-y: auto; display:flex; flex-direction:column; gap:12px; margin-top:15px; padding-right:5px;">
+                <!-- Orders loaded dynamically -->
+            </div>
+            
+            <button onclick="closeModal('super-view-orders-modal')" class="btn-gold" style="width:100%; margin-top:15px; background:#222; border:1px solid #444; color:#fff;">Close</button>
         </div>
     </div>
 
@@ -1468,6 +1514,7 @@
             <input id="c-name" placeholder="Recipient Name" autocomplete="name">
             <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
             <input id="c-email" placeholder="Email Address" type="email">
+            <div id="checkout-email-msg" style="display:none; font-size:11px; margin-top:-8px; margin-bottom:12px; font-weight:500; text-align:left; transition:all 0.3s; line-height:1.4;"></div>
             <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
 
             <!-- Payment Methods -->
@@ -1616,10 +1663,13 @@
             <p id="about-content-text">Welcome to Swagstree. Premium fashion store.</p>
 
             <div id="about-map-container" style="display:none; margin-top:20px;">
-                <div id="about-address-card" style="margin-bottom:15px; background:#1b1b1b; padding:15px; border-radius:12px; border:1px solid #222; display:flex; align-items:flex-start; gap:10px;">
+                <div id="about-address-card"
+                    style="margin-bottom:15px; background:#1b1b1b; padding:15px; border-radius:12px; border:1px solid #222; display:flex; align-items:flex-start; gap:10px;">
                     <i class="fa fa-location-dot" style="color:var(--gold); font-size:18px; margin-top:2px;"></i>
                     <div>
-                        <h4 style="margin:0 0 4px 0; font-size:12px; color:#fff; text-transform:uppercase; letter-spacing:0.5px;">Store Address</h4>
+                        <h4
+                            style="margin:0 0 4px 0; font-size:12px; color:#fff; text-transform:uppercase; letter-spacing:0.5px;">
+                            Store Address</h4>
                         <p id="about-address-text" style="margin:0; font-size:12px; color:#aaa; line-height:1.4;"></p>
                     </div>
                 </div>
@@ -1696,11 +1746,11 @@
     </nav>
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/app.js?v=9.11"></script>
-    <script src="js/store.js?v=9.11"></script>
-    <script src="js/checkout.js?v=9.12"></script>
-    <script src="js/auth.js?v=9.11"></script>
-    <script src="js/admin.js?v=9.11"></script>
+    <script src="js/app.js?v=9.26"></script>
+    <script src="js/store.js?v=9.26"></script>
+    <script src="js/checkout.js?v=9.26"></script>
+    <script src="js/auth.js?v=9.26"></script>
+    <script src="js/admin.js?v=9.26"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

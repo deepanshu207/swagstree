@@ -1753,11 +1753,10 @@ window.openFeedbackPost = function (el, allLinks) {
         var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isMobile) {
             var appUrl = null;
-            if (targetLink.includes('instagram.com/p/')) {
-                var matches = targetLink.match(/instagram\.com\/p\/([^\/\s?#]+)/);
-                if (matches && matches[1]) {
-                    appUrl = 'instagram://p/' + matches[1] + '/';
-                }
+            // Match /p/, /reel/, /tv/ Instagram URLs
+            var igMatch = targetLink.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&\s]+)/i);
+            if (igMatch && igMatch[1]) {
+                appUrl = 'instagram://p/' + igMatch[1] + '/';
             } else if (targetLink.includes('facebook.com')) {
                 appUrl = 'fb://facewebmodal/f?href=' + encodeURIComponent(targetLink);
             }
@@ -1905,14 +1904,20 @@ function getFeedbackCardsHtml() {
                 }
             }
 
+            // Compute links early so they are available inside mediaHtml template strings
+            const allLinksForCard = f.showMultiple
+                ? [link]
+                : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
+            const serializedLinks = JSON.stringify(allLinksForCard).replace(/"/g, '&quot;');
+
             let mediaHtml = '';
             if (images.length === 1) {
                 const match = images[0].match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222;">
-                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s;" class="feedback-img">
+                <div onclick="window.openFeedbackPost(this, ${serializedLinks})" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222; cursor:pointer;">
+                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
                 const slideImages = images.map(url => {
@@ -1920,8 +1925,8 @@ function getFeedbackCardsHtml() {
                     const postId = match ? match[1] : '';
                     const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                     return `
-                    <div style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center;">
-                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover;">
+                    <div onclick="window.openFeedbackPost(this, ${serializedLinks})" style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center; cursor:pointer;">
+                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; pointer-events:none;">
                     </div>
                     `;
                 }).join('');
@@ -1952,11 +1957,6 @@ function getFeedbackCardsHtml() {
             }
 
             const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s;`;
-
-            const allLinksForCard = f.showMultiple
-                ? [link]
-                : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
-            const serializedLinks = JSON.stringify(allLinksForCard).replace(/"/g, '&quot;');
 
             let platformIcon = '';
             if (f.platform === 'instagram') {

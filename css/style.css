@@ -16,6 +16,13 @@
 }
 
 /* 2. BASE STYLES */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+html, body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
 body { 
     margin: 0; 
     background: var(--bg); 

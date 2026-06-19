@@ -87,6 +87,57 @@ db.collection("admins").onSnapshot(snap => {
     console.error("Error listening to admins:", error);
 });
 
+// Helper to update Google / Email account linking status & controls in profile UI
+function updateProfileLinkingUI(user) {
+    if (!user) return;
+    const providers = user.providerData ? user.providerData.map(p => p.providerId) : [];
+    const hasGoogle = providers.includes('google.com');
+    const hasPassword = providers.includes('password');
+
+    // Update Link Google Button status
+    const googleContainer = document.getElementById('link-google-btn-container');
+    if (googleContainer) {
+        if (hasGoogle) {
+            let html = `<span style="color:#25D366; font-size:12px; font-weight:700; margin-right:8px;"><i class="fa fa-check-circle"></i> Connected</span>`;
+            if (hasPassword) {
+                // Allow disconnecting Google only if password provider is linked
+                html += `<button class="btn-gold" onclick="unlinkGoogleAccount()" style="font-size:10px; padding:4px 8px; margin:0; width:auto; background:#aa3333; border:1px solid #772222; color:#fff;">Disconnect</button>`;
+            }
+            googleContainer.innerHTML = html;
+        } else {
+            googleContainer.innerHTML = `<button class="btn-gold" onclick="linkGoogleAccount()" style="font-size:11px; padding:6px 12px; margin:0; width:auto;">Link Google</button>`;
+        }
+    }
+
+    // Update Link Email/Password Button status
+    const emailContainer = document.getElementById('link-email-btn-container');
+    const emailForm = document.getElementById('link-email-form');
+    const changePassForm = document.getElementById('change-password-form');
+    
+    if (emailContainer) {
+        if (hasPassword) {
+            let html = `<span style="color:#25D366; font-size:12px; font-weight:700; margin-right:8px;"><i class="fa fa-check-circle"></i> Connected</span>`;
+            html += `<button class="btn-gold" onclick="toggleChangePasswordForm()" style="font-size:10px; padding:4px 8px; margin:0 8px 0 0; width:auto; background:#222; border:1px solid #444; color:#fff;">Change Password</button>`;
+            if (hasGoogle) {
+                // Allow disconnecting password only if Google is connected
+                html += `<button class="btn-gold" onclick="unlinkEmailPassword()" style="font-size:10px; padding:4px 8px; margin:0; width:auto; background:#aa3333; border:1px solid #772222; color:#fff;">Disconnect</button>`;
+            }
+            emailContainer.innerHTML = html;
+            if (emailForm) emailForm.style.display = 'none';
+        } else {
+            emailContainer.innerHTML = `<button class="btn-gold" onclick="toggleLinkEmailForm()" style="font-size:11px; padding:6px 12px; margin:0; width:auto; background:#222; border:1px solid #444; color:#fff;">Enable</button>`;
+            if (changePassForm) changePassForm.style.display = 'none';
+        }
+    }
+}
+
+window.toggleChangePasswordForm = function() {
+    const form = document.getElementById('change-password-form');
+    if (form) {
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
 // ── Auth State Listener ─────────────────────────────────────────────────────
 auth.onAuthStateChanged(user => {
     currentUser = user;
@@ -163,17 +214,15 @@ auth.onAuthStateChanged(user => {
         });
 
         if (user.email) {
+            const providersList = user.providerData ? user.providerData.map(p => p.providerId) : [];
             db.collection("users").doc(user.uid).set({
-                email: user.email
-            }, { merge: true }).catch(e => console.error("Error syncing email:", e));
+                email: user.email,
+                providers: providersList
+            }, { merge: true }).catch(e => console.error("Error syncing email and providers:", e));
         }
 
-        // Toggle visibility of email/password controls based on provider type
-        const isPasswordUser = user.providerData && user.providerData.some(p => p.providerId === 'password');
-        const emailSec = document.getElementById('profile-email-section');
-        const passSec = document.getElementById('profile-pass-section');
-        if (emailSec) emailSec.style.display = isPasswordUser ? 'block' : 'none';
-        if (passSec) passSec.style.display = isPasswordUser ? 'block' : 'none';
+        // Update profile linking status UI
+        updateProfileLinkingUI(user);
 
         // Render admin list if admin
         if (isAdmin && typeof renderAdmin === 'function') {
@@ -269,6 +318,47 @@ function toggleAuthMode() {
     if (forgotLink) forgotLink.style.display = isRegMode ? 'none' : 'block';
 }
 
+// Helper for credential collisions (linking Google sign in with existing Email/Password account)
+async function resolveCredentialCollision(error) {
+    const pendingCred = error.credential;
+    const email = error.email || (error.customData && error.customData.email);
+    if (!email || !pendingCred) {
+        showToast("An account already exists with this email. Please log in using Email & Password.");
+        return;
+    }
+    
+    // Prompt the user for their password to link their Google account
+    const password = prompt(`🔒 This email (${email}) is already registered with Email & Password.\n\nEnter your password to link Google sign-in to this account:`);
+    if (!password) {
+        showToast("Linking cancelled. Please log in using Email.");
+        return;
+    }
+    
+    try {
+        showToast("⏳ Authenticating and linking accounts...");
+        const userCred = await auth.signInWithEmailAndPassword(email, password);
+        try {
+            await userCred.user.linkWithCredential(pendingCred);
+            showToast("✅ Google Account successfully linked! You are now logged in.");
+        } catch (linkErr) {
+            if (linkErr.code === 'auth/provider-already-linked') {
+                showToast("✅ Google Account is already linked. You are logged in.");
+            } else {
+                throw linkErr;
+            }
+        }
+        await userCred.user.reload();
+        updateProfileLinkingUI(auth.currentUser);
+    } catch (e) {
+        console.error("Error linking during credential collision:", e);
+        if (e.code === 'auth/wrong-password') {
+            showToast("❌ Incorrect password. Linking failed.");
+        } else {
+            showToast("Failed to link accounts: " + e.message);
+        }
+    }
+}
+
 // ── Google Login ────────────────────────────────────────────────────────────
 async function handleGoogleLogin() {
     const btn = document.querySelector('[onclick="handleGoogleLogin()"]');
@@ -311,7 +401,7 @@ async function handleGoogleLogin() {
         } else if (error.code === 'auth/network-request-failed') {
             showToast("Network error. Check your connection.");
         } else if (error.code === 'auth/account-exists-with-different-credential') {
-            showToast("This email is already registered with email & password. Please login using Email.");
+            await resolveCredentialCollision(error);
         } else {
             showToast("Google Login Failed. Try again.");
         }
@@ -321,24 +411,133 @@ async function handleGoogleLogin() {
 }
 
 // Handle redirect result (fallback for popup-blocked browsers)
-auth.getRedirectResult().then(result => {
+auth.getRedirectResult().then(async result => {
     if (result && result.user) {
         showToast("✅ Google Login Successful!");
     }
-}).catch(error => {
+}).catch(async error => {
     // Ignore the common 'no redirect pending' case — it fires on every page load
     if (error && error.code !== 'auth/no-auth-event' && error.message) {
         console.error("Redirect Auth Error:", error);
         // Only show toast for real errors, not the default no-pending-redirect
         if (error.code && error.code !== 'auth/no-current-user') {
             if (error.code === 'auth/account-exists-with-different-credential') {
-                showToast("This email is already registered with email & password. Please login using Email.");
+                await resolveCredentialCollision(error);
             } else {
                 showToast("Google Login Failed. Try again.");
             }
         }
     }
 });
+
+// ── Link Accounts Profile Helpers ───────────────────────────────────────────
+window.linkGoogleAccount = async function() {
+    if (!currentUser) return;
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+        showToast("⏳ Linking Google Account...");
+        await currentUser.linkWithPopup(provider);
+        showToast("✅ Google Account connected successfully!");
+        await currentUser.reload();
+        updateProfileLinkingUI(auth.currentUser);
+    } catch (error) {
+        console.error("Error linking Google:", error);
+        if (error.code === 'auth/provider-already-linked') {
+            showToast("✅ Google Account is already connected.");
+            await currentUser.reload();
+            updateProfileLinkingUI(auth.currentUser);
+        } else if (error.code === 'auth/credential-already-in-use') {
+            showToast("⚠️ This Google account is already linked to another user.");
+        } else {
+            showToast("Failed to link Google account: " + error.message);
+        }
+    }
+};
+
+window.linkEmailPassword = async function() {
+    if (!currentUser) return;
+    const password = document.getElementById('link-email-password').value;
+    if (!password || password.length < 6) {
+        return showToast("Password must be at least 6 characters.");
+    }
+    
+    try {
+        showToast("⏳ Enabling Email & Password Login...");
+        const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, password);
+        await currentUser.linkWithCredential(credential);
+        showToast("✅ Email login enabled! You can now log in using email and password.");
+        document.getElementById('link-email-password').value = '';
+        document.getElementById('link-email-form').style.display = 'none';
+        await currentUser.reload();
+        updateProfileLinkingUI(auth.currentUser);
+    } catch (error) {
+        console.error("Error linking email/password:", error);
+        if (error.code === 'auth/provider-already-linked') {
+            showToast("✅ Email login is already enabled for this account.");
+            document.getElementById('link-email-password').value = '';
+            document.getElementById('link-email-form').style.display = 'none';
+            await currentUser.reload();
+            updateProfileLinkingUI(auth.currentUser);
+        } else {
+            showToast("Failed to enable email login: " + error.message);
+        }
+    }
+};
+
+window.toggleLinkEmailForm = function() {
+    const form = document.getElementById('link-email-form');
+    if (form) {
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+window.unlinkGoogleAccount = async function() {
+    if (!currentUser) return;
+    const providers = currentUser.providerData ? currentUser.providerData.map(p => p.providerId) : [];
+    if (providers.length <= 1) {
+        showToast("❌ You cannot disconnect your only login method. Please link another method first.");
+        return;
+    }
+    if (!confirm("Are you sure you want to disconnect your Google Account? You will not be able to sign in using Google unless you link it again.")) return;
+    try {
+        showToast("⏳ Disconnecting Google Account...");
+        await currentUser.unlink('google.com');
+        showToast("✅ Google Account disconnected successfully!");
+        await currentUser.reload();
+        const updatedProviders = auth.currentUser.providerData ? auth.currentUser.providerData.map(p => p.providerId) : [];
+        await db.collection("users").doc(auth.currentUser.uid).set({
+            providers: updatedProviders
+        }, { merge: true });
+        updateProfileLinkingUI(auth.currentUser);
+    } catch (error) {
+        console.error("Error disconnecting Google:", error);
+        showToast("Failed to disconnect Google account: " + error.message);
+    }
+};
+
+window.unlinkEmailPassword = async function() {
+    if (!currentUser) return;
+    const providers = currentUser.providerData ? currentUser.providerData.map(p => p.providerId) : [];
+    if (providers.length <= 1) {
+        showToast("❌ You cannot disconnect your only login method. Please link another method first.");
+        return;
+    }
+    if (!confirm("Are you sure you want to disconnect Email & Password login? You will not be able to log in using a password unless you enable it again.")) return;
+    try {
+        showToast("⏳ Disconnecting Email & Password login...");
+        await currentUser.unlink('password');
+        showToast("✅ Email & Password login disconnected successfully!");
+        await currentUser.reload();
+        const updatedProviders = auth.currentUser.providerData ? auth.currentUser.providerData.map(p => p.providerId) : [];
+        await db.collection("users").doc(auth.currentUser.uid).set({
+            providers: updatedProviders
+        }, { merge: true });
+        updateProfileLinkingUI(auth.currentUser);
+    } catch (error) {
+        console.error("Error disconnecting Email/Password:", error);
+        showToast("Failed to disconnect Email/Password: " + error.message);
+    }
+};
 
 // ── Email / Password Auth ───────────────────────────────────────────────────
 async function handleMainAuth() {
@@ -381,16 +580,28 @@ async function handleMainAuth() {
         }
     } catch (e) {
         console.error("Auth Error:", e);
-        const msgs = {
-            'auth/email-already-in-use': "Email already in use. Try logging in.",
-            'auth/wrong-password': "Incorrect password.",
-            'auth/user-not-found': "No account found with this email.",
-            'auth/invalid-email': "Please enter a valid email address.",
-            'auth/weak-password': "Password should be at least 6 characters.",
-            'auth/too-many-requests': "Too many attempts. Try again later.",
-            'auth/invalid-credential': "Incorrect email or password.",
-        };
-        showToast(msgs[e.code] || "Authentication failed. Check your details.");
+        if (e.code === 'auth/email-already-in-use') {
+            try {
+                const methods = await auth.fetchSignInMethodsForEmail(id);
+                if (methods && methods.includes('google.com')) {
+                    showToast("📧 This email is registered via Google. Please log in with Google, then set a password in your Profile to enable email login.");
+                } else {
+                    showToast("Email already in use. Try logging in.");
+                }
+            } catch (fetchErr) {
+                showToast("Email already in use. Try logging in.");
+            }
+        } else {
+            const msgs = {
+                'auth/wrong-password': "Incorrect password.",
+                'auth/user-not-found': "No account found with this email.",
+                'auth/invalid-email': "Please enter a valid email address.",
+                'auth/weak-password': "Password should be at least 6 characters.",
+                'auth/too-many-requests': "Too many attempts. Try again later.",
+                'auth/invalid-credential': "Incorrect email or password.",
+            };
+            showToast(msgs[e.code] || "Authentication failed. Check your details.");
+        }
         btn.innerText = isRegMode ? "Create Account" : "Login";
     } finally {
         btn.disabled = false;
@@ -463,47 +674,6 @@ async function saveProfile() {
     }
 }
 
-// ── Change Email (with re-auth + verification) ──────────────────────────────
-async function changeEmail() {
-    if (!currentUser) return showToast("Please login first.");
-    if (!currentUser.email) return showToast("Email change is only available for email/password accounts.");
-
-    const newEmail = document.getElementById('prof-new-email').value.trim();
-    const currPass = document.getElementById('prof-curr-pass').value;
-
-    if (!newEmail) return showToast("Please enter the new email address.");
-    if (!currPass) return showToast("Please enter your current password to confirm.");
-
-    const changeBtn = document.querySelector('[onclick="changeEmail()"]');
-    if (changeBtn) { changeBtn.disabled = true; changeBtn.innerText = "Processing..."; }
-
-    try {
-        // Step 1: Re-authenticate the user (required by Firebase before sensitive ops)
-        const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, currPass);
-        await currentUser.reauthenticateWithCredential(credential);
-
-        // Step 2: Send verification to NEW email and update
-        await currentUser.verifyBeforeUpdateEmail(newEmail);
-
-        // Clear the fields
-        document.getElementById('prof-new-email').value = '';
-        document.getElementById('prof-curr-pass').value = '';
-
-        showToast("📧 Verification sent! Check your new email inbox to confirm the change.");
-    } catch (e) {
-        console.error("Email change error:", e);
-        const msgs = {
-            'auth/wrong-password': "Incorrect current password.",
-            'auth/invalid-email': "The new email address is invalid.",
-            'auth/email-already-in-use': "This email is already registered.",
-            'auth/requires-recent-login': "Please log out and log back in before changing email.",
-        };
-        showToast(msgs[e.code] || "Failed to change email. Try again.");
-    } finally {
-        if (changeBtn) { changeBtn.disabled = false; changeBtn.innerHTML = '<i class="fa fa-paper-plane"></i> &nbsp;Send Verification & Change'; }
-    }
-}
-
 // ── Change Password (with re-auth) ──────────────────────────────────────────
 async function changePassword() {
     if (!currentUser) return showToast("Please login first.");
@@ -541,7 +711,14 @@ async function changePassword() {
         document.getElementById('prof-pass-new').value = '';
         document.getElementById('prof-pass-confirm').value = '';
 
+        // Hide the form
+        const form = document.getElementById('change-password-form');
+        if (form) form.style.display = 'none';
+
         showToast("🔐 Password updated successfully!");
+        
+        await currentUser.reload();
+        updateProfileLinkingUI(auth.currentUser);
     } catch (e) {
         console.error("Password change error:", e);
         const msgs = {
@@ -551,7 +728,7 @@ async function changePassword() {
         };
         showToast(msgs[e.code] || "Failed to change password. Try again.");
     } finally {
-        if (changeBtn) { changeBtn.disabled = false; changeBtn.innerHTML = '<i class="fa fa-lock"></i> &nbsp;Change Password'; }
+        if (changeBtn) { changeBtn.disabled = false; changeBtn.innerHTML = 'Change Password'; }
     }
 }
 
@@ -586,14 +763,50 @@ async function loadAllCustomers() {
         let html = '';
         allUsers.forEach(data => {
             const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
+            
+            // Determine sign-in provider label
+            let methodLabel = "Email/Password"; // Default fallback
+            let badgeIcon = "fa-envelope";
+            let badgeColor = "var(--gold)";
+            if (data.providers && Array.isArray(data.providers)) {
+                const hasGoogle = data.providers.includes('google.com');
+                const hasPassword = data.providers.includes('password');
+                if (hasGoogle && hasPassword) {
+                    methodLabel = "Google & Email/Password";
+                    badgeIcon = "fa-link";
+                    badgeColor = "#25D366";
+                } else if (hasGoogle) {
+                    methodLabel = "Google";
+                    badgeIcon = "fab fa-google";
+                    badgeColor = "#db4437";
+                } else if (hasPassword) {
+                    methodLabel = "Email/Password";
+                    badgeIcon = "fa-envelope";
+                    badgeColor = "var(--gold)";
+                }
+            } else if (data.email) {
+                methodLabel = "Email/Password";
+                badgeIcon = "fa-envelope";
+                badgeColor = "var(--gold)";
+            } else {
+                methodLabel = "Guest Checkout";
+                badgeIcon = "fa-user-secret";
+                badgeColor = "#888";
+            }
+
             html += `
                 <div style="background:#111; padding:15px; border-radius:8px; border:1px solid #333; margin-top:10px; display:flex; align-items:center; gap:15px;">
                     <div style="width:40px; height:40px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#FFD700;">
                         ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
                     </div>
                     <div style="flex:1;">
-                        <div style="font-weight:bold; font-size:15px;">${data.displayName || 'Unnamed User'}</div>
-                        <div style="color:#aaa; font-size:13px;">${data.email || 'No email'} ${data.phone ? '• ' + data.phone : ''}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                            <div style="font-weight:bold; font-size:15px;">${data.displayName || 'Unnamed User'}</div>
+                            <span style="font-size:10px; padding:3px 8px; border-radius:20px; background:rgba(0,0,0,0.4); border:1px solid #333; color:${badgeColor}; font-weight:600; display:flex; align-items:center; gap:5px;">
+                                <i class="${badgeIcon}"></i> ${methodLabel}
+                            </span>
+                        </div>
+                        <div style="color:#aaa; font-size:13px; margin-top:4px;">${data.email || 'No email'} ${data.phone ? '• ' + data.phone : ''}</div>
                         <div style="color:#666; font-size:11px; margin-top:4px;">Joined: ${date}</div>
                     </div>
                 </div>
@@ -854,22 +1067,23 @@ function renderSuperCustomersList(list) {
         ` : `
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
+            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
+            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
         `;
 
         html += `
-            <div style="background:#181818; padding:15px; border-radius:12px; border:1px solid #282828; display:flex; flex-direction:column; gap:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <div style="width:35px; height:35px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--gold); font-size:14px;">
+            <div style="background:#181818; padding:15px; border-radius:12px; border:1px solid #282828; display:flex; flex-direction:column; gap:12px; min-width: 0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
+                    <div style="display:flex; align-items:center; gap:10px; flex-shrink: 1; min-width: 0;">
+                        <div style="width:35px; height:35px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--gold); font-size:14px; flex-shrink: 0;">
                             ${(c.displayName || c.email || 'U').charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                            <div style="font-weight:700; font-size:13px; color:#eee;">${c.displayName || 'Unnamed User'}</div>
-                            <div style="color:#888; font-size:11px; margin-top:2px;">${c.email || 'No email'} ${c.phone ? ' • ' + c.phone : ''}</div>
+                        <div style="flex-shrink: 1; min-width: 0;">
+                            <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.displayName || 'Unnamed User'}</div>
+                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'} ${c.phone ? ' • ' + c.phone : ''}</div>
                         </div>
                     </div>
-                    <span style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; color:${statusColor}; background:${statusBg}; border:1px solid ${statusColor}33; text-transform:uppercase; letter-spacing:0.5px;">${statusText}</span>
+                    <span style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; color:${statusColor}; background:${statusBg}; border:1px solid ${statusColor}33; text-transform:uppercase; letter-spacing:0.5px; flex-shrink: 0;">${statusText}</span>
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:5px; padding-top:8px; border-top:1px solid #222;">
                     ${actionButtons}
@@ -928,6 +1142,93 @@ async function toggleCustomerStatus(uid, currentStatus) {
         showToast("Failed to update status.");
     }
 }
+
+window.openSuperViewOrders = async function(uid, email) {
+    const modal = document.getElementById('super-view-orders-modal');
+    if (!modal) return;
+    
+    const emailHeader = document.getElementById('super-orders-cust-email');
+    if (emailHeader) emailHeader.textContent = email || 'Guest / Unnamed';
+    
+    const listContainer = document.getElementById('super-customer-orders-list');
+    if (listContainer) {
+        listContainer.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:30px 0; gap:10px; width:100%;">
+                <div class="premium-loader" style="width:20px; height:20px;"></div>
+                <p style="color:#888; font-size:11px; letter-spacing:1px; text-transform:uppercase; margin:0;">Loading customer orders...</p>
+            </div>
+        `;
+    }
+    
+    modal.style.display = 'flex';
+    
+    try {
+        const snap = await db.collection("orders").where("uid", "==", uid).get();
+        if (snap.empty) {
+            listContainer.innerHTML = `<p style="text-align:center; color:#666; font-size:12px; padding:20px 0;">No orders found for this customer.</p>`;
+            return;
+        }
+        
+        let orders = [];
+        snap.forEach(doc => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        
+        orders.sort((a, b) => {
+            const tA = a.timestamp ? a.timestamp.toMillis() : 0;
+            const tB = b.timestamp ? b.timestamp.toMillis() : 0;
+            return tB - tA;
+        });
+        
+        let html = '';
+        orders.forEach(o => {
+            const dateStr = o.timestamp ? o.timestamp.toDate().toLocaleString('en-IN') : 'New Order';
+            
+            // Generate items summary
+            let itemsText = '';
+            if (o.items && Array.isArray(o.items)) {
+                itemsText = o.items.map(item => {
+                    const sizeStr = item.size ? ` (Size: ${item.size})` : '';
+                    return `<div style="font-size:11px; color:#ccc; margin-top:2px;">• ${item.name} x ${item.quantity || 1}${sizeStr}</div>`;
+                }).join('');
+            } else {
+                itemsText = `<div style="font-size:11px; color:#666;">No items details.</div>`;
+            }
+            
+            html += `
+                <div style="background:#111; border:1px solid #333; padding:12px; border-radius:10px; display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span style="font-size:11px; font-weight:700; color:var(--gold);">#${o.id}</span>
+                            <div style="font-size:10px; color:#555; margin-top:2px;">${dateStr}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:13px; font-weight:700; color:#fff;">₹${o.total || 0}</div>
+                            <span style="font-size:9px; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:#222; border:1px solid #444; color:#aaa; font-weight:600;">
+                                ${o.status || 'pending'}
+                            </span>
+                        </div>
+                    </div>
+                    <div style="background:#090909; padding:8px; border-radius:6px; border:1px solid #222;">
+                        <div style="font-size:9px; color:#666; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Items:</div>
+                        ${itemsText}
+                    </div>
+                    ${o.trackingId ? `
+                        <div style="font-size:10px; color:#aaa; display:flex; gap:4px; align-items:center;">
+                            <span>🚚</span> Tracking: <code style="color:var(--gold); font-size:10px;">${o.trackingId}</code>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+        
+        listContainer.innerHTML = html;
+        
+    } catch (err) {
+        console.error("Error loading customer orders:", err);
+        listContainer.innerHTML = `<p style="text-align:center; color:var(--red); font-size:12px;">Failed to load orders.</p>`;
+    }
+};
 
 function openSuperEditCust(uid, name, email, phone) {
     const modal = document.getElementById('super-edit-cust-modal');
@@ -1082,6 +1383,15 @@ async function cleanEverythingPrompt() {
         const ordersCount = await batchDeleteCollection("orders");
         const adminsCount = await batchDeleteCollection("admins");
 
+        // Clear backup logs
+        const backupSnapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
+        const backupBatch = db.batch();
+        backupSnapshot.forEach(doc => {
+            backupBatch.delete(doc.ref);
+        });
+        await backupBatch.commit();
+        await db.collection("settings").doc("backup").delete();
+
         await db.collection("settings").doc("cod").delete();
         await db.collection("settings").doc("cart").delete();
         await db.collection("settings").doc("promos").delete();
@@ -1091,6 +1401,36 @@ async function cleanEverythingPrompt() {
     } catch (e) {
         console.error("Error in factory reset:", e);
         showToast("Reset failed.");
+    }
+}
+
+window.deleteFirebaseBackupsPrompt = async function() {
+    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!confirm("🚨 WARNING: This will permanently delete all backup email records for backup@swagstree.com and reset your backup timestamp. Continue?")) return;
+    
+    try {
+        showToast("Deleting backup email records...");
+        const snapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
+        if (snapshot.empty) {
+            showToast("No backup records found.");
+            return;
+        }
+        
+        const batch = db.batch();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        
+        await db.collection("settings").doc("backup").delete();
+        showToast(`✅ Deleted ${snapshot.size} backup records.`);
+        
+        const statusEl = document.getElementById('admin-backup-status-text');
+        if (statusEl) statusEl.innerHTML = "Last Auto-Backup: Never";
+        
+    } catch (e) {
+        console.error("Error deleting backups:", e);
+        showToast("Failed to delete backup logs.");
     }
 }
 
