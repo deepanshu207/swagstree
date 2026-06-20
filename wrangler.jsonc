@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "swagstree",
-  "compatibility_date": "2026-06-02",
+  "compatibility_date": "2026-05-03",
   "observability": {
     "enabled": true
   },

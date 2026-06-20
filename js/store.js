@@ -348,6 +348,7 @@ function loadData() {
 function renderStore() {
     renderProducts(products, 'product-grid');
     renderProducts(products.filter(p => wishlist.includes(p.id)), 'wish-grid');
+    if (typeof window.initHeroCarousel === 'function') window.initHeroCarousel();
 }
 
 // 2. RENDERING LOGIC
@@ -474,9 +475,11 @@ function renderProducts(items, targetId) {
     if (targetId === 'product-grid') {
         const loadMoreBtnContainer = document.getElementById('load-more-container');
         const countContainer = document.getElementById('product-count');
+        const sortLogicContainer = document.getElementById('sort-logic-container');
 
         if (items.length === 0 && !window.productsLoaded) {
             if (countContainer) countContainer.style.display = 'none';
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             container.innerHTML = `
                 <div class="premium-loader-container">
@@ -522,6 +525,7 @@ function renderProducts(items, targetId) {
                 countContainer.innerHTML = '0 Products';
                 countContainer.style.display = 'inline-flex';
             }
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
         }
 
@@ -543,6 +547,9 @@ function renderProducts(items, targetId) {
             const visible = Math.min(items.length, displayedProductsLimit);
             countContainer.innerHTML = `Showing ${visible} of ${items.length} Products`;
             countContainer.style.display = 'inline-flex';
+        }
+        if (sortLogicContainer) {
+            sortLogicContainer.style.display = 'flex';
         }
 
         const settings = window.diariesSettings || { placement: 'last', showSection: true };
@@ -783,6 +790,17 @@ function showDetail(id, initialColor = null, initialSize = null) {
     renderDetailPatterns(p);
     updateVariantUI(p);
     updateDetailURL();
+
+    // Check if 360 viewer is enabled and product has multiple images
+    const trigger360 = document.getElementById('det-360-trigger');
+    if (trigger360) {
+        const isEnabled = window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer;
+        if (isEnabled && p.images && p.images.length >= 2) {
+            trigger360.style.display = 'flex';
+        } else {
+            trigger360.style.display = 'none';
+        }
+    }
 
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
@@ -1648,13 +1666,26 @@ function resetFilters() {
 
     const sortLogic = document.getElementById('sort-logic');
     if (sortLogic) sortLogic.value = 'none';
+    const sortLogicFilter = document.getElementById('sort-logic-filter');
+    if (sortLogicFilter) sortLogicFilter.value = 'none';
 
     document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
     applySortAndFilter();
 }
 
+function getProductTimestamp(p) {
+    if (!p.updatedAt) return 0;
+    if (typeof p.updatedAt.toDate === 'function') return p.updatedAt.toDate().getTime();
+    if (p.updatedAt.seconds) return p.updatedAt.seconds * 1000;
+    if (typeof p.updatedAt === 'number') return p.updatedAt;
+    if (p.updatedAt instanceof Date) return p.updatedAt.getTime();
+    const parsed = Date.parse(p.updatedAt);
+    return isNaN(parsed) ? 0 : parsed;
+}
+
 function applySortAndFilter() {
-    const sort = document.getElementById('sort-logic').value;
+    const sortEl = document.getElementById('sort-logic');
+    const sort = sortEl ? sortEl.value : 'none';
     let filtered = [...products];
 
     // Filter by Price Range
@@ -1696,12 +1727,40 @@ function applySortAndFilter() {
         });
     }
 
-    if (sort === 'low') filtered.sort((a, b) => a.price - b.price);
-    if (sort === 'high') filtered.sort((a, b) => b.price - a.price);
+    if (sort === 'low') filtered.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+    if (sort === 'high') filtered.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+    if (sort === 'newest') {
+        filtered.sort((a, b) => {
+            const timeA = getProductTimestamp(a);
+            const timeB = getProductTimestamp(b);
+            if (timeA !== timeB) return timeB - timeA;
+            return b.id.localeCompare(a.id);
+        });
+    }
+    if (sort === 'best') {
+        filtered.sort((a, b) => {
+            const salesA = a.salesCount || (a.popularity || (a.name.length % 5) * 12);
+            const salesB = b.salesCount || (b.popularity || (b.name.length % 5) * 12);
+            if (salesA !== salesB) return salesB - salesA;
+            return a.name.localeCompare(b.name);
+        });
+    }
     renderProducts(filtered, 'product-grid');
 }
 
-function changeSortLogic() {
+function changeSortLogic(val, source) {
+    if (val === undefined) {
+        const mainSort = document.getElementById('sort-logic');
+        val = mainSort ? mainSort.value : 'none';
+        source = 'main';
+    }
+    if (source === 'main') {
+        const filterSort = document.getElementById('sort-logic-filter');
+        if (filterSort) filterSort.value = val;
+    } else {
+        const mainSort = document.getElementById('sort-logic');
+        if (mainSort) mainSort.value = val;
+    }
     displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
 }

@@ -1507,6 +1507,9 @@ async function loadSessionSettings() {
             const inp = document.getElementById('admin-session-timeout');
             if (inp) inp.value = sessionTimeoutMinutes;
         }
+        if (typeof loadSuperadminFeatures === 'function') {
+            loadSuperadminFeatures();
+        }
     } catch (e) {
         console.error("Error loading session settings:", e);
     }
@@ -1577,4 +1580,135 @@ function stopSessionTracker() {
     window.removeEventListener('focus', checkSessionTimeout);
     localStorage.removeItem('swag_last_activity');
 }
-window.stopSessionTracker = stopSessionTracker;
+window.stopSessionTracker = stopSessionTracker;
+
+// ── Superadmin theme toggles & custom pickers ─────────────────────────────────
+function toggleCustomColorPickers(themePreset) {
+    const customRow = document.getElementById('super-custom-colors-row');
+    if (!customRow) return;
+    if (themePreset === 'custom') {
+        customRow.style.display = 'flex';
+    } else {
+        customRow.style.display = 'none';
+    }
+}
+window.toggleCustomColorPickers = toggleCustomColorPickers;
+
+async function loadSuperadminFeatures() {
+    if (!isSuperAdmin) return;
+    try {
+        const snap = await db.collection("settings").doc("features_config").get();
+        if (snap.exists) {
+            const data = snap.data();
+            
+            // Set select
+            const themeSel = document.getElementById('super-theme-select');
+            if (themeSel) themeSel.value = data.themePreset || 'outlaw';
+            
+            // Set pickers if customColors exists
+            if (data.customColors) {
+                if (document.getElementById('picker-bg')) document.getElementById('picker-bg').value = data.customColors.bg || '#000000';
+                if (document.getElementById('picker-card')) document.getElementById('picker-card').value = data.customColors.card || '#111111';
+                if (document.getElementById('picker-gold')) document.getElementById('picker-gold').value = data.customColors.gold || '#ffd700';
+                if (document.getElementById('picker-border')) document.getElementById('picker-border').value = data.customColors.border || '#222222';
+                if (document.getElementById('picker-accent')) document.getElementById('picker-accent').value = data.customColors.accent || '#ffd700';
+                if (document.getElementById('picker-text')) document.getElementById('picker-text').value = data.customColors.text || '#ffffff';
+            }
+            
+            // Set checkboxes
+            if (document.getElementById('toggle-ai-chat')) document.getElementById('toggle-ai-chat').checked = !!data.aiChatbot;
+            if (document.getElementById('toggle-360-viewer')) document.getElementById('toggle-360-viewer').checked = !!data.threeSixtyViewer;
+            if (document.getElementById('toggle-theme-picker')) document.getElementById('toggle-theme-picker').checked = !!data.themeSwitcher;
+            if (document.getElementById('toggle-language')) document.getElementById('toggle-language').checked = !!data.multiLanguage;
+            if (document.getElementById('toggle-announcement')) document.getElementById('toggle-announcement').checked = !!data.announcementBar;
+            
+            if (data.widgets) {
+                if (document.getElementById('toggle-discount-wheel')) document.getElementById('toggle-discount-wheel').checked = !!data.widgets.discountWheel;
+                if (document.getElementById('toggle-recent-orders')) document.getElementById('toggle-recent-orders').checked = !!data.widgets.recentOrders;
+                if (document.getElementById('toggle-newsletter')) document.getElementById('toggle-newsletter').checked = !!data.widgets.newsletterPopup;
+            }
+            
+            toggleCustomColorPickers(data.themePreset || 'outlaw');
+        }
+    } catch (e) {
+        console.error("loadSuperadminFeatures error:", e);
+    }
+}
+window.loadSuperadminFeatures = loadSuperadminFeatures;
+
+async function saveSuperadminFeatures() {
+    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    
+    const themeSel = document.getElementById('super-theme-select');
+    const preset = themeSel ? themeSel.value : 'outlaw';
+    
+    const customColors = {
+        bg: document.getElementById('picker-bg')?.value || '#000000',
+        card: document.getElementById('picker-card')?.value || '#111111',
+        gold: document.getElementById('picker-gold')?.value || '#ffd700',
+        border: document.getElementById('picker-border')?.value || '#222222',
+        accent: document.getElementById('picker-accent')?.value || '#ffd700',
+        text: document.getElementById('picker-text')?.value || '#ffffff'
+    };
+    
+    const updateObj = {
+        themePreset: preset,
+        customColors: customColors,
+        aiChatbot: !!document.getElementById('toggle-ai-chat')?.checked,
+        threeSixtyViewer: !!document.getElementById('toggle-360-viewer')?.checked,
+        themeSwitcher: !!document.getElementById('toggle-theme-picker')?.checked,
+        multiLanguage: !!document.getElementById('toggle-language')?.checked,
+        announcementBar: !!document.getElementById('toggle-announcement')?.checked,
+        widgets: {
+            discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
+            recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
+            newsletterPopup: !!document.getElementById('toggle-newsletter')?.checked
+        }
+    };
+    
+    try {
+        await db.collection("settings").doc("features_config").set(updateObj, { merge: true });
+        showToast("✅ Superadmin features and theme updated successfully!");
+    } catch(e) {
+        console.error("saveSuperadminFeatures error:", e);
+        showToast("Failed to save superadmin config.");
+    }
+}
+window.saveSuperadminFeatures = saveSuperadminFeatures;
+
+// ── Admin Storefront Content Toggles ──────────────────────────────────────────
+async function loadAdminFeatureContent() {
+    try {
+        const snap = await db.collection("settings").doc("features_content").get();
+        if (snap.exists) {
+            const data = snap.data();
+            if (document.getElementById('admin-announcement-text')) document.getElementById('admin-announcement-text').value = data.announcementText || '';
+            if (document.getElementById('admin-bot-welcome')) document.getElementById('admin-bot-welcome').value = data.chatbotWelcome || '';
+            if (document.getElementById('admin-bot-chips')) document.getElementById('admin-bot-chips').value = data.chatbotChips || '';
+            if (document.getElementById('admin-newsletter-delay')) document.getElementById('admin-newsletter-delay').value = data.newsletterDelay || 5;
+            if (document.getElementById('admin-wheel-jackpot')) document.getElementById('admin-wheel-jackpot').value = data.wheelJackpotCode || '';
+        }
+    } catch(e) {
+        console.error("loadAdminFeatureContent error:", e);
+    }
+}
+window.loadAdminFeatureContent = loadAdminFeatureContent;
+
+async function saveAdminFeatureContent() {
+    const updateObj = {
+        announcementText: document.getElementById('admin-announcement-text')?.value || '',
+        chatbotWelcome: document.getElementById('admin-bot-welcome')?.value || '',
+        chatbotChips: document.getElementById('admin-bot-chips')?.value || '',
+        newsletterDelay: parseInt(document.getElementById('admin-newsletter-delay')?.value || '5', 10),
+        wheelJackpotCode: document.getElementById('admin-wheel-jackpot')?.value || ''
+    };
+    
+    try {
+        await db.collection("settings").doc("features_content").set(updateObj, { merge: true });
+        showToast("✅ Storefront content settings saved successfully!");
+    } catch(e) {
+        console.error("saveAdminFeatureContent error:", e);
+        showToast("Failed to save storefront content settings.");
+    }
+}
+window.saveAdminFeatureContent = saveAdminFeatureContent;

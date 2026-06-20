@@ -1078,6 +1078,9 @@ window.loadPaginationSettings = async function() {
                 if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = val;
             }
         }
+        if (typeof window.loadAdminFeatureContent === 'function') {
+            window.loadAdminFeatureContent();
+        }
     } catch(e) {
         console.error('loadPaginationSettings error:', e);
     }
