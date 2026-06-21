@@ -1810,4 +1810,20 @@ body {
     animation: pulse-red-glow 2s infinite;
 }
 
+/* 360 Viewer Animations & Styles */
+@keyframes spin-360 {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-gesture {
+    0%, 100% { transform: scale(1) translate(0, 0); opacity: 0.8; }
+    25% { transform: scale(1.05) translate(-20px, 0); opacity: 1; }
+    50% { transform: scale(1.05) translate(20px, 0); opacity: 1; }
+    75% { transform: scale(1.05) translate(0, -15px); opacity: 1; }
+}
+
+.spinner-360 {
+    animation: spin-360 1s linear infinite;
+}
+
 

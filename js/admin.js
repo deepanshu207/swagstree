@@ -173,6 +173,13 @@ function renderVariantBlocks() {
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
                         <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
                     </div>
+                    <div id="v-360-grid-container-${v.id}" style="display:${v.is360 ? 'flex' : 'none'}; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column: 1 / -1;">
+                        <span style="font-size:12px; color:#aaa; white-space:nowrap;">360 Grid:</span>
+                        <input type="number" placeholder="Cols" value="${v.threeSixtyCols || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyCols', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
+                        <span style="font-size:12px; color:#666;">x</span>
+                        <input type="number" placeholder="Rows" value="${v.threeSixtyRows || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyRows', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
+                        <span style="font-size:11px; color:#666; margin-left:5px;">(Cols x Rows frames)</span>
+                    </div>
                 </div>
 
             </div>
@@ -494,6 +501,12 @@ function openEdit(id) {
         mainIs360.checked = !!p.is360;
         toggle360Badge('base', !!p.is360);
     }
+    const baseCols = document.getElementById('m-360-cols');
+    if (baseCols) baseCols.value = p.threeSixtyCols || 1;
+    const baseRows = document.getElementById('m-360-rows');
+    if (baseRows) baseRows.value = p.threeSixtyRows || 1;
+    const baseGridSettings = document.getElementById('m-360-grid-settings');
+    if (baseGridSettings) baseGridSettings.style.display = p.is360 ? 'flex' : 'none';
 
     renderImagePreviews('base'); 
     
@@ -514,6 +527,8 @@ function openEdit(id) {
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
             is360: !!v.is360,
+            threeSixtyCols: v.threeSixtyCols || 1,
+            threeSixtyRows: v.threeSixtyRows || 1,
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
@@ -601,6 +616,12 @@ function openAdd() {
         mainIs360.checked = false;
         toggle360Badge('base', false);
     }
+    const baseCols = document.getElementById('m-360-cols');
+    if (baseCols) baseCols.value = 1;
+    const baseRows = document.getElementById('m-360-rows');
+    if (baseRows) baseRows.value = 1;
+    const baseGridSettings = document.getElementById('m-360-grid-settings');
+    if (baseGridSettings) baseGridSettings.style.display = 'none';
     
     renderImagePreviews('base'); 
     renderVariantBlocks();
@@ -749,6 +770,8 @@ async function saveProduct() {
                 trackStock: !!v.trackStock,
                 stockCount: typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0),
                 is360: !!v.is360,
+                threeSixtyCols: v.threeSixtyCols ? Number(v.threeSixtyCols) : 1,
+                threeSixtyRows: v.threeSixtyRows ? Number(v.threeSixtyRows) : 1,
                 images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
             };
@@ -772,7 +795,11 @@ async function saveProduct() {
                     dup.price = v.price;
                 }
                 if (v.isActive) dup.isActive = true;
-                if (v.is360) dup.is360 = true;
+                if (v.is360) {
+                    dup.is360 = true;
+                    dup.threeSixtyCols = v.threeSixtyCols ? Number(v.threeSixtyCols) : 1;
+                    dup.threeSixtyRows = v.threeSixtyRows ? Number(v.threeSixtyRows) : 1;
+                }
                 if (v.hideDetailsGallery) dup.hideDetailsGallery = true;
                 if (v.showInMainCarousel) dup.showInMainCarousel = true;
                 if (v.showPatternText) dup.showPatternText = true;
@@ -790,6 +817,8 @@ async function saveProduct() {
             mainImagesPosition: document.getElementById('m-main-pos').value,
             hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
             is360: document.getElementById('m-is360').checked,
+            threeSixtyCols: document.getElementById('m-360-cols') ? Number(document.getElementById('m-360-cols').value) || 1 : 1,
+            threeSixtyRows: document.getElementById('m-360-rows') ? Number(document.getElementById('m-360-rows').value) || 1 : 1,
             images: finalMainImages,
             variants: mergedVariants,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -855,6 +884,12 @@ function copyProduct(id) {
         mainIs360.checked = !!p.is360;
         toggle360Badge('base', !!p.is360);
     }
+    const baseCols = document.getElementById('m-360-cols');
+    if (baseCols) baseCols.value = p.threeSixtyCols || 1;
+    const baseRows = document.getElementById('m-360-rows');
+    if (baseRows) baseRows.value = p.threeSixtyRows || 1;
+    const baseGridSettings = document.getElementById('m-360-grid-settings');
+    if (baseGridSettings) baseGridSettings.style.display = p.is360 ? 'flex' : 'none';
 
     existingImageUrls = [...(p.images || [])]; 
     
@@ -875,6 +910,8 @@ function copyProduct(id) {
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
             is360: !!v.is360,
+            threeSixtyCols: v.threeSixtyCols || 1,
+            threeSixtyRows: v.threeSixtyRows || 1,
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));

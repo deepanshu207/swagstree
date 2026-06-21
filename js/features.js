@@ -299,23 +299,74 @@ function sendChatMessage() {
 window.sendChatMessage = sendChatMessage;
 
 // 5. 360-DEGREE PRODUCT ROTATE VIEWER
-let startX = 0;
-let currentIndex360 = 0;
-let isDragging360 = false;
 let images360 = [];
+let cols360 = 1;
+let rows360 = 1;
+let currentCol = 0;
+let currentRow = 0;
+let scale360 = 1;
+let panX360 = 0;
+let panY360 = 0;
+let isDragging360 = false;
+let startX360 = 0;
+let startY360 = 0;
+let lastX360 = 0;
+let lastY360 = 0;
+let startCol360 = 0;
+let startRow360 = 0;
+let velocityX360 = 0;
+let velocityY360 = 0;
+let momentumFrameId = null;
+let isAutoRotating360 = false;
+let autoRotateFrameId = null;
+let preloadedImages360 = [];
+let isPreloaded360 = false;
+let hasInteracted360 = false;
 
 function open360Viewer(prodId) {
     const p = window.products ? window.products.find(x => x.id === prodId) : null;
     if (!p) return;
     
-    const active360Img = window.getActive360Images ? window.getActive360Images(p) : (p.images || []);
+    const v = window.getSelectedVariant ? window.getSelectedVariant(p) : null;
+    
+    let isVariant360 = false;
+    let active360Img = null;
+    let cols = 1;
+    let rows = 1;
+    
+    if (v && v.is360 && v.images && v.images.length >= 2) {
+        active360Img = v.images;
+        cols = v.threeSixtyCols || v.images.length;
+        rows = v.threeSixtyRows || 1;
+        isVariant360 = true;
+    } else if (p.is360 && p.images && p.images.length >= 2) {
+        active360Img = p.images;
+        cols = p.threeSixtyCols || p.images.length;
+        rows = p.threeSixtyRows || 1;
+    }
+    
     if (!active360Img || active360Img.length < 2) {
         showToast("Add at least 2 product images to view in 360° mode.");
         return;
     }
     
     images360 = active360Img;
-    currentIndex360 = 0;
+    cols360 = Number(cols) || images360.length;
+    rows360 = Number(rows) || 1;
+    
+    // Adjust cols to fit total length if mismatch
+    if (cols360 * rows360 > images360.length) {
+        cols360 = Math.floor(images360.length / rows360) || 1;
+    }
+    
+    currentCol = 0;
+    currentRow = 0;
+    scale360 = 1;
+    panX360 = 0;
+    panY360 = 0;
+    isDragging360 = false;
+    isAutoRotating360 = false;
+    hasInteracted360 = false;
     
     // Inject and open Modal
     let modal = document.getElementById('viewer-360-modal');
@@ -324,7 +375,7 @@ function open360Viewer(prodId) {
         modal.id = 'viewer-360-modal';
         modal.style.position = 'fixed';
         modal.style.inset = '0';
-        modal.style.background = 'rgba(0,0,0,0.95)';
+        modal.style.background = '#0a0a0a';
         modal.style.zIndex = '999999';
         modal.style.display = 'flex';
         modal.style.flexDirection = 'column';
@@ -332,18 +383,41 @@ function open360Viewer(prodId) {
         modal.style.justifyContent = 'center';
         
         modal.innerHTML = `
-            <div style="position:absolute; top:20px; right:20px; font-size:24px; color:#fff; cursor:pointer; z-index:1000;" onclick="close360Viewer()">&times;</div>
-            <h4 style="color:var(--gold); margin:0 0 10px 0; text-transform:uppercase; letter-spacing:1px; font-size:12px; font-weight:700;">Drag left/right to rotate</h4>
-            <div id="rotate-area" style="width:90vw; max-width:500px; height:70vh; max-height:500px; background:#000; border:1px solid #222; border-radius:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; cursor:grab;">
-                <img id="image-360-frame" style="width:100%; height:100%; object-fit:contain;" src="" draggable="false">
-                <button onclick="event.stopPropagation(); prev360Image();" style="position:absolute; left:15px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.6); border:1px solid rgba(255,215,0,0.3); color:#ffd700; width:40px; height:40px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; z-index:20; outline:none;"><i class="fa fa-chevron-left"></i></button>
-                <button onclick="event.stopPropagation(); next360Image();" style="position:absolute; right:15px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.6); border:1px solid rgba(255,215,0,0.3); color:#ffd700; width:40px; height:40px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; z-index:20; outline:none;"><i class="fa fa-chevron-right"></i></button>
-                <div style="position:absolute; bottom:15px; background:rgba(0,0,0,0.6); padding:4px 10px; border-radius:15px; font-size:10px; color:#ffd700; border:1px solid rgba(255,215,0,0.2);"><i class="fa fa-sync"></i> 360° MODE</div>
+            <div style="position:absolute; top:20px; right:20px; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; cursor:pointer; z-index:1000; transition:all 0.2s; backdrop-filter:blur(8px);" onclick="close360Viewer()" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">&times;</div>
+            
+            <div style="position:absolute; top:30px; left:30px; z-index:10; font-family:'Outfit', sans-serif;">
+                <h3 style="color:#fff; margin:0; font-size:16px; font-weight:700; letter-spacing:1px; text-transform:uppercase;">360° Interactive 3D Spin</h3>
+                <p id="viewer-360-instructions" style="color:var(--gold); margin:4px 0 0 0; font-size:11px; letter-spacing:0.5px; opacity:0.8;">Drag in any direction to explore</p>
+            </div>
+            
+            <div id="rotate-area" style="width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:grab; position:relative;">
+                <div id="360-preloader" style="position:absolute; inset:0; background:#0a0a0a; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:50;">
+                    <div class="spinner-360" style="width:50px; height:50px; border:3px solid rgba(255,215,0,0.1); border-top:3px solid var(--gold); border-radius:50%; animation:spin-360 1s linear infinite; margin-bottom:15px;"></div>
+                    <p id="360-preload-status" style="color:#fff; font-size:12px; font-weight:600; letter-spacing:1px;">Loading 3D View... 0%</p>
+                </div>
+                
+                <div id="360-gesture-guide" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:40; pointer-events:none; background:rgba(0,0,0,0.5); transition:opacity 0.5s;">
+                    <div style="text-align:center; animation:pulse-gesture 2.5s infinite; display:flex; flex-direction:column; align-items:center; gap:10px;">
+                        <i class="fa fa-hand-pointer" style="font-size:40px; color:var(--gold); filter:drop-shadow(0 0 10px rgba(255,215,0,0.5));"></i>
+                        <p style="color:#fff; font-size:12px; font-weight:700; margin:5px 0 0 0; text-transform:uppercase; letter-spacing:1px;">Drag in any direction</p>
+                    </div>
+                </div>
+                
+                <img id="image-360-frame" style="max-width:90%; max-height:80%; object-fit:contain; transform: scale(1) translate(0px, 0px); transition: transform 0.1s ease-out; pointer-events:none; user-select:none;" src="" draggable="false">
+            </div>
+            
+            <div style="position:absolute; bottom:40px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; background:rgba(15,15,15,0.7); border:1px solid rgba(255,215,0,0.3); padding:10px 20px; border-radius:30px; backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:100;">
+                <button onclick="toggleAutoRotate360()" id="btn-360-play" style="background:none; border:none; color:#fff; font-size:16px; cursor:pointer; width:36px; height:36px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; outline:none;" title="Auto Spin"><i class="fa fa-play" style="color:var(--gold);"></i></button>
+                <div style="width:1px; height:20px; background:rgba(255,255,255,0.15);"></div>
+                <button onclick="zoom360(-0.5)" style="background:none; border:none; color:#fff; font-size:16px; cursor:pointer; width:36px; height:36px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; outline:none;" title="Zoom Out"><i class="fa fa-minus"></i></button>
+                <button onclick="zoom360(0.5)" style="background:none; border:none; color:#fff; font-size:16px; cursor:pointer; width:36px; height:36px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; outline:none;" title="Zoom In"><i class="fa fa-plus"></i></button>
+                <button onclick="reset360()" style="background:none; border:none; color:#fff; font-size:16px; cursor:pointer; width:36px; height:36px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; outline:none;" title="Reset View"><i class="fa fa-rotate-left"></i></button>
+                <div style="width:1px; height:20px; background:rgba(255,255,255,0.15);"></div>
+                <button onclick="toggleFullscreen360()" style="background:none; border:none; color:#fff; font-size:16px; cursor:pointer; width:36px; height:36px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; outline:none;" title="Fullscreen"><i class="fa fa-expand"></i></button>
             </div>
         `;
         document.body.appendChild(modal);
         
-        // Drag listeners
         const area = document.getElementById('rotate-area');
         area.addEventListener('mousedown', startRotateDrag);
         area.addEventListener('mousemove', moveRotateDrag);
@@ -353,69 +427,306 @@ function open360Viewer(prodId) {
         area.addEventListener('touchstart', startRotateDrag, {passive: true});
         area.addEventListener('touchmove', moveRotateDrag, {passive: true});
         area.addEventListener('touchend', endRotateDrag);
+        
+        area.addEventListener('wheel', e => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.2 : -0.2;
+            zoom360(delta);
+        }, {passive: false});
+    } else {
+        const guide = document.getElementById('360-gesture-guide');
+        if (!guide) {
+            const rotateArea = document.getElementById('rotate-area');
+            const g = document.createElement('div');
+            g.id = '360-gesture-guide';
+            g.style.cssText = 'position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:40; pointer-events:none; background:rgba(0,0,0,0.5); transition:opacity 0.5s;';
+            g.innerHTML = `
+                <div style="text-align:center; animation:pulse-gesture 2.5s infinite; display:flex; flex-direction:column; align-items:center; gap:10px;">
+                    <i class="fa fa-hand-pointer" style="font-size:40px; color:var(--gold); filter:drop-shadow(0 0 10px rgba(255,215,0,0.5));"></i>
+                    <p style="color:#fff; font-size:12px; font-weight:700; margin:5px 0 0 0; text-transform:uppercase; letter-spacing:1px;">Drag in any direction</p>
+                </div>
+            `;
+            rotateArea.appendChild(g);
+        } else {
+            guide.style.opacity = '1';
+        }
+        
+        const preloader = document.getElementById('360-preloader');
+        if (preloader) preloader.style.display = 'flex';
+        
+        const playBtn = document.getElementById('btn-360-play');
+        if (playBtn) playBtn.innerHTML = `<i class="fa fa-play" style="color:var(--gold);"></i>`;
     }
     
     modal.style.display = 'flex';
     update360Frame();
+    
+    let loadedCount = 0;
+    const total = images360.length;
+    preloadedImages360 = [];
+    isPreloaded360 = false;
+    
+    const statusText = document.getElementById('360-preload-status');
+    if (statusText) statusText.textContent = `Loading 3D View... 0%`;
+    
+    images360.forEach((url, idx) => {
+        const img = new Image();
+        img.src = url;
+        img.onload = () => {
+            preloadedImages360[idx] = img;
+            loadedCount++;
+            const pct = Math.round((loadedCount / total) * 100);
+            if (statusText) statusText.textContent = `Loading 3D View... ${pct}%`;
+            if (loadedCount >= total) {
+                const preloader = document.getElementById('360-preloader');
+                if (preloader) preloader.style.display = 'none';
+                isPreloaded360 = true;
+            }
+        };
+        img.onerror = () => {
+            loadedCount++;
+            const pct = Math.round((loadedCount / total) * 100);
+            if (statusText) statusText.textContent = `Loading 3D View... ${pct}%`;
+            if (loadedCount >= total) {
+                const preloader = document.getElementById('360-preloader');
+                if (preloader) preloader.style.display = 'none';
+                isPreloaded360 = true;
+            }
+        };
+    });
 }
 window.open360Viewer = open360Viewer;
 
 function close360Viewer() {
     const modal = document.getElementById('viewer-360-modal');
     if (modal) modal.style.display = 'none';
+    stopAutoRotate360();
+    cancelAnimationFrame(momentumFrameId);
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+    }
 }
 window.close360Viewer = close360Viewer;
 
-function prev360Image() {
-    if (!images360 || images360.length === 0) return;
-    currentIndex360 = (currentIndex360 - 1 + images360.length) % images360.length;
-    update360Frame();
-}
-window.prev360Image = prev360Image;
-
-function next360Image() {
-    if (!images360 || images360.length === 0) return;
-    currentIndex360 = (currentIndex360 + 1) % images360.length;
-    update360Frame();
-}
-window.next360Image = next360Image;
-
 function update360Frame() {
     const imgEl = document.getElementById('image-360-frame');
-    if (imgEl && images360[currentIndex360]) {
-        imgEl.src = images360[currentIndex360];
-    }
+    if (!imgEl || images360.length === 0) return;
+    let index = currentRow * cols360 + currentCol;
+    if (index >= images360.length) index = images360.length - 1;
+    if (index < 0) index = 0;
+    imgEl.src = images360[index];
 }
 
 function startRotateDrag(e) {
+    cancelAnimationFrame(momentumFrameId);
+    stopAutoRotate360();
+    
+    if (!hasInteracted360) {
+        hasInteracted360 = true;
+        const guide = document.getElementById('360-gesture-guide');
+        if (guide) guide.style.opacity = '0';
+        setTimeout(() => {
+            if (guide) guide.remove();
+        }, 500);
+    }
+    
     isDragging360 = true;
-    startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    
+    startX360 = clientX;
+    startY360 = clientY;
+    lastX360 = clientX;
+    lastY360 = clientY;
+    
+    startCol360 = currentCol;
+    startRow360 = currentRow;
+    
+    velocityX360 = 0;
+    velocityY360 = 0;
+    
     const area = document.getElementById('rotate-area');
     if (area) area.style.cursor = 'grabbing';
 }
 
 function moveRotateDrag(e) {
-    if (!isDragging360 || images360.length === 0) return;
-    const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-    const diff = currentX - startX;
+    if (!isDragging360) return;
     
-    // Sensitivity: change frame every 15 pixels dragged
-    if (Math.abs(diff) > 15) {
-        if (diff > 0) {
-            currentIndex360 = (currentIndex360 + 1) % images360.length;
-        } else {
-            currentIndex360 = (currentIndex360 - 1 + images360.length) % images360.length;
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    
+    const diffX = clientX - startX360;
+    const diffY = clientY - startY360;
+    
+    if (scale360 > 1) {
+        panX360 += (clientX - lastX360);
+        panY360 += (clientY - lastY360);
+        
+        const maxPanX = (scale360 - 1) * 300;
+        const maxPanY = (scale360 - 1) * 300;
+        panX360 = Math.max(-maxPanX, Math.min(maxPanX, panX360));
+        panY360 = Math.max(-maxPanY, Math.min(maxPanY, panY360));
+        
+        update360Transform();
+    } else {
+        const sensitivityX = 12;
+        const sensitivityY = 20;
+        
+        const colOffset = Math.round(diffX / sensitivityX);
+        const rowOffset = Math.round(diffY / sensitivityY);
+        
+        const mod = (n, m) => ((n % m) + m) % m;
+        
+        const nextCol = mod(startCol360 + colOffset, cols360);
+        const nextRow = Math.max(0, Math.min(rows360 - 1, startRow360 - rowOffset));
+        
+        if (nextCol !== currentCol || nextRow !== currentRow) {
+            currentCol = nextCol;
+            currentRow = nextRow;
+            update360Frame();
         }
-        startX = currentX;
-        update360Frame();
     }
+    
+    velocityX360 = clientX - lastX360;
+    velocityY360 = clientY - lastY360;
+    
+    lastX360 = clientX;
+    lastY360 = clientY;
 }
 
 function endRotateDrag() {
+    if (!isDragging360) return;
     isDragging360 = false;
+    
     const area = document.getElementById('rotate-area');
     if (area) area.style.cursor = 'grab';
+    
+    if (scale360 === 1 && (Math.abs(velocityX360) > 1 || Math.abs(velocityY360) > 1)) {
+        applyMomentum360();
+    }
 }
+
+function applyMomentum360() {
+    cancelAnimationFrame(momentumFrameId);
+    
+    const friction = 0.95;
+    const sensitivityX = 12;
+    const sensitivityY = 20;
+    
+    let accumulatedX = 0;
+    let accumulatedY = 0;
+    
+    function step() {
+        velocityX360 *= friction;
+        velocityY360 *= friction;
+        
+        accumulatedX += velocityX360;
+        accumulatedY -= velocityY360;
+        
+        const colChange = Math.round(accumulatedX / sensitivityX);
+        const rowChange = Math.round(accumulatedY / sensitivityY);
+        
+        if (colChange !== 0) {
+            const mod = (n, m) => ((n % m) + m) % m;
+            currentCol = mod(currentCol + colChange, cols360);
+            accumulatedX = 0;
+        }
+        
+        if (rowChange !== 0) {
+            currentRow = Math.max(0, Math.min(rows360 - 1, currentRow + rowChange));
+            accumulatedY = 0;
+        }
+        
+        update360Frame();
+        
+        if (Math.abs(velocityX360) > 0.1 || Math.abs(velocityY360) > 0.1) {
+            momentumFrameId = requestAnimationFrame(step);
+        }
+    }
+    
+    momentumFrameId = requestAnimationFrame(step);
+}
+
+function update360Transform() {
+    const imgEl = document.getElementById('image-360-frame');
+    if (imgEl) {
+        imgEl.style.transform = `scale(${scale360}) translate(${panX360 / scale360}px, ${panY360 / scale360}px)`;
+    }
+}
+
+function zoom360(delta) {
+    cancelAnimationFrame(momentumFrameId);
+    scale360 = Math.max(1, Math.min(3, scale360 + delta));
+    if (scale360 === 1) {
+        panX360 = 0;
+        panY360 = 0;
+    }
+    update360Transform();
+}
+window.zoom360 = zoom360;
+
+function reset360() {
+    cancelAnimationFrame(momentumFrameId);
+    stopAutoRotate360();
+    currentCol = 0;
+    currentRow = 0;
+    scale360 = 1;
+    panX360 = 0;
+    panY360 = 0;
+    update360Frame();
+    update360Transform();
+}
+window.reset360 = reset360;
+
+function toggleAutoRotate360() {
+    if (isAutoRotating360) {
+        stopAutoRotate360();
+    } else {
+        isAutoRotating360 = true;
+        const btn = document.getElementById('btn-360-play');
+        if (btn) btn.innerHTML = `<i class="fa fa-pause" style="color:var(--gold);"></i>`;
+        
+        cancelAnimationFrame(momentumFrameId);
+        
+        let lastTime = performance.now();
+        const interval = 120;
+        
+        function rotateStep(timestamp) {
+            if (!isAutoRotating360) return;
+            
+            if (timestamp - lastTime >= interval) {
+                currentCol = (currentCol + 1) % cols360;
+                update360Frame();
+                lastTime = timestamp;
+            }
+            autoRotateFrameId = requestAnimationFrame(rotateStep);
+        }
+        
+        autoRotateFrameId = requestAnimationFrame(rotateStep);
+    }
+}
+window.toggleAutoRotate360 = toggleAutoRotate360;
+
+function stopAutoRotate360() {
+    isAutoRotating360 = false;
+    cancelAnimationFrame(autoRotateFrameId);
+    const btn = document.getElementById('btn-360-play');
+    if (btn) btn.innerHTML = `<i class="fa fa-play" style="color:var(--gold);"></i>`;
+}
+
+function toggleFullscreen360() {
+    const modal = document.getElementById('viewer-360-modal');
+    if (!modal) return;
+    
+    if (!document.fullscreenElement) {
+        modal.requestFullscreen().catch(err => {
+            console.log("Error attempting to enable full-screen mode:", err);
+        });
+    } else {
+        document.exitFullscreen().catch(() => {});
+    }
+}
+window.toggleFullscreen360 = toggleFullscreen360;
 
 // 6. INTERACTIVE WIDGETS
 // Discount Spin Wheel Widget
