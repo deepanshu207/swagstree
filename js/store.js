@@ -343,6 +343,21 @@ function loadData() {
         };
         if (typeof renderFooter === 'function') renderFooter();
     });
+
+    db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(snap => {
+        const bell = document.getElementById('announcement-bell-btn');
+        window.activeAnnouncements = [];
+        snap.forEach(doc => {
+            window.activeAnnouncements.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        if (bell) bell.style.display = 'flex';
+        updateAnnouncementBellUI();
+    }, error => {
+        console.error("Firestore announcements list load error:", error);
+    });
 }
 
 function renderStore() {
@@ -390,6 +405,8 @@ function productCardHtml(p) {
         }
     }
 
+    const has360 = !!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360));
+
     let quickAddHtml = `<div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')" style="${isOutOfStock ? 'opacity:0.5; pointer-events:none;' : ''}">
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
     </div>`;
@@ -404,6 +421,11 @@ function productCardHtml(p) {
         </div> 
         ${quickAddHtml}
         <div class="carousel-box" onclick="showDetail('${p.id}')"> 
+            ${has360 ? `
+            <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid var(--gold); border-radius: 20px; padding: 3px 8px; color: var(--gold); font-size: 8px; font-weight: 800; display: flex; align-items: center; gap: 4px; pointer-events: none; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <i class="fa fa-sync" style="font-size: 8px;"></i> 360° VIEW
+            </div>
+            ` : ''}
             ${isOutOfStock ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px 15px 0 0;"><span style="background:rgba(255,0,0,0.85); color:#fff; padding:6px 12px; border-radius:4px; font-weight:800; font-size:12px; letter-spacing:1px;">OUT OF STOCK</span></div>' : ''}
             <div class="carousel" onscroll="updateDots(this)">
                 ${displayImages.length ? displayImages.map(img => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">')}
@@ -522,7 +544,9 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = '0 Products';
+                countContainer.innerHTML = typeof window.getI18nText === 'function'
+                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
+                    : '0 Products';
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -545,7 +569,9 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
-            countContainer.innerHTML = `Showing ${visible} of ${items.length} Products`;
+            countContainer.innerHTML = typeof window.getI18nText === 'function'
+                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
+                : `Showing ${visible} of ${items.length} Products`;
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {
@@ -794,8 +820,8 @@ function showDetail(id, initialColor = null, initialSize = null) {
     // Check if 360 viewer is enabled and product has multiple images
     const trigger360 = document.getElementById('det-360-trigger');
     if (trigger360) {
-        const isEnabled = window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer;
-        if (isEnabled && p.images && p.images.length >= 2) {
+        const active360Img = window.getActive360Images(p);
+        if (active360Img) {
             trigger360.style.display = 'flex';
         } else {
             trigger360.style.display = 'none';
@@ -1175,6 +1201,15 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             // Don't close detail instantly, let them use the stepper
             updateVariantUI(p);
         };
+    }
+    const trigger360 = document.getElementById('det-360-trigger');
+    if (trigger360) {
+        const active360Img = window.getActive360Images(p);
+        if (active360Img) {
+            trigger360.style.display = 'flex';
+        } else {
+            trigger360.style.display = 'none';
+        }
     }
 }
 
@@ -2285,5 +2320,209 @@ function closeFooterPage() {
         if (fallback) fallback.classList.add('active');
     }
 }
-window.closeFooterPage = closeFooterPage;
+function getActive360Images(p) {
+    const isEnabled = window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer;
+    if (!isEnabled) return null;
+
+    const v = getSelectedVariant(p);
+    if (v && v.is360 && v.images && v.images.length >= 2) {
+        return v.images;
+    }
+    if (p.is360 && p.images && p.images.length >= 2) {
+        return p.images;
+    }
+    return null;
+}
+window.getActive360Images = getActive360Images;
+
+
+
+function closeAnnouncementModal() {
+    const modal = document.getElementById('announcement-modal');
+    if (modal) modal.style.display = 'none';
+    updateAnnouncementBellUI();
+}
+window.closeAnnouncementModal = closeAnnouncementModal;
+
+let currentAnnouncementIndex = 0;
+
+function openAnnouncementModal() {
+    const list = window.activeAnnouncements || [];
+    if (list.length === 0) {
+        showToast("No active announcements.");
+        return;
+    }
+    currentAnnouncementIndex = 0;
+    const modal = document.getElementById('announcement-modal');
+    if (modal) modal.style.display = 'flex';
+    renderAnnouncementSlide();
+}
+
+window.expandedAnnouncementId = null;
+
+function toggleAnnouncementExpand(id, event) {
+    if (event) event.stopPropagation();
+    if (window.expandedAnnouncementId === id) {
+        window.expandedAnnouncementId = null;
+    } else {
+        window.expandedAnnouncementId = id;
+        
+        // Auto-mark as read when clicked to expand
+        let readIds = [];
+        try {
+            readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+        } catch(e) {
+            readIds = [];
+        }
+        if (!readIds.includes(id)) {
+            readIds.push(id);
+            localStorage.setItem('swagstree_read_announcements', JSON.stringify(readIds));
+        }
+    }
+    renderAnnouncementSlide();
+    updateAnnouncementBellUI();
+}
+window.toggleAnnouncementExpand = toggleAnnouncementExpand;
+
+function renderAnnouncementSlide() {
+    const list = window.activeAnnouncements || [];
+    const container = document.getElementById('announcement-slides-container');
+    if (!container) return;
+    
+    if (list.length === 0) {
+        container.innerHTML = `<p style="color:#666; text-align:center; font-size:12px; padding:20px 0;">No active announcements.</p>`;
+        return;
+    }
+    
+    let readIds = [];
+    try {
+        readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+    } catch(e) {
+        readIds = [];
+    }
+    
+    container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:4px;">
+            ${list.map(ann => {
+                const isUnread = !readIds.includes(ann.id);
+                const isExpanded = window.expandedAnnouncementId === ann.id;
+                const dateStr = ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleDateString([], {month: 'short', day: 'numeric'}) : 'Just now';
+                
+                return `
+                    <div style="border: 1px solid ${isUnread ? 'rgba(255,215,0,0.2)' : '#222'}; background:${isUnread ? 'rgba(255,215,0,0.02)' : '#111'}; border-radius:10px; overflow:hidden; transition:all 0.2s; display:flex; flex-direction:column;">
+                        <!-- Email Header Row -->
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px; cursor:pointer;" onclick="toggleAnnouncementExpand('${ann.id}', event)">
+                            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                                <i class="fa ${isUnread ? 'fa-envelope' : 'fa-envelope-open'}" 
+                                   style="color:${isUnread ? '#ff4757' : '#666'}; font-size:13px; flex-shrink:0; cursor:pointer; padding: 4px;" 
+                                   onclick="toggleAnnouncementReadState('${ann.id}', event)" 
+                                   title="Mark as ${isUnread ? 'Read' : 'Unread'}"></i>
+                                <span style="font-size:12px; color:${isUnread ? '#fff' : '#bbb'}; font-weight:${isUnread ? '700' : '400'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                                    ${ann.message}
+                                </span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                                <span style="font-size:10px; color:#666;">${dateStr}</span>
+                                <i class="fa ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="color:#888; font-size:10px;"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Expanded Details -->
+                        ${isExpanded ? `
+                        <div style="padding: 12px; background:#0a0a0a; border-top:1px solid #222; display:flex; flex-direction:column; gap:10px;">
+                            ${ann.image ? `
+                            <div style="width:100%; max-height:200px; border-radius:6px; overflow:hidden; border:1px solid #222; background:#000; display:flex; align-items:center; justify-content:center;">
+                                <img src="${ann.image}" style="width:100%; height:auto; max-height:200px; object-fit:contain;">
+                            </div>
+                            ` : ''}
+                            <p style="color:#eee; font-size:12px; line-height:1.6; margin:0; word-break:break-word; white-space:pre-wrap; text-align:left;">${ann.message}</p>
+                            
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px dashed #222; padding-top:8px;">
+                                <span style="font-size:9px; color:#555;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>
+                                <button onclick="toggleAnnouncementReadState('${ann.id}', event)" style="background:none; border:none; color:var(--gold); font-size:10px; font-weight:700; cursor:pointer; text-decoration:underline; outline:none; padding:0;">
+                                    Mark as ${isUnread ? 'Read' : 'Unread'}
+                                </button>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    
+    const controls = document.getElementById('announcement-controls');
+    if (controls) controls.style.display = 'none';
+}
+
+function toggleAnnouncementReadState(id, event) {
+    if (event) event.stopPropagation();
+    let readIds = [];
+    try {
+        readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+    } catch(e) {
+        readIds = [];
+    }
+    
+    if (readIds.includes(id)) {
+        readIds = readIds.filter(x => x !== id);
+    } else {
+        readIds.push(id);
+    }
+    localStorage.setItem('swagstree_read_announcements', JSON.stringify(readIds));
+    
+    renderAnnouncementSlide();
+    updateAnnouncementBellUI();
+}
+window.toggleAnnouncementReadState = toggleAnnouncementReadState;
+
+function updateAnnouncementBellUI() {
+    const bellIcon = document.querySelector('#announcement-bell-btn i');
+    const badge = document.getElementById('announcement-badge');
+    if (!bellIcon) return;
+    
+    const list = window.activeAnnouncements || [];
+    if (list.length === 0) {
+        bellIcon.style.color = '#ffd700'; // Keep yellow as default
+        bellIcon.style.opacity = '1.0';
+        if (badge) badge.style.display = 'none';
+        return;
+    }
+    
+    let readIds = [];
+    try {
+        readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+    } catch(e) {
+        readIds = [];
+    }
+    
+    const unread = list.filter(ann => !readIds.includes(ann.id));
+    if (unread.length > 0) {
+        bellIcon.style.color = '#ff4757'; // RED when there are unread announcements
+        bellIcon.style.opacity = '1.0';
+        if (badge) {
+            badge.style.display = 'flex';
+            badge.textContent = unread.length;
+            badge.style.width = '14px';
+            badge.style.height = '14px';
+            badge.style.fontSize = '8px';
+            badge.style.fontWeight = '800';
+            badge.style.color = '#fff';
+            badge.style.background = '#ff4757';
+            badge.style.borderRadius = '50%';
+            badge.style.alignItems = 'center';
+            badge.style.justifyContent = 'center';
+            badge.style.position = 'absolute';
+            badge.style.top = '-4px';
+            badge.style.right = '-4px';
+            badge.style.boxShadow = '0 0 6px #ff4757';
+        }
+    } else {
+        bellIcon.style.color = '#ffd700'; // YELLOW default/read color
+        bellIcon.style.opacity = '1.0';
+        if (badge) badge.style.display = 'none';
+    }
+}
+window.updateAnnouncementBellUI = updateAnnouncementBellUI;
+
 

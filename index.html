@@ -98,13 +98,14 @@
 
         <div class="filter-group">
             <label class="filter-section-title">Sort Options</label>
-            <div class="select-wrapper">
-                <select id="sort-logic-filter" class="premium-select" onchange="changeSortLogic(this.value, 'filter')">
-                    <option value="none">Default Sorting</option>
-                    <option value="low">Price: Low to High</option>
-                    <option value="high">Price: High to Low</option>
-                    <option value="newest">Newest Arrivals</option>
-                    <option value="best">Best Selling</option>
+            <div class="select-wrapper" style="position:relative; margin:0;">
+                <i class="fa fa-sort" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:11px; pointer-events:none; z-index:10;"></i>
+                <select id="sort-logic-filter" class="premium-select" style="padding: 6px 12px 6px 28px; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; width:100%; height:34px; cursor:pointer;" onchange="changeSortLogic(this.value, 'filter')">
+                    <option value="none" data-i18n="default_sorting">Default Sorting</option>
+                    <option value="low" data-i18n="low_high">Price: Low to High</option>
+                    <option value="high" data-i18n="high_low">Price: High to Low</option>
+                    <option value="newest" data-i18n="newest">Newest Arrivals</option>
+                    <option value="best" data-i18n="best">Best Selling</option>
                 </select>
             </div>
         </div>
@@ -183,8 +184,9 @@
         </div>
 
         <!-- Language Switcher -->
-        <div class="lang-select-container" id="lang-selector-wrap" style="display:none;">
-            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select">
+        <div class="lang-select-container" id="lang-selector-wrap" style="display:none; position:relative; margin-right:10px;">
+            <i class="fa fa-language" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:14px; pointer-events:none; z-index:10;"></i>
+            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select" style="padding: 4px 8px 4px 24px; border: 1px solid #333; background: #111; color: #fff; border-radius: 8px; font-size: 11px; height: 30px; cursor: pointer; transition: border-color 0.2s; outline:none;">
                 <option value="en">🇬🇧 EN</option>
                 <option value="hi">🇮🇳 HI</option>
                 <option value="es">🇪🇸 ES</option>
@@ -216,20 +218,30 @@
                 <input type="password" name="password" tabindex="-1">
             </div>
             <input type="text" id="app_search" placeholder="Search products..." oninput="searchHandler()"
-                autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
+                autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');" data-i18n="search_placeholder">
         </div>
-        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
-            <span id="product-count" class="count-badge" style="display:none;"></span>
-            <div id="sort-logic-container" style="display:none; align-items:center; gap:8px;">
-                <span style="font-size:11px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Sort By:</span>
-                <div class="select-wrapper" style="margin: 0; min-width: 140px;">
-                    <select id="sort-logic" class="premium-select" style="padding: 6px 30px 6px 12px; font-size: 11px; height: 32px; margin-bottom: 0;" onchange="changeSortLogic(this.value, 'main')">
-                        <option value="none">Default Sorting</option>
-                        <option value="low">Price: Low to High</option>
-                        <option value="high">Price: High to Low</option>
-                        <option value="newest">Newest Arrivals</option>
-                        <option value="best">Best Selling</option>
-                    </select>
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:nowrap; width:100%; box-sizing:border-box;">
+            <span id="product-count" class="count-badge" style="display:none; margin-bottom:0; font-size:10px; font-weight:700; color:#aaa; background:none; border:none; padding:0; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; flex-shrink:1;"></span>
+            
+            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                <!-- Announcement Megaphone Button -->
+                <div id="announcement-bell-btn" onclick="openAnnouncementModal()" style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
+                    <i class="fa fa-bullhorn" style="color:#777; font-size:12px; opacity:0.6;"></i>
+                    <span id="announcement-badge" style="display:none; position:absolute; top:-2px; right:-2px; width:7px; height:7px; border-radius:50%; background:#ff4757; box-shadow:0 0 6px #ff4757;"></span>
+                </div>
+
+                <!-- Sort Container -->
+                <div id="sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
+                    <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
+                        <i class="fa fa-sort" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
+                        <select id="sort-logic" class="premium-select" style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;" onchange="changeSortLogic(this.value, 'main')">
+                            <option value="none" data-i18n="default_sorting">Default Sorting</option>
+                            <option value="low" data-i18n="low_high">Price: Low to High</option>
+                            <option value="high" data-i18n="high_low">Price: High to Low</option>
+                            <option value="newest" data-i18n="newest">Newest Arrivals</option>
+                            <option value="best" data-i18n="best">Best Selling</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1140,6 +1152,62 @@
             </div>
         </div>
 
+        <!-- Section: Global Announcements -->
+        <div id="admin-announcement-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <!-- Accordion Header -->
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="toggleAnnouncementAccordion()">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa fa-bullhorn" style="color:var(--gold); font-size:15px;"></i>
+                    <div>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Global Announcements</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage instant announcements with Cloudinary images for storefront visitors</p>
+                    </div>
+                </div>
+                <i id="announcement-accordion-icon" class="fa fa-chevron-down" style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg);"></i>
+            </div>
+            
+            <!-- Accordion Content (Collapsed by default) -->
+            <div id="announcement-accordion-content" style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
+                <div
+                    style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span style="font-size:11px; color:#aaa;">Announcement Message</span>
+                        <textarea id="admin-announcement-msg" placeholder="Write your announcement here..."
+                            style="margin:0 0 4px; font-size:12px; height:60px; resize:vertical; background:#222; border:1px solid #333; color:#fff; border-radius:8px; padding:8px;"></textarea>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span style="font-size:11px; color:#aaa;">Announcement Image</span>
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <label for="admin-announcement-file" style="display:inline-block; padding:8px 16px; background:#222; border:1px dashed #555; color:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; transition:all 0.2s;">
+                                <i class="fa fa-cloud-upload-alt" style="margin-right:4px;"></i> Upload Image to Cloudinary
+                            </label>
+                            <input type="file" id="admin-announcement-file" accept="image/*" style="display:none;" onchange="handleAnnouncementFileUpload(this)">
+                            
+                            <div id="admin-announcement-image-preview-container" style="display:none; align-items:center; gap:8px; background:#111; padding:4px 8px; border-radius:6px; border:1px solid #333;">
+                                <img id="admin-announcement-image-preview" src="" style="width:30px; height:30px; object-fit:cover; border-radius:4px;">
+                                <span style="font-size:10px; color:#ff4757; cursor:pointer; font-weight:700;" onclick="removeAnnouncementImage()">Remove</span>
+                            </div>
+                            <input type="hidden" id="admin-announcement-image" value="">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:5px;">
+                        <button id="admin-announcement-pub-btn" class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;"
+                            onclick="publishAnnouncement()">Publish</button>
+                        <button id="admin-announcement-cancel-btn" class="btn-gold" style="display:none; width:auto; padding:10px 20px; font-size:12px; background:#222; border:1px solid #444; color:#aaa;"
+                            onclick="cancelAnnouncementEdit()">Cancel Edit</button>
+                    </div>
+                </div>
+                
+                <div style="margin-top:15px; border-top:1px solid #222; padding-top:12px;">
+                    <h5 style="margin:0 0 10px; font-size:11px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Active Announcements List</h5>
+                    <div id="admin-announcements-list" style="display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; padding-right:4px;">
+                        <!-- Rendered active announcements list cards -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="admin-list" style="padding:0 20px"></div>
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
     </div>
@@ -1380,6 +1448,8 @@
                 </div>
             </div>
         </div>
+
+
 
         <!-- Section 1: Manage Admins -->
         <div
@@ -1622,6 +1692,13 @@
                 <input type="file" id="m-files" multiple accept="image/*" style="display:none;"
                     onchange="handleFileSelect(this, 'base')">
             </label>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:15px; justify-content:flex-start;">
+                <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked)">
+                <label for="m-is360" style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
+                    <span>Enable 360° Rotate for Main Images</span>
+                    <span id="base-360-badge" style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360° ACTIVE</span>
+                </label>
+            </div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:flex-start;">
                 <input type="checkbox" id="m-hide-main" style="width:auto; margin:0;">
                 <label for="m-hide-main" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Main Images
@@ -1651,6 +1728,29 @@
             <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
             <button onclick="closeModal('prod-modal')"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Modal: Global Announcement -->
+    <div id="announcement-modal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-box" style="border: 1px solid var(--gold); background: linear-gradient(135deg, #0a0a0a 0%, #151505 100%); width:90%; max-width:450px; padding:20px; display:flex; flex-direction:column; gap:15px; position:relative;">
+            <div style="position:absolute; top:15px; right:15px; font-size:20px; color:#aaa; cursor:pointer;" onclick="closeAnnouncementModal()">&times;</div>
+            <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid #222; padding-bottom:10px; margin-bottom:5px;">
+                <i class="fa fa-bullhorn" style="color:var(--gold); font-size:16px;"></i>
+                <h3 style="margin:0; color:#fff; text-transform:uppercase; letter-spacing:1px; font-size: 14px;">Announcement Center</h3>
+            </div>
+            
+            <!-- Slides Container -->
+            <div id="announcement-slides-container" style="min-height:180px; display:flex; flex-direction:column; justify-content:center;">
+                <!-- Dynamically populated announcement slide card -->
+            </div>
+
+            <!-- Controls and indicators -->
+            <div id="announcement-controls" style="display:none; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px solid #222; padding-top:12px;">
+                <button onclick="prevAnnouncementSlide()" style="background:#222; border:1px solid #333; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i class="fa fa-chevron-left" style="font-size:10px;"></i></button>
+                <div id="announcement-slide-indicator" style="font-size:11px; color:#aaa; font-weight:bold;">1 / 1</div>
+                <button onclick="nextAnnouncementSlide()" style="background:#222; border:1px solid #333; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i class="fa fa-chevron-right" style="font-size:10px;"></i></button>
+            </div>
         </div>
     </div>
 

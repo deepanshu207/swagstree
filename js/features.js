@@ -37,6 +37,9 @@ const I18N_DICTIONARY = {
         default_sorting: "Sort: Default",
         low_high: "Price: Low to High",
         high_low: "Price: High to Low",
+        newest: "Newest Arrivals",
+        best: "Best Selling",
+        sort_by: "Sort By:",
         ai_chat_title: "Swag Stree Support AI",
         ai_chat_welcome: "Hi! How can I help you style your day today?",
         spin_wheel_title: "Spin & Win!",
@@ -59,9 +62,12 @@ const I18N_DICTIONARY = {
         default_sorting: "क्रम: डिफ़ॉल्ट",
         low_high: "कीमत: कम से अधिक",
         high_low: "कीमत: अधिक से कम",
+        newest: "नवीनतम आगमन",
+        best: "सबसे लोकप्रिय",
+        sort_by: "सॉर्ट करें:",
         ai_chat_title: "स्वैग स्त्री सहायता एआई",
         ai_chat_welcome: "नमस्ते! आज मैं आपकी क्या सहायता कर सकता हूँ?",
-        spin_wheel_title: "स्पिन करें और जीतें!",
+        spin_wheel_title: "स्पิน करें और जीतें!",
         spin_wheel_sub: "विशेष छूट पाने के लिए पहिया घुमाएं!",
         spin_btn: "घुमाएं",
         newsletter_title: "प्रीमियम स्वैग अनलॉक करें",
@@ -81,6 +87,9 @@ const I18N_DICTIONARY = {
         default_sorting: "Orden: Por defecto",
         low_high: "Precio: Bajo a Alto",
         high_low: "Precio: Alto a Bajo",
+        newest: "Recién Llegados",
+        best: "Más Vendidos",
+        sort_by: "Ordenar por:",
         ai_chat_title: "Soporte AI de Swag Stree",
         ai_chat_welcome: "¡Hola! ¿Cómo puedo ayudarte hoy?",
         spin_wheel_title: "¡Gira y Gana!",
@@ -297,12 +306,15 @@ let images360 = [];
 
 function open360Viewer(prodId) {
     const p = window.products ? window.products.find(x => x.id === prodId) : null;
-    if (!p || !p.images || p.images.length < 2) {
+    if (!p) return;
+    
+    const active360Img = window.getActive360Images ? window.getActive360Images(p) : (p.images || []);
+    if (!active360Img || active360Img.length < 2) {
         showToast("Add at least 2 product images to view in 360° mode.");
         return;
     }
     
-    images360 = p.images;
+    images360 = active360Img;
     currentIndex360 = 0;
     
     // Inject and open Modal
@@ -320,11 +332,13 @@ function open360Viewer(prodId) {
         modal.style.justifyContent = 'center';
         
         modal.innerHTML = `
-            <div style="position:absolute; top:20px; right:20px; font-size:24px; color:#fff; cursor:pointer;" onclick="close360Viewer()">&times;</div>
-            <h4 style="color:var(--gold); margin:0 0 10px 0; text-transform:uppercase; letter-spacing:1px;">Drag left/right to rotate</h4>
-            <div id="rotate-area" style="width:90%; max-width:400px; height:400px; background:#111; border:1px solid #333; border-radius:18px; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; cursor:grab;">
-                <img id="image-360-frame" style="width:100%; height:100%; object-fit:cover;" src="" draggable="false">
-                <div style="position:absolute; bottom:15px; background:rgba(0,0,0,0.6); padding:4px 10px; border-radius:15px; font-size:10px; color:#aaa;"><i class="fa fa-sync"></i> 360° MODE</div>
+            <div style="position:absolute; top:20px; right:20px; font-size:24px; color:#fff; cursor:pointer; z-index:1000;" onclick="close360Viewer()">&times;</div>
+            <h4 style="color:var(--gold); margin:0 0 10px 0; text-transform:uppercase; letter-spacing:1px; font-size:12px; font-weight:700;">Drag left/right to rotate</h4>
+            <div id="rotate-area" style="width:90vw; max-width:500px; height:70vh; max-height:500px; background:#000; border:1px solid #222; border-radius:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; cursor:grab;">
+                <img id="image-360-frame" style="width:100%; height:100%; object-fit:contain;" src="" draggable="false">
+                <button onclick="event.stopPropagation(); prev360Image();" style="position:absolute; left:15px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.6); border:1px solid rgba(255,215,0,0.3); color:#ffd700; width:40px; height:40px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; z-index:20; outline:none;"><i class="fa fa-chevron-left"></i></button>
+                <button onclick="event.stopPropagation(); next360Image();" style="position:absolute; right:15px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.6); border:1px solid rgba(255,215,0,0.3); color:#ffd700; width:40px; height:40px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; z-index:20; outline:none;"><i class="fa fa-chevron-right"></i></button>
+                <div style="position:absolute; bottom:15px; background:rgba(0,0,0,0.6); padding:4px 10px; border-radius:15px; font-size:10px; color:#ffd700; border:1px solid rgba(255,215,0,0.2);"><i class="fa fa-sync"></i> 360° MODE</div>
             </div>
         `;
         document.body.appendChild(modal);
@@ -351,6 +365,20 @@ function close360Viewer() {
     if (modal) modal.style.display = 'none';
 }
 window.close360Viewer = close360Viewer;
+
+function prev360Image() {
+    if (!images360 || images360.length === 0) return;
+    currentIndex360 = (currentIndex360 - 1 + images360.length) % images360.length;
+    update360Frame();
+}
+window.prev360Image = prev360Image;
+
+function next360Image() {
+    if (!images360 || images360.length === 0) return;
+    currentIndex360 = (currentIndex360 + 1) % images360.length;
+    update360Frame();
+}
+window.next360Image = next360Image;
 
 function update360Frame() {
     const imgEl = document.getElementById('image-360-frame');

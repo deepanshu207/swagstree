@@ -1783,3 +1783,31 @@ body {
     border-color: var(--gold);
 }
 
+/* Announcement Bell & Premium Sort Styles */
+#announcement-bell-btn:hover {
+    border-color: var(--gold) !important;
+    background: #1c1c0a !important;
+}
+#announcement-bell-btn:hover i {
+    color: #fff !important;
+}
+#sort-logic:hover {
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
+}
+@keyframes pulse-red-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(255, 71, 87, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+    }
+}
+#announcement-badge {
+    animation: pulse-red-glow 2s infinite;
+}
+
+
