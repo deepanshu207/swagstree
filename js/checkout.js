@@ -2580,7 +2580,7 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
         const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
         
         const itemsListTelegram = (orderData.items || []).map(i => {
-            const iStatus = i.status || newStatus || 'pending';
+            const iStatus = i.status || newStatus || 'placed';
             const iStatusLabel = ORDER_STATUSES.find(s => s.value === iStatus)?.label || iStatus;
             const trackingStr = i.trackingId ? `\n   ↳ 🚚 ${escapeHTML(i.courier || 'Courier')}: <code>${escapeHTML(i.trackingId)}</code>` : '';
             

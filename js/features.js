@@ -4,17 +4,17 @@
 
 // 1. DEFAULT FEATURE CONFIGURATION STATE
 window.APP_FEATURES = window.APP_FEATURES || {
-    threeSixtyViewer: true,
-    aiChatbot: true,
-    themeSwitcher: true,
-    multiLanguage: true,
-    announcementBar: true,
+    threeSixtyViewer: false,
+    aiChatbot: false,
+    themeSwitcher: false,
+    multiLanguage: false,
+    announcementBar: false,
     announcementBell: true,
     widgets: {
-        recentOrders: true,
-        discountWheel: true,
-        stockCountdown: true,
-        newsletterPopup: true
+        recentOrders: false,
+        discountWheel: false,
+        stockCountdown: false,
+        newsletterPopup: false
     },
     socialAuth: {
         google: true,
