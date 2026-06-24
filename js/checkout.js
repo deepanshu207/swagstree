@@ -2576,7 +2576,7 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
             return false;
         }
 
-        const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
+        const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus ? newStatus.charAt(0).toUpperCase() + newStatus.slice(1) : newStatus };
         const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
         
         const itemsListTelegram = (orderData.items || []).map(i => {
