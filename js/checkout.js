@@ -1124,7 +1124,8 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
          </div>` +
 
         `</div>`;
-
+    
+    let docId = '';
     const orderDoc = {
         orderId,
         uid: effectiveUid,
@@ -1214,10 +1215,12 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                 
                 // Add the order document
                 const newOrderRef = db.collection('orders').doc();
+                docId = newOrderRef.id;
                 transaction.set(newOrderRef, orderDoc);
             });
         } else {
-            await db.collection('orders').add(orderDoc);
+            const newOrderRef = await db.collection('orders').add(orderDoc);
+            docId = newOrderRef.id;
         }
         
         // --- STOCK DEDUCTION LOGIC ---
@@ -1321,6 +1324,22 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
             }
         } catch (mailErr) {
             console.error("Failed to send email via Brevo", mailErr);
+        }
+        
+        // --- AUTOMATIC TELEGRAM ORDER PLACED NOTIFICATION ---
+        try {
+            const telegramOk = await triggerTelegramNotification(orderDoc, docId, 'placed');
+            if (telegramOk) {
+                await db.collection('orders').doc(docId).set({
+                    notifications: {
+                        placed: {
+                            adminTelegramSent: true
+                        }
+                    }
+                }, { merge: true });
+            }
+        } catch (teleErr) {
+            console.error("Failed to automatically send Telegram order notification:", teleErr);
         }
         // ----------------------------
         showToast('Success! Order Placed.');
@@ -2572,7 +2591,8 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
             if (i.variantPattern && !i.variantPattern.startsWith('Design-')) specs.push(i.variantPattern);
             const specStr = specs.length > 0 ? ` (${specs.join(' • ')})` : '';
 
-            return `• <b>${escapeHTML(i.name)}</b>${escapeHTML(specStr)} (×${i.qty || 1}) - ${escapeHTML(iStatusLabel)}${trackingStr}`;
+            const itemSubtotal = (i.price || 0) * (i.qty || 1);
+            return `• <b>${escapeHTML(i.name)}</b>${escapeHTML(specStr)} (×${i.qty || 1}) - ₹${itemSubtotal} - ${escapeHTML(iStatusLabel)}${trackingStr}`;
         }).join('\n');
 
         let refundTelegram = '';
@@ -2585,6 +2605,17 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
             }
         }
 
+        let codAdvanceTelegram = '';
+        if (orderData.paymentMethod && orderData.paymentMethod.toLowerCase() === 'cod' && orderData.codMinAmount) {
+            codAdvanceTelegram = `\n⚖️ <b>COD Advance Required:</b> ₹${orderData.codMinAmount} (via UPI before delivery)`;
+        }
+
+        let discountTelegram = '';
+        if (orderData.discount && orderData.discount > 0) {
+            const promoStr = orderData.promoCode ? ` via code <code>${escapeHTML(orderData.promoCode)}</code>` : '';
+            discountTelegram = `\n🎟️ <b>Discount:</b> -₹${orderData.discount}${promoStr}`;
+        }
+
         const message = [
             `🛍️ <b>SWAG STREE — Order Update</b>`,
             ``,
@@ -2593,12 +2624,15 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
             ``,
             `👤 <b>Customer:</b> ${escapeHTML(orderData.recipient || 'N/A')}`,
             `📱 <b>Phone:</b> ${escapeHTML(orderData.phone || 'N/A')}`,
+            `📧 <b>Email:</b> ${escapeHTML(orderData.email || 'N/A')}`,
             `📍 <b>Address:</b> ${escapeHTML(orderData.address || 'N/A')}`,
             ``,
             `🧾 <b>Fulfillment Details & Items:</b>`,
             itemsListTelegram,
             ``,
-            `💰 <b>Total:</b> ₹${orderData.total || 0}${refundTelegram}`,
+            `💰 <b>Subtotal:</b> ₹${orderData.subtotal || orderData.total || 0}`,
+            discountTelegram,
+            `💵 <b>Grand Total:</b> ₹${orderData.total || 0}${refundTelegram}${codAdvanceTelegram}`,
             `💳 <b>Payment:</b> ${orderData.paymentMethod ? escapeHTML(orderData.paymentMethod.toUpperCase()) : 'N/A'}`,
         ].filter(line => line !== '').join('\n');
 
