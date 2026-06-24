@@ -1826,4 +1826,72 @@ body {
     animation: spin-360 1s linear infinite;
 }
 
+/* Typing indicator animation */
+@keyframes pulse-dot {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+}
 
+.typing-dot {
+    animation: pulse-dot 1s infinite;
+}
+
+/* Chat card responsiveness on mobile/tablet viewports */
+@media (max-width: 480px) {
+    .ai-chat-card {
+        bottom: 145px !important;
+        right: 15px !important;
+        left: 15px !important;
+        width: auto !important;
+        height: 65vh !important;
+        max-height: 450px !important;
+    }
+}
+
+
+/* Custom scrollbars for premium AI Chatbot */
+.ai-chat-body::-webkit-scrollbar {
+    width: 5px;
+}
+.ai-chat-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.15);
+}
+.ai-chat-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 215, 0, 0.25);
+    border-radius: 10px;
+}
+.ai-chat-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 215, 0, 0.5);
+}
+
+
+/* Mobile Header Responsiveness Overrides */
+@media (max-width: 480px) {
+    .brand {
+        display: none !important;
+    }
+    .logo-img {
+        margin-right: auto;
+        height: 28px;
+    }
+    .header {
+        padding: 8px 10px;
+        gap: 8px;
+    }
+    .social-tools {
+        gap: 10px;
+        padding-right: 8px;
+    }
+    .lang-select-container {
+        margin-right: 4px !important;
+    }
+    .lang-select {
+        padding: 2px 4px 2px 20px !important;
+        font-size: 10px !important;
+        height: 28px !important;
+    }
+    .lang-select-container .fa-language {
+        font-size: 12px !important;
+        left: 6px !important;
+    }
+}

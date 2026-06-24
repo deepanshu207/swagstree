@@ -353,7 +353,8 @@ function loadData() {
                 ...doc.data()
             });
         });
-        if (bell) bell.style.display = 'flex';
+        const isAnnBellEnabled = !window.APP_FEATURES || window.APP_FEATURES.announcementBell !== false;
+        if (bell) bell.style.display = isAnnBellEnabled ? 'flex' : 'none';
         updateAnnouncementBellUI();
     }, error => {
         console.error("Firestore announcements list load error:", error);
@@ -362,7 +363,31 @@ function loadData() {
 
 function renderStore() {
     renderProducts(products, 'product-grid');
-    renderProducts(products.filter(p => wishlist.includes(p.id)), 'wish-grid');
+    
+    const wishSortEl = document.getElementById('wish-sort-logic');
+    const sort = wishSortEl ? wishSortEl.value : 'none';
+    let wishProducts = products.filter(p => wishlist.includes(p.id));
+    
+    if (sort === 'low') wishProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+    if (sort === 'high') wishProducts.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+    if (sort === 'newest') {
+        wishProducts.sort((a, b) => {
+            const timeA = getProductTimestamp(a);
+            const timeB = getProductTimestamp(b);
+            if (timeA !== timeB) return timeB - timeA;
+            return b.id.localeCompare(a.id);
+        });
+    }
+    if (sort === 'best') {
+        wishProducts.sort((a, b) => {
+            const salesA = a.salesCount || (a.popularity || (a.name.length % 5) * 12);
+            const salesB = b.salesCount || (b.popularity || (b.name.length % 5) * 12);
+            if (salesA !== salesB) return salesB - salesA;
+            return a.name.localeCompare(b.name);
+        });
+    }
+    
+    renderProducts(wishProducts, 'wish-grid');
     if (typeof window.initHeroCarousel === 'function') window.initHeroCarousel();
 }
 
@@ -405,7 +430,8 @@ function productCardHtml(p) {
         }
     }
 
-    const has360 = !!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360));
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const has360 = is360Enabled && (!!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360)));
 
     let quickAddHtml = `<div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')" style="${isOutOfStock ? 'opacity:0.5; pointer-events:none;' : ''}">
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
@@ -623,9 +649,11 @@ function renderProducts(items, targetId) {
     } else if (targetId === 'wish-grid') {
         const loadMoreBtnContainer = document.getElementById('wish-load-more-container');
         const countContainer = document.getElementById('wish-count');
+        const sortLogicContainer = document.getElementById('wish-sort-logic-container');
 
         if (items.length === 0 && !window.productsLoaded) {
             if (countContainer) countContainer.style.display = 'none';
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             container.innerHTML = `
                 <div class="premium-loader-container">
@@ -657,6 +685,7 @@ function renderProducts(items, targetId) {
                 countContainer.innerHTML = '0 Items';
                 countContainer.style.display = 'inline-flex';
             }
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
         }
 
@@ -666,8 +695,8 @@ function renderProducts(items, targetId) {
             if (loadMoreBtnContainer) {
                 loadMoreBtnContainer.innerHTML = `
                 <div class="infinite-scroll-loader" data-target="wishlist" style="display:flex; justify-content:center; align-items:center; padding: 20px 0; gap: 8px; width: 100%;">
-                    <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
-                    <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
+                     <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
+                     <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
                 </div>`;
             }
         } else {
@@ -678,6 +707,9 @@ function renderProducts(items, targetId) {
             const visible = Math.min(items.length, displayedWishlistLimit);
             countContainer.innerHTML = `Showing ${visible} of ${items.length} Items`;
             countContainer.style.display = 'inline-flex';
+        }
+        if (sortLogicContainer) {
+            sortLogicContainer.style.display = 'flex';
         }
 
         container.innerHTML = itemsToRender.map(productCardHtml).join('');
@@ -1809,6 +1841,12 @@ function loadMoreProducts() {
         applySortAndFilter();
     }
 }
+
+function changeWishlistSort(val) {
+    displayedWishlistLimit = productsPageLimitSetting;
+    renderStore();
+}
+window.changeWishlistSort = changeWishlistSort;
 
 function loadMoreWishlist() {
     displayedWishlistLimit += productsPageLimitSetting;

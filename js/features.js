@@ -9,6 +9,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     themeSwitcher: true,
     multiLanguage: true,
     announcementBar: true,
+    announcementBell: true,
     widgets: {
         recentOrders: true,
         discountWheel: true,
@@ -203,6 +204,194 @@ window.selectTheme = selectTheme;
 
 // 4. FLOATING AI SUPPORT CHATBOT
 let chatHistory = [];
+
+function parseMarkdown(text) {
+    if (!text) return "";
+    let html = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+        
+    // Bold: **text** or __text__
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+    
+    // Italic: *text* or _text_
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+    
+    // Bullet points: list items starting with - or *
+    const lines = html.split('\n');
+    let inList = false;
+    const processedLines = lines.map(line => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+            const content = trimmed.substring(2);
+            let result = '';
+            if (!inList) {
+                result += '<ul style="margin: 4px 0; padding-left: 20px;">';
+                inList = true;
+            }
+            result += `<li>${content}</li>`;
+            return result;
+        } else {
+            let result = '';
+            if (inList) {
+                result += '</ul>';
+                inList = false;
+            }
+            return result + line;
+        }
+    });
+    if (inList) {
+        processedLines.push('</ul>');
+    }
+    
+    return processedLines.join('<br>');
+}
+
+function generateSystemPrompt(limitLength = false) {
+    let catalogContext = "";
+    if (window.products && window.products.length > 0) {
+        catalogContext = "Here is our product catalog:\n";
+        window.products.forEach((p, idx) => {
+            if (limitLength && idx >= 3) return;
+            const price = p.price;
+            const colors = p.sizes && p.sizeColorMap ? Object.values(p.sizeColorMap).flat() : [];
+            const uniqueColors = [...new Set(colors)].filter(Boolean).join(', ');
+            const uniqueSizes = p.sizes ? p.sizes.join(', ') : '';
+            catalogContext += `- Name: ${p.name}, Price: ₹${price}, Colors available: [${uniqueColors}], Sizes: [${uniqueSizes}]\n`;
+        });
+    } else {
+        catalogContext = "The catalog is currently empty.";
+    }
+
+    let cartContext = "";
+    if (window.cart && window.cart.length > 0) {
+        cartContext = "The user currently has these items in their cart:\n";
+        window.cart.forEach(item => {
+            cartContext += `- ${item.name} (Size: ${item.variantSize || 'Standard'}, Color: ${item.variantColorName || item.variantColor || 'None'}, Qty: ${item.qty})\n`;
+        });
+    } else {
+        cartContext = "The user's shopping cart is currently empty.";
+    }
+
+    return `You are "Swag Stree AI Support", a highly professional, helpful, and friendly fashion styling chatbot for the Swag Stree premium clothing e-commerce storefront.
+Your goal is to guide visitors, suggest outfits, answer sizing/styling questions, and help them find products.
+
+${catalogContext}
+
+${cartContext}
+
+IMPORTANT GUIDELINES:
+1. ALWAYS respond politely, briefly, and professionally. Keep responses within 2-3 concise paragraphs.
+2. Recommend products that are actually in the catalog, matching the user's styling or color query.
+3. If they ask about sizes or colors, check the catalog to see what colors and sizes are available for that specific item.
+4. If they ask to track or check order status, tell them they can view it under the 'Profile & Orders' tab at the top right of the page.
+5. If they ask for discounts/coupons, recommend using the code 'WELCOME10' for 10% off, or spinning the Discount Wheel on the screen.
+6. Use simple formatting (bullet points, bold text). Keep HTML/Markdown simple (e.g. **bold** or *italic*). Don't use complicated markdown.
+7. If the user asks about something completely unrelated to fashion, clothing, Swag Stree, or order help, politely bring the conversation back to how you can help them style their outfits.`;
+}
+
+async function getAIResponse() {
+    const contentSettings = window.APP_FEATURES_CONTENT || {};
+
+    if (contentSettings.chatbotEngine === 'gemini' && contentSettings.geminiApiKey) {
+        const systemPrompt = generateSystemPrompt(false);
+        const recentHistory = chatHistory.slice(-10);
+        const apiKey = contentSettings.geminiApiKey.trim();
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+        const contents = recentHistory.map(h => ({
+            role: h.sender === 'bot' ? 'model' : 'user',
+            parts: [{ text: h.text }]
+        }));
+
+        const body = {
+            contents: contents,
+            systemInstruction: {
+                parts: [{ text: systemPrompt }]
+            }
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch from Gemini API: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!replyText) {
+            throw new Error('Invalid or empty response structure from Gemini API');
+        }
+        return replyText.trim();
+    } else {
+        const systemPrompt = generateSystemPrompt(true);
+        const recentHistory = chatHistory.slice(-6); // Keep history slightly shorter for GET requests
+        let promptWithHistory = "";
+        recentHistory.forEach((h, index) => {
+            if (index === recentHistory.length - 1) {
+                promptWithHistory += h.text;
+            } else {
+                promptWithHistory += `${h.sender === 'bot' ? 'Assistant' : 'User'} says ${h.text}. `;
+            }
+        });
+
+        const url = `https://text.pollinations.ai/${encodeURIComponent(promptWithHistory)}?system=${encodeURIComponent(systemPrompt)}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch from Pollinations AI');
+        }
+
+        const text = await response.text();
+        return text.trim();
+    }
+}
+
+function appendTypingIndicator() {
+    const body = document.getElementById('ai-chat-body');
+    if (!body) return null;
+    
+    const div = document.createElement('div');
+    div.id = 'ai-chat-typing';
+    div.style.margin = '8px 0';
+    div.style.padding = '8px 12px';
+    div.style.borderRadius = '10px';
+    div.style.maxWidth = '85%';
+    div.style.fontSize = '12px';
+    div.style.background = 'var(--card)';
+    div.style.border = '1px solid var(--border)';
+    div.style.color = '#aaa';
+    div.style.alignSelf = 'flex-start';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '4px';
+    
+    div.innerHTML = `
+        <span style="font-weight:600;">AI is styling</span>
+        <span class="typing-dot" style="animation-delay: 0s;">.</span>
+        <span class="typing-dot" style="animation-delay: 0.2s;">.</span>
+        <span class="typing-dot" style="animation-delay: 0.4s;">.</span>
+    `;
+    
+    body.appendChild(div);
+    body.scrollTop = body.scrollHeight;
+    return div;
+}
+
+function removeTypingIndicator() {
+    const div = document.getElementById('ai-chat-typing');
+    if (div) div.remove();
+}
+
 function toggleAIChat() {
     const chatContainer = document.getElementById('ai-chat-box');
     if (!chatContainer) return;
@@ -232,51 +421,61 @@ function appendChatMessage(sender, text) {
         div.style.border = '1px solid var(--border)';
         div.style.color = 'var(--text-color, #fff)';
         div.style.alignSelf = 'flex-start';
+        div.innerHTML = parseMarkdown(text);
     } else {
         div.style.background = 'var(--gold)';
         div.style.color = '#000';
         div.style.alignSelf = 'flex-end';
         div.style.marginLeft = 'auto';
+        div.innerText = text;
     }
     
-    div.innerText = text;
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
     chatHistory.push({ sender, text });
 }
 
-function handleBotReply(text) {
-    // Simple Intelligent Matcher based on catalog
-    setTimeout(() => {
-        const query = text.toLowerCase();
-        let reply = "I'm not sure about that. Let me connect you with our main WhatsApp support team!";
-        
-        if (query.includes('hello') || query.includes('hi') || query.includes('hey')) {
-            reply = "Hello there! How can I help you find your perfect outfit today?";
-        } else if (query.includes('price') || query.includes('cost') || query.includes('how much')) {
-            // Find items matched
-            const matched = window.products ? window.products.filter(p => query.includes(p.name.toLowerCase())) : [];
-            if (matched.length > 0) {
-                reply = matched.map(p => `The price of ${p.name} is ₹${p.price}.`).join(' ');
-            } else {
-                reply = "Our standard sets range from ₹100 to ₹1500. Tell me which product you are looking at!";
-            }
-        } else if (query.includes('size') || query.includes('fit')) {
-            reply = "We offer sizes from S to XL! You can choose your size directly on the product's details page.";
-        } else if (query.includes('status') || query.includes('track') || query.includes('order')) {
-            reply = "You can view your order tracking details under 'Profile & Orders' tab at the top right of the page!";
-        } else if (query.includes('discount') || query.includes('offer') || query.includes('coupon') || query.includes('code')) {
-            reply = "Try spinning our Discount Wheel on the screen, or use code 'WELCOME10' to get 10% off!";
-        } else {
-            // General product listing search helper
-            const matched = window.products ? window.products.filter(p => p.name.toLowerCase().split(' ').some(w => query.includes(w))) : [];
-            if (matched.length > 0) {
-                reply = `We found matching items: ${matched.slice(0, 3).map(p => p.name).join(', ')}. Check them out in the grid!`;
-            }
-        }
-        
+async function handleBotReply(text) {
+    const typingIndicator = appendTypingIndicator();
+    
+    try {
+        const reply = await getAIResponse();
+        removeTypingIndicator();
         appendChatMessage('bot', reply);
-    }, 800);
+    } catch (error) {
+        console.error("Chatbot API Error, falling back to pattern matcher:", error);
+        removeTypingIndicator();
+        
+        // Dynamic resilient local fallback
+        setTimeout(() => {
+            const query = text.toLowerCase();
+            let reply = "I'm not sure about that. Let me connect you with our main WhatsApp support team!";
+            
+            if (query.includes('hello') || query.includes('hi') || query.includes('hey')) {
+                reply = "Hello there! How can I help you find your perfect outfit today?";
+            } else if (query.includes('price') || query.includes('cost') || query.includes('how much')) {
+                const matched = window.products ? window.products.filter(p => query.includes(p.name.toLowerCase())) : [];
+                if (matched.length > 0) {
+                    reply = matched.map(p => `The price of ${p.name} is ₹${p.price}.`).join(' ');
+                } else {
+                    reply = "Our standard sets range from ₹100 to ₹1500. Tell me which product you are looking at!";
+                }
+            } else if (query.includes('size') || query.includes('fit')) {
+                reply = "We offer sizes from S to XL! You can choose your size directly on the product's details page.";
+            } else if (query.includes('status') || query.includes('track') || query.includes('order')) {
+                reply = "You can view your order tracking details under 'Profile & Orders' tab at the top right of the page!";
+            } else if (query.includes('discount') || query.includes('offer') || query.includes('coupon') || query.includes('code')) {
+                reply = "Try spinning our Discount Wheel on the screen, or use code 'WELCOME10' to get 10% off!";
+            } else {
+                const matched = window.products ? window.products.filter(p => p.name.toLowerCase().split(' ').some(w => query.includes(w))) : [];
+                if (matched.length > 0) {
+                    reply = `We found matching items: ${matched.slice(0, 3).map(p => p.name).join(', ')}. Check them out in the grid!`;
+                }
+            }
+            
+            appendChatMessage('bot', reply);
+        }, 500);
+    }
 }
 window.handleBotReply = handleBotReply;
 
@@ -297,6 +496,7 @@ function sendChatMessage() {
     handleBotReply(text);
 }
 window.sendChatMessage = sendChatMessage;
+
 
 // 5. 360-DEGREE PRODUCT ROTATE VIEWER
 let images360 = [];
@@ -1059,16 +1259,64 @@ function applyFeatureTogglesUI() {
         langWrap.style.display = config.multiLanguage ? 'block' : 'none';
     }
     
-    // Announcement Bar
+    // Announcement Bar & Bell Icon
     const annBar = document.getElementById('announcement-bar');
     if (annBar) {
-        annBar.style.display = config.announcementBar ? 'block' : 'none';
+        annBar.style.display = config.announcementBar !== false ? 'block' : 'none';
+    }
+    const bellBtn = document.getElementById('announcement-bell-btn');
+    if (bellBtn) {
+        bellBtn.style.display = config.announcementBell !== false ? 'flex' : 'none';
     }
     
     // Discount Wheel
     const spinBtn = document.getElementById('spin-trigger-btn');
     if (spinBtn) {
         spinBtn.style.display = (config.widgets && config.widgets.discountWheel) ? 'grid' : 'none';
+    }
+
+    // Admin 360 Viewer Controls
+    const is360Enabled = !!config.threeSixtyViewer;
+    const admin360Container = document.getElementById('m-is360-container');
+    if (admin360Container) {
+        admin360Container.style.display = is360Enabled ? 'flex' : 'none';
+    }
+    const admin360Grid = document.getElementById('m-360-grid-settings');
+    if (admin360Grid) {
+        if (!is360Enabled) {
+            admin360Grid.style.display = 'none';
+        } else {
+            const mIs360 = document.getElementById('m-is360');
+            admin360Grid.style.display = (mIs360 && mIs360.checked) ? 'flex' : 'none';
+        }
+    }
+    if (typeof renderVariantBlocks === 'function' && document.getElementById('m-variants-container')) {
+        renderVariantBlocks();
+    }
+
+    // Sync Superadmin panel checkboxes/inputs reactively
+    if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) {
+        const themeSel = document.getElementById('super-theme-select');
+        if (themeSel) themeSel.value = config.themePreset || 'outlaw';
+        if (config.customColors) {
+            if (document.getElementById('picker-bg')) document.getElementById('picker-bg').value = config.customColors.bg || '#000000';
+            if (document.getElementById('picker-card')) document.getElementById('picker-card').value = config.customColors.card || '#111111';
+            if (document.getElementById('picker-gold')) document.getElementById('picker-gold').value = config.customColors.gold || '#ffd700';
+            if (document.getElementById('picker-border')) document.getElementById('picker-border').value = config.customColors.border || '#222222';
+            if (document.getElementById('picker-accent')) document.getElementById('picker-accent').value = config.customColors.accent || '#ffd700';
+            if (document.getElementById('picker-text')) document.getElementById('picker-text').value = config.customColors.text || '#ffffff';
+        }
+        if (document.getElementById('toggle-ai-chat')) document.getElementById('toggle-ai-chat').checked = !!config.aiChatbot;
+        if (document.getElementById('toggle-360-viewer')) document.getElementById('toggle-360-viewer').checked = !!config.threeSixtyViewer;
+        if (document.getElementById('toggle-theme-picker')) document.getElementById('toggle-theme-picker').checked = !!config.themeSwitcher;
+        if (document.getElementById('toggle-language')) document.getElementById('toggle-language').checked = !!config.multiLanguage;
+        if (document.getElementById('toggle-announcement')) document.getElementById('toggle-announcement').checked = config.announcementBar !== false;
+        if (document.getElementById('toggle-announcement-bell')) document.getElementById('toggle-announcement-bell').checked = config.announcementBell !== false;
+        if (config.widgets) {
+            if (document.getElementById('toggle-discount-wheel')) document.getElementById('toggle-discount-wheel').checked = !!config.widgets.discountWheel;
+            if (document.getElementById('toggle-recent-orders')) document.getElementById('toggle-recent-orders').checked = !!config.widgets.recentOrders;
+            if (document.getElementById('toggle-newsletter')) document.getElementById('toggle-newsletter').checked = !!config.widgets.newsletterPopup;
+        }
     }
 }
 window.applyFeatureTogglesUI = applyFeatureTogglesUI;

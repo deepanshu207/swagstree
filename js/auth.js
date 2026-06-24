@@ -1623,6 +1623,7 @@ async function loadSuperadminFeatures() {
             if (document.getElementById('toggle-theme-picker')) document.getElementById('toggle-theme-picker').checked = !!data.themeSwitcher;
             if (document.getElementById('toggle-language')) document.getElementById('toggle-language').checked = !!data.multiLanguage;
             if (document.getElementById('toggle-announcement')) document.getElementById('toggle-announcement').checked = !!data.announcementBar;
+            if (document.getElementById('toggle-announcement-bell')) document.getElementById('toggle-announcement-bell').checked = data.announcementBell !== false;
             
             if (data.widgets) {
                 if (document.getElementById('toggle-discount-wheel')) document.getElementById('toggle-discount-wheel').checked = !!data.widgets.discountWheel;
@@ -1661,6 +1662,7 @@ async function saveSuperadminFeatures() {
         themeSwitcher: !!document.getElementById('toggle-theme-picker')?.checked,
         multiLanguage: !!document.getElementById('toggle-language')?.checked,
         announcementBar: !!document.getElementById('toggle-announcement')?.checked,
+        announcementBell: !!document.getElementById('toggle-announcement-bell')?.checked,
         widgets: {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
@@ -1679,6 +1681,14 @@ async function saveSuperadminFeatures() {
 window.saveSuperadminFeatures = saveSuperadminFeatures;
 
 // ── Admin Storefront Content Toggles ──────────────────────────────────────────
+function toggleGeminiKeyVisibility(engine) {
+    const container = document.getElementById('admin-gemini-key-container');
+    if (container) {
+        container.style.display = (engine === 'gemini') ? 'flex' : 'none';
+    }
+}
+window.toggleGeminiKeyVisibility = toggleGeminiKeyVisibility;
+
 async function loadAdminFeatureContent() {
     try {
         const snap = await db.collection("settings").doc("features_content").get();
@@ -1689,6 +1699,15 @@ async function loadAdminFeatureContent() {
             if (document.getElementById('admin-bot-chips')) document.getElementById('admin-bot-chips').value = data.chatbotChips || '';
             if (document.getElementById('admin-newsletter-delay')) document.getElementById('admin-newsletter-delay').value = data.newsletterDelay || 5;
             if (document.getElementById('admin-wheel-jackpot')) document.getElementById('admin-wheel-jackpot').value = data.wheelJackpotCode || '';
+            
+            const engine = data.chatbotEngine || 'pollinations';
+            if (document.getElementById('admin-chatbot-engine')) {
+                document.getElementById('admin-chatbot-engine').value = engine;
+            }
+            if (document.getElementById('admin-gemini-key')) {
+                document.getElementById('admin-gemini-key').value = data.geminiApiKey || '';
+            }
+            toggleGeminiKeyVisibility(engine);
         }
     } catch(e) {
         console.error("loadAdminFeatureContent error:", e);
@@ -1702,7 +1721,9 @@ async function saveAdminFeatureContent() {
         chatbotWelcome: document.getElementById('admin-bot-welcome')?.value || '',
         chatbotChips: document.getElementById('admin-bot-chips')?.value || '',
         newsletterDelay: parseInt(document.getElementById('admin-newsletter-delay')?.value || '5', 10),
-        wheelJackpotCode: document.getElementById('admin-wheel-jackpot')?.value || ''
+        wheelJackpotCode: document.getElementById('admin-wheel-jackpot')?.value || '',
+        chatbotEngine: document.getElementById('admin-chatbot-engine')?.value || 'pollinations',
+        geminiApiKey: document.getElementById('admin-gemini-key')?.value || ''
     };
     
     try {

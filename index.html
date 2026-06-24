@@ -99,8 +99,11 @@
         <div class="filter-group">
             <label class="filter-section-title">Sort Options</label>
             <div class="select-wrapper" style="position:relative; margin:0;">
-                <i class="fa fa-sort" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:11px; pointer-events:none; z-index:10;"></i>
-                <select id="sort-logic-filter" class="premium-select" style="padding: 6px 12px 6px 28px; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; width:100%; height:34px; cursor:pointer;" onchange="changeSortLogic(this.value, 'filter')">
+                <i class="fa fa-sort"
+                    style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:11px; pointer-events:none; z-index:10;"></i>
+                <select id="sort-logic-filter" class="premium-select"
+                    style="padding: 6px 12px 6px 28px; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; width:100%; height:34px; cursor:pointer;"
+                    onchange="changeSortLogic(this.value, 'filter')">
                     <option value="none" data-i18n="default_sorting">Default Sorting</option>
                     <option value="low" data-i18n="low_high">Price: Low to High</option>
                     <option value="high" data-i18n="high_low">Price: High to Low</option>
@@ -184,9 +187,12 @@
         </div>
 
         <!-- Language Switcher -->
-        <div class="lang-select-container" id="lang-selector-wrap" style="display:none; position:relative; margin-right:10px;">
-            <i class="fa fa-language" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:14px; pointer-events:none; z-index:10;"></i>
-            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select" style="padding: 4px 8px 4px 24px; border: 1px solid #333; background: #111; color: #fff; border-radius: 8px; font-size: 11px; height: 30px; cursor: pointer; transition: border-color 0.2s; outline:none;">
+        <div class="lang-select-container" id="lang-selector-wrap"
+            style="display:none; position:relative; margin-right:10px;">
+            <i class="fa fa-language"
+                style="position:absolute; left:8px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:14px; pointer-events:none; z-index:10;"></i>
+            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select"
+                style="padding: 4px 8px 4px 24px; border: 1px solid #333; background: #111; color: #fff; border-radius: 8px; font-size: 11px; height: 30px; cursor: pointer; transition: border-color 0.2s; outline:none;">
                 <option value="en">🇬🇧 EN</option>
                 <option value="hi">🇮🇳 HI</option>
                 <option value="es">🇪🇸 ES</option>
@@ -205,8 +211,10 @@
         <!-- Top Hero Carousel Banner -->
         <div id="home-hero-carousel-wrapper" class="hero-carousel-container" style="display:none; margin-top: 15px;">
             <div id="home-hero-carousel-slides" class="hero-carousel-slides"></div>
-            <button class="hero-carousel-arrow prev" onclick="moveHeroCarousel(-1)"><i class="fa fa-chevron-left"></i></button>
-            <button class="hero-carousel-arrow next" onclick="moveHeroCarousel(1)"><i class="fa fa-chevron-right"></i></button>
+            <button class="hero-carousel-arrow prev" onclick="moveHeroCarousel(-1)"><i
+                    class="fa fa-chevron-left"></i></button>
+            <button class="hero-carousel-arrow next" onclick="moveHeroCarousel(1)"><i
+                    class="fa fa-chevron-right"></i></button>
             <div id="home-hero-carousel-dots" class="hero-carousel-dots"></div>
         </div>
 
@@ -218,23 +226,31 @@
                 <input type="password" name="password" tabindex="-1">
             </div>
             <input type="text" id="app_search" placeholder="Search products..." oninput="searchHandler()"
-                autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');" data-i18n="search_placeholder">
+                autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');"
+                data-i18n="search_placeholder">
         </div>
-        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:nowrap; width:100%; box-sizing:border-box;">
-            <span id="product-count" class="count-badge" style="display:none; margin-bottom:0; font-size:10px; font-weight:700; color:#aaa; background:none; border:none; padding:0; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; flex-shrink:1;"></span>
-            
+        <div
+            style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:nowrap; width:100%; box-sizing:border-box;">
+            <span id="product-count" class="count-badge"
+                style="display:none; margin-bottom:0; font-size:10px; font-weight:700; color:#aaa; background:none; border:none; padding:0; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; flex-shrink:1;"></span>
+
             <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                 <!-- Announcement Megaphone Button -->
-                <div id="announcement-bell-btn" onclick="openAnnouncementModal()" style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
+                <div id="announcement-bell-btn" onclick="openAnnouncementModal()"
+                    style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
                     <i class="fa fa-bullhorn" style="color:#777; font-size:12px; opacity:0.6;"></i>
-                    <span id="announcement-badge" style="display:none; position:absolute; top:-2px; right:-2px; width:7px; height:7px; border-radius:50%; background:#ff4757; box-shadow:0 0 6px #ff4757;"></span>
+                    <span id="announcement-badge"
+                        style="display:none; position:absolute; top:-2px; right:-2px; width:7px; height:7px; border-radius:50%; background:#ff4757; box-shadow:0 0 6px #ff4757;"></span>
                 </div>
 
                 <!-- Sort Container -->
                 <div id="sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
                     <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
-                        <i class="fa fa-sort" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
-                        <select id="sort-logic" class="premium-select" style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;" onchange="changeSortLogic(this.value, 'main')">
+                        <i class="fa fa-sort"
+                            style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
+                        <select id="sort-logic" class="premium-select"
+                            style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;"
+                            onchange="changeSortLogic(this.value, 'main')">
                             <option value="none" data-i18n="default_sorting">Default Sorting</option>
                             <option value="low" data-i18n="low_high">Price: Low to High</option>
                             <option value="high" data-i18n="high_low">Price: High to Low</option>
@@ -300,8 +316,24 @@
     <!-- SECTION: Wishlist -->
     <div id="wish-view" class="section">
         <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
-        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between;">
-            <span id="wish-count" class="count-badge" style="display:none;">0 Items</span>
+        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:nowrap; width:100%; box-sizing:border-box;">
+            <span id="wish-count" class="count-badge" style="display:none; margin-bottom:0; font-size:10px; font-weight:700; color:#aaa; background:none; border:none; padding:0; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; flex-shrink:1;">0 Items</span>
+            
+            <div id="wish-sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
+                <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
+                    <i class="fa fa-sort"
+                        style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
+                    <select id="wish-sort-logic" class="premium-select"
+                        style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;"
+                        onchange="changeWishlistSort(this.value)">
+                        <option value="none" data-i18n="default_sorting">Default Sorting</option>
+                        <option value="low" data-i18n="low_high">Price: Low to High</option>
+                        <option value="high" data-i18n="high_low">Price: High to Low</option>
+                        <option value="newest" data-i18n="newest">Newest Arrivals</option>
+                        <option value="best" data-i18n="best">Best Selling</option>
+                    </select>
+                </div>
+            </div>
         </div>
         <div id="wish-grid" class="grid"></div>
         <div id="wish-load-more-container" style="text-align:center; padding: 20px 0 30px 0;"></div>
@@ -482,39 +514,56 @@
             <!-- Linked Accounts / Login Options -->
             <div class="profile-section" id="profile-linking-section">
                 <h4 class="section-label"><i class="fa fa-link"></i> Sign-in Methods</h4>
-                <p style="font-size:12px; color:#888; margin:0 0 12px;">Link both Google and Email/Password to log in using either method.</p>
-                
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">Link both Google and Email/Password to log in
+                    using either method.</p>
+
                 <!-- Google Link Status -->
-                <div id="link-google-status" style="display:flex; justify-content:space-between; align-items:center; background:#111; padding:12px; border-radius:10px; margin-bottom:10px; border:1px solid #222;">
-                    <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i class="fab fa-google" style="color:#db4437;"></i> Google Account</span>
+                <div id="link-google-status"
+                    style="display:flex; justify-content:space-between; align-items:center; background:#111; padding:12px; border-radius:10px; margin-bottom:10px; border:1px solid #222;">
+                    <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i
+                            class="fab fa-google" style="color:#db4437;"></i> Google Account</span>
                     <span id="link-google-btn-container"></span>
                 </div>
                 <!-- Email Link Status -->
-                <div id="link-email-status" style="display:flex; flex-direction:column; background:#111; padding:12px; border-radius:10px; border:1px solid #222;">
+                <div id="link-email-status"
+                    style="display:flex; flex-direction:column; background:#111; padding:12px; border-radius:10px; border:1px solid #222;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i class="fa fa-envelope" style="color:var(--gold);"></i> Email & Password Login</span>
+                        <span style="font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;"><i
+                                class="fa fa-envelope" style="color:var(--gold);"></i> Email & Password Login</span>
                         <span id="link-email-btn-container"></span>
                     </div>
 
                     <!-- Form to add Password (shown if Google user wants to enable email/password) -->
-                    <div id="link-email-form" style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
-                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Set Password for Email Login</label>
-                        <input id="link-email-password" type="password" placeholder="Min 6 characters" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
-                        <button class="btn-gold" onclick="linkEmailPassword()" style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Enable Email Login</button>
+                    <div id="link-email-form"
+                        style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Set Password for
+                            Email Login</label>
+                        <input id="link-email-password" type="password" placeholder="Min 6 characters"
+                            style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+                        <button class="btn-gold" onclick="linkEmailPassword()"
+                            style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Enable Email Login</button>
                     </div>
 
                     <!-- Form to change Password (shown if user wants to update their existing password) -->
-                    <div id="change-password-form" style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
-                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Current Password</label>
-                        <input id="prof-pass-current" type="password" placeholder="Your current password" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
-                        
-                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">New Password</label>
-                        <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
-                        
-                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Confirm New Password</label>
-                        <input id="prof-pass-confirm" type="password" placeholder="Confirm new password" style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
-                        
-                        <button class="btn-gold" onclick="changePassword()" style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Change Password</button>
+                    <div id="change-password-form"
+                        style="display:none; margin-top:12px; border-top:1px dashed #333; padding-top:12px;">
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Current
+                            Password</label>
+                        <input id="prof-pass-current" type="password" placeholder="Your current password"
+                            style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">New
+                            Password</label>
+                        <input id="prof-pass-new" type="password" placeholder="New password (min 6 characters)"
+                            style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+
+                        <label class="field-label" style="font-size:10px; text-transform:uppercase;">Confirm New
+                            Password</label>
+                        <input id="prof-pass-confirm" type="password" placeholder="Confirm new password"
+                            style="font-size:12px; padding:10px; margin-bottom:8px; background:#1a1a1a; border:1px solid #333; color:#fff; border-radius:8px; box-sizing:border-box;">
+
+                        <button class="btn-gold" onclick="changePassword()"
+                            style="font-size:11px; padding:8px 12px; width:auto; margin:0;">Change Password</button>
                     </div>
                 </div>
             </div>
@@ -766,39 +815,73 @@
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                 <i class="fa fa-sliders" style="color:var(--gold); font-size:15px;"></i>
                 <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set announcement bar text, chatbot messages, and promotional settings</p>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization
+                    </h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set announcement bar text, chatbot messages,
+                        and promotional settings</p>
                 </div>
             </div>
-            
-            <div style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
+
+            <div
+                style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Marquee Announcement Message</span>
-                    <input id="admin-announcement-text" type="text" style="margin:0; font-size:12px;" placeholder="e.g. 🚚 FREE SHIPPING ON ORDERS ABOVE ₹999!">
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Marquee Announcement
+                        Message</span>
+                    <input id="admin-announcement-text" type="text" style="margin:0; font-size:12px;"
+                        placeholder="e.g. 🚚 FREE SHIPPING ON ORDERS ABOVE ₹999!">
                 </div>
 
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Welcome Message</span>
-                    <input id="admin-bot-welcome" type="text" style="margin:0; font-size:12px;" placeholder="e.g. Hi! How can I help you style your day today?">
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Welcome
+                        Message</span>
+                    <input id="admin-bot-welcome" type="text" style="margin:0; font-size:12px;"
+                        placeholder="e.g. Hi! How can I help you style your day today?">
                 </div>
 
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Reply Chips (Comma-separated)</span>
-                    <input id="admin-bot-chips" type="text" style="margin:0; font-size:12px;" placeholder="e.g. Best Sellers, Get Discount, Size Guide, Track Order">
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Reply Chips
+                        (Comma-separated)</span>
+                    <input id="admin-bot-chips" type="text" style="margin:0; font-size:12px;"
+                        placeholder="e.g. Best Sellers, Get Discount, Size Guide, Track Order">
                 </div>
 
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <div style="flex:1; min-width:140px;">
-                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Newsletter Popup Delay (seconds)</span>
-                        <input id="admin-newsletter-delay" type="number" min="1" value="5" style="margin:0; font-size:12px;">
+                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot
+                            Engine</span>
+                        <select id="admin-chatbot-engine"
+                            style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px; width:100%;"
+                            onchange="toggleGeminiKeyVisibility(this.value)">
+                            <option value="pollinations">Pollinations AI (Keyless)</option>
+                            <option value="gemini">Google Gemini (API Key required)</option>
+                        </select>
                     </div>
-                    <div style="flex:1; min-width:140px;">
-                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Spin Wheel Jackpot Code</span>
-                        <input id="admin-wheel-jackpot" type="text" style="margin:0; font-size:12px;" placeholder="e.g. SWAGJACKPOT">
+                    <div id="admin-gemini-key-container" style="flex:1; min-width:140px; display:none;">
+                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Gemini API
+                            Key</span>
+                        <input id="admin-gemini-key" type="password" style="margin:0; font-size:12px;"
+                            placeholder="e.g. AIzaSy...">
                     </div>
                 </div>
 
-                <button class="btn-gold" style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:5px;" onclick="saveAdminFeatureContent()">Save Storefront Content</button>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:140px;">
+                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Newsletter Popup
+                            Delay (seconds)</span>
+                        <input id="admin-newsletter-delay" type="number" min="1" value="5"
+                            style="margin:0; font-size:12px;">
+                    </div>
+                    <div style="flex:1; min-width:140px;">
+                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Spin Wheel Jackpot
+                            Code</span>
+                        <input id="admin-wheel-jackpot" type="text" style="margin:0; font-size:12px;"
+                            placeholder="e.g. SWAGJACKPOT">
+                    </div>
+                </div>
+
+                <button class="btn-gold"
+                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:5px;"
+                    onclick="saveAdminFeatureContent()">Save Storefront Content</button>
             </div>
         </div>
 
@@ -1156,19 +1239,23 @@
         <div id="admin-announcement-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <!-- Accordion Header -->
-            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="toggleAnnouncementAccordion()">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
+                onclick="toggleAnnouncementAccordion()">
                 <div style="display:flex; align-items:center; gap:10px;">
                     <i class="fa fa-bullhorn" style="color:var(--gold); font-size:15px;"></i>
                     <div>
                         <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Global Announcements</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage instant announcements with Cloudinary images for storefront visitors</p>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage instant announcements with
+                            Cloudinary images for storefront visitors</p>
                     </div>
                 </div>
-                <i id="announcement-accordion-icon" class="fa fa-chevron-down" style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg);"></i>
+                <i id="announcement-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg);"></i>
             </div>
-            
+
             <!-- Accordion Content (Collapsed by default) -->
-            <div id="announcement-accordion-content" style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
+            <div id="announcement-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
                 <div
                     style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
                     <div style="display:flex; flex-direction:column; gap:4px;">
@@ -1179,29 +1266,39 @@
                     <div style="display:flex; flex-direction:column; gap:4px;">
                         <span style="font-size:11px; color:#aaa;">Announcement Image</span>
                         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                            <label for="admin-announcement-file" style="display:inline-block; padding:8px 16px; background:#222; border:1px dashed #555; color:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; transition:all 0.2s;">
-                                <i class="fa fa-cloud-upload-alt" style="margin-right:4px;"></i> Upload Image to Cloudinary
+                            <label for="admin-announcement-file"
+                                style="display:inline-block; padding:8px 16px; background:#222; border:1px dashed #555; color:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; transition:all 0.2s;">
+                                <i class="fa fa-cloud-upload-alt" style="margin-right:4px;"></i> Upload Images
                             </label>
-                            <input type="file" id="admin-announcement-file" accept="image/*" style="display:none;" onchange="handleAnnouncementFileUpload(this)">
-                            
-                            <div id="admin-announcement-image-preview-container" style="display:none; align-items:center; gap:8px; background:#111; padding:4px 8px; border-radius:6px; border:1px solid #333;">
-                                <img id="admin-announcement-image-preview" src="" style="width:30px; height:30px; object-fit:cover; border-radius:4px;">
-                                <span style="font-size:10px; color:#ff4757; cursor:pointer; font-weight:700;" onclick="removeAnnouncementImage()">Remove</span>
+                            <input type="file" id="admin-announcement-file" accept="image/*" style="display:none;"
+                                onchange="handleAnnouncementFileUpload(this)">
+
+                            <div id="admin-announcement-image-preview-container"
+                                style="display:none; align-items:center; gap:8px; background:#111; padding:4px 8px; border-radius:6px; border:1px solid #333;">
+                                <img id="admin-announcement-image-preview" src=""
+                                    style="width:30px; height:30px; object-fit:cover; border-radius:4px;">
+                                <span style="font-size:10px; color:#ff4757; cursor:pointer; font-weight:700;"
+                                    onclick="removeAnnouncementImage()">Remove</span>
                             </div>
                             <input type="hidden" id="admin-announcement-image" value="">
                         </div>
                     </div>
                     <div style="display:flex; gap:10px; margin-top:5px;">
-                        <button id="admin-announcement-pub-btn" class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px;"
+                        <button id="admin-announcement-pub-btn" class="btn-gold"
+                            style="width:auto; padding:10px 20px; font-size:12px;"
                             onclick="publishAnnouncement()">Publish</button>
-                        <button id="admin-announcement-cancel-btn" class="btn-gold" style="display:none; width:auto; padding:10px 20px; font-size:12px; background:#222; border:1px solid #444; color:#aaa;"
+                        <button id="admin-announcement-cancel-btn" class="btn-gold"
+                            style="display:none; width:auto; padding:10px 20px; font-size:12px; background:#222; border:1px solid #444; color:#aaa;"
                             onclick="cancelAnnouncementEdit()">Cancel Edit</button>
                     </div>
                 </div>
-                
+
                 <div style="margin-top:15px; border-top:1px solid #222; padding-top:12px;">
-                    <h5 style="margin:0 0 10px; font-size:11px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Active Announcements List</h5>
-                    <div id="admin-announcements-list" style="display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; padding-right:4px;">
+                    <h5
+                        style="margin:0 0 10px; font-size:11px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                        Active Announcements List</h5>
+                    <div id="admin-announcements-list"
+                        style="display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; padding-right:4px;">
                         <!-- Rendered active announcements list cards -->
                     </div>
                 </div>
@@ -1245,16 +1342,20 @@
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                 <i class="fa fa-palette" style="color:var(--gold); font-size:15px;"></i>
                 <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Theme Customization & Core Features</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Select theme presets, custom hex-code colors, and toggle advanced storefront modules</p>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Theme Customization & Core
+                        Features</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Select theme presets, custom hex-code colors,
+                        and toggle advanced storefront modules</p>
                 </div>
             </div>
-            
-            <div style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
+
+            <div
+                style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
                 <!-- Theme selection -->
                 <div style="display:flex; flex-direction:column; gap:4px;">
                     <span style="font-size:11px; color:#aaa; font-weight:700;">Theme Preset</span>
-                    <select id="super-theme-select" onchange="toggleCustomColorPickers(this.value)" style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px;">
+                    <select id="super-theme-select" onchange="toggleCustomColorPickers(this.value)"
+                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px;">
                         <option value="outlaw">Outlaw Gold & Dark (Default)</option>
                         <option value="midnight">Midnight Cyan & Purple</option>
                         <option value="emerald">Emerald Green & Gold</option>
@@ -1265,32 +1366,39 @@
                 </div>
 
                 <!-- Custom Hex Color Pickers -->
-                <div id="super-custom-colors-row" style="display:none; flex-direction:column; gap:10px; border-top:1px dashed #333; padding-top:10px; margin-top:5px;">
+                <div id="super-custom-colors-row"
+                    style="display:none; flex-direction:column; gap:10px; border-top:1px dashed #333; padding-top:10px; margin-top:5px;">
                     <span style="font-size:11px; color:var(--gold); font-weight:700;">Custom Hex Color Pickers</span>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:10px;">
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:10px; color:#aaa;">Background Color</span>
-                            <input type="color" id="picker-bg" style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
+                            <input type="color" id="picker-bg"
+                                style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
                         </div>
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:10px; color:#aaa;">Card Background</span>
-                            <input type="color" id="picker-card" style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
+                            <input type="color" id="picker-card"
+                                style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
                         </div>
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:10px; color:#aaa;">Gold / Primary</span>
-                            <input type="color" id="picker-gold" style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
+                            <input type="color" id="picker-gold"
+                                style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
                         </div>
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:10px; color:#aaa;">Border Color</span>
-                            <input type="color" id="picker-border" style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
+                            <input type="color" id="picker-border"
+                                style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
                         </div>
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:10px; color:#aaa;">Accent Glow</span>
-                            <input type="color" id="picker-accent" style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
+                            <input type="color" id="picker-accent"
+                                style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
                         </div>
                         <div style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:10px; color:#aaa;">Text Color</span>
-                            <input type="color" id="picker-text" style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
+                            <input type="color" id="picker-text"
+                                style="width:100%; height:32px; border:1px solid #444; border-radius:6px; cursor:pointer; background:none; padding:0;">
                         </div>
                     </div>
                 </div>
@@ -1298,35 +1406,59 @@
                 <div style="height:1px; background:#333; margin:5px 0;"></div>
 
                 <!-- Feature Master Toggles -->
-                <span style="font-size:11px; color:#aaa; font-weight:700; display:block; margin-bottom:5px;">Master Modules Control</span>
+                <span style="font-size:11px; color:#aaa; font-weight:700; display:block; margin-bottom:5px;">Master
+                    Modules Control</span>
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-ai-chat" style="margin:0; width:16px; height:16px;"> AI Support Chatbot
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-ai-chat" style="margin:0; width:16px; height:16px;"> AI
+                        Support Chatbot
                     </label>
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-360-viewer" style="margin:0; width:16px; height:16px;"> 360° Product Viewer
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-360-viewer" style="margin:0; width:16px; height:16px;"> 360°
+                        Product Viewer
                     </label>
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-theme-picker" style="margin:0; width:16px; height:16px;"> Visitor Theme Switcher
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-theme-picker" style="margin:0; width:16px; height:16px;">
+                        Visitor Theme Switcher
                     </label>
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-language" style="margin:0; width:16px; height:16px;"> Language Switcher
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-language" style="margin:0; width:16px; height:16px;"> Language
+                        Switcher
                     </label>
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-announcement" style="margin:0; width:16px; height:16px;"> Announcement Marquee
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-announcement" style="margin:0; width:16px; height:16px;">
+                        Announcement Marquee
                     </label>
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-discount-wheel" style="margin:0; width:16px; height:16px;"> Spin Wheel Widget
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-announcement-bell" style="margin:0; width:16px; height:16px;">
+                        Announcement Bell Icon
                     </label>
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-recent-orders" style="margin:0; width:16px; height:16px;"> Recent Activity Proof
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-discount-wheel" style="margin:0; width:16px; height:16px;">
+                        Spin Wheel Widget
                     </label>
-                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-newsletter" style="margin:0; width:16px; height:16px;"> Newsletter Popup
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-recent-orders" style="margin:0; width:16px; height:16px;">
+                        Recent Activity Proof
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-newsletter" style="margin:0; width:16px; height:16px;">
+                        Newsletter Popup
                     </label>
                 </div>
 
-                <button class="btn-gold" style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:10px;" onclick="saveSuperadminFeatures()">Save Features & Theme Config</button>
+                <button class="btn-gold"
+                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:10px;"
+                    onclick="saveSuperadminFeatures()">Save Features & Theme Config</button>
             </div>
         </div>
 
@@ -1548,8 +1680,10 @@
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
-                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete Firebase Backups</span>
-                        <span style="font-size:10px; color:#666;">Clear all backup records from the firebase collection</span>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete Firebase
+                            Backups</span>
+                        <span style="font-size:10px; color:#666;">Clear all backup records from the firebase
+                            collection</span>
                     </div>
                     <button class="btn-gold"
                         style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
@@ -1599,16 +1733,19 @@
     <!-- MODAL: Superadmin View Customer Orders -->
     <div id="super-view-orders-modal" class="modal">
         <div class="modal-box" style="max-width: 600px; width: 90%;">
-            <h3 style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <h3
+                style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                 <span>Customer Order History</span>
                 <span id="super-orders-cust-email" style="font-size:12px; color:#888; font-weight:normal;"></span>
             </h3>
-            
-            <div id="super-customer-orders-list" style="max-height: 400px; overflow-y: auto; display:flex; flex-direction:column; gap:12px; margin-top:15px; padding-right:5px;">
+
+            <div id="super-customer-orders-list"
+                style="max-height: 400px; overflow-y: auto; display:flex; flex-direction:column; gap:12px; margin-top:15px; padding-right:5px;">
                 <!-- Orders loaded dynamically -->
             </div>
-            
-            <button onclick="closeModal('super-view-orders-modal')" class="btn-gold" style="width:100%; margin-top:15px; background:#222; border:1px solid #444; color:#fff;">Close</button>
+
+            <button onclick="closeModal('super-view-orders-modal')" class="btn-gold"
+                style="width:100%; margin-top:15px; background:#222; border:1px solid #444; color:#fff;">Close</button>
         </div>
     </div>
 
@@ -1630,7 +1767,9 @@
                 <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
                 <div id="det-indicators" class="indicators"></div>
                 <!-- 360 viewer button -->
-                <button id="det-360-trigger" onclick="open360Viewer(activeProductId)" style="display:none; position:absolute; right:15px; bottom:15px; background:rgba(0,0,0,0.7); border:1px solid var(--gold); border-radius:30px; color:var(--gold); padding:8px 12px; font-size:10px; font-weight:800; cursor:pointer; align-items:center; gap:5px; z-index:10;"><i class="fa fa-sync"></i> 360° VIEW</button>
+                <button id="det-360-trigger" onclick="open360Viewer(activeProductId)"
+                    style="display:none; position:absolute; right:15px; bottom:15px; background:rgba(0,0,0,0.7); border:1px solid var(--gold); border-radius:30px; color:var(--gold); padding:8px 12px; font-size:10px; font-weight:800; cursor:pointer; align-items:center; gap:5px; z-index:10;"><i
+                        class="fa fa-sync"></i> 360° VIEW</button>
             </div>
             <!-- Thumbnail Previews List -->
             <div id="det-thumbs"
@@ -1692,21 +1831,29 @@
                 <input type="file" id="m-files" multiple accept="image/*" style="display:none;"
                     onchange="handleFileSelect(this, 'base')">
             </label>
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:15px; justify-content:flex-start;">
-                <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked); document.getElementById('m-360-grid-settings').style.display = this.checked ? 'flex' : 'none';">
-                <label for="m-is360" style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
+            <div id="m-is360-container"
+                style="display:flex; align-items:center; gap:8px; margin-bottom:15px; justify-content:flex-start;">
+                <input type="checkbox" id="m-is360" style="width:auto; margin:0;"
+                    onchange="toggle360Badge('base', this.checked); document.getElementById('m-360-grid-settings').style.display = this.checked ? 'flex' : 'none';">
+                <label for="m-is360"
+                    style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
                     <span>Enable 360° Rotate for Main Images</span>
-                    <span id="base-360-badge" style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360° ACTIVE</span>
+                    <span id="base-360-badge"
+                        style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360°
+                        ACTIVE</span>
                 </label>
             </div>
-            <div id="m-360-grid-settings" style="display:none; flex-direction:column; gap:8px; margin-left:22px; margin-bottom:15px;">
+            <div id="m-360-grid-settings"
+                style="display:none; flex-direction:column; gap:8px; margin-left:22px; margin-bottom:15px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <label style="font-size:11px; color:#aaa; margin:0; width:150px;">Horizontal Frames (Cols):</label>
-                    <input type="number" id="m-360-cols" value="1" min="1" style="width:80px; margin:0; padding:4px 8px; font-size:12px; background:#222; border:1px solid #444; color:#fff; border-radius:4px; height:28px;">
+                    <input type="number" id="m-360-cols" value="1" min="1"
+                        style="width:80px; margin:0; padding:4px 8px; font-size:12px; background:#222; border:1px solid #444; color:#fff; border-radius:4px; height:28px;">
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <label style="font-size:11px; color:#aaa; margin:0; width:150px;">Vertical Frames (Rows):</label>
-                    <input type="number" id="m-360-rows" value="1" min="1" style="width:80px; margin:0; padding:4px 8px; font-size:12px; background:#222; border:1px solid #444; color:#fff; border-radius:4px; height:28px;">
+                    <input type="number" id="m-360-rows" value="1" min="1"
+                        style="width:80px; margin:0; padding:4px 8px; font-size:12px; background:#222; border:1px solid #444; color:#fff; border-radius:4px; height:28px;">
                 </div>
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:flex-start;">
@@ -1743,23 +1890,33 @@
 
     <!-- Modal: Global Announcement -->
     <div id="announcement-modal" class="modal" style="display:none; align-items:center; justify-content:center;">
-        <div class="modal-box" style="border: 1px solid var(--gold); background: linear-gradient(135deg, #0a0a0a 0%, #151505 100%); width:90%; max-width:450px; padding:20px; display:flex; flex-direction:column; gap:15px; position:relative;">
-            <div style="position:absolute; top:15px; right:15px; font-size:20px; color:#aaa; cursor:pointer;" onclick="closeAnnouncementModal()">&times;</div>
-            <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid #222; padding-bottom:10px; margin-bottom:5px;">
+        <div class="modal-box"
+            style="border: 1px solid var(--gold); background: linear-gradient(135deg, #0a0a0a 0%, #151505 100%); width:90%; max-width:450px; padding:20px; display:flex; flex-direction:column; gap:15px; position:relative;">
+            <div style="position:absolute; top:15px; right:15px; font-size:20px; color:#aaa; cursor:pointer;"
+                onclick="closeAnnouncementModal()">&times;</div>
+            <div
+                style="display:flex; align-items:center; gap:10px; border-bottom:1px solid #222; padding-bottom:10px; margin-bottom:5px;">
                 <i class="fa fa-bullhorn" style="color:var(--gold); font-size:16px;"></i>
-                <h3 style="margin:0; color:#fff; text-transform:uppercase; letter-spacing:1px; font-size: 14px;">Announcement Center</h3>
+                <h3 style="margin:0; color:#fff; text-transform:uppercase; letter-spacing:1px; font-size: 14px;">
+                    Announcement Center</h3>
             </div>
-            
+
             <!-- Slides Container -->
-            <div id="announcement-slides-container" style="min-height:180px; display:flex; flex-direction:column; justify-content:center;">
+            <div id="announcement-slides-container"
+                style="min-height:180px; display:flex; flex-direction:column; justify-content:center;">
                 <!-- Dynamically populated announcement slide card -->
             </div>
 
             <!-- Controls and indicators -->
-            <div id="announcement-controls" style="display:none; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px solid #222; padding-top:12px;">
-                <button onclick="prevAnnouncementSlide()" style="background:#222; border:1px solid #333; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i class="fa fa-chevron-left" style="font-size:10px;"></i></button>
+            <div id="announcement-controls"
+                style="display:none; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px solid #222; padding-top:12px;">
+                <button onclick="prevAnnouncementSlide()"
+                    style="background:#222; border:1px solid #333; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i
+                        class="fa fa-chevron-left" style="font-size:10px;"></i></button>
                 <div id="announcement-slide-indicator" style="font-size:11px; color:#aaa; font-weight:bold;">1 / 1</div>
-                <button onclick="nextAnnouncementSlide()" style="background:#222; border:1px solid #333; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i class="fa fa-chevron-right" style="font-size:10px;"></i></button>
+                <button onclick="nextAnnouncementSlide()"
+                    style="background:#222; border:1px solid #333; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;"><i
+                        class="fa fa-chevron-right" style="font-size:10px;"></i></button>
             </div>
         </div>
     </div>
@@ -1792,7 +1949,9 @@
             <input id="c-name" placeholder="Recipient Name" autocomplete="name">
             <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
             <input id="c-email" placeholder="Email Address" type="email">
-            <div id="checkout-email-msg" style="display:none; font-size:11px; margin-top:-8px; margin-bottom:12px; font-weight:500; text-align:left; transition:all 0.3s; line-height:1.4;"></div>
+            <div id="checkout-email-msg"
+                style="display:none; font-size:11px; margin-top:-8px; margin-bottom:12px; font-weight:500; text-align:left; transition:all 0.3s; line-height:1.4;">
+            </div>
             <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
 
             <!-- Payment Methods -->
@@ -2026,7 +2185,8 @@
     <canvas id="confetti-canvas"></canvas>
 
     <!-- Floating Theme customized Selector widget -->
-    <button class="theme-trigger-btn" id="theme-trigger-btn" style="display:none;" onclick="toggleThemeDrawer()" aria-label="Customize Theme">
+    <button class="theme-trigger-btn" id="theme-trigger-btn" style="display:none;" onclick="toggleThemeDrawer()"
+        aria-label="Customize Theme">
         <i class="fa fa-palette"></i>
     </button>
     <div class="theme-drawer" id="theme-drawer">
@@ -2035,21 +2195,28 @@
             <span class="theme-drawer-close" onclick="toggleThemeDrawer()">&times;</span>
         </div>
         <div class="theme-palette-grid">
-            <button class="theme-palette-btn active" style="background:#ffd700;" onclick="changeVisitorTheme('outlaw')" title="Outlaw Gold"></button>
-            <button class="theme-palette-btn" style="background:#00ffff;" onclick="changeVisitorTheme('midnight')" title="Midnight Cyan"></button>
-            <button class="theme-palette-btn" style="background:#2ecc71;" onclick="changeVisitorTheme('emerald')" title="Emerald Gold"></button>
-            <button class="theme-palette-btn" style="background:#ff3f3f;" onclick="changeVisitorTheme('crimson')" title="Crimson Red"></button>
-            <button class="theme-palette-btn" style="background:#c29a53;" onclick="changeVisitorTheme('light')" title="Light Theme"></button>
+            <button class="theme-palette-btn active" style="background:#ffd700;" onclick="changeVisitorTheme('outlaw')"
+                title="Outlaw Gold"></button>
+            <button class="theme-palette-btn" style="background:#00ffff;" onclick="changeVisitorTheme('midnight')"
+                title="Midnight Cyan"></button>
+            <button class="theme-palette-btn" style="background:#2ecc71;" onclick="changeVisitorTheme('emerald')"
+                title="Emerald Gold"></button>
+            <button class="theme-palette-btn" style="background:#ff3f3f;" onclick="changeVisitorTheme('crimson')"
+                title="Crimson Red"></button>
+            <button class="theme-palette-btn" style="background:#c29a53;" onclick="changeVisitorTheme('light')"
+                title="Light Theme"></button>
         </div>
     </div>
 
     <!-- Floating Spin Wheel Gift Widget -->
-    <button class="spin-trigger-btn" id="spin-trigger-btn" style="display:none;" onclick="openDiscountWheel()" aria-label="Spin Wheel Discount">
+    <button class="spin-trigger-btn" id="spin-trigger-btn" style="display:none;" onclick="openDiscountWheel()"
+        aria-label="Spin Wheel Discount">
         <i class="fa fa-gift"></i>
     </button>
 
     <!-- Floating AI Support Chatbot Widget -->
-    <button class="ai-chat-trigger" id="ai-chat-trigger" style="display:none;" onclick="toggleAIChat()" aria-label="AI Support Chat">
+    <button class="ai-chat-trigger" id="ai-chat-trigger" style="display:none;" onclick="toggleAIChat()"
+        aria-label="AI Support Chat">
         <i class="fa fa-robot"></i>
     </button>
     <div class="ai-chat-card" id="ai-chat-box">
@@ -2058,15 +2225,19 @@
                 <i class="fa fa-robot" style="color:var(--gold);"></i>
             </div>
             <div>
-                <p style="margin:0; font-size:12px; font-weight:700; color:#fff;" data-i18n="ai_chat_title">Swag Stree Support AI</p>
-                <p style="margin:2px 0 0 0; font-size:10px; color:#25D366;"><i class="fa fa-circle" style="font-size:8px;"></i> Active Assistant</p>
+                <p style="margin:0; font-size:12px; font-weight:700; color:#fff;" data-i18n="ai_chat_title">Swag Stree
+                    Support AI</p>
+                <p style="margin:2px 0 0 0; font-size:10px; color:#25D366;"><i class="fa fa-circle"
+                        style="font-size:8px;"></i> Active Assistant</p>
             </div>
-            <span class="theme-drawer-close" style="margin-left:auto; font-size:20px;" onclick="toggleAIChat()">&times;</span>
+            <span class="theme-drawer-close" style="margin-left:auto; font-size:20px;"
+                onclick="toggleAIChat()">&times;</span>
         </div>
         <div class="ai-chat-body" id="ai-chat-body"></div>
         <div class="ai-chat-chips" id="ai-chat-chips"></div>
         <div class="ai-chat-input-area">
-            <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Type message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Type message..."
+                onkeydown="if(event.key==='Enter') sendChatMessage()">
             <button class="ai-chat-send" onclick="sendChatMessage()"><i class="fa fa-paper-plane"></i></button>
         </div>
     </div>

@@ -60,6 +60,8 @@ function renderVariantBlocks() {
     const container = document.getElementById('m-variants-container');
     if (!container) return;
     
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    
     container.innerHTML = variantBlocks.map((v, idx) => {
         const hasSwatches = v.previewImages && v.previewImages.length > 0;
         const colorPreviewStyle = v.color ? `background:${v.color.trim()}; display:inline-block; width:14px; height:14px; border-radius:50%; border:1px solid #666; vertical-align:middle; margin-right:4px; flex-shrink:0;` : 'display:none;';
@@ -89,7 +91,7 @@ function renderVariantBlocks() {
                         ${v.size && v.size !== 'Standard' ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.size}</span>` : ''}
                         ${v.pattern ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.pattern}</span>` : ''}
                     </span>
-                    ${v.is360 ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360° ACTIVE</span>` : ''}
+                    ${is360Enabled && v.is360 ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360° ACTIVE</span>` : ''}
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <span id="v-active-badge-${v.id}" style="font-size:11px; padding:3px 8px; border-radius:20px; background:${v.isActive !== false ? '#1a3a1a' : '#3a1a1a'}; color:${v.isActive !== false ? '#4caf50' : '#e57373'};">
@@ -145,9 +147,9 @@ function renderVariantBlocks() {
 
                 <!-- Row 4: Upload buttons -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed ${v.is360 ? 'var(--gold)' : '#444'}; background:#1a1a1a; color:${v.is360 ? 'var(--gold)' : '#aaa'}; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
+                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed ${is360Enabled && v.is360 ? 'var(--gold)' : '#444'}; background:#1a1a1a; color:${is360Enabled && v.is360 ? 'var(--gold)' : '#aaa'}; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
                         <span style="font-size:18px;">🖼️</span>
-                        <span>Upload Variant Images ${v.is360 ? '(360° Rotations)' : ''}</span>
+                        <span>Upload Variant Images ${is360Enabled && v.is360 ? '(360° Rotations)' : ''}</span>
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
                     </label>
                     <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #25D366; background:#1a1a1a; color:#25D366; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
@@ -164,7 +166,7 @@ function renderVariantBlocks() {
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
                     ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked); const badge = document.getElementById('v-active-badge-${v.id}'); if(badge) { badge.style.background = this.checked ? '#1a3a1a' : '#3a1a1a'; badge.style.color = this.checked ? '#4caf50' : '#e57373'; badge.innerHTML = this.checked ? '● Active' : '○ Hidden'; }`, 'Active', '#4caf50')}
-                    ${toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Rotate View Enabled', '#FFD700')}
+                    ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Rotate View Enabled', '#FFD700') : ''}
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
@@ -173,6 +175,7 @@ function renderVariantBlocks() {
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
                         <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
                     </div>
+                    ${is360Enabled ? `
                     <div id="v-360-grid-container-${v.id}" style="display:${v.is360 ? 'flex' : 'none'}; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column: 1 / -1;">
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">360 Grid:</span>
                         <input type="number" placeholder="Cols" value="${v.threeSixtyCols || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyCols', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
@@ -180,7 +183,7 @@ function renderVariantBlocks() {
                         <input type="number" placeholder="Rows" value="${v.threeSixtyRows || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyRows', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
                         <span style="font-size:11px; color:#666; margin-left:5px;">(Cols x Rows frames)</span>
                     </div>
-                </div>
+                    ` : ''}
 
             </div>
         </div>
@@ -496,17 +499,22 @@ function openEdit(id) {
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])]; 
     
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const mainIs360Container = document.getElementById('m-is360-container');
+    if (mainIs360Container) {
+        mainIs360Container.style.display = is360Enabled ? 'flex' : 'none';
+    }
     const mainIs360 = document.getElementById('m-is360');
     if (mainIs360) {
         mainIs360.checked = !!p.is360;
-        toggle360Badge('base', !!p.is360);
+        toggle360Badge('base', is360Enabled && !!p.is360);
     }
     const baseCols = document.getElementById('m-360-cols');
     if (baseCols) baseCols.value = p.threeSixtyCols || 1;
     const baseRows = document.getElementById('m-360-rows');
     if (baseRows) baseRows.value = p.threeSixtyRows || 1;
     const baseGridSettings = document.getElementById('m-360-grid-settings');
-    if (baseGridSettings) baseGridSettings.style.display = p.is360 ? 'flex' : 'none';
+    if (baseGridSettings) baseGridSettings.style.display = (is360Enabled && p.is360) ? 'flex' : 'none';
 
     renderImagePreviews('base'); 
     
@@ -611,6 +619,11 @@ function openAdd() {
     document.getElementById('m-main-pos-container').style.display = 'flex';
     document.getElementById('m-hide-main-placeholder').checked = false;
     
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const mainIs360Container = document.getElementById('m-is360-container');
+    if (mainIs360Container) {
+        mainIs360Container.style.display = is360Enabled ? 'flex' : 'none';
+    }
     const mainIs360 = document.getElementById('m-is360');
     if (mainIs360) {
         mainIs360.checked = false;
