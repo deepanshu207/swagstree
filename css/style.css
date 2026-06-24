@@ -1920,7 +1920,7 @@ body {
         width: auto;
         margin-right: 0;
     }
-    .brand {
+    /* .brand {
         display: block !important;
         font-size: clamp(10px, 3.2vw, 13px);
         letter-spacing: clamp(0.5px, 0.5vw, 1px);
@@ -1928,8 +1928,8 @@ body {
         text-overflow: ellipsis;
         overflow: hidden;
         white-space: nowrap;
-    }
-    .social-tools {
+    } */
+    /* .social-tools {
         gap: clamp(6px, 1.8vw, 10px);
         padding-right: clamp(4px, 1.2vw, 8px);
         height: 20px;
@@ -1937,8 +1937,8 @@ body {
     }
     .social-tools a, .social-tools i {
         font-size: clamp(12px, 3.5vw, 15px) !important;
-    }
-    .lang-select-container {
+    } */
+    /* .lang-select-container {
         margin-right: 2px !important;
         position: relative;
     }
@@ -1951,8 +1951,8 @@ body {
         font-size: clamp(9px, 2.5vw, 10px) !important;
         height: clamp(24px, 7vw, 28px) !important;
         max-width: clamp(55px, 16vw, 75px) !important;
-    }
-    .cart-trigger {
+    } */
+    /* .cart-trigger {
         padding-left: 2px;
     }
     .cart-trigger i {
@@ -1964,8 +1964,7 @@ body {
         height: 13px !important;
         top: -4px !important;
         right: -4px !important;
-    }
-    
+    } */
     .catalog-controls-row {
         gap: 6px;
     }
@@ -1981,10 +1980,10 @@ body {
     .catalog-controls-row .select-wrapper {
         min-width: 100px !important;
     }
-    .catalog-controls-row .select-wrapper i {
+    /* .catalog-controls-row .select-wrapper i {
         font-size: 9px !important;
         left: 8px !important;
-    }
+    } */
     .catalog-controls-row #announcement-bell-btn {
         width: 28px !important;
         height: 28px !important;
