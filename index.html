@@ -187,12 +187,9 @@
         </div>
 
         <!-- Language Switcher -->
-        <div class="lang-select-container" id="lang-selector-wrap"
-            style="display:none; position:relative; margin-right:10px;">
-            <i class="fa fa-language"
-                style="position:absolute; left:8px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:14px; pointer-events:none; z-index:10;"></i>
-            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select"
-                style="padding: 4px 8px 4px 24px; border: 1px solid #333; background: #111; color: #fff; border-radius: 8px; font-size: 11px; height: 30px; cursor: pointer; transition: border-color 0.2s; outline:none;">
+        <div class="lang-select-container" id="lang-selector-wrap" style="display:none; position:relative;">
+            <i class="fa fa-language"></i>
+            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select">
                 <option value="en">🇬🇧 EN</option>
                 <option value="hi">🇮🇳 HI</option>
                 <option value="es">🇪🇸 ES</option>
@@ -229,10 +226,8 @@
                 autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');"
                 data-i18n="search_placeholder">
         </div>
-        <div
-            style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:nowrap; width:100%; box-sizing:border-box;">
-            <span id="product-count" class="count-badge"
-                style="display:none; margin-bottom:0; font-size:10px; font-weight:700; color:#aaa; background:none; border:none; padding:0; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; flex-shrink:1;"></span>
+        <div class="catalog-controls-row">
+            <span id="product-count" class="count-badge" style="display:none;"></span>
 
             <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                 <!-- Announcement Megaphone Button -->
@@ -316,8 +311,8 @@
     <!-- SECTION: Wishlist -->
     <div id="wish-view" class="section">
         <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
-        <div style="padding: 0 15px 10px 15px; display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:nowrap; width:100%; box-sizing:border-box;">
-            <span id="wish-count" class="count-badge" style="display:none; margin-bottom:0; font-size:10px; font-weight:700; color:#aaa; background:none; border:none; padding:0; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; flex-shrink:1;">0 Items</span>
+        <div class="catalog-controls-row">
+            <span id="wish-count" class="count-badge" style="display:none;">0 Products</span>
             
             <div id="wish-sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
                 <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
