@@ -2880,7 +2880,7 @@ function renderAdminAnnouncements(list) {
     container.innerHTML = list.map(ann => `
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; background:#111; border:1px solid #333; border-radius:8px;">
             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                ${ann.image ? `<img src="${ann.image}" style="width:40px; height:40px; object-fit:cover; border-radius:4px; border:1px solid #222; flex-shrink:0;">` : `<div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:#222; border-radius:4px; border:1px solid #333; flex-shrink:0;"><i class="fa fa-bullhorn" style="color:#ffd700; font-size:12px;"></i></div>`}
+                ${ann.image? `<img src="${ann.image}" style="width:40px; height:40px; object-fit:cover; border-radius:4px; border:1px solid #222; flex-shrink:0;">` : `<div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:#222; border-radius:4px; border:1px solid #333; flex-shrink:0;"><i class="fa fa-bullhorn" style="color:#ffd700; font-size:12px;"></i></div>`}
                 <div style="min-width:0; flex:1;">
                     <p style="margin:0; font-size:11px; color:#fff; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word;">${ann.message}</p>
                     <span style="font-size:9px; color:#666;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>

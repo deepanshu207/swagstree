@@ -2472,11 +2472,21 @@ function renderAnnouncementSlide() {
                         <!-- Expanded Details -->
                         ${isExpanded ? `
                         <div style="padding: 12px; background:#0a0a0a; border-top:1px solid #222; display:flex; flex-direction:column; gap:10px;">
-                            ${ann.image ? `
-                            <div style="width:100%; max-height:200px; border-radius:6px; overflow:hidden; border:1px solid #222; background:#000; display:flex; align-items:center; justify-content:center;">
-                                <img src="${ann.image}" style="width:100%; height:auto; max-height:200px; object-fit:contain;">
-                            </div>
-                            ` : ''}
+${(() => {
+    const img = String(ann.image || '').trim();
+
+    const validImage =
+        img &&
+        img !== 'null' &&
+        img !== 'undefined' &&
+        (img.startsWith('http://') || img.startsWith('https://'));
+
+    return validImage ? `
+        <div style="width:100%; max-height:200px; border-radius:6px; overflow:hidden; border:1px solid #222; background:#000; display:flex; align-items:center; justify-content:center;">
+            <img src="${img}" style="width:100%; height:auto; max-height:200px; object-fit:contain;">
+        </div>
+    ` : '';
+})()}
                             <p style="color:#eee; font-size:12px; line-height:1.6; margin:0; word-break:break-word; white-space:pre-wrap; text-align:left;">${ann.message}</p>
                             
                             <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px dashed #222; padding-top:8px;">
