@@ -682,7 +682,9 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = '0 Items';
+                countContainer.innerHTML = typeof window.getI18nText === 'function'
+                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
+                    : '0 Products';
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -705,7 +707,9 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
-            countContainer.innerHTML = `Showing ${visible} of ${items.length} Items`;
+            countContainer.innerHTML = typeof window.getI18nText === 'function'
+                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
+                : `Showing ${visible} of ${items.length} Products`;
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {

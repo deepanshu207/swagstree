@@ -1075,7 +1075,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                      <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">DELIVER TO</div>
                      <div style="font-size:15px;font-weight:700;color:#111;margin-bottom:3px;">${n}</div>
                      <div style="font-size:12px;color:#777;margin-bottom:2px;">&#128241; ${p}</div>
-                     ${emailVal ? `<div style="font-size:12px;color:#777;margin-bottom:2px;">&#9993; ${emailVal}</div>` : ''}
+                     ${emailVal ? `<div style="font-size:12px;color:#777;margin-bottom:2px;">&#9993; ${emailVal}${isGuest ? ' (Guest)' : ''}</div>` : ''}
                      <div style="font-size:12px;color:#777;line-height:1.5;">&#128205; ${a}</div>
                    </td>
                    <td style="vertical-align:top;text-align:right;">
@@ -1852,7 +1852,7 @@ function renderOrdersList(docs) {
                     <div style="color:#fff; font-weight:600; font-size:12px; margin-bottom:4px;">👤 ${o.recipient || 'N/A'}</div>
                     <div style="display:flex; flex-direction:column; gap:2px; color:#888;">
                         <div>📱 Phone: <span style="color:#ccc;">${o.phone || 'N/A'}</span></div>
-                        <div>✉️ Email: <span style="color:#ccc;">${o.email || 'N/A'}</span></div>
+                        <div>✉️ Email: <span style="color:#ccc;">${o.email || 'N/A'}${o.isGuest ? ' <span style="color:#ffd700; background:rgba(255,215,0,0.1); padding:1px 5px; border-radius:3px; font-size:9px; font-weight:bold; margin-left:5px;">GUEST</span>' : ''}</span></div>
                         <div>📍 Address: <span style="color:#ccc;">${o.address || 'N/A'}</span></div>
                     </div>
                     <div style="margin-top:4px;">💳 Payment: <b style="color:#ccc;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
@@ -2576,11 +2576,11 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
             return false;
         }
 
-        const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus };
+        const statusInfo = ORDER_STATUSES.find(s => s.value === newStatus) || { label: newStatus ? newStatus.charAt(0).toUpperCase() + newStatus.slice(1) : newStatus };
         const orderId = orderData.orderId || docId.slice(-6).toUpperCase();
         
         const itemsListTelegram = (orderData.items || []).map(i => {
-            const iStatus = i.status || newStatus || 'pending';
+            const iStatus = i.status || newStatus || 'placed';
             const iStatusLabel = ORDER_STATUSES.find(s => s.value === iStatus)?.label || iStatus;
             const trackingStr = i.trackingId ? `\n   ↳ 🚚 ${escapeHTML(i.courier || 'Courier')}: <code>${escapeHTML(i.trackingId)}</code>` : '';
             
@@ -2624,7 +2624,7 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
             ``,
             `👤 <b>Customer:</b> ${escapeHTML(orderData.recipient || 'N/A')}`,
             `📱 <b>Phone:</b> ${escapeHTML(orderData.phone || 'N/A')}`,
-            `📧 <b>Email:</b> ${escapeHTML(orderData.email || 'N/A')}`,
+            `📧 <b>Email:</b> ${escapeHTML(orderData.email || 'N/A')}${orderData.isGuest ? ' <b>(Guest Checkout)</b>' : ''}`,
             `📍 <b>Address:</b> ${escapeHTML(orderData.address || 'N/A')}`,
             ``,
             `🧾 <b>Fulfillment Details & Items:</b>`,

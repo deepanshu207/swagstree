@@ -399,11 +399,11 @@ function renderAdmin() {
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
     }
     
-    if (countContainer) {
-        const visible = Math.min(products.length, editingProductsLimit);
-        countContainer.innerHTML = products.length > 0 ? `Showing ${visible} of ${products.length} Products` : '0 Products';
-        countContainer.style.display = 'inline-flex';
-    }
+    // if (countContainer) {
+    //     const visible = Math.min(products.length, editingProductsLimit);
+    //     countContainer.innerHTML = products.length > 0 ? `Showing ${visible} of ${products.length} Products` : '0 Products';
+    //     countContainer.style.display = 'inline-flex';
+    // }
     
     container.innerHTML = itemsToRender.map(p => {
         let thumbUrl = 'https://placehold.co/400x400/222/FFF?text=+';
