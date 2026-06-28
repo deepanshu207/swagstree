@@ -10,6 +10,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     multiLanguage: false,
     announcementBar: false,
     announcementBell: true,
+    productComments: true,
     widgets: {
         recentOrders: false,
         discountWheel: false,
@@ -1317,6 +1318,13 @@ function applyFeatureTogglesUI() {
             if (document.getElementById('toggle-recent-orders')) document.getElementById('toggle-recent-orders').checked = !!config.widgets.recentOrders;
             if (document.getElementById('toggle-newsletter')) document.getElementById('toggle-newsletter').checked = !!config.widgets.newsletterPopup;
         }
+        if (document.getElementById('toggle-product-comments')) {
+            document.getElementById('toggle-product-comments').checked = config.productComments !== false;
+        }
+    }
+
+    if (typeof activeProductId !== 'undefined' && activeProductId && typeof loadProductComments === 'function') {
+        loadProductComments(activeProductId);
     }
 }
 window.applyFeatureTogglesUI = applyFeatureTogglesUI;
