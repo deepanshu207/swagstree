@@ -16,9 +16,11 @@ if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
 if (typeof window.products === 'undefined') window.products = [];
 if (typeof window.productsLoaded === 'undefined') window.productsLoaded = false;
 
-if (typeof window.displayedProductsLimit === 'undefined') window.displayedProductsLimit = (typeof window.productsPageLimitSetting !== 'undefined' ? window.productsPageLimitSetting : 20);
-if (typeof window.displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = (typeof window.productsPageLimitSetting !== 'undefined' ? window.productsPageLimitSetting : 20);
-if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = 20;
+if (typeof window.productsPageLimitSetting === 'undefined') window.productsPageLimitSetting = 20;
+if (typeof window.ordersPageLimitSetting === 'undefined') window.ordersPageLimitSetting = 20;
+if (typeof window.displayedProductsLimit === 'undefined') window.displayedProductsLimit = window.productsPageLimitSetting;
+if (typeof window.displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = window.productsPageLimitSetting;
+if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = window.ordersPageLimitSetting;
 if (typeof window.ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
 if (typeof window.deepLinkHandled === 'undefined') window.deepLinkHandled = false;
 
@@ -333,7 +335,7 @@ function loadData() {
     db.collection("settings").doc("footer").onSnapshot(snap => {
         window.footerSettings = snap.exists ? snap.data() : {
             copyright: "Swagstree",
-            aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+            aboutText: `<h3>Who We Are</h3><p>Swag Stree is a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
             gpsLat: "28.6139",
             gpsLng: "77.2090",
@@ -341,11 +343,52 @@ function loadData() {
         };
         if (typeof renderFooter === 'function') renderFooter();
     });
+
+    db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(snap => {
+        const bell = document.getElementById('announcement-bell-btn');
+        window.activeAnnouncements = [];
+        snap.forEach(doc => {
+            window.activeAnnouncements.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        const isAnnBellEnabled = !window.APP_FEATURES || window.APP_FEATURES.announcementBell !== false;
+        if (bell) bell.style.display = isAnnBellEnabled ? 'flex' : 'none';
+        updateAnnouncementBellUI();
+    }, error => {
+        console.error("Firestore announcements list load error:", error);
+    });
 }
 
 function renderStore() {
     renderProducts(products, 'product-grid');
-    renderProducts(products.filter(p => wishlist.includes(p.id)), 'wish-grid');
+    
+    const wishSortEl = document.getElementById('wish-sort-logic');
+    const sort = wishSortEl ? wishSortEl.value : 'none';
+    let wishProducts = products.filter(p => wishlist.includes(p.id));
+    
+    if (sort === 'low') wishProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+    if (sort === 'high') wishProducts.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+    if (sort === 'newest') {
+        wishProducts.sort((a, b) => {
+            const timeA = getProductTimestamp(a);
+            const timeB = getProductTimestamp(b);
+            if (timeA !== timeB) return timeB - timeA;
+            return b.id.localeCompare(a.id);
+        });
+    }
+    if (sort === 'best') {
+        wishProducts.sort((a, b) => {
+            const salesA = a.salesCount || (a.popularity || (a.name.length % 5) * 12);
+            const salesB = b.salesCount || (b.popularity || (b.name.length % 5) * 12);
+            if (salesA !== salesB) return salesB - salesA;
+            return a.name.localeCompare(b.name);
+        });
+    }
+    
+    renderProducts(wishProducts, 'wish-grid');
+    if (typeof window.initHeroCarousel === 'function') window.initHeroCarousel();
 }
 
 // 2. RENDERING LOGIC
@@ -387,6 +430,9 @@ function productCardHtml(p) {
         }
     }
 
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const has360 = is360Enabled && (!!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360)));
+
     let quickAddHtml = `<div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')" style="${isOutOfStock ? 'opacity:0.5; pointer-events:none;' : ''}">
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
     </div>`;
@@ -401,6 +447,11 @@ function productCardHtml(p) {
         </div> 
         ${quickAddHtml}
         <div class="carousel-box" onclick="showDetail('${p.id}')"> 
+            ${has360 ? `
+            <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid var(--gold); border-radius: 20px; padding: 3px 8px; color: var(--gold); font-size: 8px; font-weight: 800; display: flex; align-items: center; gap: 4px; pointer-events: none; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <i class="fa fa-sync" style="font-size: 8px;"></i> 360° VIEW
+            </div>
+            ` : ''}
             ${isOutOfStock ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px 15px 0 0;"><span style="background:rgba(255,0,0,0.85); color:#fff; padding:6px 12px; border-radius:4px; font-weight:800; font-size:12px; letter-spacing:1px;">OUT OF STOCK</span></div>' : ''}
             <div class="carousel" onscroll="updateDots(this)">
                 ${displayImages.length ? displayImages.map(img => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">')}
@@ -472,9 +523,11 @@ function renderProducts(items, targetId) {
     if (targetId === 'product-grid') {
         const loadMoreBtnContainer = document.getElementById('load-more-container');
         const countContainer = document.getElementById('product-count');
+        const sortLogicContainer = document.getElementById('sort-logic-container');
 
         if (items.length === 0 && !window.productsLoaded) {
             if (countContainer) countContainer.style.display = 'none';
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             container.innerHTML = `
                 <div class="premium-loader-container">
@@ -517,9 +570,12 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = '0 Products';
+                countContainer.innerHTML = typeof window.getI18nText === 'function'
+                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
+                    : '0 Products';
                 countContainer.style.display = 'inline-flex';
             }
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
         }
 
@@ -539,8 +595,13 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
-            countContainer.innerHTML = `Showing ${visible} of ${items.length} Products`;
+            countContainer.innerHTML = typeof window.getI18nText === 'function'
+                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
+                : `Showing ${visible} of ${items.length} Products`;
             countContainer.style.display = 'inline-flex';
+        }
+        if (sortLogicContainer) {
+            sortLogicContainer.style.display = 'flex';
         }
 
         const settings = window.diariesSettings || { placement: 'last', showSection: true };
@@ -588,9 +649,11 @@ function renderProducts(items, targetId) {
     } else if (targetId === 'wish-grid') {
         const loadMoreBtnContainer = document.getElementById('wish-load-more-container');
         const countContainer = document.getElementById('wish-count');
+        const sortLogicContainer = document.getElementById('wish-sort-logic-container');
 
         if (items.length === 0 && !window.productsLoaded) {
             if (countContainer) countContainer.style.display = 'none';
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             container.innerHTML = `
                 <div class="premium-loader-container">
@@ -619,9 +682,12 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = '0 Items';
+                countContainer.innerHTML = typeof window.getI18nText === 'function'
+                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
+                    : '0 Products';
                 countContainer.style.display = 'inline-flex';
             }
+            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
         }
 
@@ -631,8 +697,8 @@ function renderProducts(items, targetId) {
             if (loadMoreBtnContainer) {
                 loadMoreBtnContainer.innerHTML = `
                 <div class="infinite-scroll-loader" data-target="wishlist" style="display:flex; justify-content:center; align-items:center; padding: 20px 0; gap: 8px; width: 100%;">
-                    <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
-                    <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
+                     <div class="premium-loader" style="width:24px; height:24px; border-width:2.5px;"></div>
+                     <span style="font-size:11px; color:#aaa; font-weight:700; letter-spacing:1px; text-transform:uppercase;">Loading More...</span>
                 </div>`;
             }
         } else {
@@ -641,8 +707,13 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
-            countContainer.innerHTML = `Showing ${visible} of ${items.length} Items`;
+            countContainer.innerHTML = typeof window.getI18nText === 'function'
+                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
+                : `Showing ${visible} of ${items.length} Products`;
             countContainer.style.display = 'inline-flex';
+        }
+        if (sortLogicContainer) {
+            sortLogicContainer.style.display = 'flex';
         }
 
         container.innerHTML = itemsToRender.map(productCardHtml).join('');
@@ -781,6 +852,17 @@ function showDetail(id, initialColor = null, initialSize = null) {
     renderDetailPatterns(p);
     updateVariantUI(p);
     updateDetailURL();
+
+    // Check if 360 viewer is enabled and product has multiple images
+    const trigger360 = document.getElementById('det-360-trigger');
+    if (trigger360) {
+        const active360Img = window.getActive360Images(p);
+        if (active360Img) {
+            trigger360.style.display = 'flex';
+        } else {
+            trigger360.style.display = 'none';
+        }
+    }
 
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
@@ -1155,6 +1237,15 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             // Don't close detail instantly, let them use the stepper
             updateVariantUI(p);
         };
+    }
+    const trigger360 = document.getElementById('det-360-trigger');
+    if (trigger360) {
+        const active360Img = window.getActive360Images(p);
+        if (active360Img) {
+            trigger360.style.display = 'flex';
+        } else {
+            trigger360.style.display = 'none';
+        }
     }
 }
 
@@ -1646,13 +1737,26 @@ function resetFilters() {
 
     const sortLogic = document.getElementById('sort-logic');
     if (sortLogic) sortLogic.value = 'none';
+    const sortLogicFilter = document.getElementById('sort-logic-filter');
+    if (sortLogicFilter) sortLogicFilter.value = 'none';
 
     document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
     applySortAndFilter();
 }
 
+function getProductTimestamp(p) {
+    if (!p.updatedAt) return 0;
+    if (typeof p.updatedAt.toDate === 'function') return p.updatedAt.toDate().getTime();
+    if (p.updatedAt.seconds) return p.updatedAt.seconds * 1000;
+    if (typeof p.updatedAt === 'number') return p.updatedAt;
+    if (p.updatedAt instanceof Date) return p.updatedAt.getTime();
+    const parsed = Date.parse(p.updatedAt);
+    return isNaN(parsed) ? 0 : parsed;
+}
+
 function applySortAndFilter() {
-    const sort = document.getElementById('sort-logic').value;
+    const sortEl = document.getElementById('sort-logic');
+    const sort = sortEl ? sortEl.value : 'none';
     let filtered = [...products];
 
     // Filter by Price Range
@@ -1694,12 +1798,40 @@ function applySortAndFilter() {
         });
     }
 
-    if (sort === 'low') filtered.sort((a, b) => a.price - b.price);
-    if (sort === 'high') filtered.sort((a, b) => b.price - a.price);
+    if (sort === 'low') filtered.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+    if (sort === 'high') filtered.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+    if (sort === 'newest') {
+        filtered.sort((a, b) => {
+            const timeA = getProductTimestamp(a);
+            const timeB = getProductTimestamp(b);
+            if (timeA !== timeB) return timeB - timeA;
+            return b.id.localeCompare(a.id);
+        });
+    }
+    if (sort === 'best') {
+        filtered.sort((a, b) => {
+            const salesA = a.salesCount || (a.popularity || (a.name.length % 5) * 12);
+            const salesB = b.salesCount || (b.popularity || (b.name.length % 5) * 12);
+            if (salesA !== salesB) return salesB - salesA;
+            return a.name.localeCompare(b.name);
+        });
+    }
     renderProducts(filtered, 'product-grid');
 }
 
-function changeSortLogic() {
+function changeSortLogic(val, source) {
+    if (val === undefined) {
+        const mainSort = document.getElementById('sort-logic');
+        val = mainSort ? mainSort.value : 'none';
+        source = 'main';
+    }
+    if (source === 'main') {
+        const filterSort = document.getElementById('sort-logic-filter');
+        if (filterSort) filterSort.value = val;
+    } else {
+        const mainSort = document.getElementById('sort-logic');
+        if (mainSort) mainSort.value = val;
+    }
     displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
 }
@@ -1713,6 +1845,12 @@ function loadMoreProducts() {
         applySortAndFilter();
     }
 }
+
+function changeWishlistSort(val) {
+    displayedWishlistLimit = productsPageLimitSetting;
+    renderStore();
+}
+window.changeWishlistSort = changeWishlistSort;
 
 function loadMoreWishlist() {
     displayedWishlistLimit += productsPageLimitSetting;
@@ -1732,18 +1870,27 @@ window.handleFeedbackImageError = function (imgEl, postId) {
     }
 };
 
-window.openFeedbackPost = function (el, allLinks) {
+window.openFeedbackPost = function (el) {
+    // Read links from the nearest feedback-card's data attribute
+    const card = el.closest('.feedback-card');
+    if (!card) return;
+
+    let allLinks = [];
+    try {
+        allLinks = JSON.parse(card.dataset.links || '[]');
+    } catch (e) {
+        allLinks = [];
+    }
     if (!allLinks || allLinks.length === 0) return;
 
-    const card = el.closest('.feedback-card');
     let activeIdx = 0;
-    if (card) {
-        const carousel = card.querySelector('.carousel');
-        if (carousel) {
-            const scrollLeft = carousel.scrollLeft;
-            const offsetWidth = carousel.offsetWidth || 1;
-            activeIdx = Math.round(scrollLeft / offsetWidth);
-        }
+    const carousel = card.querySelector('.carousel');
+    if (carousel) {
+        const scrollLeft = carousel.scrollLeft;
+        const offsetWidth = carousel.offsetWidth || 1;
+        activeIdx = Math.round(scrollLeft / offsetWidth);
+        // Clamp index to links array bounds
+        if (activeIdx >= allLinks.length) activeIdx = 0;
     }
 
     const targetLink = allLinks[activeIdx] || allLinks[0];
@@ -1751,11 +1898,10 @@ window.openFeedbackPost = function (el, allLinks) {
         var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isMobile) {
             var appUrl = null;
-            if (targetLink.includes('instagram.com/p/')) {
-                var matches = targetLink.match(/instagram\.com\/p\/([^\/\s?#]+)/);
-                if (matches && matches[1]) {
-                    appUrl = 'instagram://p/' + matches[1] + '/';
-                }
+            // Match /p/, /reel/, /tv/ Instagram URLs
+            var igMatch = targetLink.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&\s]+)/i);
+            if (igMatch && igMatch[1]) {
+                appUrl = 'instagram://p/' + igMatch[1] + '/';
             } else if (targetLink.includes('facebook.com')) {
                 appUrl = 'fb://facewebmodal/f?href=' + encodeURIComponent(targetLink);
             }
@@ -1768,9 +1914,9 @@ window.openFeedbackPost = function (el, allLinks) {
                     window.removeEventListener('blur', onBlur);
                 }
                 window.addEventListener('blur', onBlur);
-                
+
                 window.location.href = appUrl;
-                
+
                 setTimeout(function() {
                     window.removeEventListener('blur', onBlur);
                     if (!blurred && (Date.now() - start < 2000)) {
@@ -1903,14 +2049,21 @@ function getFeedbackCardsHtml() {
                 }
             }
 
+            // Compute links for this card (stored in data-links attribute to avoid HTML encoding issues)
+            const allLinksForCard = f.showMultiple
+                ? [link]
+                : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
+            // Escape for HTML attribute (used in data-links)
+            const dataLinksAttr = JSON.stringify(allLinksForCard).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
             let mediaHtml = '';
             if (images.length === 1) {
                 const match = images[0].match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222;">
-                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s;" class="feedback-img">
+                <div onclick="window.openFeedbackPost(this)" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222; cursor:pointer;">
+                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
                 const slideImages = images.map(url => {
@@ -1918,8 +2071,8 @@ function getFeedbackCardsHtml() {
                     const postId = match ? match[1] : '';
                     const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                     return `
-                    <div style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center;">
-                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover;">
+                    <div onclick="window.openFeedbackPost(this)" style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center; cursor:pointer;">
+                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; pointer-events:none;">
                     </div>
                     `;
                 }).join('');
@@ -1951,22 +2104,17 @@ function getFeedbackCardsHtml() {
 
             const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s;`;
 
-            const allLinksForCard = f.showMultiple
-                ? [link]
-                : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
-            const serializedLinks = JSON.stringify(allLinksForCard).replace(/"/g, '&quot;');
-
             let platformIcon = '';
             if (f.platform === 'instagram') {
-                platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})"></i>`;
+                platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
             } else if (f.platform === 'facebook') {
-                platformIcon = `<i class="fab fa-facebook" style="color:#1877F2; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})"></i>`;
+                platformIcon = `<i class="fab fa-facebook" style="color:#1877F2; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
             } else {
                 platformIcon = `<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>`;
             }
 
             return `
-            <div class="feedback-card" style="${cardStyle}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
+            <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
                 <div style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -1976,7 +2124,7 @@ function getFeedbackCardsHtml() {
                         ${platformIcon}
                     </div>
                     <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
-                    ${allLinksForCard.length > 0 ? `<div onclick="event.stopPropagation(); window.openFeedbackPost(this, ${serializedLinks})" style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif; cursor:pointer;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
+                    ${allLinksForCard.length > 0 ? `<div onclick="event.stopPropagation(); window.openFeedbackPost(this)" style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif; cursor:pointer;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
                 </div>
             </div>
             `;
@@ -2041,6 +2189,23 @@ function renderFooter() {
         
         footerEl.classList.toggle('hidden', !shouldShow);
         document.body.classList.toggle('footer-hidden', !shouldShow);
+
+        // Dynamically adjust body padding to prevent grid clipping using compact heights (on mobile only)
+        if (shouldShow && window.innerWidth <= 1024) {
+            const hasCopyright = settings.showCopyright !== false;
+            const hasLinks = !!settings.showFooter;
+            
+            let bodyPadding = '75px';
+            if (hasLinks && hasCopyright) {
+                bodyPadding = '115px';
+            } else if (hasLinks || hasCopyright) {
+                bodyPadding = '95px';
+            }
+            document.body.style.setProperty('padding-bottom', bodyPadding, 'important');
+        } else {
+            // On desktop or when footer is hidden, let CSS handle it (clear JS overrides)
+            document.body.style.removeProperty('padding-bottom');
+        }
     }
 
     // Update Copyright Label
@@ -2059,10 +2224,23 @@ function renderFooter() {
         linksRow.style.display = !!settings.showFooter ? 'flex' : 'none';
     }
 
+    // Auto-upgrade simple placeholders to premium templates
+    const premiumAbout = `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`;
+    const premiumPrivacy = `<h3>Privacy Policy & Order Processing</h3><p>At Swag Stree, we value the trust you place in us and are fully committed to protecting your personal information. Below, we explain our data practices and how your order is processed through each status update.</p><h3>1. Information We Collect</h3><p>When you place an order or interact with our app, we collect relevant information to process transactions, including:</p><ul><li>Contact details (Name, phone number, email address).</li><li>Delivery and billing address details.</li></ul><h3>2. Order Status Walkthrough</h3><p>To keep you informed at every stage of your purchase, your order progresses through these standard phases:</p><ul><li><b>Pending:</b> Your order has been successfully placed and is awaiting verification by our team.</li><li><b>Confirmed:</b> The payment/order details have been verified, and we are preparing your items for packaging.</li><li><b>Shipped:</b> Your package has been handed over to our courier partner. Tracking details will be shared via WhatsApp/SMS.</li><li><b>Delivered:</b> Your order has been successfully delivered to your specified shipping address.</li><li><b>Cancelled:</b> The order was cancelled by either the customer or our system due to stock limitations or payment issues.</li></ul><h3>3. Data Security & Storage</h3><p>Your session details, account credentials, and transactions are fully secured. We use Google Firebase for secure user authentication, password hashing, and token encryption. We strictly share shipping info with authorized delivery partners only.</p>`;
+    
+    let rawAbout = settings.aboutText || '';
+    if (!rawAbout || !rawAbout.includes('2018')) {
+        rawAbout = premiumAbout;
+    }
+    
+    let rawPrivacy = settings.privacyText || '';
+    if (!rawPrivacy || !rawPrivacy.includes('Pending') || !rawPrivacy.includes('Confirmed') || !rawPrivacy.includes('Shipped')) {
+        rawPrivacy = premiumPrivacy;
+    }
+
     // Update About Us text description
     const aboutTextEl = document.getElementById('about-content-text');
     if (aboutTextEl) {
-        const rawAbout = settings.aboutText || 'Welcome to Swagstree. Premium fashion store.';
         if (/<[a-z][\s\S]*>/i.test(rawAbout)) {
             aboutTextEl.innerHTML = rawAbout;
         } else {
@@ -2070,23 +2248,60 @@ function renderFooter() {
         }
     }
 
-    // Update GPS Maps Support
+    // Update GPS Maps & Address Support
     const mapContainer = document.getElementById('about-map-container');
     const mapWrapper = document.getElementById('about-map-iframe-wrapper');
+    const addressTextEl = document.getElementById('about-address-text');
+    const addressCardEl = document.getElementById('about-address-card');
+    
     if (mapContainer && mapWrapper) {
-        if (settings.showGps && settings.gpsLat && settings.gpsLng) {
+        const hasAddress = !!(settings.contactAddress && settings.contactAddress.trim());
+        if (hasAddress) {
             mapContainer.style.display = 'block';
-            const lat = encodeURIComponent(settings.gpsLat.trim());
-            const lng = encodeURIComponent(settings.gpsLng.trim());
-            mapWrapper.innerHTML = `<iframe 
-                width="100%" 
-                height="100%" 
-                frameborder="0" 
-                style="border:0;" 
-                src="https://maps.google.com/maps?q=${lat},${lng}&t=&z=15&ie=UTF8&iwloc=&output=embed" 
-                allowfullscreen>
-            </iframe>`;
+            if (addressTextEl) addressTextEl.textContent = settings.contactAddress.trim();
+            if (addressCardEl) addressCardEl.style.display = 'flex';
+            
+            let mapSrc = '';
+            if (settings.gpsQuery && settings.gpsQuery.trim()) {
+                const query = settings.gpsQuery.trim();
+                if (query.includes('src="') && query.includes('iframe')) {
+                    const match = query.match(/src="([^"]+)"/);
+                    mapSrc = match ? match[1] : '';
+                } else if (query.startsWith('http')) {
+                    mapSrc = query;
+                } else {
+                    mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+                }
+            } else if (settings.gpsLat && settings.gpsLng) {
+                const lat = encodeURIComponent(settings.gpsLat.trim());
+                const lng = encodeURIComponent(settings.gpsLng.trim());
+                mapSrc = `https://maps.google.com/maps?q=${lat},${lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+            } else {
+                // Default to using address text for search query directly!
+                mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(settings.contactAddress.trim())}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+            }
+            
+            if (settings.showGps !== false && mapSrc) {
+                mapWrapper.style.display = 'block';
+                mapWrapper.innerHTML = `<iframe 
+                    width="100%" 
+                    height="100%" 
+                    frameborder="0" 
+                    style="border:0;" 
+                    src="${mapSrc}" 
+                    allowfullscreen>
+                </iframe>`;
+                // Ensure heading "Find Us On Map" sibling p element is visible
+                const mapHeading = mapWrapper.previousElementSibling;
+                if (mapHeading) mapHeading.style.display = 'block';
+            } else {
+                mapWrapper.style.display = 'none';
+                mapWrapper.innerHTML = '';
+                const mapHeading = mapWrapper.previousElementSibling;
+                if (mapHeading) mapHeading.style.display = 'none';
+            }
         } else {
+            // Hide the entire location container if no address is set
             mapContainer.style.display = 'none';
             mapWrapper.innerHTML = '';
         }
@@ -2101,13 +2316,11 @@ function renderFooter() {
 
     // Update Privacy Policy content area
     const privacyContentEl = document.getElementById('privacy-content-text');
-    if (privacyContentEl && settings.privacyText !== undefined) {
-        const rawText = settings.privacyText || '';
-        // If it looks like HTML, render directly. Otherwise, format line breaks.
-        if (/<[a-z][\s\S]*>/i.test(rawText)) {
-            privacyContentEl.innerHTML = rawText;
+    if (privacyContentEl) {
+        if (/<[a-z][\s\S]*>/i.test(rawPrivacy)) {
+            privacyContentEl.innerHTML = rawPrivacy;
         } else {
-            const paragraphs = rawText.split('\n\n').map(p => {
+            const paragraphs = rawPrivacy.split('\n\n').map(p => {
                 const line = p.trim().replace(/\n/g, '<br>');
                 if (line.startsWith('1.') || line.startsWith('2.') || line.startsWith('3.')) {
                     return `<p><strong>${line}</strong></p>`;
@@ -2149,5 +2362,219 @@ function closeFooterPage() {
         if (fallback) fallback.classList.add('active');
     }
 }
-window.closeFooterPage = closeFooterPage;
+function getActive360Images(p) {
+    const isEnabled = window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer;
+    if (!isEnabled) return null;
+
+    const v = getSelectedVariant(p);
+    if (v && v.is360 && v.images && v.images.length >= 2) {
+        return v.images;
+    }
+    if (p.is360 && p.images && p.images.length >= 2) {
+        return p.images;
+    }
+    return null;
+}
+window.getActive360Images = getActive360Images;
+
+
+
+function closeAnnouncementModal() {
+    const modal = document.getElementById('announcement-modal');
+    if (modal) modal.style.display = 'none';
+    updateAnnouncementBellUI();
+}
+window.closeAnnouncementModal = closeAnnouncementModal;
+
+let currentAnnouncementIndex = 0;
+
+function openAnnouncementModal() {
+    const list = window.activeAnnouncements || [];
+    if (list.length === 0) {
+        showToast("No active announcements.");
+        return;
+    }
+    currentAnnouncementIndex = 0;
+    const modal = document.getElementById('announcement-modal');
+    if (modal) modal.style.display = 'flex';
+    renderAnnouncementSlide();
+}
+
+window.expandedAnnouncementId = null;
+
+function toggleAnnouncementExpand(id, event) {
+    if (event) event.stopPropagation();
+    if (window.expandedAnnouncementId === id) {
+        window.expandedAnnouncementId = null;
+    } else {
+        window.expandedAnnouncementId = id;
+        
+        // Auto-mark as read when clicked to expand
+        let readIds = [];
+        try {
+            readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+        } catch(e) {
+            readIds = [];
+        }
+        if (!readIds.includes(id)) {
+            readIds.push(id);
+            localStorage.setItem('swagstree_read_announcements', JSON.stringify(readIds));
+        }
+    }
+    renderAnnouncementSlide();
+    updateAnnouncementBellUI();
+}
+window.toggleAnnouncementExpand = toggleAnnouncementExpand;
+
+function renderAnnouncementSlide() {
+    const list = window.activeAnnouncements || [];
+    const container = document.getElementById('announcement-slides-container');
+    if (!container) return;
+    
+    if (list.length === 0) {
+        container.innerHTML = `<p style="color:#666; text-align:center; font-size:12px; padding:20px 0;">No active announcements.</p>`;
+        return;
+    }
+    
+    let readIds = [];
+    try {
+        readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+    } catch(e) {
+        readIds = [];
+    }
+    
+    container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:10px; max-height:400px; overflow-y:auto; padding-right:4px;">
+            ${list.map(ann => {
+                const isUnread = !readIds.includes(ann.id);
+                const isExpanded = window.expandedAnnouncementId === ann.id;
+                const dateStr = ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleDateString([], {month: 'short', day: 'numeric'}) : 'Just now';
+                
+                return `
+                    <div style="border: 1px solid ${isUnread ? 'rgba(255,215,0,0.2)' : '#222'}; background:${isUnread ? 'rgba(255,215,0,0.02)' : '#111'}; border-radius:10px; overflow:hidden; transition:all 0.2s; display:flex; flex-direction:column;">
+                        <!-- Email Header Row -->
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px; cursor:pointer;" onclick="toggleAnnouncementExpand('${ann.id}', event)">
+                            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                                <i class="fa ${isUnread ? 'fa-envelope' : 'fa-envelope-open'}" 
+                                   style="color:${isUnread ? '#ff4757' : '#666'}; font-size:13px; flex-shrink:0; cursor:pointer; padding: 4px;" 
+                                   onclick="toggleAnnouncementReadState('${ann.id}', event)" 
+                                   title="Mark as ${isUnread ? 'Read' : 'Unread'}"></i>
+                                <span style="font-size:12px; color:${isUnread ? '#fff' : '#bbb'}; font-weight:${isUnread ? '700' : '400'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                                    ${ann.message}
+                                </span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                                <span style="font-size:10px; color:#666;">${dateStr}</span>
+                                <i class="fa ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="color:#888; font-size:10px;"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Expanded Details -->
+                        ${isExpanded ? `
+                        <div style="padding: 12px; background:#0a0a0a; border-top:1px solid #222; display:flex; flex-direction:column; gap:10px;">
+${(() => {
+    const img = String(ann.image || '').trim();
+
+    const validImage =
+        img &&
+        img !== 'null' &&
+        img !== 'undefined' &&
+        (img.startsWith('http://') || img.startsWith('https://'));
+
+    return validImage ? `
+        <div style="width:100%; max-height:200px; border-radius:6px; overflow:hidden; border:1px solid #222; background:#000; display:flex; align-items:center; justify-content:center;">
+            <img src="${img}" style="width:100%; height:auto; max-height:200px; object-fit:contain;">
+        </div>
+    ` : '';
+})()}
+                            <p style="color:#eee; font-size:12px; line-height:1.6; margin:0; word-break:break-word; white-space:pre-wrap; text-align:left;">${ann.message}</p>
+                            
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px dashed #222; padding-top:8px;">
+                                <span style="font-size:9px; color:#555;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>
+                                <button onclick="toggleAnnouncementReadState('${ann.id}', event)" style="background:none; border:none; color:var(--gold); font-size:10px; font-weight:700; cursor:pointer; text-decoration:underline; outline:none; padding:0;">
+                                    Mark as ${isUnread ? 'Read' : 'Unread'}
+                                </button>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    
+    const controls = document.getElementById('announcement-controls');
+    if (controls) controls.style.display = 'none';
+}
+
+function toggleAnnouncementReadState(id, event) {
+    if (event) event.stopPropagation();
+    let readIds = [];
+    try {
+        readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+    } catch(e) {
+        readIds = [];
+    }
+    
+    if (readIds.includes(id)) {
+        readIds = readIds.filter(x => x !== id);
+    } else {
+        readIds.push(id);
+    }
+    localStorage.setItem('swagstree_read_announcements', JSON.stringify(readIds));
+    
+    renderAnnouncementSlide();
+    updateAnnouncementBellUI();
+}
+window.toggleAnnouncementReadState = toggleAnnouncementReadState;
+
+function updateAnnouncementBellUI() {
+    const bellIcon = document.querySelector('#announcement-bell-btn i');
+    const badge = document.getElementById('announcement-badge');
+    if (!bellIcon) return;
+    
+    const list = window.activeAnnouncements || [];
+    if (list.length === 0) {
+        bellIcon.style.color = '#ffd700'; // Keep yellow as default
+        bellIcon.style.opacity = '1.0';
+        if (badge) badge.style.display = 'none';
+        return;
+    }
+    
+    let readIds = [];
+    try {
+        readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
+    } catch(e) {
+        readIds = [];
+    }
+    
+    const unread = list.filter(ann => !readIds.includes(ann.id));
+    if (unread.length > 0) {
+        bellIcon.style.color = '#ff4757'; // RED when there are unread announcements
+        bellIcon.style.opacity = '1.0';
+        if (badge) {
+            badge.style.display = 'flex';
+            badge.textContent = unread.length;
+            badge.style.width = '14px';
+            badge.style.height = '14px';
+            badge.style.fontSize = '8px';
+            badge.style.fontWeight = '800';
+            badge.style.color = '#fff';
+            badge.style.background = '#ff4757';
+            badge.style.borderRadius = '50%';
+            badge.style.alignItems = 'center';
+            badge.style.justifyContent = 'center';
+            badge.style.position = 'absolute';
+            badge.style.top = '-4px';
+            badge.style.right = '-4px';
+            badge.style.boxShadow = '0 0 6px #ff4757';
+        }
+    } else {
+        bellIcon.style.color = '#ffd700'; // YELLOW default/read color
+        bellIcon.style.opacity = '1.0';
+        if (badge) badge.style.display = 'none';
+    }
+}
+window.updateAnnouncementBellUI = updateAnnouncementBellUI;
+
 

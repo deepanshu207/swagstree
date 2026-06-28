@@ -60,6 +60,8 @@ function renderVariantBlocks() {
     const container = document.getElementById('m-variants-container');
     if (!container) return;
     
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    
     container.innerHTML = variantBlocks.map((v, idx) => {
         const hasSwatches = v.previewImages && v.previewImages.length > 0;
         const colorPreviewStyle = v.color ? `background:${v.color.trim()}; display:inline-block; width:14px; height:14px; border-radius:50%; border:1px solid #666; vertical-align:middle; margin-right:4px; flex-shrink:0;` : 'display:none;';
@@ -89,6 +91,7 @@ function renderVariantBlocks() {
                         ${v.size && v.size !== 'Standard' ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.size}</span>` : ''}
                         ${v.pattern ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.pattern}</span>` : ''}
                     </span>
+                    ${is360Enabled && v.is360 ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360° ACTIVE</span>` : ''}
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <span id="v-active-badge-${v.id}" style="font-size:11px; padding:3px 8px; border-radius:20px; background:${v.isActive !== false ? '#1a3a1a' : '#3a1a1a'}; color:${v.isActive !== false ? '#4caf50' : '#e57373'};">
@@ -144,9 +147,9 @@ function renderVariantBlocks() {
 
                 <!-- Row 4: Upload buttons -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #444; background:#1a1a1a; color:#aaa; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
+                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed ${is360Enabled && v.is360 ? 'var(--gold)' : '#444'}; background:#1a1a1a; color:${is360Enabled && v.is360 ? 'var(--gold)' : '#aaa'}; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
                         <span style="font-size:18px;">🖼️</span>
-                        <span>Upload Variant Images</span>
+                        <span>Upload Variant Images ${is360Enabled && v.is360 ? '(360° Rotations)' : ''}</span>
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
                     </label>
                     <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #25D366; background:#1a1a1a; color:#25D366; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
@@ -163,6 +166,7 @@ function renderVariantBlocks() {
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
                     ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked); const badge = document.getElementById('v-active-badge-${v.id}'); if(badge) { badge.style.background = this.checked ? '#1a3a1a' : '#3a1a1a'; badge.style.color = this.checked ? '#4caf50' : '#e57373'; badge.innerHTML = this.checked ? '● Active' : '○ Hidden'; }`, 'Active', '#4caf50')}
+                    ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Rotate View Enabled', '#FFD700') : ''}
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
@@ -171,7 +175,15 @@ function renderVariantBlocks() {
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
                         <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
                     </div>
-                </div>
+                    ${is360Enabled ? `
+                    <div id="v-360-grid-container-${v.id}" style="display:${v.is360 ? 'flex' : 'none'}; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column: 1 / -1;">
+                        <span style="font-size:12px; color:#aaa; white-space:nowrap;">360 Grid:</span>
+                        <input type="number" placeholder="Cols" value="${v.threeSixtyCols || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyCols', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
+                        <span style="font-size:12px; color:#666;">x</span>
+                        <input type="number" placeholder="Rows" value="${v.threeSixtyRows || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyRows', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
+                        <span style="font-size:11px; color:#666; margin-left:5px;">(Cols x Rows frames)</span>
+                    </div>
+                    ` : ''}
 
             </div>
         </div>
@@ -300,6 +312,7 @@ function addVariantBlock() {
         isActive: true,
         trackStock: false,
         stockCount: 0,
+        is360: false,
         images: [],
         previewImages: []
     });
@@ -386,11 +399,11 @@ function renderAdmin() {
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
     }
     
-    if (countContainer) {
-        const visible = Math.min(products.length, editingProductsLimit);
-        countContainer.innerHTML = products.length > 0 ? `Showing ${visible} of ${products.length} Products` : '0 Products';
-        countContainer.style.display = 'inline-flex';
-    }
+    // if (countContainer) {
+    //     const visible = Math.min(products.length, editingProductsLimit);
+    //     countContainer.innerHTML = products.length > 0 ? `Showing ${visible} of ${products.length} Products` : '0 Products';
+    //     countContainer.style.display = 'inline-flex';
+    // }
     
     container.innerHTML = itemsToRender.map(p => {
         let thumbUrl = 'https://placehold.co/400x400/222/FFF?text=+';
@@ -444,7 +457,7 @@ function renderAdmin() {
                 } else {
                     label = `${varName}: Unlimited`;
                 }
-                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:nowrap;">${label}</span>`;
+                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:normal; display:inline-block; max-width:100%; word-break:break-word;">${label}</span>`;
             });
             stockHtml += `</div>`;
         }
@@ -485,6 +498,24 @@ function openEdit(id) {
     document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])]; 
+    
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const mainIs360Container = document.getElementById('m-is360-container');
+    if (mainIs360Container) {
+        mainIs360Container.style.display = is360Enabled ? 'flex' : 'none';
+    }
+    const mainIs360 = document.getElementById('m-is360');
+    if (mainIs360) {
+        mainIs360.checked = !!p.is360;
+        toggle360Badge('base', is360Enabled && !!p.is360);
+    }
+    const baseCols = document.getElementById('m-360-cols');
+    if (baseCols) baseCols.value = p.threeSixtyCols || 1;
+    const baseRows = document.getElementById('m-360-rows');
+    if (baseRows) baseRows.value = p.threeSixtyRows || 1;
+    const baseGridSettings = document.getElementById('m-360-grid-settings');
+    if (baseGridSettings) baseGridSettings.style.display = (is360Enabled && p.is360) ? 'flex' : 'none';
+
     renderImagePreviews('base'); 
     
     // Load variants or fallback
@@ -503,6 +534,9 @@ function openEdit(id) {
             isActive: v.isActive !== false,
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
+            is360: !!v.is360,
+            threeSixtyCols: v.threeSixtyCols || 1,
+            threeSixtyRows: v.threeSixtyRows || 1,
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
@@ -564,6 +598,14 @@ function openEdit(id) {
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
+function toggle360Badge(id, checked) {
+    if (id === 'base') {
+        const b = document.getElementById('base-360-badge');
+        if (b) b.style.display = checked ? 'inline-block' : 'none';
+    }
+}
+window.toggle360Badge = toggle360Badge;
+
 function openAdd() { 
     editingId = null; 
     existingImageUrls = []; 
@@ -576,6 +618,23 @@ function openAdd() {
     document.getElementById('m-main-pos').value = 'end';
     document.getElementById('m-main-pos-container').style.display = 'flex';
     document.getElementById('m-hide-main-placeholder').checked = false;
+    
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const mainIs360Container = document.getElementById('m-is360-container');
+    if (mainIs360Container) {
+        mainIs360Container.style.display = is360Enabled ? 'flex' : 'none';
+    }
+    const mainIs360 = document.getElementById('m-is360');
+    if (mainIs360) {
+        mainIs360.checked = false;
+        toggle360Badge('base', false);
+    }
+    const baseCols = document.getElementById('m-360-cols');
+    if (baseCols) baseCols.value = 1;
+    const baseRows = document.getElementById('m-360-rows');
+    if (baseRows) baseRows.value = 1;
+    const baseGridSettings = document.getElementById('m-360-grid-settings');
+    if (baseGridSettings) baseGridSettings.style.display = 'none';
     
     renderImagePreviews('base'); 
     renderVariantBlocks();
@@ -723,6 +782,9 @@ async function saveProduct() {
                 isActive: v.isActive !== false,
                 trackStock: !!v.trackStock,
                 stockCount: typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0),
+                is360: !!v.is360,
+                threeSixtyCols: v.threeSixtyCols ? Number(v.threeSixtyCols) : 1,
+                threeSixtyRows: v.threeSixtyRows ? Number(v.threeSixtyRows) : 1,
                 images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
             };
@@ -746,6 +808,11 @@ async function saveProduct() {
                     dup.price = v.price;
                 }
                 if (v.isActive) dup.isActive = true;
+                if (v.is360) {
+                    dup.is360 = true;
+                    dup.threeSixtyCols = v.threeSixtyCols ? Number(v.threeSixtyCols) : 1;
+                    dup.threeSixtyRows = v.threeSixtyRows ? Number(v.threeSixtyRows) : 1;
+                }
                 if (v.hideDetailsGallery) dup.hideDetailsGallery = true;
                 if (v.showInMainCarousel) dup.showInMainCarousel = true;
                 if (v.showPatternText) dup.showPatternText = true;
@@ -762,6 +829,9 @@ async function saveProduct() {
             hideMainDetailsCarousel: document.getElementById('m-hide-main-details').checked,
             mainImagesPosition: document.getElementById('m-main-pos').value,
             hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
+            is360: document.getElementById('m-is360').checked,
+            threeSixtyCols: document.getElementById('m-360-cols') ? Number(document.getElementById('m-360-cols').value) || 1 : 1,
+            threeSixtyRows: document.getElementById('m-360-rows') ? Number(document.getElementById('m-360-rows').value) || 1 : 1,
             images: finalMainImages,
             variants: mergedVariants,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -804,6 +874,7 @@ async function saveProduct() {
 if (isAdmin) {
     renderAdmin();
     loadPromoSettings();
+    if (typeof loadAnnouncementSettingsAdmin === 'function') loadAnnouncementSettingsAdmin();
 }
 
 // ── Admin Copy / Import / Export ───────────────────────────────────────────
@@ -820,6 +891,19 @@ function copyProduct(id) {
     document.getElementById('m-main-pos').value = p.mainImagesPosition || 'end';
     document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
+    
+    const mainIs360 = document.getElementById('m-is360');
+    if (mainIs360) {
+        mainIs360.checked = !!p.is360;
+        toggle360Badge('base', !!p.is360);
+    }
+    const baseCols = document.getElementById('m-360-cols');
+    if (baseCols) baseCols.value = p.threeSixtyCols || 1;
+    const baseRows = document.getElementById('m-360-rows');
+    if (baseRows) baseRows.value = p.threeSixtyRows || 1;
+    const baseGridSettings = document.getElementById('m-360-grid-settings');
+    if (baseGridSettings) baseGridSettings.style.display = p.is360 ? 'flex' : 'none';
+
     existingImageUrls = [...(p.images || [])]; 
     
     // Load variants or fallback
@@ -838,6 +922,9 @@ function copyProduct(id) {
             isActive: v.isActive !== false,
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
+            is360: !!v.is360,
+            threeSixtyCols: v.threeSixtyCols || 1,
+            threeSixtyRows: v.threeSixtyRows || 1,
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
@@ -1052,17 +1139,34 @@ window.saveMaxQtySettings = async function() {
     }
 }
 
-// ── Products Pagination Settings ─────────────────────────────────────────────
+// ── Products & Orders Pagination Settings ─────────────────────────────────────
 window.loadPaginationSettings = async function() {
     try {
         const snap = await db.collection('settings').doc('pagination').get();
-        if (snap.exists && typeof snap.data().limit !== 'undefined') {
-            const val = snap.data().limit;
-            const inp = document.getElementById('admin-products-page-limit');
-            if (inp) inp.value = val;
-            if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
-            if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
-            if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+        if (snap.exists) {
+            const data = snap.data();
+            
+            // Products limit
+            if (typeof data.limit !== 'undefined') {
+                const val = data.limit;
+                const inp = document.getElementById('admin-products-page-limit');
+                if (inp) inp.value = val;
+                if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
+                if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
+                if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+            }
+            
+            // Orders limit
+            if (typeof data.ordersLimit !== 'undefined') {
+                const val = data.ordersLimit;
+                const inp = document.getElementById('admin-orders-page-limit');
+                if (inp) inp.value = val;
+                if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = val;
+                if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = val;
+            }
+        }
+        if (typeof window.loadAdminFeatureContent === 'function') {
+            window.loadAdminFeatureContent();
         }
     } catch(e) {
         console.error('loadPaginationSettings error:', e);
@@ -1071,17 +1175,36 @@ window.loadPaginationSettings = async function() {
 
 window.savePaginationSettings = async function() {
     const inp = document.getElementById('admin-products-page-limit');
-    if (!inp) return;
-    let val = parseInt(inp.value, 10);
-    if (isNaN(val) || val < 1) val = 20;
-    inp.value = val;
+    const inpOrders = document.getElementById('admin-orders-page-limit');
+    
+    let val = 20;
+    if (inp) {
+        val = parseInt(inp.value, 10);
+        if (isNaN(val) || val < 1) val = 20;
+        inp.value = val;
+    }
+    
+    let valOrders = 20;
+    if (inpOrders) {
+        valOrders = parseInt(inpOrders.value, 10);
+        if (isNaN(valOrders) || valOrders < 1) valOrders = 20;
+        inpOrders.value = valOrders;
+    }
+    
     try {
-        await db.collection('settings').doc('pagination').set({ limit: val }, { merge: true });
+        const payload = { limit: val, ordersLimit: valOrders };
+        await db.collection('settings').doc('pagination').set(payload, { merge: true });
+        
         if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
         if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
         if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
-        showToast('✅ Products page limit saved: ' + val);
+        
+        if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = valOrders;
+        if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = valOrders;
+        
+        showToast('✅ Pagination settings saved successfully!');
         if (typeof renderStore === 'function') renderStore();
+        if (typeof loadOrders === 'function') loadOrders();
     } catch(e) {
         console.error('savePaginationSettings error:', e);
         showToast('Failed to save pagination settings');
@@ -2032,32 +2155,36 @@ async function loadAdminFooterSettings() {
             showFooter: false,
             showCopyright: true,
             copyright: "Swagstree",
-            aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
+            aboutText: `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
             gpsLat: "28.6139",
             gpsLng: "77.2090",
+            gpsQuery: "Swag Stree, Delhi",
             contactPhone: "8800467686",
-            privacyText: `Privacy Policy & Data Protection
-
-At Swag Stree, we take your privacy seriously. This policy details how we collect, use, and protect your information when using our app.
-
-1. Information Collection
-We collect your registration details (such as name, email, and phone number) to process orders and improve your store experience.
-
-2. Firebase Authentication
-All credentials and login methods (Google, Email/Password) are safely handled and securely encrypted through Google Firebase.
-
-3. Shipping & Delivery
-We share only relevant shipping details with logistics partners to ensure prompt delivery of orders.`
+            contactAddress: "Shop No. 12, Swag Stree, Delhi",
+            privacyText: `<h3>Privacy Policy & Order Processing</h3><p>At Swag Stree, we value the trust you place in us and are fully committed to protecting your personal information. Below, we explain our data practices and how your order is processed through each status update.</p><h3>1. Information We Collect</h3><p>When you place an order or interact with our app, we collect relevant information to process transactions, including:</p><ul><li>Contact details (Name, phone number, email address).</li><li>Delivery and billing address details.</li></ul><h3>2. Order Status Walkthrough</h3><p>To keep you informed at every stage of your purchase, your order progresses through these standard phases:</p><ul><li><b>Pending:</b> Your order has been successfully placed and is awaiting verification by our team.</li><li><b>Confirmed:</b> The payment/order details have been verified, and we are preparing your items for packaging.</li><li><b>Shipped:</b> Your package has been handed over to our courier partner. Tracking details will be shared via WhatsApp/SMS.</li><li><b>Delivered:</b> Your order has been successfully delivered to your specified shipping address.</li><li><b>Cancelled:</b> The order was cancelled by either the customer or our system due to stock limitations or payment issues.</li></ul><h3>3. Data Security & Storage</h3><p>Your session details, account credentials, and transactions are fully secured. We use Google Firebase for secure user authentication, password hashing, and token encryption. We strictly share shipping info with authorized delivery partners only.</p>`
         };
+        
+        // Auto-upgrade simple placeholders to premium templates
+        const premiumAbout = `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`;
+        const premiumPrivacy = `<h3>Privacy Policy & Order Processing</h3><p>At Swag Stree, we value the trust you place in us and are fully committed to protecting your personal information. Below, we explain our data practices and how your order is processed through each status update.</p><h3>1. Information We Collect</h3><p>When you place an order or interact with our app, we collect relevant information to process transactions, including:</p><ul><li>Contact details (Name, phone number, email address).</li><li>Delivery and billing address details.</li></ul><h3>2. Order Status Walkthrough</h3><p>To keep you informed at every stage of your purchase, your order progresses through these standard phases:</p><ul><li><b>Pending:</b> Your order has been successfully placed and is awaiting verification by our team.</li><li><b>Confirmed:</b> The payment/order details have been verified, and we are preparing your items for packaging.</li><li><b>Shipped:</b> Your package has been handed over to our courier partner. Tracking details will be shared via WhatsApp/SMS.</li><li><b>Delivered:</b> Your order has been successfully delivered to your specified shipping address.</li><li><b>Cancelled:</b> The order was cancelled by either the customer or our system due to stock limitations or payment issues.</li></ul><h3>3. Data Security & Storage</h3><p>Your session details, account credentials, and transactions are fully secured. We use Google Firebase for secure user authentication, password hashing, and token encryption. We strictly share shipping info with authorized delivery partners only.</p>`;
+        
+        if (!settings.aboutText || !settings.aboutText.includes('2018')) {
+            settings.aboutText = premiumAbout;
+        }
+        if (!settings.privacyText || !settings.privacyText.includes('Pending') || !settings.privacyText.includes('Confirmed') || !settings.privacyText.includes('Shipped')) {
+            settings.privacyText = premiumPrivacy;
+        }
         
         const showFooterEl = document.getElementById('admin-footer-show-footer');
         const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
         const copyrightEl = document.getElementById('admin-footer-copyright');
         const aboutTextEl = document.getElementById('admin-footer-about-text');
+        const addressEl = document.getElementById('admin-footer-address');
         const showGpsEl = document.getElementById('admin-footer-show-gps');
         const gpsLatEl = document.getElementById('admin-footer-gps-lat');
         const gpsLngEl = document.getElementById('admin-footer-gps-lng');
+        const gpsQueryEl = document.getElementById('admin-footer-gps-query');
         const phoneEl = document.getElementById('admin-footer-phone');
         const privacyEl = document.getElementById('admin-footer-privacy-text');
         
@@ -2069,6 +2196,7 @@ We share only relevant shipping details with logistics partners to ensure prompt
             if (aboutTextEl.tagName === 'DIV') aboutTextEl.innerHTML = settings.aboutText || '';
             else aboutTextEl.value = settings.aboutText || '';
         }
+        if (addressEl) addressEl.value = settings.contactAddress || '';
         
         if (showGpsEl) {
             showGpsEl.checked = !!settings.showGps;
@@ -2077,6 +2205,7 @@ We share only relevant shipping details with logistics partners to ensure prompt
         }
         if (gpsLatEl) gpsLatEl.value = settings.gpsLat || '';
         if (gpsLngEl) gpsLngEl.value = settings.gpsLng || '';
+        if (gpsQueryEl) gpsQueryEl.value = settings.gpsQuery || '';
         if (phoneEl) phoneEl.value = settings.contactPhone || '8800467686';
         
         if (privacyEl) {
@@ -2094,9 +2223,11 @@ async function saveAdminFooterSettings() {
     const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
     const copyrightEl = document.getElementById('admin-footer-copyright');
     const aboutTextEl = document.getElementById('admin-footer-about-text');
+    const addressEl = document.getElementById('admin-footer-address');
     const showGpsEl = document.getElementById('admin-footer-show-gps');
     const gpsLatEl = document.getElementById('admin-footer-gps-lat');
     const gpsLngEl = document.getElementById('admin-footer-gps-lng');
+    const gpsQueryEl = document.getElementById('admin-footer-gps-query');
     const phoneEl = document.getElementById('admin-footer-phone');
     const privacyEl = document.getElementById('admin-footer-privacy-text');
     
@@ -2104,10 +2235,12 @@ async function saveAdminFooterSettings() {
         showFooter: showFooterEl ? showFooterEl.checked : true,
         showCopyright: showCopyrightEl ? showCopyrightEl.checked : true,
         copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
-        aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "Welcome to Swagstree. Premium fashion store.",
+        aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "",
+        contactAddress: addressEl ? addressEl.value.trim() : "",
         showGps: showGpsEl ? showGpsEl.checked : false,
         gpsLat: gpsLatEl ? gpsLatEl.value.trim() : "",
         gpsLng: gpsLngEl ? gpsLngEl.value.trim() : "",
+        gpsQuery: gpsQueryEl ? gpsQueryEl.value.trim() : "",
         contactPhone: phoneEl ? phoneEl.value.trim() : "8800467686",
         privacyText: privacyEl ? (privacyEl.tagName === 'DIV' ? privacyEl.innerHTML.trim() : privacyEl.value.trim()) : ""
     };
@@ -2123,8 +2256,39 @@ async function saveAdminFooterSettings() {
 }
 window.saveAdminFooterSettings = saveAdminFooterSettings;
 
+window.useCurrentLocation = function() {
+    if (!navigator.geolocation) {
+        showToast("❌ Geolocation is not supported by your browser");
+        return;
+    }
+    showToast("Detecting location...");
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude.toFixed(6);
+            const lng = position.coords.longitude.toFixed(6);
+            const latInp = document.getElementById('admin-footer-gps-lat');
+            const lngInp = document.getElementById('admin-footer-gps-lng');
+            if (latInp) latInp.value = lat;
+            if (lngInp) lngInp.value = lng;
+            showToast(`✅ Current location loaded: ${lat}, ${lng}`);
+        },
+        (error) => {
+            console.error("Error getting location:", error);
+            showToast("❌ Unable to retrieve location: " + error.message);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+};
+
 window.execEditorCommand = function(cmd, value = null) {
-    document.execCommand(cmd, false, value);
+    if (cmd === 'createLink') {
+        const url = prompt('Enter the link URL (e.g. https://google.com):');
+        if (url) {
+            document.execCommand(cmd, false, url);
+        }
+    } else {
+        document.execCommand(cmd, false, value);
+    }
 };
 
 window.toggleFooterAccordion = function(id) {
@@ -2333,14 +2497,24 @@ async function checkAndRunAutoBackup(interval, lastBackupTime) {
 async function triggerManualBackup() {
     showToast("⏳ Preparing database backup... Please wait.");
     try {
-        await runBackup(false);
+        await runBackup(false, false);
     } catch(err) {
         console.error("Manual backup failed:", err);
         showToast("Failed to generate backup");
     }
 }
 
-async function runBackup(isAuto = false) {
+async function triggerManualBackupEmail() {
+    showToast("⏳ Preparing database backup for email... Please wait.");
+    try {
+        await runBackup(false, true);
+    } catch(err) {
+        console.error("Manual email backup failed:", err);
+        showToast("Failed to generate backup");
+    }
+}
+
+async function runBackup(isAuto = false, forceEmail = false) {
     const collections = ['products', 'orders', 'feedbacks', 'admins', 'settings'];
     const backupData = {};
     
@@ -2368,21 +2542,55 @@ async function runBackup(isAuto = false) {
     }
     backupData['users'] = usersList;
     
-    // Convert to JSON and trigger download
+    // Convert to JSON and trigger download/email
     const jsonString = JSON.stringify(backupData, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     
     const now = new Date();
-    const dateStr = now.toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
+    const dateStr = now.toISOString().replace(/T/, '_').replace(/\\.+/, '').replace(/:/g, '-');
     const filename = `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
     
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if (isAuto || forceEmail) {
+        try {
+            showToast("⏳ Uploading backup to secure storage...");
+            
+            const fd = new FormData();
+            fd.append("file", blob, filename);
+            fd.append("upload_preset", typeof PRESET !== 'undefined' ? PRESET : "swagstree_upload");
+            const cloudName = typeof CLOUD_NAME !== 'undefined' ? CLOUD_NAME : "mysharecloud";
+            
+            const r = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+                method: "POST",
+                body: fd
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ? d.error.message : "Cloudinary upload failed");
+            
+            const downloadUrl = d.secure_url;
+            
+            await db.collection('mail').add({
+                to: 'backup@swagstree.com',
+                message: {
+                    subject: `Swag Stree ${isAuto ? 'Auto' : 'Manual'} Backup: ${filename}`,
+                    text: `Your ${isAuto ? 'automated' : 'manual'} database backup is ready.\n\nDownload Link: ${downloadUrl}\n\nNote: This file is stored securely in your Cloudinary Storage.\n\nGenerated at: ${now.toLocaleString()}`
+                }
+            });
+            showToast(`✅ Backup completed and emailed to backup@swagstree.com!`);
+        } catch (err) {
+            console.error("Backup upload/email failed:", err);
+            showToast("⚠️ Backup failed to email (CORS or Storage error)");
+        }
+    } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast(`Backup download started: ${filename}`);
+    }
+    
     URL.revokeObjectURL(url);
     
     // Update last backup timestamp in settings/backup
@@ -2394,8 +2602,6 @@ async function runBackup(isAuto = false) {
     if (statusEl) {
         statusEl.innerHTML = `Last Backup Time: <b>${new Date(nowMs).toLocaleString()}</b>`;
     }
-    
-    showToast(`Backup download started: ${filename}`);
 }
 
 async function restoreBackupFromFile(input) {
@@ -2476,6 +2682,218 @@ window.loadBackupSettings = loadBackupSettings;
 window.saveBackupSettings = saveBackupSettings;
 window.triggerManualBackup = triggerManualBackup;
 window.restoreBackupFromFile = restoreBackupFromFile;
+
+// ── Global Announcement Administration ──────────────────────────────────────
+let editingAnnouncementId = null;
+
+function toggleAnnouncementAccordion() {
+    const content = document.getElementById('announcement-accordion-content');
+    const icon = document.getElementById('announcement-accordion-icon');
+    if (!content) return;
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'flex';
+        if (icon) icon.style.transform = 'rotate(0deg)';
+    } else {
+        content.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(-90deg)';
+    }
+}
+window.toggleAnnouncementAccordion = toggleAnnouncementAccordion;
+
+async function handleAnnouncementFileUpload(input) {
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    const previewContainer = document.getElementById("admin-announcement-image-preview-container");
+    const previewImg = document.getElementById("admin-announcement-image-preview");
+    const hiddenInput = document.getElementById("admin-announcement-image");
+    
+    const uploadLabel = document.querySelector('label[for="admin-announcement-file"]');
+    const originalText = uploadLabel ? uploadLabel.innerHTML : "Upload Image to Cloudinary";
+    if (uploadLabel) uploadLabel.innerHTML = `<i class="fa fa-spinner fa-spin"></i> Uploading...`;
+    
+    try {
+        const url = await uploadToCloudinary(file);
+        if (hiddenInput) hiddenInput.value = url;
+        if (previewImg) previewImg.src = url;
+        if (previewContainer) previewContainer.style.display = "flex";
+        showToast("Image uploaded to Cloudinary successfully!");
+    } catch (e) {
+        console.error(e);
+        showToast("Upload failed: " + e.message);
+    } finally {
+        if (uploadLabel) uploadLabel.innerHTML = originalText;
+    }
+}
+window.handleAnnouncementFileUpload = handleAnnouncementFileUpload;
+
+function removeAnnouncementImage() {
+    const previewContainer = document.getElementById("admin-announcement-image-preview-container");
+    const previewImg = document.getElementById("admin-announcement-image-preview");
+    const hiddenInput = document.getElementById("admin-announcement-image");
+    const fileInput = document.getElementById("admin-announcement-file");
+    
+    if (hiddenInput) hiddenInput.value = "";
+    if (previewImg) previewImg.src = "";
+    if (previewContainer) previewContainer.style.display = "none";
+    if (fileInput) fileInput.value = "";
+}
+window.removeAnnouncementImage = removeAnnouncementImage;
+
+async function publishAnnouncement() {
+    const textEl = document.getElementById("admin-announcement-msg");
+    const imageEl = document.getElementById("admin-announcement-image");
+    if (!textEl) return;
+    
+    const msg = textEl.value.trim();
+    const imageUrl = imageEl ? imageEl.value.trim() : "";
+    
+    if (!msg) {
+        showToast("Please enter an announcement message.");
+        return;
+    }
+    
+    try {
+        if (editingAnnouncementId) {
+            await db.collection("announcements").doc(editingAnnouncementId).update({
+                message: msg,
+                image: imageUrl,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            showToast("Announcement updated successfully!");
+            cancelAnnouncementEdit();
+        } else {
+            const id = 'ann_' + Date.now();
+            await db.collection("announcements").doc(id).set({
+                id: id,
+                message: msg,
+                image: imageUrl,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            showToast("Announcement published successfully!");
+            textEl.value = "";
+            removeAnnouncementImage();
+        }
+    } catch (e) {
+        console.error("Error publishing/updating announcement:", e);
+        showToast("Failed to publish: " + e.message);
+    }
+}
+window.publishAnnouncement = publishAnnouncement;
+
+async function deleteAnnouncementAdmin(id) {
+    if (!confirm("Are you sure you want to delete this announcement?")) return;
+    try {
+        await db.collection("announcements").doc(id).delete();
+        showToast("Announcement deleted successfully!");
+        if (editingAnnouncementId === id) {
+            cancelAnnouncementEdit();
+        }
+    } catch (e) {
+        console.error("Error deleting announcement:", e);
+        showToast("Failed to delete: " + e.message);
+    }
+}
+window.deleteAnnouncementAdmin = deleteAnnouncementAdmin;
+
+async function editAnnouncementAdmin(id) {
+    try {
+        const snap = await db.collection("announcements").doc(id).get();
+        if (!snap.exists) {
+            showToast("Announcement not found.");
+            return;
+        }
+        const data = snap.data();
+        const textEl = document.getElementById("admin-announcement-msg");
+        const imageEl = document.getElementById("admin-announcement-image");
+        const previewContainer = document.getElementById("admin-announcement-image-preview-container");
+        const previewImg = document.getElementById("admin-announcement-image-preview");
+        const pubBtn = document.getElementById("admin-announcement-pub-btn");
+        const cancelBtn = document.getElementById("admin-announcement-cancel-btn");
+        
+        if (textEl) textEl.value = data.message || "";
+        if (imageEl) imageEl.value = data.image || "";
+        
+        if (data.image) {
+            if (previewImg) previewImg.src = data.image;
+            if (previewContainer) previewContainer.style.display = "flex";
+        } else {
+            if (previewImg) previewImg.src = "";
+            if (previewContainer) previewContainer.style.display = "none";
+        }
+        
+        editingAnnouncementId = id;
+        if (pubBtn) pubBtn.textContent = "Update Announcement";
+        if (cancelBtn) cancelBtn.style.display = "block";
+        
+        // Open the accordion if it is currently closed
+        const content = document.getElementById('announcement-accordion-content');
+        const icon = document.getElementById('announcement-accordion-icon');
+        if (content && content.style.display === 'none') {
+            content.style.display = 'flex';
+            if (icon) icon.style.transform = 'rotate(0deg)';
+        }
+    } catch (e) {
+        console.error("Error editing announcement:", e);
+    }
+}
+window.editAnnouncementAdmin = editAnnouncementAdmin;
+
+function cancelAnnouncementEdit() {
+    editingAnnouncementId = null;
+    const textEl = document.getElementById("admin-announcement-msg");
+    const pubBtn = document.getElementById("admin-announcement-pub-btn");
+    const cancelBtn = document.getElementById("admin-announcement-cancel-btn");
+    
+    if (textEl) textEl.value = "";
+    removeAnnouncementImage();
+    if (pubBtn) pubBtn.textContent = "Publish";
+    if (cancelBtn) cancelBtn.style.display = "none";
+}
+window.cancelAnnouncementEdit = cancelAnnouncementEdit;
+
+function loadAnnouncementSettingsAdmin() {
+    db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(snap => {
+        const list = [];
+        snap.forEach(doc => {
+            list.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        renderAdminAnnouncements(list);
+    }, error => {
+        console.error("Error loading announcements in admin:", error);
+    });
+}
+window.loadAnnouncementSettingsAdmin = loadAnnouncementSettingsAdmin;
+
+function renderAdminAnnouncements(list) {
+    const container = document.getElementById('admin-announcements-list');
+    if (!container) return;
+    
+    if (!list || list.length === 0) {
+        container.innerHTML = `<p style="color:#666; font-size:11px; margin:0; text-align:center; padding: 20px 0;">No announcements published yet.</p>`;
+        return;
+    }
+    
+    container.innerHTML = list.map(ann => `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; background:#111; border:1px solid #333; border-radius:8px;">
+            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                ${ann.image? `<img src="${ann.image}" style="width:40px; height:40px; object-fit:cover; border-radius:4px; border:1px solid #222; flex-shrink:0;">` : `<div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:#222; border-radius:4px; border:1px solid #333; flex-shrink:0;"><i class="fa fa-bullhorn" style="color:#ffd700; font-size:12px;"></i></div>`}
+                <div style="min-width:0; flex:1;">
+                    <p style="margin:0; font-size:11px; color:#fff; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word;">${ann.message}</p>
+                    <span style="font-size:9px; color:#666;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>
+                </div>
+            </div>
+            <div style="display:flex; gap:6px; flex-shrink:0;">
+                <button onclick="editAnnouncementAdmin('${ann.id}')" style="background:#ffd700; border:none; color:#000; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:700;"><i class="fa fa-edit"></i></button>
+                <button onclick="deleteAnnouncementAdmin('${ann.id}')" style="background:#ff4757; border:none; color:#fff; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:700;"><i class="fa fa-trash"></i></button>
+            </div>
+        </div>
+    `).join('');
+}
+
 
 
 
