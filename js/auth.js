@@ -197,6 +197,8 @@ auth.onAuthStateChanged(user => {
 
         isAdmin = (emailLower === SUPER_ADMIN_EMAIL || (emailLower === ADMIN_EMAIL && !isAdminDeactivated) || isCustomAdminActive);
 
+        if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
+
         // Sync email to Firestore and listen for real-time deactivation
         db.collection("users").doc(user.uid).onSnapshot(doc => {
             const data = doc.exists ? doc.data() : {};
