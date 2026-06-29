@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=5.1">
+    <link rel="stylesheet" href="css/style.css?v=5.3">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -179,7 +179,7 @@
         </nav>
 
         <div class="header-actions">
-            <div class="header-social-bar social-tools">
+            <div class="header-social-tray social-tools" aria-label="Social links">
                 <a href="https://instagram.com/swag_stree" target="_blank" rel="noopener noreferrer"
                     id="instagram-menu-btn" class="header-action-btn header-icon-instagram" aria-label="Instagram"><i
                         class="fab fa-instagram"></i></a>
@@ -189,9 +189,10 @@
                 <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank" rel="noopener noreferrer"
                     id="facebook-menu-btn" class="header-action-btn header-icon-facebook" aria-label="Facebook"><i
                         class="fab fa-facebook"></i></a>
-                <button type="button" class="header-action-btn header-icon-filter" onclick="toggleFilter()"
-                    aria-label="Filters"><i class="fa fa-sliders"></i></button>
             </div>
+
+            <button type="button" class="header-action-btn header-icon-filter" onclick="toggleFilter()"
+                aria-label="Filters"><i class="fa fa-sliders"></i></button>
 
             <!-- Language Switcher -->
             <div class="lang-select-container" id="lang-selector-wrap" style="display:none;">
