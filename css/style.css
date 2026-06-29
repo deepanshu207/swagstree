@@ -2096,8 +2096,10 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     width: 100%;
     box-sizing: border-box;
     overflow: visible;
-    min-height: 36px;
-    --catalog-actions-width: 150px;
+    --catalog-control-size: clamp(32px, 8.8vw, 34px);
+    --catalog-control-font: clamp(10px, 2.85vw, 12px);
+    min-height: var(--catalog-control-size);
+    --catalog-actions-width: 162px;
 }
 
 #home-view > .grid,
@@ -2191,12 +2193,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 
 .catalog-controls-row .count-badge,
 .catalog-controls-row .catalog-count-label {
-    font-size: clamp(10px, 2.85vw, 12px);
+    font-size: var(--catalog-control-font);
     font-weight: 700;
     padding: 6px 11px;
     letter-spacing: 0.2px;
     text-transform: none !important;
-    height: 32px;
+    height: var(--catalog-control-size);
     box-sizing: border-box;
     align-items: center;
     width: auto;
@@ -2226,6 +2228,11 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
         font-size: 11px;
         padding: 7px 12px;
         height: 34px;
+    }
+
+    .catalog-controls-row {
+        --catalog-control-size: 34px;
+        --catalog-control-font: 11px;
     }
 }
 
@@ -2324,6 +2331,11 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
         letter-spacing: 0.4px;
         height: 36px;
     }
+
+    .catalog-controls-row {
+        --catalog-control-size: 36px;
+        --catalog-control-font: 12px;
+    }
 }
 
 .catalog-icon-btn {
@@ -2332,11 +2344,11 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: var(--catalog-control-size, 34px);
+    height: var(--catalog-control-size, 34px);
     border-radius: 50%;
     background: #111;
-    border: 1px solid #222;
+    border: 1px solid rgba(255, 215, 0, 0.18);
     transition: all 0.3s ease;
     flex-shrink: 0;
     overflow: visible;
@@ -2345,13 +2357,13 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 
 .catalog-icon-btn .fa-comments {
     color: var(--gold);
-    font-size: 12px;
+    font-size: clamp(12px, 3.2vw, 14px);
 }
 
 .catalog-icon-btn .fa-bullhorn {
-    color: #777;
-    font-size: 12px;
-    opacity: 0.6;
+    color: #999;
+    font-size: clamp(12px, 3.2vw, 14px);
+    opacity: 0.85;
 }
 
 .catalog-icon-badge,
@@ -2404,16 +2416,16 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    height: 32px !important;
-    min-height: 32px !important;
+    height: var(--catalog-control-size, 34px) !important;
+    min-height: var(--catalog-control-size, 34px) !important;
     margin-bottom: 0;
     padding: 4px 22px 4px 22px !important;
-    font-size: clamp(9px, 2.5vw, 11px) !important;
+    font-size: var(--catalog-control-font, clamp(10px, 2.85vw, 12px)) !important;
     line-height: 1.2 !important;
-    border: 1px solid #222;
+    border: 1px solid rgba(255, 215, 0, 0.18);
     background-color: #111;
     color: #fff;
-    border-radius: 8px;
+    border-radius: 999px;
     cursor: pointer;
     appearance: none !important;
     -webkit-appearance: none !important;
@@ -2428,11 +2440,11 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 
 .catalog-sort-icon {
     position: absolute;
-    left: 7px;
+    left: 8px;
     top: 50%;
     transform: translateY(-50%);
     color: #ffd700;
-    font-size: 9px;
+    font-size: clamp(9px, 2.4vw, 10px);
     pointer-events: none;
     z-index: 2;
     line-height: 1;
@@ -2717,7 +2729,8 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     .catalog-controls-row {
         gap: 5px;
         padding: 0 12px;
-        min-height: 34px;
+        --catalog-control-size: clamp(32px, 8.8vw, 34px);
+        --catalog-control-font: clamp(10px, 2.85vw, 11px);
     }
     .home-search-wrap,
     .wish-search-wrap {
@@ -2733,49 +2746,28 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     }
     .catalog-controls-row .count-badge,
     .catalog-controls-row .catalog-count-label {
-        font-size: clamp(10px, 3vw, 11px);
         padding: 5px 9px;
-        height: 30px;
         gap: 5px;
     }
     .catalog-controls-actions {
         gap: 4px;
     }
     .catalog-row-wishlist .catalog-sort-wrap {
-        max-width: min(42vw, 120px);
+        max-width: min(40vw, 118px);
     }
     .catalog-sort-wrap {
-        max-width: min(36vw, 110px);
+        max-width: min(34vw, 108px);
     }
     .catalog-sort-select {
         max-width: 100%;
     }
     .catalog-controls-row select,
     .catalog-sort-dropdown {
-        font-size: clamp(9px, 2.6vw, 10px) !important;
-        height: 30px !important;
-        min-height: 30px !important;
-        padding: 2px 18px 2px 18px !important;
-        background-position: right 4px center !important;
-        background-size: 8px !important;
+        padding: 2px 18px 2px 20px !important;
+        background-position: right 5px center !important;
+        background-size: 9px !important;
     }
     .catalog-sort-icon {
-        left: 6px;
-        font-size: 8px;
-    }
-    .catalog-icon-btn,
-    .catalog-controls-row #header-support-chat-btn,
-    .catalog-controls-row #announcement-bell-btn,
-    .catalog-controls-row #wish-header-support-chat-btn,
-    .catalog-controls-row #wish-announcement-bell-btn {
-        width: 30px !important;
-        height: 30px !important;
-    }
-    .catalog-icon-btn i,
-    .catalog-controls-row #header-support-chat-btn i,
-    .catalog-controls-row #announcement-bell-btn i,
-    .catalog-controls-row #wish-header-support-chat-btn i,
-    .catalog-controls-row #wish-announcement-bell-btn i {
-        font-size: 11px !important;
+        left: 7px;
     }
 }

@@ -1485,14 +1485,14 @@ window.updateCatalogControlsRowLayout = function() {
         row.classList.toggle('catalog-row-no-announcement', !annEnabled);
         row.classList.toggle('catalog-row-icons-minimal', !chatEnabled && !annEnabled);
 
-        let actionsWidth = isMobile ? 94 : (isTablet ? 108 : 120);
-        if (chatEnabled) actionsWidth += isMobile ? 34 : 38;
-        if (annEnabled) actionsWidth += isMobile ? 34 : 38;
+        let actionsWidth = isMobile ? 102 : (isTablet ? 116 : 128);
+        if (chatEnabled) actionsWidth += isMobile ? 36 : 40;
+        if (annEnabled) actionsWidth += isMobile ? 36 : 40;
 
         if (isWish) {
             row.classList.add('catalog-row-wishlist');
             if (!chatEnabled && !annEnabled) {
-                const sortWidth = isMobile ? 98 : (isTablet ? 112 : 124);
+                const sortWidth = isMobile ? 104 : (isTablet ? 118 : 130);
                 row.style.setProperty('--catalog-actions-width', `${sortWidth}px`);
             } else {
                 row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
