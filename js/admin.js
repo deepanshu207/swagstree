@@ -2449,6 +2449,224 @@ class FirestoreBatcher {
     }
 }
 
+const BACKUP_FORMAT_VERSION = 2;
+const FIRESTORE_BACKUP_COLLECTIONS = [
+    'products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings', 'announcements'
+];
+
+async function fetchCollectionBackupDocs(collectionName) {
+    const snap = await db.collection(collectionName).get();
+    const docs = [];
+    snap.forEach((doc) => docs.push({ id: doc.id, data: doc.data() }));
+    return docs;
+}
+
+async function fetchUsersBackupDocs() {
+    const usersSnap = await db.collection('users').get();
+    const usersList = [];
+    for (const doc of usersSnap.docs) {
+        const userData = doc.data();
+        const addrSnap = await db.collection('users').doc(doc.id).collection('addresses').get();
+        const addresses = [];
+        addrSnap.forEach((aDoc) => addresses.push({ id: aDoc.id, data: aDoc.data() }));
+        usersList.push({ id: doc.id, data: userData, addresses });
+    }
+    return usersList;
+}
+
+async function fetchSupportThreadsBackupDocs() {
+    const supportSnap = await db.collection('support_threads').get();
+    const supportThreadsList = [];
+    for (const doc of supportSnap.docs) {
+        const msgSnap = await db.collection('support_threads').doc(doc.id).collection('messages').get();
+        const messages = [];
+        msgSnap.forEach((mDoc) => messages.push({ id: mDoc.id, data: mDoc.data() }));
+        supportThreadsList.push({ id: doc.id, data: doc.data(), messages });
+    }
+    return supportThreadsList;
+}
+
+async function buildBackupPayload(scope = 'full') {
+    const projectId = (typeof firebaseConfig !== 'undefined' && firebaseConfig.projectId) ? firebaseConfig.projectId : 'swagstree-web';
+    const createdAt = new Date().toISOString();
+
+    if (scope === 'users') {
+        return {
+            _meta: {
+                version: BACKUP_FORMAT_VERSION,
+                createdAt,
+                scope: 'users',
+                app: 'swagstree',
+                projectId,
+                collections: ['users']
+            },
+            users: await fetchUsersBackupDocs()
+        };
+    }
+
+    const backupData = {
+        _meta: {
+            version: BACKUP_FORMAT_VERSION,
+            createdAt,
+            scope: 'full',
+            app: 'swagstree',
+            projectId,
+            collections: [...FIRESTORE_BACKUP_COLLECTIONS, 'support_threads', 'users']
+        }
+    };
+
+    for (const col of FIRESTORE_BACKUP_COLLECTIONS) {
+        backupData[col] = await fetchCollectionBackupDocs(col);
+    }
+    backupData.support_threads = await fetchSupportThreadsBackupDocs();
+    backupData.users = await fetchUsersBackupDocs();
+    return backupData;
+}
+
+function buildBackupFilename(scope, isAuto) {
+    const dateStr = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
+    if (scope === 'users') {
+        return `swagstree_users_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
+    }
+    return `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
+}
+
+async function fetchAuthUsersExport() {
+    const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+    if (!user) throw new Error('You must be logged in to export auth users.');
+    const token = await user.getIdToken(true);
+    const resp = await fetch('/api/auth/export', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    let data = {};
+    try {
+        data = await resp.json();
+    } catch (_) {
+        throw new Error('Auth export server returned an invalid response.');
+    }
+    if (!resp.ok || !data.ok) {
+        throw new Error(data.error || `Auth export failed (${resp.status}).`);
+    }
+    return data;
+}
+
+async function deliverBackupJson(backupData, filename, isAuto, forceEmail) {
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+
+    if (isAuto || forceEmail) {
+        try {
+            showToast('⏳ Uploading backup to secure storage...');
+            const fd = new FormData();
+            fd.append('file', blob, filename);
+            fd.append('upload_preset', typeof PRESET !== 'undefined' ? PRESET : 'swagstree_upload');
+            const cloudName = typeof CLOUD_NAME !== 'undefined' ? CLOUD_NAME : 'mysharecloud';
+            const r = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+                method: 'POST',
+                body: fd
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ? d.error.message : 'Cloudinary upload failed');
+            const downloadUrl = d.secure_url;
+            await db.collection('mail').add({
+                to: 'backup@swagstree.com',
+                message: {
+                    subject: `Swag Stree ${isAuto ? 'Auto' : 'Manual'} Backup: ${filename}`,
+                    text: `Your ${isAuto ? 'automated' : 'manual'} database backup is ready.\n\nDownload Link: ${downloadUrl}\n\nCollections: ${(backupData._meta?.collections || []).join(', ')}\n\nGenerated at: ${now.toLocaleString()}`
+                }
+            });
+            showToast('✅ Backup completed and emailed to backup@swagstree.com!');
+        } catch (err) {
+            console.error('Backup upload/email failed:', err);
+            showToast('⚠️ Backup failed to email (CORS or Storage error)');
+        }
+    } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast(`Backup download started: ${filename}`);
+    }
+
+    URL.revokeObjectURL(url);
+
+    const nowMs = Date.now();
+    await db.collection('settings').doc('backup').set({ lastBackupTime: nowMs }, { merge: true });
+    const statusEl = document.getElementById('admin-backup-status-text');
+    if (statusEl) {
+        statusEl.innerHTML = `Last Backup Time: <b>${new Date(nowMs).toLocaleString()}</b>`;
+    }
+}
+
+function isValidBackupData(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (data._meta?.scope === 'users') return Array.isArray(data.users);
+    return !!(data.products && data.orders && data.settings && data.users);
+}
+
+async function restoreUsersBackupDocs(users) {
+    const batcher = new FirestoreBatcher();
+    for (const user of users) {
+        await batcher.set(db.collection('users').doc(user.id), user.data);
+        if (user.addresses && Array.isArray(user.addresses)) {
+            for (const addr of user.addresses) {
+                await batcher.set(
+                    db.collection('users').doc(user.id).collection('addresses').doc(addr.id),
+                    addr.data
+                );
+            }
+        }
+    }
+    await batcher.commit();
+}
+
+async function restoreFullBackupDocs(data) {
+    const batcher = new FirestoreBatcher();
+    const cols = [...FIRESTORE_BACKUP_COLLECTIONS];
+    for (const col of cols) {
+        if (data[col] && Array.isArray(data[col])) {
+            for (const doc of data[col]) {
+                await batcher.set(db.collection(col).doc(doc.id), doc.data);
+            }
+        }
+    }
+
+    if (data.support_threads && Array.isArray(data.support_threads)) {
+        for (const thread of data.support_threads) {
+            await batcher.set(db.collection('support_threads').doc(thread.id), thread.data);
+            if (thread.messages && Array.isArray(thread.messages)) {
+                for (const msg of thread.messages) {
+                    await batcher.set(
+                        db.collection('support_threads').doc(thread.id).collection('messages').doc(msg.id),
+                        msg.data
+                    );
+                }
+            }
+        }
+    }
+
+    if (data.users && Array.isArray(data.users)) {
+        for (const user of data.users) {
+            await batcher.set(db.collection('users').doc(user.id), user.data);
+            if (user.addresses && Array.isArray(user.addresses)) {
+                for (const addr of user.addresses) {
+                    await batcher.set(
+                        db.collection('users').doc(user.id).collection('addresses').doc(addr.id),
+                        addr.data
+                    );
+                }
+            }
+        }
+    }
+
+    await batcher.commit();
+}
+
 async function loadBackupSettings() {
     try {
         const snap = await db.collection('settings').doc('backup').get();
@@ -2519,208 +2737,103 @@ async function checkAndRunAutoBackup(interval, lastBackupTime) {
 }
 
 async function triggerManualBackup() {
-    showToast("⏳ Preparing database backup... Please wait.");
+    showToast('⏳ Preparing database backup... Please wait.');
     try {
         await runBackup(false, false);
-    } catch(err) {
-        console.error("Manual backup failed:", err);
-        showToast("Failed to generate backup");
+    } catch (err) {
+        console.error('Manual backup failed:', err);
+        showToast('Failed to generate backup');
     }
 }
 
 async function triggerManualBackupEmail() {
-    showToast("⏳ Preparing database backup for email... Please wait.");
+    showToast('⏳ Preparing database backup for email... Please wait.');
     try {
         await runBackup(false, true);
-    } catch(err) {
-        console.error("Manual email backup failed:", err);
-        showToast("Failed to generate backup");
+    } catch (err) {
+        console.error('Manual email backup failed:', err);
+        showToast('Failed to generate backup');
+    }
+}
+
+async function triggerUsersBackup() {
+    if (!isSuperAdmin) return showToast('Only superadmin can export users & auth.');
+
+    showToast('⏳ Preparing users & auth backup...');
+    try {
+        const payload = await buildBackupPayload('users');
+        try {
+            const authExport = await fetchAuthUsersExport();
+            payload.auth_users = authExport.users || [];
+            payload._meta.authUsersCount = payload.auth_users.length;
+            payload._meta.authExported = true;
+            payload._meta.authExportedAt = authExport.exportedAt;
+        } catch (authErr) {
+            console.warn('Auth export unavailable:', authErr);
+            payload._meta.authExported = false;
+            payload._meta.authExportNote = authErr.message || 'Auth export requires FIREBASE_SERVICE_ACCOUNT on the server.';
+        }
+
+        await deliverBackupJson(payload, buildBackupFilename('users', false), false, false);
+        const authNote = payload._meta.authExported
+            ? ` (${payload.auth_users.length} Firebase Auth accounts included)`
+            : ' (Firestore profiles only — configure auth export on server for login metadata)';
+        showToast(`✅ Users backup download started${authNote}`);
+    } catch (err) {
+        console.error('Users backup failed:', err);
+        showToast('Failed to create users backup.');
     }
 }
 
 async function runBackup(isAuto = false, forceEmail = false) {
-    const collections = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
-    const backupData = {};
-    
-    // Fetch regular collections
-    for (const col of collections) {
-        const snap = await db.collection(col).get();
-        const docs = [];
-        snap.forEach(doc => {
-            docs.push({ id: doc.id, data: doc.data() });
-        });
-        backupData[col] = docs;
-    }
-
-    const supportSnap = await db.collection('support_threads').get();
-    const supportThreadsList = [];
-    for (const doc of supportSnap.docs) {
-        const msgSnap = await db.collection('support_threads').doc(doc.id).collection('messages').get();
-        const messages = [];
-        msgSnap.forEach(mDoc => {
-            messages.push({ id: mDoc.id, data: mDoc.data() });
-        });
-        supportThreadsList.push({ id: doc.id, data: doc.data(), messages });
-    }
-    backupData['support_threads'] = supportThreadsList;
-    
-    // Fetch users collection with subcollection addresses
-    const usersSnap = await db.collection('users').get();
-    const usersList = [];
-    for (const doc of usersSnap.docs) {
-        const userData = doc.data();
-        const addrSnap = await db.collection('users').doc(doc.id).collection('addresses').get();
-        const addresses = [];
-        addrSnap.forEach(aDoc => {
-            addresses.push({ id: aDoc.id, data: aDoc.data() });
-        });
-        usersList.push({ id: doc.id, data: userData, addresses: addresses });
-    }
-    backupData['users'] = usersList;
-    
-    // Convert to JSON and trigger download/email
-    const jsonString = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const now = new Date();
-    const dateStr = now.toISOString().replace(/T/, '_').replace(/\\.+/, '').replace(/:/g, '-');
-    const filename = `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
-    
-    if (isAuto || forceEmail) {
-        try {
-            showToast("⏳ Uploading backup to secure storage...");
-            
-            const fd = new FormData();
-            fd.append("file", blob, filename);
-            fd.append("upload_preset", typeof PRESET !== 'undefined' ? PRESET : "swagstree_upload");
-            const cloudName = typeof CLOUD_NAME !== 'undefined' ? CLOUD_NAME : "mysharecloud";
-            
-            const r = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-                method: "POST",
-                body: fd
-            });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.error ? d.error.message : "Cloudinary upload failed");
-            
-            const downloadUrl = d.secure_url;
-            
-            await db.collection('mail').add({
-                to: 'backup@swagstree.com',
-                message: {
-                    subject: `Swag Stree ${isAuto ? 'Auto' : 'Manual'} Backup: ${filename}`,
-                    text: `Your ${isAuto ? 'automated' : 'manual'} database backup is ready.\n\nDownload Link: ${downloadUrl}\n\nNote: This file is stored securely in your Cloudinary Storage.\n\nGenerated at: ${now.toLocaleString()}`
-                }
-            });
-            showToast(`✅ Backup completed and emailed to backup@swagstree.com!`);
-        } catch (err) {
-            console.error("Backup upload/email failed:", err);
-            showToast("⚠️ Backup failed to email (CORS or Storage error)");
-        }
-    } else {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        showToast(`Backup download started: ${filename}`);
-    }
-    
-    URL.revokeObjectURL(url);
-    
-    // Update last backup timestamp in settings/backup
-    const nowMs = Date.now();
-    await db.collection('settings').doc('backup').set({ lastBackupTime: nowMs }, { merge: true });
-    
-    // Refresh status text
-    const statusEl = document.getElementById('admin-backup-status-text');
-    if (statusEl) {
-        statusEl.innerHTML = `Last Backup Time: <b>${new Date(nowMs).toLocaleString()}</b>`;
-    }
+    const backupData = await buildBackupPayload('full');
+    await deliverBackupJson(backupData, buildBackupFilename('full', isAuto), isAuto, forceEmail);
 }
 
 async function restoreBackupFromFile(input) {
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
-    
+
     const reader = new FileReader();
     reader.onload = async function(e) {
         try {
             const data = JSON.parse(e.target.result);
-            
-            // Validation
-            if (!data.products || !data.orders || !data.feedbacks || !data.settings || !data.users || !data.admins) {
-                showToast("⚠️ Invalid backup file format!");
+
+            if (!isValidBackupData(data)) {
+                showToast('⚠️ Invalid backup file format!');
                 input.value = '';
                 return;
-            }
-            
-            const confirmMsg = "CRITICAL WARNING:\n\n" +
-                               "Restoring this backup will insert or overwrite documents in all collections (products, orders, feedbacks, users, settings, admins).\n" +
-                               "It is highly recommended to download a backup of your current database first.\n\n" +
-                               "To proceed with the restore operation, please type \"RESTORE\" in the prompt below:";
-            
-            const promptVal = prompt(confirmMsg);
-            if (promptVal !== 'RESTORE') {
-                showToast("Restore operation cancelled.");
-                input.value = '';
-                return;
-            }
-            
-            showToast("⏳ Restoring database in batches... Do not close the window.");
-            
-            const batcher = new FirestoreBatcher();
-            
-            // Restore regular collections
-            const cols = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
-            for (const col of cols) {
-                if (data[col] && Array.isArray(data[col])) {
-                    for (const doc of data[col]) {
-                        await batcher.set(db.collection(col).doc(doc.id), doc.data);
-                    }
-                }
             }
 
-            if (data.support_threads && Array.isArray(data.support_threads)) {
-                for (const thread of data.support_threads) {
-                    await batcher.set(db.collection('support_threads').doc(thread.id), thread.data);
-                    if (thread.messages && Array.isArray(thread.messages)) {
-                        for (const msg of thread.messages) {
-                            await batcher.set(
-                                db.collection('support_threads').doc(thread.id).collection('messages').doc(msg.id),
-                                msg.data
-                            );
-                        }
-                    }
-                }
+            const isUsersScope = data._meta?.scope === 'users';
+            const confirmMsg = isUsersScope
+                ? 'CRITICAL WARNING:\n\nThis will overwrite Firestore user profiles and saved addresses from the backup file.\nFirebase Auth login accounts are NOT changed by this restore.\n\nType "RESTORE USERS" to proceed:'
+                : 'CRITICAL WARNING:\n\nRestoring this backup will insert or overwrite documents in all collections (products, orders, feedbacks, announcements, comments, users, settings, admins, support chats).\n\nDownload a backup of your current database first.\n\nType "RESTORE" to proceed:';
+
+            const expectedPhrase = isUsersScope ? 'RESTORE USERS' : 'RESTORE';
+            const promptVal = prompt(confirmMsg);
+            if (promptVal !== expectedPhrase) {
+                showToast('Restore operation cancelled.');
+                input.value = '';
+                return;
             }
-            
-            // Restore users and subcollection addresses
-            if (data.users && Array.isArray(data.users)) {
-                for (const user of data.users) {
-                    await batcher.set(db.collection('users').doc(user.id), user.data);
-                    
-                    if (user.addresses && Array.isArray(user.addresses)) {
-                        for (const addr of user.addresses) {
-                            await batcher.set(
-                                db.collection('users').doc(user.id).collection('addresses').doc(addr.id),
-                                addr.data
-                            );
-                        }
-                    }
-                }
+
+            showToast('⏳ Restoring database in batches... Do not close the window.');
+
+            if (isUsersScope) {
+                await restoreUsersBackupDocs(data.users);
+                showToast('✅ User profiles restored successfully! Reloading page...');
+            } else {
+                await restoreFullBackupDocs(data);
+                showToast('✅ Database restored successfully! Reloading page...');
             }
-            
-            await batcher.commit();
-            showToast("✅ Database restored successfully! Reloading page...");
+
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
-            
-        } catch(err) {
-            console.error("Error restoring backup:", err);
-            showToast("Failed to restore backup. Please ensure the file is valid JSON.");
+        } catch (err) {
+            console.error('Error restoring backup:', err);
+            showToast('Failed to restore backup. Please ensure the file is valid JSON.');
         } finally {
             input.value = '';
         }
@@ -2731,6 +2844,8 @@ async function restoreBackupFromFile(input) {
 window.loadBackupSettings = loadBackupSettings;
 window.saveBackupSettings = saveBackupSettings;
 window.triggerManualBackup = triggerManualBackup;
+window.triggerManualBackupEmail = triggerManualBackupEmail;
+window.triggerUsersBackup = triggerUsersBackup;
 window.restoreBackupFromFile = restoreBackupFromFile;
 
 // ── Global Announcement Administration ──────────────────────────────────────

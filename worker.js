@@ -9,6 +9,8 @@
  * - SUPER_ADMIN_EMAIL (default: superadmin@swagstree.com)
  * Optional:
  * - CLOUDINARY_ASSET_PREFIX (e.g. swagstree) — also purge orphans under this folder prefix
+ * - FIREBASE_SERVICE_ACCOUNT — JSON service account for Auth user export
+ * - FIREBASE_PROJECT_ID (default: swagstree-web)
  */
 
 const SUPER_ADMIN_DEFAULT = 'superadmin@swagstree.com';
@@ -121,6 +123,158 @@ async function cloudinaryDeleteByPrefix(cloudName, authHeader, resourceType, pre
     return totalDeleted;
 }
 
+function base64urlFromString(str) {
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlFromBuffer(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    bytes.forEach((b) => { binary += String.fromCharCode(b); });
+    return base64urlFromString(binary);
+}
+
+async function importServiceAccountPrivateKey(pem) {
+    const pemContents = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
+    const binary = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+    return crypto.subtle.importKey(
+        'pkcs8',
+        binary.buffer,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+}
+
+async function getGoogleAccessToken(serviceAccount) {
+    const iat = Math.floor(Date.now() / 1000);
+    const header = base64urlFromString(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+    const payload = base64urlFromString(JSON.stringify({
+        iss: serviceAccount.client_email,
+        sub: serviceAccount.client_email,
+        aud: 'https://oauth2.googleapis.com/token',
+        iat,
+        exp: iat + 3600,
+        scope: 'https://www.googleapis.com/auth/identitytoolkit'
+    }));
+    const key = await importServiceAccountPrivateKey(serviceAccount.private_key);
+    const signature = await crypto.subtle.sign(
+        'RSASSA-PKCS1-v1_5',
+        key,
+        new TextEncoder().encode(`${header}.${payload}`)
+    );
+    const jwt = `${header}.${payload}.${base64urlFromBuffer(signature)}`;
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            assertion: jwt
+        })
+    });
+    const data = await resp.json();
+    if (!data.access_token) {
+        throw new Error(data.error_description || data.error || 'Google token exchange failed');
+    }
+    return data.access_token;
+}
+
+function sanitizeAuthUserRecord(user) {
+    if (!user) return null;
+    return {
+        uid: user.localId || user.uid || '',
+        email: user.email || '',
+        emailVerified: !!user.emailVerified,
+        displayName: user.displayName || '',
+        phoneNumber: user.phoneNumber || '',
+        disabled: !!user.disabled,
+        createdAt: user.createdAt || null,
+        lastLoginAt: user.lastLoginAt || null,
+        providerData: (user.providerUserInfo || []).map((p) => ({
+            providerId: p.providerId || '',
+            email: p.email || '',
+            displayName: p.displayName || '',
+            photoUrl: p.photoUrl || '',
+            federatedId: p.federatedId || '',
+            rawId: p.rawId || ''
+        }))
+    };
+}
+
+async function exportFirebaseAuthUsers(env) {
+    if (!env.FIREBASE_SERVICE_ACCOUNT) {
+        throw new Error('Firebase Auth export is not configured. Set FIREBASE_SERVICE_ACCOUNT in Worker secrets.');
+    }
+
+    let serviceAccount;
+    try {
+        serviceAccount = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT);
+    } catch (_) {
+        throw new Error('FIREBASE_SERVICE_ACCOUNT secret is not valid JSON.');
+    }
+
+    const projectId = env.FIREBASE_PROJECT_ID || serviceAccount.project_id || 'swagstree-web';
+    const accessToken = await getGoogleAccessToken(serviceAccount);
+    const users = [];
+    let pageToken = undefined;
+    let guard = 0;
+
+    while (guard < 200) {
+        guard += 1;
+        const body = { limit: 1000, returnUserInfo: true };
+        if (pageToken) body.pageToken = pageToken;
+
+        const resp = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/accounts:query`,
+            {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            }
+        );
+        const data = await resp.json();
+        if (!resp.ok) {
+            throw new Error(data.error?.message || `Auth accounts query failed (${resp.status})`);
+        }
+
+        (data.userInfo || []).forEach((user) => {
+            const sanitized = sanitizeAuthUserRecord(user);
+            if (sanitized && sanitized.uid) users.push(sanitized);
+        });
+
+        pageToken = data.nextPageToken;
+        if (!pageToken) break;
+    }
+
+    return users;
+}
+
+async function exportAuthUsers(request, env) {
+    const authHeader = request.headers.get('Authorization') || '';
+    const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    const idToken = tokenMatch ? tokenMatch[1].trim() : '';
+    const superEmail = await verifySuperAdminToken(idToken, env);
+    if (!superEmail) {
+        return jsonResponse({ ok: false, error: 'Unauthorized — superadmin login required.' }, 401);
+    }
+
+    try {
+        const users = await exportFirebaseAuthUsers(env);
+        return jsonResponse({
+            ok: true,
+            exportedAt: new Date().toISOString(),
+            count: users.length,
+            users,
+            note: 'Auth metadata export only. Password hashes are not included. Import via Firebase Console if needed.'
+        });
+    } catch (e) {
+        return jsonResponse({ ok: false, error: e.message || 'Auth export failed.' }, 503);
+    }
+}
+
 async function purgeCloudinaryAssets(request, env) {
     const authHeader = request.headers.get('Authorization') || '';
     const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -216,6 +370,13 @@ export default {
 
         if (url.pathname === '/api/cloudinary/purge' && request.method === 'POST') {
             const resp = await purgeCloudinaryAssets(request, env);
+            const headers = new Headers(resp.headers);
+            Object.entries(corsHeaders()).forEach(([k, v]) => headers.set(k, v));
+            return new Response(resp.body, { status: resp.status, headers });
+        }
+
+        if (url.pathname === '/api/auth/export' && request.method === 'GET') {
+            const resp = await exportAuthUsers(request, env);
             const headers = new Headers(resp.headers);
             Object.entries(corsHeaders()).forEach(([k, v]) => headers.set(k, v));
             return new Response(resp.body, { status: resp.status, headers });

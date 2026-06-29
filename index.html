@@ -1705,8 +1705,8 @@
                 <i class="fa fa-database" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Database Backup & Restore</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Export/Import Firestore collection data
-                        backups</p>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Backup products, orders, users, announcements,
+                        comments, chats, settings &amp; admins</p>
                 </div>
             </div>
             <div
@@ -1745,7 +1745,13 @@
                     <button class="btn-gold"
                         style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px; background:#111; color:#fff; border:1px solid var(--gold);"
                         onclick="triggerManualBackupEmail()">
-                        <i class="fa fa-envelope"></i> Firebase Collection Backup
+                        <i class="fa fa-envelope"></i> Email Full Backup
+                    </button>
+
+                    <button class="btn-gold"
+                        style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px; background:#151515; color:#fff; border:1px solid #555;"
+                        onclick="triggerUsersBackup()">
+                        <i class="fa fa-users"></i> Backup Users &amp; Auth
                     </button>
 
                     <button class="btn-gold"
@@ -2562,15 +2568,15 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.58"></script>
-    <script src="js/app.js?v=9.58"></script>
-    <script src="js/store.js?v=9.58"></script>
-    <script src="js/checkout.js?v=9.58"></script>
-    <script src="js/auth.js?v=9.58"></script>
-    <script src="js/comments.js?v=9.58"></script>
-    <script src="js/support-chat.js?v=9.58"></script>
-    <script src="js/admin.js?v=9.58"></script>
-    <script src="js/cloudinary-admin.js?v=9.58"></script>
+    <script src="js/features.js?v=9.59"></script>
+    <script src="js/app.js?v=9.59"></script>
+    <script src="js/store.js?v=9.59"></script>
+    <script src="js/checkout.js?v=9.59"></script>
+    <script src="js/auth.js?v=9.59"></script>
+    <script src="js/comments.js?v=9.59"></script>
+    <script src="js/support-chat.js?v=9.59"></script>
+    <script src="js/admin.js?v=9.59"></script>
+    <script src="js/cloudinary-admin.js?v=9.59"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">
