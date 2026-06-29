@@ -170,12 +170,12 @@
 
         <!-- Desktop Navigation -->
         <nav class="desktop-nav" aria-label="Main navigation">
-            <div class="nav-item active" onclick="nav('home', this)">Home</div>
-            <div class="nav-item" onclick="nav('wish', this)">Wishlist</div>
-            <div id="nav-adm-desktop" class="nav-item" style="display:none" onclick="nav('admin', this)">Admin</div>
-            <div id="nav-super-desktop" class="nav-item" style="display:none" onclick="nav('super', this)">Superadmin
+            <div class="nav-item active" data-nav-view="home">Home</div>
+            <div class="nav-item" data-nav-view="wish">Wishlist</div>
+            <div id="nav-adm-desktop" class="nav-item" style="display:none" data-nav-view="admin">Admin</div>
+            <div id="nav-super-desktop" class="nav-item" style="display:none" data-nav-view="super">Superadmin
             </div>
-            <div class="nav-item" onclick="nav('user', this)">Profile & Orders</div>
+            <div class="nav-item" data-nav-view="user">Profile & Orders</div>
         </nav>
 
         <div class="header-actions">
@@ -762,8 +762,8 @@
             <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:12px; padding:10px 12px; background:#1a1a1a; border:1px solid #333; border-radius:10px; cursor:pointer;">
                 <input type="checkbox" id="admin-promo-show-picker" style="margin:3px 0 0; width:16px; height:16px; flex-shrink:0;" onchange="saveAdminPromoSettings()">
                 <span style="font-size:12px; color:#ddd; line-height:1.45;">
-                    <strong style="color:#fff;">Show promo picker in checkout</strong><br>
-                    <span style="color:#777; font-size:11px;">When enabled, customers can tap eligible promo codes listed below. Off by default — manual code entry still works.</span>
+                    <strong style="color:#fff;">Show promos in checkout options</strong><br>
+                    <span style="color:#777; font-size:11px;">When enabled, customers see tappable promo chips at checkout for codes marked below. Off by default — manual code entry always works.</span>
                 </span>
             </label>
 
@@ -803,7 +803,7 @@
                 </div>
                 <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#bbb; cursor:pointer;">
                     <input type="checkbox" id="admin-promo-show-in-picker" style="margin:0; width:15px; height:15px;">
-                    Show in checkout picker (requires global toggle above)
+                    Show this promo in checkout options
                 </label>
                 <div style="display:flex; justify-content:flex-end; margin-top:4px;">
                     <button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;"
@@ -2394,7 +2394,7 @@
 
                 <!-- Promo Code -->
                 <div id="checkout-promo-picker-wrap" style="display:none; margin-bottom:10px;">
-                    <p style="font-size:11px; color:#888; margin:0 0 8px; font-weight:600;">Available offers</p>
+                    <p style="font-size:11px; color:#888; margin:0 0 8px; font-weight:600;">Promo options — tap to apply</p>
                     <div id="active-promos-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:0;"></div>
                 </div>
                 <div style="display:flex; gap:10px; margin-bottom: 10px;">
@@ -2640,14 +2640,14 @@
     </footer>
 
     <!-- Mobile Bottom Navigation -->
-    <nav class="bottom-nav">
-        <div class="nav-item active" onclick="nav('home', this)"><i class="fa fa-house"></i>Home</div>
-        <div class="nav-item" onclick="nav('wish', this)"><i class="fa fa-heart"></i>Wish</div>
-        <div id="nav-adm" class="nav-item" style="display:none" onclick="nav('admin', this)"><i
+    <nav class="bottom-nav" aria-label="Main navigation">
+        <div class="nav-item active" data-nav-view="home"><i class="fa fa-house"></i>Home</div>
+        <div class="nav-item" data-nav-view="wish"><i class="fa fa-heart"></i>Wish</div>
+        <div id="nav-adm" class="nav-item" style="display:none" data-nav-view="admin"><i
                 class="fa fa-gear"></i>Admin</div>
-        <div id="nav-super" class="nav-item" style="display:none" onclick="nav('super', this)"><i
+        <div id="nav-super" class="nav-item" style="display:none" data-nav-view="super"><i
                 class="fa fa-user-shield"></i>Super</div>
-        <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
+        <div class="nav-item" data-nav-view="user"><i class="fa fa-user"></i>Profile</div>
     </nav>
     <!-- Confetti Canvas overlay -->
     <canvas id="confetti-canvas"></canvas>
@@ -2747,16 +2747,17 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.63"></script>
-    <script src="js/app.js?v=9.63"></script>
-    <script src="js/store.js?v=9.63"></script>
-    <script src="js/checkout.js?v=9.63"></script>
-    <script src="js/auth.js?v=9.63"></script>
-    <script src="js/comments.js?v=9.63"></script>
-    <script src="js/support-chat.js?v=9.63"></script>
-    <script src="js/auto-retention.js?v=9.63"></script>
-    <script src="js/admin.js?v=9.63"></script>
-    <script src="js/cloudinary-admin.js?v=9.63"></script>
+    <script src="js/features.js?v=9.64"></script>
+    <script src="js/app.js?v=9.64"></script>
+    <script src="js/store.js?v=9.64"></script>
+    <script src="js/checkout.js?v=9.64"></script>
+    <script src="js/auth.js?v=9.64"></script>
+    <script src="js/comments.js?v=9.64"></script>
+    <script src="js/support-chat.js?v=9.64"></script>
+    <script src="js/auto-retention.js?v=9.64"></script>
+    <script src="js/admin.js?v=9.64"></script>
+    <script src="js/cloudinary-admin.js?v=9.64"></script>
+    <script src="js/bind-globals.js?v=9.64"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

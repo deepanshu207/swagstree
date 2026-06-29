@@ -393,6 +393,14 @@ let activePromosList = [];
 let loadPromosPromise = null;
 window.checkoutPromoPickerEnabled = false;
 
+function promoHasShowInOptions(promo) {
+    return promo?.showInOptions === true || promo?.showInPicker === true;
+}
+
+function readPromoGlobalOptionsEnabled(data) {
+    return data?.showPromoInOptions === true || data?.showPromoPicker === true;
+}
+
 function getPromoScheduleStatus(promo, now = Date.now()) {
     if (!promo) return 'invalid';
     if (promo.endsAt && now > promo.endsAt) return 'expired';
@@ -402,7 +410,7 @@ function getPromoScheduleStatus(promo, now = Date.now()) {
 }
 
 function isPromoEligibleForPicker(promo) {
-    return !!promo?.showInPicker && getPromoScheduleStatus(promo) === 'active';
+    return promoHasShowInOptions(promo) && getPromoScheduleStatus(promo) === 'active';
 }
 
 async function loadPromos() {
@@ -411,14 +419,16 @@ async function loadPromos() {
         if (snap.exists) {
             const data = snap.data() || {};
             const list = data.list || [];
-            window.checkoutPromoPickerEnabled = data.showPromoPicker === true;
+            window.checkoutPromoPickerEnabled = readPromoGlobalOptionsEnabled(data);
             
             // Map legacy expiresAt to endsAt
             const normalizedList = list.map(p => {
                 if (p.expiresAt && !p.endsAt) {
                     p.endsAt = p.expiresAt;
                 }
-                if (p.showInPicker === undefined) p.showInPicker = false;
+                if (p.showInOptions === undefined) {
+                    p.showInOptions = p.showInPicker === true;
+                }
                 return p;
             });
 
@@ -439,14 +449,12 @@ async function loadPromos() {
 // Ensure promos are loaded early
 loadPromosPromise = loadPromos();
 
+async function refreshPromosForCheckout() {
+    await loadPromos();
+}
+
 async function applyPromo(forcedCode) {
-    if (loadPromosPromise) {
-        try {
-            await loadPromosPromise;
-        } catch(e) {
-            console.error("Error awaiting promos load:", e);
-        }
-    }
+    await refreshPromosForCheckout();
     const promoInput = document.getElementById('promo-code');
     const code = String(forcedCode || promoInput?.value || '').trim().toUpperCase();
     if (!code) return;
@@ -515,9 +523,7 @@ async function renderCheckoutPromoPicker() {
     const listEl = document.getElementById('active-promos-display');
     if (!wrap || !listEl) return;
 
-    if (loadPromosPromise) {
-        try { await loadPromosPromise; } catch (_) {}
-    }
+    await refreshPromosForCheckout();
 
     if (!window.checkoutPromoPickerEnabled) {
         wrap.style.display = 'none';
@@ -526,9 +532,10 @@ async function renderCheckoutPromoPicker() {
     }
 
     const visiblePromos = activePromosList.filter(isPromoEligibleForPicker);
+    wrap.style.display = 'block';
+
     if (!visiblePromos.length) {
-        wrap.style.display = 'none';
-        listEl.innerHTML = '';
+        listEl.innerHTML = '<span style="font-size:11px; color:#666;">No public promo options right now. You can still enter a code below.</span>';
         return;
     }
 
@@ -548,7 +555,6 @@ async function renderCheckoutPromoPicker() {
         }
     }
 
-    wrap.style.display = 'block';
     const chips = visiblePromos.map(promo => {
         const isActive = activePromo && activePromo.code === promo.code;
         const alreadyUsed = usedCodes.has(promo.code);
@@ -944,6 +950,7 @@ async function openCart() {
         await autoPopulateCheckoutDetails(false);
     }
 }
+window.openCart = openCart;
 
 async function placeOrder() {
     const n = document.getElementById('c-name').value.trim();
@@ -3158,7 +3165,7 @@ async function autoPopulateCheckoutDetails(forceRefresh) {
                 if (methods && methods.length > 0) {
                     msgEl.style.display = 'block';
                     msgEl.style.color = '#ff4757';
-                    msgEl.innerHTML = `<i class="fa fa-exclamation-triangle"></i> This email is registered. <span style="text-decoration:underline; cursor:pointer; color:var(--gold); font-weight:700;" onclick="nav('user'); closeModal('cart-modal');">Log in</span> to checkout faster, or continue as guest.`;
+                    msgEl.innerHTML = `<i class="fa fa-exclamation-triangle"></i> This email is registered. <span style="text-decoration:underline; cursor:pointer; color:var(--gold); font-weight:700;" onclick="navigateTo('user'); closeModal('cart-modal');">Log in</span> to checkout faster, or continue as guest.`;
                 } else {
                     msgEl.style.display = 'block';
                     msgEl.style.color = '#25D366';

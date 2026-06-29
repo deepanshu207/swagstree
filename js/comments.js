@@ -369,7 +369,7 @@ function renderProductCommentsSection() {
 
     let formHtml = '';
     if (!currentUser) {
-        formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-lock"></i> <a href="#" onclick="event.preventDefault(); nav('user')" style="color:var(--gold);">Sign in</a> to write a review</p>`;
+        formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-lock"></i> <a href="#" onclick="event.preventDefault(); navigateTo('user')" style="color:var(--gold);">Sign in</a> to write a review</p>`;
     } else if (hasPendingForProduct) {
         formHtml = `<p style="font-size:12px; color:#888; margin:0;"><i class="fa fa-hourglass-half"></i> Your review is pending admin approval. You can submit another once it is reviewed.</p>`;
     } else {

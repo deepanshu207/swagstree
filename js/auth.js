@@ -25,13 +25,13 @@ function updateAdminPrivilegesUI() {
     // Redirect to home if user is in admin view but no longer admin
     const adminView = document.getElementById('admin-view');
     if (adminView && adminView.classList.contains('active') && !isAdmin) {
-        if (typeof nav === 'function') nav('home');
+        if (typeof navigateTo === 'function') navigateTo('home');
     }
     
     // Redirect to home if user is in super view but no longer superadmin
     const superView = document.getElementById('super-view');
     if (superView && superView.classList.contains('active') && !isSuperAdmin) {
-        if (typeof nav === 'function') nav('home');
+        if (typeof navigateTo === 'function') navigateTo('home');
     }
 
     if (isSuperAdmin && typeof loadAssignedAdmins === 'function') {

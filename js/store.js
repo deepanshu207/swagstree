@@ -1542,6 +1542,7 @@ function toggleFilter() {
     // Hide/show WhatsApp icon when filter slider toggles
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
+window.toggleFilter = toggleFilter;
 
 function setFilterSize(el, sz) {
     displayedProductsLimit = productsPageLimitSetting;
@@ -1854,6 +1855,7 @@ function resetFilters() {
     document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
     applySortAndFilter();
 }
+window.resetFilters = resetFilters;
 
 function getProductTimestamp(p) {
     if (!p.updatedAt) return 0;
@@ -2465,8 +2467,8 @@ window.openFooterPage = openFooterPage;
 
 function closeFooterPage() {
     // Restore previous active section
-    if (typeof nav === 'function') {
-        nav(footerPreviousSectionId);
+    if (typeof navigateTo === 'function') {
+        navigateTo(footerPreviousSectionId);
     } else {
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         const fallback = document.getElementById(footerPreviousSectionId + '-view');

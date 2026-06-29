@@ -1246,12 +1246,14 @@ async function loadPromoSettings() {
         if (snap.exists) {
             const data = snap.data() || {};
             const list = data.list || [];
-            promoPickerEnabled = data.showPromoPicker === true;
+            promoPickerEnabled = data.showPromoInOptions === true || data.showPromoPicker === true;
             adminPromoList = list.map(p => {
                 if (p.expiresAt && !p.endsAt) {
                     p.endsAt = p.expiresAt;
                 }
-                if (p.showInPicker === undefined) p.showInPicker = false;
+                if (p.showInOptions === undefined) {
+                    p.showInOptions = p.showInPicker === true;
+                }
                 return p;
             });
         }
@@ -1336,8 +1338,8 @@ function renderAdminPromoList() {
                         </div>
                     </div>
                     <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#bbb; cursor:pointer;">
-                        <input type="checkbox" id="inline-promo-show-in-picker-${index}" ${p.showInPicker ? 'checked' : ''} style="margin:0; width:15px; height:15px;">
-                        Show in checkout picker
+                        <input type="checkbox" id="inline-promo-show-in-picker-${index}" ${(p.showInOptions || p.showInPicker) ? 'checked' : ''} style="margin:0; width:15px; height:15px;">
+                        Show this promo in checkout options
                     </label>
                     <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end; margin-top:4px;">
                         <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px;" onclick="saveInlinePromoChanges(${index})">Save</button>
@@ -1351,8 +1353,8 @@ function renderAdminPromoList() {
             ? `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}/${p.maxUses}]</span>`
             : `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}]</span>`;
 
-        const pickerBadge = p.showInPicker
-            ? `<span style="color:var(--gold); font-size:10px; margin-left:8px; font-weight:700;">[Checkout picker]</span>`
+        const optionsBadge = (p.showInOptions || p.showInPicker)
+            ? `<span style="color:var(--gold); font-size:10px; margin-left:8px; font-weight:700;">[In checkout options]</span>`
             : '';
 
         return `
@@ -1361,10 +1363,14 @@ function renderAdminPromoList() {
                     <span style="color:var(--gold); font-weight:bold; font-size:13px; letter-spacing:1px;">${p.code}</span>
                     <span style="color:#aaa; font-size:11px; margin-left:8px;">${p.discount}% OFF</span>
                     ${usesText}
-                    ${pickerBadge}
+                    ${optionsBadge}
                     ${scheduleText}
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#888; cursor:pointer;" title="Show in checkout options">
+                        <input type="checkbox" ${(p.showInOptions || p.showInPicker) ? 'checked' : ''} onchange="togglePromoShowInOptions(${index}, this.checked)" style="margin:0; width:14px; height:14px;">
+                        Options
+                    </label>
                     <i class="fa fa-edit" style="color:var(--gold); font-size:12px; cursor:pointer; padding:5px;" onclick="editPromoCode(${index})" title="Edit Promo"></i>
                     <i class="fa fa-trash" style="color:#ff4444; font-size:12px; cursor:pointer; padding:5px;" onclick="removePromoCode(${index})" title="Delete Promo"></i>
                 </div>
@@ -1398,7 +1404,12 @@ async function addPromoCode() {
         return showToast('Promo code already exists');
     }
     
-    const newPromo = { code, discount, usedCount: 0, showInPicker: !!document.getElementById('admin-promo-show-in-picker')?.checked };
+    const newPromo = {
+        code,
+        discount,
+        usedCount: 0,
+        showInOptions: !!document.getElementById('admin-promo-show-in-picker')?.checked
+    };
     
     const startsAtVal = startInp && startInp.value ? new Date(startInp.value).getTime() : null;
     const endsAtVal = endInp && endInp.value ? new Date(endInp.value).getTime() : null;
@@ -1441,6 +1452,7 @@ async function saveAdminPromoSettings() {
         promoPickerEnabled = !!document.getElementById('admin-promo-show-picker')?.checked;
         await db.collection('settings').doc('promos').set({
             list: adminPromoList,
+            showPromoInOptions: promoPickerEnabled,
             showPromoPicker: promoPickerEnabled
         }, { merge: true });
         renderAdminPromoList();
@@ -1466,6 +1478,19 @@ window.editPromoCode = function(index) {
 window.cancelInlineEdit = function() {
     editingPromoIndex = null;
     renderAdminPromoList();
+}
+
+window.togglePromoShowInOptions = async function(index, checked) {
+    if (index < 0 || index >= adminPromoList.length) return;
+    adminPromoList[index].showInOptions = !!checked;
+    adminPromoList[index].showInPicker = !!checked;
+    try {
+        await saveAdminPromoSettings();
+        showToast(checked ? 'Promo will appear in checkout options' : 'Promo hidden from checkout options');
+    } catch (e) {
+        console.error('togglePromoShowInOptions failed:', e);
+        showToast('Failed to update promo option');
+    }
 }
 
 window.saveInlinePromoChanges = async function(index) {
@@ -1519,8 +1544,9 @@ window.saveInlinePromoChanges = async function(index) {
         p.usedCount = 0;
     }
 
-    const showInPickerInp = document.getElementById(`inline-promo-show-in-picker-${index}`);
-    p.showInPicker = !!showInPickerInp?.checked;
+    const showInOptionsInp = document.getElementById(`inline-promo-show-in-picker-${index}`);
+    p.showInOptions = !!showInOptionsInp?.checked;
+    p.showInPicker = p.showInOptions;
     
     editingPromoIndex = null;
     await saveAdminPromoSettings();

@@ -374,7 +374,7 @@ function buildExploreMoreHtml(total, shown, maxPrice) {
         <strong style="color:var(--gold);">${more} more</strong> style${more > 1 ? 's' : ''} match — explore the full catalog or let me filter Home for you.
         <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
             ${filterBtn}
-            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="nav('home'); toggleAIChat();">Browse Home</button>
+            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>
         </div>
     </div>`;
 }
@@ -382,7 +382,7 @@ function buildExploreMoreHtml(total, shown, maxPrice) {
 window.applyChatPriceFilter = function(maxPrice) {
     const max = Number(maxPrice);
     if (!max || max <= 0) return;
-    if (typeof nav === 'function') nav('home');
+    if (typeof navigateTo === 'function') navigateTo('home');
     window.filterMinPrice = window.priceAbsoluteMin || 0;
     window.filterMaxPrice = max;
     const minRange = document.getElementById('price-min-range');
@@ -586,7 +586,7 @@ async function generateSmartSupportReply(userText) {
             text: currentUser
                 ? "You can **track orders** in Profile → My Orders. I can also connect you with admin for order-specific help."
                 : "Please **sign in** to view your orders under Profile. Guest orders linked to your email appear after login.",
-            extraHtml: currentUser ? `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="nav('user'); toggleAIChat();">Open My Orders</button>` : ''
+            extraHtml: currentUser ? `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('user'); toggleAIChat();">Open My Orders</button>` : ''
         };
     }
     if (intent === 'contact') {
