@@ -540,17 +540,45 @@ function formatCatalogProductCount(visible, total, variant) {
         : `Showing ${v} of ${t} Products`;
 }
 
+function escapeCatalogCountHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function emphasizeCatalogCountText(text) {
+    return String(text).split(/(\d+)/).map((part) => {
+        if (/^\d+$/.test(part)) {
+            return `<span class="catalog-count-num">${part}</span>`;
+        }
+        if (!part) return '';
+        return `<span class="catalog-count-word">${escapeCatalogCountHtml(part)}</span>`;
+    }).join('');
+}
+
+function renderCatalogCountMarkup(visible, total, variant) {
+    const text = formatCatalogProductCount(visible, total, variant);
+    const icon = '<i class="fa fa-layer-group catalog-count-icon" aria-hidden="true"></i>';
+    return icon + `<span class="catalog-count-text">${emphasizeCatalogCountText(text)}</span>`;
+}
+
 function applyCatalogCountLabel(el, visible, total) {
     if (!el) return;
     el.dataset.visible = String(visible);
     el.dataset.total = String(total);
-    el.textContent = formatCatalogProductCount(visible, total, 'full');
+    const plainText = formatCatalogProductCount(visible, total, 'full');
+    el.innerHTML = renderCatalogCountMarkup(visible, total, 'full');
+    el.setAttribute('aria-label', plainText);
     el.style.display = 'inline-flex';
 
     requestAnimationFrame(() => {
         if (!el.isConnected) return;
         if (el.scrollWidth > el.clientWidth + 2) {
-            el.textContent = formatCatalogProductCount(visible, total, 'short');
+            const shortText = formatCatalogProductCount(visible, total, 'short');
+            el.innerHTML = renderCatalogCountMarkup(visible, total, 'short');
+            el.setAttribute('aria-label', shortText);
         }
     });
 }

@@ -35,33 +35,137 @@ body {
 .header { 
     display: flex; 
     align-items: center; 
-    padding: 12px 15px; 
-    background: rgba(0,0,0,0.95); 
-    backdrop-filter: blur(10px); 
+    padding: clamp(8px, 2vw, 12px) clamp(10px, 3vw, 20px);
+    background: rgba(0, 0, 0, 0.96); 
+    backdrop-filter: blur(12px); 
+    -webkit-backdrop-filter: blur(12px);
     position: sticky; 
     top: 0; 
     z-index: 1000; 
     border-bottom: 1px solid var(--border); 
-    gap: 12px; 
+    gap: clamp(8px, 2vw, 16px);
 }
-.logo-img { height: 35px; width: auto; object-fit: contain; }
-.brand { font-size: 14px; font-weight: 900; color: var(--gold); letter-spacing: 2px; flex: 1; }
 
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1.5vw, 10px);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.logo-img {
+    height: clamp(28px, 7vw, 40px);
+    width: auto;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.2));
+}
+
+.brand-name,
+.brand {
+    font-size: clamp(11px, 3.2vw, 15px);
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: clamp(1px, 0.35vw, 2.5px);
+    line-height: 1.1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: clamp(4px, 1.2vw, 8px);
+    flex-shrink: 0;
+}
+
+.header-social-bar,
 .social-tools { 
     display: flex; 
-    gap: 14px; 
+    gap: clamp(4px, 1vw, 6px);
     align-items: center; 
-    padding-right: 12px; 
-    border-right: 1px solid #333; 
-    height: 24px; 
+    padding-right: clamp(4px, 1vw, 8px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    height: auto;
 }
+
+.header-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(30px, 8vw, 36px);
+    height: clamp(30px, 8vw, 36px);
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+    text-decoration: none;
+    position: relative;
+    padding: 0;
+    font-size: clamp(13px, 3.5vw, 16px);
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.header-action-btn:hover,
+.header-action-btn:focus-visible {
+    border-color: rgba(255, 215, 0, 0.45);
+    background: rgba(255, 215, 0, 0.08);
+    outline: none;
+}
+
+.header-action-btn:active {
+    transform: scale(0.96);
+}
+
+.header-icon-instagram i { color: #E1306C; }
+.header-icon-whatsapp i { color: #25D366; }
+.header-icon-facebook i { color: #1877F2; }
+.header-icon-filter i { color: var(--gold); }
+
+.header-cart-btn {
+    border-color: rgba(255, 215, 0, 0.25);
+    background: rgba(255, 215, 0, 0.06);
+}
+
+.header-cart-btn i {
+    color: #fff;
+    font-size: clamp(14px, 3.8vw, 18px);
+}
+
+.header-cart-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--red);
+    color: #fff;
+    font-size: clamp(8px, 2.2vw, 10px);
+    min-width: clamp(14px, 3.8vw, 16px);
+    height: clamp(14px, 3.8vw, 16px);
+    padding: 0 3px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    line-height: 1;
+    border: 1.5px solid #000;
+    box-sizing: border-box;
+}
+
+.cart-trigger { position: relative; cursor: pointer; padding: 0; border: none; background: none; }
+
+/* Legacy social link hover (non-header contexts) */
 .social-tools a { color: #fff; font-size: 16px; text-decoration: none; transition: 0.3s; }
 .social-tools a:hover { color: var(--gold); }
 .fa-instagram { color: #E1306C; } 
 .fa-whatsapp { color: #25D366; } 
 .fa-facebook { color: #1877F2; }
-
-.cart-trigger { position: relative; cursor: pointer; padding-left: 5px; }
 
 /* Desktop Navigation */
 .desktop-nav { display: none; gap: 20px; align-items: center; margin-right: 20px; }
@@ -1784,11 +1888,8 @@ body {
 }
 
 /* Lang select styles */
-.lang-select-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-    margin-right: 10px;
+.header-actions .lang-select-container {
+    margin-right: 0;
 }
 .lang-select-container i {
     position: absolute;
@@ -1990,6 +2091,39 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     align-self: center;
     display: inline-flex;
     align-items: center;
+    gap: 6px;
+}
+
+.catalog-count-pill {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, rgba(255, 215, 0, 0.02) 100%);
+    border: 1px solid rgba(255, 215, 0, 0.24);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 10px rgba(0, 0, 0, 0.35);
+    text-transform: none !important;
+}
+
+.catalog-count-icon {
+    font-size: 0.85em;
+    color: rgba(255, 215, 0, 0.75);
+    flex-shrink: 0;
+}
+
+.catalog-count-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    display: inline;
+}
+
+.catalog-count-num {
+    color: var(--gold);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.catalog-count-word {
+    color: rgba(255, 255, 255, 0.62);
+    font-weight: 500;
 }
 
 .catalog-controls-row.catalog-row-icons-minimal .catalog-count-label {
@@ -2033,8 +2167,8 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .catalog-controls-row .catalog-count-label {
     font-size: clamp(10px, 2.85vw, 12px);
     font-weight: 700;
-    padding: 6px 10px;
-    letter-spacing: 0.3px;
+    padding: 6px 11px;
+    letter-spacing: 0.2px;
     text-transform: none !important;
     height: 32px;
     box-sizing: border-box;
@@ -2070,6 +2204,29 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 
 @media (min-width: 1024px) {
+    .header {
+        padding: 12px 24px;
+        gap: 20px;
+    }
+
+    .header-brand {
+        gap: 12px;
+    }
+
+    .logo-img {
+        height: 40px;
+    }
+
+    .brand-name {
+        font-size: 15px;
+        letter-spacing: 2.5px;
+    }
+
+    .header-action-btn {
+        width: 36px;
+        height: 36px;
+    }
+
     #home-view,
     #wish-view {
         --catalog-section-gap: 12px;
@@ -2429,10 +2586,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     gap: 4px;
     white-space: nowrap;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-    transition: all 0.3s ease;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
     line-height: 1.2;
 }
-.count-badge:hover {
+
+/* Admin / orders count badges only — catalog pills use .catalog-count-pill */
+.count-badge:not(.catalog-count-pill):hover {
     border-color: var(--gold);
     box-shadow: 0 0 8px rgba(255, 215, 0, 0.2);
 }
@@ -2444,32 +2603,30 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
         padding: 8px 10px;
         gap: clamp(4px, 1.5vw, 8px);
     }
+    .header-brand {
+        gap: clamp(5px, 1.2vw, 8px);
+    }
     .logo-img {
-        height: clamp(24px, 6vw, 30px);
-        width: auto;
-        margin-right: 0;
+        height: clamp(26px, 6.5vw, 32px);
     }
-    /* .brand {
-        display: block !important;
-        font-size: clamp(10px, 3.2vw, 13px);
-        letter-spacing: clamp(0.5px, 0.5vw, 1px);
-        flex: 1;
-        text-overflow: ellipsis;
-        overflow: hidden;
-        white-space: nowrap;
-    } */
-    /* .social-tools {
-        gap: clamp(6px, 1.8vw, 10px);
-        padding-right: clamp(4px, 1.2vw, 8px);
-        height: 20px;
-        border-right: 1px solid #333;
+    .brand-name {
+        font-size: clamp(10px, 3vw, 12px);
+        letter-spacing: clamp(0.8px, 0.4vw, 1.5px);
     }
-    .social-tools a, .social-tools i {
-        font-size: clamp(12px, 3.5vw, 15px) !important;
-    } */
-    /* .lang-select-container {
-        margin-right: 2px !important;
-        position: relative;
+    .header-social-bar {
+        gap: 3px;
+        padding-right: 4px;
+    }
+    .header-action-btn {
+        width: clamp(28px, 7.5vw, 32px);
+        height: clamp(28px, 7.5vw, 32px);
+        font-size: clamp(12px, 3.2vw, 14px);
+    }
+    .header-cart-btn i {
+        font-size: clamp(13px, 3.5vw, 15px);
+    }
+    .lang-select-container {
+        margin-right: 0 !important;
     }
     .lang-select-container i {
         font-size: clamp(10px, 3vw, 12px) !important;
@@ -2478,22 +2635,9 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     .lang-select {
         padding: 2px 4px 2px clamp(15px, 4vw, 21px) !important;
         font-size: clamp(9px, 2.5vw, 10px) !important;
-        height: clamp(24px, 7vw, 28px) !important;
+        height: clamp(26px, 7vw, 30px) !important;
         max-width: clamp(55px, 16vw, 75px) !important;
-    } */
-    /* .cart-trigger {
-        padding-left: 2px;
     }
-    .cart-trigger i {
-        font-size: clamp(16px, 4.8vw, 20px);
-    }
-    #cart-badge {
-        font-size: 8px !important;
-        width: 13px !important;
-        height: 13px !important;
-        top: -4px !important;
-        right: -4px !important;
-    } */
     .catalog-controls-row {
         gap: 5px;
         padding: 0 12px;
@@ -2512,10 +2656,11 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
         padding: var(--catalog-section-gap, 8px) 12px 12px 12px;
     }
     .catalog-controls-row .count-badge,
-    .catalog-count-label {
+    .catalog-controls-row .catalog-count-label {
         font-size: clamp(10px, 3vw, 11px);
-        padding: 5px 8px;
+        padding: 5px 9px;
         height: 30px;
+        gap: 5px;
     }
     .catalog-controls-actions {
         gap: 4px;

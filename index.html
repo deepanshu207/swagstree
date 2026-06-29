@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=4.9">
+    <link rel="stylesheet" href="css/style.css?v=5.1">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -160,46 +160,52 @@
 
     <!-- Main Header -->
     <header class="header">
-        <img src="assets/logo.png" class="logo-img" onerror="this.src='https://i.ibb.co/3mN5SgN/1000591447.png'"
-            alt="Swag Stree Logo">
-        <div class="brand">SWAG STREE</div>
+        <div class="header-brand">
+            <img src="assets/logo.png" class="logo-img" onerror="this.src='https://i.ibb.co/3mN5SgN/1000591447.png'"
+                alt="Swag Stree Logo">
+            <span class="brand-name">SWAG STREE</span>
+        </div>
 
         <!-- Desktop Navigation -->
-        <div class="desktop-nav">
+        <nav class="desktop-nav" aria-label="Main navigation">
             <div class="nav-item active" onclick="nav('home', this)">Home</div>
             <div class="nav-item" onclick="nav('wish', this)">Wishlist</div>
             <div id="nav-adm-desktop" class="nav-item" style="display:none" onclick="nav('admin', this)">Admin</div>
             <div id="nav-super-desktop" class="nav-item" style="display:none" onclick="nav('super', this)">Superadmin
             </div>
             <div class="nav-item" onclick="nav('user', this)">Profile & Orders</div>
-        </div>
+        </nav>
 
-        <!-- Socials & Cart -->
-        <div class="social-tools">
-            <a href="https://instagram.com/swag_stree" target="_blank" id="instagram-menu-btn"><i
-                    class="fab fa-instagram"></i></a>
-            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank" id="whatsapp-menu-btn"><i
-                    class="fab fa-whatsapp"></i></a>
-            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank" id="facebook-menu-btn"><i
-                    class="fab fa-facebook"></i></a>
-            <i class="fa fa-sliders" onclick="toggleFilter()"
-                style="color:var(--gold); cursor:pointer; font-size:18px"></i>
-        </div>
+        <div class="header-actions">
+            <div class="header-social-bar social-tools">
+                <a href="https://instagram.com/swag_stree" target="_blank" rel="noopener noreferrer"
+                    id="instagram-menu-btn" class="header-action-btn header-icon-instagram" aria-label="Instagram"><i
+                        class="fab fa-instagram"></i></a>
+                <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank" rel="noopener noreferrer"
+                    id="whatsapp-menu-btn" class="header-action-btn header-icon-whatsapp" aria-label="WhatsApp"><i
+                        class="fab fa-whatsapp"></i></a>
+                <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank" rel="noopener noreferrer"
+                    id="facebook-menu-btn" class="header-action-btn header-icon-facebook" aria-label="Facebook"><i
+                        class="fab fa-facebook"></i></a>
+                <button type="button" class="header-action-btn header-icon-filter" onclick="toggleFilter()"
+                    aria-label="Filters"><i class="fa fa-sliders"></i></button>
+            </div>
 
-        <!-- Language Switcher -->
-        <div class="lang-select-container" id="lang-selector-wrap" style="display:none; position:relative;">
-            <i class="fa fa-language"></i>
-            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select">
-                <option value="en">🇬🇧 EN</option>
-                <option value="hi">🇮🇳 HI</option>
-                <option value="es">🇪🇸 ES</option>
-            </select>
-        </div>
+            <!-- Language Switcher -->
+            <div class="lang-select-container" id="lang-selector-wrap" style="display:none;">
+                <i class="fa fa-language"></i>
+                <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select">
+                    <option value="en">🇬🇧 EN</option>
+                    <option value="hi">🇮🇳 HI</option>
+                    <option value="es">🇪🇸 ES</option>
+                </select>
+            </div>
 
-        <div class="cart-trigger" onclick="openCart()">
-            <i class="fa fa-shopping-bag" style="font-size:22px"></i>
-            <span id="cart-badge"
-                style="position:absolute; top:-6px; right:-6px; background:var(--red); font-size:10px; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-weight:bold">0</span>
+            <button type="button" class="header-action-btn header-cart-btn cart-trigger" onclick="openCart()"
+                aria-label="Shopping cart">
+                <i class="fa fa-shopping-bag"></i>
+                <span id="cart-badge" class="header-cart-badge">0</span>
+            </button>
         </div>
     </header>
 
@@ -227,7 +233,7 @@
                 data-i18n="search_placeholder">
         </div>
         <div class="catalog-controls-row">
-            <span id="product-count" class="count-badge catalog-count-label" style="display:none;"></span>
+            <span id="product-count" class="count-badge catalog-count-label catalog-count-pill" style="display:none;" role="status"></span>
 
             <div class="catalog-controls-actions">
                 <!-- Support Chat Button -->
@@ -317,7 +323,7 @@
                 oninput="wishSearchHandler()" autocomplete="off" data-i18n="search_placeholder">
         </div>
         <div class="catalog-controls-row catalog-row-wishlist">
-            <span id="wish-count" class="count-badge catalog-count-label" style="display:none;"></span>
+            <span id="wish-count" class="count-badge catalog-count-label catalog-count-pill" style="display:none;" role="status"></span>
 
             <div class="catalog-controls-actions">
                 <div id="wish-header-support-chat-btn" onclick="openSupportChat()" class="catalog-icon-btn" style="display:none;">
@@ -2476,14 +2482,14 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.53"></script>
-    <script src="js/app.js?v=9.53"></script>
-    <script src="js/store.js?v=9.53"></script>
-    <script src="js/checkout.js?v=9.53"></script>
-    <script src="js/auth.js?v=9.53"></script>
-    <script src="js/comments.js?v=9.53"></script>
-    <script src="js/support-chat.js?v=9.53"></script>
-    <script src="js/admin.js?v=9.53"></script>
+    <script src="js/features.js?v=9.55"></script>
+    <script src="js/app.js?v=9.55"></script>
+    <script src="js/store.js?v=9.55"></script>
+    <script src="js/checkout.js?v=9.55"></script>
+    <script src="js/auth.js?v=9.55"></script>
+    <script src="js/comments.js?v=9.55"></script>
+    <script src="js/support-chat.js?v=9.55"></script>
+    <script src="js/admin.js?v=9.55"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">
