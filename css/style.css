@@ -224,6 +224,25 @@ body {
         padding-bottom: 60px !important;
     }
 
+    /* Auto / Inline: footer flows right after section content — never stretch the section */
+    body.body-footer-pos-scroll #home-view.active,
+    body.body-footer-pos-scroll #wish-view.active {
+        flex: none !important;
+        min-height: 0 !important;
+        height: auto !important;
+    }
+    body.body-footer-pos-scroll .storefront-footer-anchor {
+        flex: none !important;
+        margin-top: 0 !important;
+    }
+    body.body-footer-pos-scroll #app-footer {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        top: auto !important;
+    }
+
     #app-footer {
         position: relative !important;
         bottom: auto !important;
@@ -996,16 +1015,24 @@ body.footer-hidden {
     .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
     .bottom-nav { display: none !important; }
     .desktop-nav { display: flex !important; }
-    /* Sticky footer: body as flex column so footer is always at bottom */
-    body {
+    /* Sticky footer: body as flex column so footer is always at bottom (Fixed Bar only) */
+    body.body-footer-pos-fixed {
         padding-bottom: 0 !important;
         min-height: 100vh !important;
         display: flex !important;
         flex-direction: column !important;
     }
-    /* Active section grows to push footer down */
-    .section.active {
+    body.body-footer-pos-fixed .section.active {
         flex: 1 !important;
+    }
+    body.body-footer-pos-scroll {
+        display: block !important;
+        min-height: auto !important;
+        padding-bottom: 0 !important;
+    }
+    body.body-footer-pos-scroll .section.active {
+        flex: none !important;
+        min-height: 0 !important;
     }
     #app-footer {
         position: relative !important;
@@ -1742,13 +1769,15 @@ input[type="checkbox"], input[type="radio"] {
 .section { display: none; }
 .section.active { display: block; }
 
-/* Ensure home and wishlist sections fill the viewport so footer stays at bottom on desktop */
-#home-view.active,
-#wish-view.active {
+/* Ensure home and wishlist sections fill viewport only for Fixed Bar layout */
+body.body-footer-pos-fixed #home-view.active,
+body.body-footer-pos-fixed #wish-view.active {
     flex: 1;
 }
 body.body-footer-pos-scroll #home-view.active,
 body.body-footer-pos-scroll #wish-view.active {
+    flex: none;
+    min-height: 0;
     padding-bottom: 8px;
 }
 .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
@@ -2378,6 +2407,9 @@ body {
 }
 
 /* Instagram embed — clip cross-origin header (profile + follower count) */
+:root {
+    --ig-embed-header-offset: 64px;
+}
 .ig-embed-clip {
     position: relative;
     width: 100%;
@@ -2388,13 +2420,14 @@ body {
 }
 .ig-embed-clip .ig-embed-frame {
     position: absolute;
-    top: calc(-1 * var(--ig-embed-header-offset, 56px));
+    top: calc(-1 * var(--ig-embed-header-offset));
     left: 0;
     width: 100%;
-    height: calc(100% + var(--ig-embed-header-offset, 56px));
+    height: calc(100% + var(--ig-embed-header-offset));
     min-height: 430px;
     border: none;
     background: #111;
+    pointer-events: auto;
 }
 
 /* WYSIWYG Editor Styles */

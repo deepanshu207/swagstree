@@ -813,6 +813,10 @@ function renderProducts(items, targetId) {
 
     setupInfiniteScrollObserver();
 
+    if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof renderFooter === 'function') {
+        requestAnimationFrame(() => renderFooter());
+    }
+
     if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof updateCatalogControlsRowLayout === 'function') {
         updateCatalogControlsRowLayout();
     }
@@ -2319,6 +2323,9 @@ function renderFooter() {
         const currentId = currentSection ? currentSection.id.replace('-view', '') : 'home';
         const hasVisibleContent = !!settings.showFooter || settings.showCopyright !== false;
         const shouldShow = hasVisibleContent && (currentId === 'home' || currentId === 'wish');
+        const mountSection = (currentId === 'home' || currentId === 'wish')
+            ? currentId
+            : (footerPreviousSectionId || 'home');
 
         footerEl.classList.toggle('hidden', !shouldShow);
         document.body.classList.toggle('footer-hidden', !shouldShow);
@@ -2328,7 +2335,7 @@ function renderFooter() {
         }
 
         if (typeof mountStorefrontFooter === 'function') {
-            mountStorefrontFooter(footerEl, layoutId, currentId);
+            mountStorefrontFooter(footerEl, layoutId, mountSection);
         }
 
         footerEl.classList.toggle('hidden', !shouldShow);
