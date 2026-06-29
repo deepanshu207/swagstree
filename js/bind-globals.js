@@ -20,9 +20,10 @@
     document.addEventListener('DOMContentLoaded', bindNavItems);
 
     const critical = [
-        'navigateTo', 'showToast', 'closeModal', 'openCart', 'applyPromo',
+        'navigateTo', 'showToast', 'closeModal', 'openCart', 'applyPromo', 'applyPromoFromModal',
+        'openPromoModal', 'closePromoModal', 'selectCheckoutPromo', 'clearCheckoutPromo',
         'toggleFilter', 'resetFilters', 'openAnnouncementModal', 'toggleAIChat',
-        'openSupportChat', 'selectCheckoutPromo', 'clearCheckoutPromo'
+        'openSupportChat'
     ];
     critical.forEach((name) => {
         if (typeof window[name] !== 'function') {

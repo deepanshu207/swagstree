@@ -1449,26 +1449,39 @@ async function removePromoCode(index) {
 
 async function saveAdminPromoSettings() {
     try {
-        promoPickerEnabled = !!document.getElementById('admin-promo-show-picker')?.checked;
         await db.collection('settings').doc('promos').set({
-            list: adminPromoList,
-            showPromoInOptions: promoPickerEnabled,
-            showPromoPicker: promoPickerEnabled
+            list: adminPromoList
         }, { merge: true });
         renderAdminPromoList();
         
-        // Also update the global list in checkout.js if it's currently loaded in the same window
         if (typeof activePromosList !== 'undefined') {
             activePromosList = adminPromoList;
-        }
-        if (typeof window.checkoutPromoPickerEnabled !== 'undefined') {
-            window.checkoutPromoPickerEnabled = promoPickerEnabled;
         }
     } catch(e) {
         console.error('saveAdminPromoSettings error:', e);
         showToast('Failed to save promo settings');
     }
 }
+
+async function savePromoOptionsSetting() {
+    try {
+        promoPickerEnabled = !!document.getElementById('admin-promo-show-picker')?.checked;
+        await db.collection('settings').doc('promos').set({
+            showPromoInOptions: promoPickerEnabled,
+            showPromoPicker: promoPickerEnabled
+        }, { merge: true });
+        if (typeof window.checkoutPromoPickerEnabled !== 'undefined') {
+            window.checkoutPromoPickerEnabled = promoPickerEnabled;
+        }
+        showToast(promoPickerEnabled
+            ? 'Promo options enabled — customers will see Apply Promo at checkout'
+            : 'Promo options disabled — Apply Promo hidden at checkout');
+    } catch (e) {
+        console.error('savePromoOptionsSetting error:', e);
+        showToast('Failed to save promo options setting');
+    }
+}
+window.savePromoOptionsSetting = savePromoOptionsSetting;
 
 window.editPromoCode = function(index) {
     editingPromoIndex = index;

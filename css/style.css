@@ -910,6 +910,222 @@ input[type="checkbox"], input[type="radio"] {
     text-decoration: line-through;
 }
 
+/* Blinkit-style Apply Promo row + modal */
+.checkout-promo-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 14px;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.checkout-promo-row:hover {
+    border-color: rgba(255, 215, 0, 0.35);
+    background: #171717;
+}
+.checkout-promo-row.applied {
+    border-color: rgba(255, 215, 0, 0.25);
+    background: rgba(255, 215, 0, 0.05);
+}
+.checkout-promo-row-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+.checkout-promo-row-icon {
+    color: var(--gold);
+    font-size: 15px;
+    flex-shrink: 0;
+}
+.checkout-promo-row-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.checkout-promo-row-chevron {
+    color: #666;
+    font-size: 11px;
+}
+.checkout-promo-row-remove {
+    background: none;
+    border: none;
+    color: #ff8080;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 0;
+}
+#checkout-promo-row-text {
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    line-height: 1.35;
+}
+#checkout-promo-row-text small {
+    display: block;
+    font-size: 11px;
+    color: var(--gold);
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+#promo-modal.modal {
+    align-items: flex-end;
+    padding: 0;
+    padding-bottom: 0;
+}
+.promo-modal-box {
+    width: 100%;
+    max-width: 480px;
+    margin: 0;
+    border-radius: 20px 20px 0 0;
+    border: 1px solid #333;
+    border-bottom: none;
+    padding: 0 0 24px;
+    max-height: 78vh;
+    display: flex;
+    flex-direction: column;
+}
+.promo-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid #222;
+}
+.promo-modal-close {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+.promo-modal-manual {
+    display: flex;
+    gap: 10px;
+    padding: 14px 18px 0;
+    align-items: stretch;
+}
+.promo-modal-manual input {
+    flex: 1;
+    margin: 0;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+.promo-modal-apply-btn {
+    width: auto;
+    min-width: 72px;
+    padding: 0 16px;
+    font-size: 12px;
+    margin: 0;
+    white-space: nowrap;
+}
+.promo-modal-divider {
+    padding: 16px 18px 10px;
+    font-size: 11px;
+    color: #666;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.promo-modal-divider span {
+    display: block;
+}
+.promo-modal-list {
+    padding: 0 18px 8px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 80px;
+    max-height: 42vh;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.promo-modal-empty {
+    text-align: center;
+    padding: 28px 12px;
+    color: #666;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.promo-modal-empty i {
+    display: block;
+    font-size: 28px;
+    color: #444;
+    margin-bottom: 10px;
+}
+.promo-modal-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    text-align: left;
+    width: 100%;
+}
+.promo-modal-item:hover:not(:disabled) {
+    border-color: rgba(255, 215, 0, 0.35);
+    background: #171717;
+}
+.promo-modal-item.active {
+    border-color: var(--gold);
+    background: rgba(255, 215, 0, 0.08);
+}
+.promo-modal-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.promo-modal-item-code {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--gold);
+    letter-spacing: 0.5px;
+}
+.promo-modal-item-desc {
+    font-size: 11px;
+    color: #888;
+    margin-top: 3px;
+}
+.promo-modal-item-badge {
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    background: rgba(255, 215, 0, 0.15);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 8px;
+    padding: 6px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+    #promo-modal.modal {
+        align-items: center;
+        padding: 20px;
+        padding-bottom: 90px;
+    }
+    .promo-modal-box {
+        border-radius: 20px;
+        border-bottom: 1px solid #333;
+    }
+}
+
 /* 6. OVERLAYS & MODALS */
 #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #fff; color: #000; padding: 12px 25px; border-radius: 50px; font-weight: bold; z-index: 9999; display: none; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; padding-bottom: 90px; }
