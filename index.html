@@ -1300,6 +1300,72 @@
             </div>
         </div>
 
+        <!-- Product Comments Moderation -->
+        <div id="admin-comments-moderation" style="display:none; margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
+                onclick="toggleCommentsModerationAccordion()">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
+                    <div>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Product Comments Moderation
+                            <span id="admin-comments-pending-badge"
+                                style="display:none; margin-left:8px; font-size:10px; background:var(--red); color:#fff; padding:2px 8px; border-radius:10px; font-weight:700;">0</span>
+                        </h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Approve or reject customer reviews before they appear on product pages</p>
+                    </div>
+                </div>
+                <i id="admin-comments-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg);"></i>
+            </div>
+
+            <div id="admin-comments-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
+                <div
+                    style="background:#1a1a1a; padding:14px; border-radius:12px; border:1px solid #333; display:flex; flex-direction:column; gap:12px;"
+                    onclick="event.stopPropagation()">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                        <div>
+                            <p style="margin:0 0 4px 0; font-size:12px; color:#fff; font-weight:700;">Customer Reviews on Products</p>
+                            <p id="admin-comments-enabled-status" style="margin:0; font-size:11px; color:#aaa;">Loading review status...</p>
+                        </div>
+                        <span id="admin-comments-enabled-badge"
+                            style="font-size:10px; font-weight:800; letter-spacing:0.5px; padding:5px 10px; border-radius:6px; border:1px solid #444; color:#888; background:#111;">...</span>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button id="admin-comments-enable-btn" type="button" class="btn-gold"
+                            style="width:auto; padding:10px 18px; font-size:12px; margin:0; background:#2ecc71; border-color:#27ae60; color:#fff;"
+                            onclick="enableCustomerReviews()">
+                            <i class="fa fa-check-circle"></i> Enable Reviews
+                        </button>
+                        <button id="admin-comments-disable-btn" type="button" class="btn-gold"
+                            style="width:auto; padding:10px 18px; font-size:12px; margin:0; background:#e74c3c; border-color:#c0392b; color:#fff;"
+                            onclick="disableCustomerReviews()">
+                            <i class="fa fa-ban"></i> Disable Reviews
+                        </button>
+                    </div>
+                </div>
+                <div id="admin-comments-moderation-body" style="display:none; flex-direction:column; gap:12px;">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="admin-comments-filter-pending" class="btn-gold"
+                        style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:var(--gold); color:#000; border-color:var(--gold);"
+                        onclick="setCommentsModerationFilter('pending')">Pending</button>
+                    <button id="admin-comments-filter-approved" class="btn-gold"
+                        style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:#222; color:#fff; border:1px solid #444;"
+                        onclick="setCommentsModerationFilter('approved')">Approved</button>
+                    <button id="admin-comments-filter-hidden" class="btn-gold"
+                        style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:#222; color:#fff; border:1px solid #444;"
+                        onclick="setCommentsModerationFilter('hidden')">Hidden</button>
+                    <button id="admin-comments-filter-rejected" class="btn-gold"
+                        style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:#222; color:#fff; border:1px solid #444;"
+                        onclick="setCommentsModerationFilter('rejected')">Rejected</button>
+                </div>
+                <div id="admin-comments-moderation-list"
+                    style="display:flex; flex-direction:column; gap:10px; max-height:450px; overflow-y:auto; padding-right:8px;">
+                </div>
+                </div>
+            </div>
+        </div>
+
         <div id="admin-list" style="padding:0 20px"></div>
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
     </div>
@@ -1449,6 +1515,11 @@
                         <input type="checkbox" id="toggle-newsletter" style="margin:0; width:16px; height:16px;">
                         Newsletter Popup
                     </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-product-comments" style="margin:0; width:16px; height:16px;">
+                        Product Reviews & Comments
+                    </label>
                 </div>
 
                 <button class="btn-gold"
@@ -1586,7 +1657,7 @@
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Manage Admins</h4>
                     <p style="margin:2px 0 0; font-size:11px; color:#666;">Assign, update, or remove additional admin
-                        roles</p>
+                        roles and granular capabilities</p>
                 </div>
             </div>
 
@@ -1791,9 +1862,11 @@
             </div>
 
             <p style="font-size:11px; color:#666; margin-top:20px;">DESCRIPTION</p>
-            <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:30px"></p>
+            <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:20px"></p>
 
-            <button class="btn-gold" id="det-btn">ADD TO BAG</button>
+            <button class="btn-gold" id="det-btn" style="margin-bottom:25px;">ADD TO BAG</button>
+
+            <div id="det-comments-section" style="display:none;"></div>
         </div>
     </div>
 
@@ -2239,12 +2312,13 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.26"></script>
-    <script src="js/app.js?v=9.26"></script>
-    <script src="js/store.js?v=9.26"></script>
-    <script src="js/checkout.js?v=9.26"></script>
-    <script src="js/auth.js?v=9.26"></script>
-    <script src="js/admin.js?v=9.26"></script>
+    <script src="js/features.js?v=9.30"></script>
+    <script src="js/app.js?v=9.30"></script>
+    <script src="js/store.js?v=9.30"></script>
+    <script src="js/checkout.js?v=9.30"></script>
+    <script src="js/auth.js?v=9.30"></script>
+    <script src="js/comments.js?v=9.30"></script>
+    <script src="js/admin.js?v=9.30"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

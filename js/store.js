@@ -868,6 +868,8 @@ function showDetail(id, initialColor = null, initialSize = null) {
     detView.style.display = 'block';
     detView.classList.add('active-detail-flex');
 
+    if (typeof loadProductComments === 'function') loadProductComments(id);
+
     // Hide WhatsApp icon on product detail
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
@@ -1254,6 +1256,9 @@ function closeDetail() {
     detView.style.display = 'none';
     detView.classList.remove('active-detail-flex');
     window.history.replaceState({}, '', window.location.pathname);
+
+    if (typeof stopProductCommentsListener === 'function') stopProductCommentsListener();
+    window.selectedCommentRating = 0;
 
     // Restore WhatsApp icon visibility when closing product detail
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();

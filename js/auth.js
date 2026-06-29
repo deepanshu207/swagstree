@@ -46,15 +46,20 @@ function updateAdminPrivilegesUI() {
     if (brevoCard) {
         brevoCard.style.display = (isAdmin || isSuperAdmin) ? 'flex' : 'none';
     }
+
+    if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
+    if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
 }
 
 // Global real-time listener for admins
 db.collection("admins").onSnapshot(snap => {
     assignedAdmins = [];
     snap.forEach(doc => {
+        const data = doc.data();
         assignedAdmins.push({
             email: doc.id.toLowerCase(),
-            status: doc.data().status || "active"
+            status: data.status || "active",
+            capabilities: data.capabilities || {}
         });
     });
 
@@ -66,6 +71,8 @@ db.collection("admins").onSnapshot(snap => {
         const isCustomAdminActive = assignedAdmins.some(a => a.email === emailLower && a.status === "active");
 
         isAdmin = (emailLower === SUPER_ADMIN_EMAIL || (emailLower === ADMIN_EMAIL && !isAdminDeactivated) || isCustomAdminActive);
+
+        if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
         
         updateAdminPrivilegesUI();
         
@@ -80,6 +87,8 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadEmailSettings === 'function') loadEmailSettings();
             if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
+            if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
+            if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
@@ -189,6 +198,8 @@ auth.onAuthStateChanged(user => {
 
         isAdmin = (emailLower === SUPER_ADMIN_EMAIL || (emailLower === ADMIN_EMAIL && !isAdminDeactivated) || isCustomAdminActive);
 
+        if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
+
         // Sync email to Firestore and listen for real-time deactivation
         db.collection("users").doc(user.uid).onSnapshot(doc => {
             const data = doc.exists ? doc.data() : {};
@@ -237,6 +248,8 @@ auth.onAuthStateChanged(user => {
             if (typeof loadEmailSettings === 'function') loadEmailSettings();
             if (typeof loadFeedbackPlacementSettings === 'function') loadFeedbackPlacementSettings();
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
+            if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
+            if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
@@ -297,6 +310,10 @@ auth.onAuthStateChanged(user => {
         // Stop the session inactivity tracker
         if (typeof stopSessionTracker === 'function') {
             stopSessionTracker();
+        }
+
+        if (typeof cleanupCommentsListeners === 'function') {
+            cleanupCommentsListeners();
         }
     }
 
@@ -849,7 +866,8 @@ function loadAssignedAdmins() {
             email: adminEmailLower,
             isSystem: true,
             label: 'Admin (System)',
-            status: adminStatus
+            status: adminStatus,
+            capabilities: firebaseAdmins[adminEmailLower]?.capabilities || {}
         });
         
         // Add default superadmin
@@ -857,7 +875,8 @@ function loadAssignedAdmins() {
             email: SUPER_ADMIN_EMAIL.toLowerCase(),
             isSystem: true,
             label: 'Superadmin (System)',
-            status: 'active'
+            status: 'active',
+            capabilities: {}
         });
 
         // Add custom admins
@@ -867,7 +886,8 @@ function loadAssignedAdmins() {
                     email: email,
                     isSystem: false,
                     label: 'Admin',
-                    status: firebaseAdmins[email].status || 'active'
+                    status: firebaseAdmins[email].status || 'active',
+                    capabilities: firebaseAdmins[email].capabilities || {}
                 });
             }
         });
@@ -898,23 +918,56 @@ function loadAssignedAdmins() {
                 const toggleAction = `toggleAdminStatus('${email}', '${item.status}')`;
                 const toggleBtn = `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="${toggleAction}"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>`;
                 const deleteBtn = isAdminSystem ? '' : `<i class="fa fa-trash" style="color:var(--red); cursor:pointer; font-size:14px; margin-left:10px;" onclick="deleteAdminRole('${email}')" title="Remove Admin"></i>`;
-                
+                const capsBtn = (!isAdminSystem && !isSuper) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="toggleAdminCapabilitiesAccordion('${email}')"><i class="fa fa-key"></i> Capabilities</button>` : '';
+
                 actionHtml = `
-                    <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        ${capsBtn}
                         ${toggleBtn}
                         ${deleteBtn}
                     </div>
                 `;
             }
-            
+
+            const capAccordionId = `admin-caps-${email.replace(/[^a-z0-9]/g, '-')}`;
+            let capsAccordionHtml = '';
+            if (!isSuper && !isAdminSystem) {
+                const capDefs = window.ADMIN_CAPABILITY_DEFS || {};
+                const resolvedCaps = (typeof resolveFullCapabilitiesForEmail === 'function')
+                    ? resolveFullCapabilitiesForEmail(email, { status: item.status, capabilities: item.capabilities })
+                    : {};
+                const capCheckboxes = Object.keys(capDefs).map(capKey => {
+                    const def = capDefs[capKey];
+                    const checked = resolvedCaps[capKey] ? 'checked' : '';
+                    return `
+                        <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; color:#fff; cursor:pointer; padding:8px; background:#111; border-radius:8px; border:1px solid #222;">
+                            <input type="checkbox" id="cap-${capKey}-${capAccordionId}" ${checked} style="margin:4px 0 0 0; width:16px; height:16px;">
+                            <span>
+                                <strong style="display:block; color:var(--gold); font-size:12px;"><i class="fa ${def.icon}"></i> ${def.label}</strong>
+                                <span style="font-size:10px; color:#666;">${def.description || ''}</span>
+                            </span>
+                        </label>`;
+                }).join('');
+
+                capsAccordionHtml = `
+                    <div id="${capAccordionId}" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed #333; flex-direction:column; gap:8px;">
+                        <p style="margin:0 0 4px 0; font-size:11px; color:#888; font-weight:700;">ASSIGN CAPABILITIES</p>
+                        ${capCheckboxes}
+                        <button class="btn-gold" style="width:auto; padding:8px 14px; font-size:11px; align-self:flex-start; margin-top:4px;" onclick="saveAdminCapabilities('${email}')">Save Capabilities</button>
+                    </div>`;
+            }
+
             html += `
-                <div style="background:#1a1a1a; padding:10px 15px; border-radius:10px; display:flex; align-items:center; justify-content:space-between; border:1px solid #222; flex-wrap:wrap; gap:10px;">
-                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <i class="fa fa-user-cog" style="color:var(--gold); font-size:13px;"></i>
-                        <span style="font-size:13px; font-weight:600; color:#eee;">${email}</span>
-                        ${tagHtml}
+                <div style="background:#1a1a1a; padding:10px 15px; border-radius:10px; border:1px solid #222; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; width:100%;">
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <i class="fa fa-user-cog" style="color:var(--gold); font-size:13px;"></i>
+                            <span style="font-size:13px; font-weight:600; color:#eee;">${email}</span>
+                            ${tagHtml}
+                        </div>
+                        ${actionHtml}
                     </div>
-                    ${actionHtml}
+                    ${capsAccordionHtml}
                 </div>
             `;
         });
@@ -1630,6 +1683,7 @@ async function loadSuperadminFeatures() {
                 if (document.getElementById('toggle-recent-orders')) document.getElementById('toggle-recent-orders').checked = !!data.widgets.recentOrders;
                 if (document.getElementById('toggle-newsletter')) document.getElementById('toggle-newsletter').checked = !!data.widgets.newsletterPopup;
             }
+            if (document.getElementById('toggle-product-comments')) document.getElementById('toggle-product-comments').checked = data.productComments !== false;
             
             toggleCustomColorPickers(data.themePreset || 'outlaw');
         }
@@ -1663,6 +1717,7 @@ async function saveSuperadminFeatures() {
         multiLanguage: !!document.getElementById('toggle-language')?.checked,
         announcementBar: !!document.getElementById('toggle-announcement')?.checked,
         announcementBell: !!document.getElementById('toggle-announcement-bell')?.checked,
+        productComments: !!document.getElementById('toggle-product-comments')?.checked,
         widgets: {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
@@ -1672,6 +1727,9 @@ async function saveSuperadminFeatures() {
     
     try {
         await db.collection("settings").doc("features_config").set(updateObj, { merge: true });
+        await db.collection("settings").doc("comments").set({
+            enabled: updateObj.productComments
+        }, { merge: true });
         showToast("✅ Superadmin features and theme updated successfully!");
     } catch(e) {
         console.error("saveSuperadminFeatures error:", e);

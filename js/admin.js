@@ -2515,7 +2515,7 @@ async function triggerManualBackupEmail() {
 }
 
 async function runBackup(isAuto = false, forceEmail = false) {
-    const collections = ['products', 'orders', 'feedbacks', 'admins', 'settings'];
+    const collections = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
     const backupData = {};
     
     // Fetch regular collections
@@ -2637,7 +2637,7 @@ async function restoreBackupFromFile(input) {
             const batcher = new FirestoreBatcher();
             
             // Restore regular collections
-            const cols = ['products', 'orders', 'feedbacks', 'admins', 'settings'];
+            const cols = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
             for (const col of cols) {
                 if (data[col] && Array.isArray(data[col])) {
                     for (const doc of data[col]) {

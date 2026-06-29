@@ -376,6 +376,8 @@ function nav(id, el) {
         if (typeof loadPaginationSettings === 'function') loadPaginationSettings();
         if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
         if (typeof refreshBrevoQuota === 'function') refreshBrevoQuota();
+        if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
+        if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
     }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
