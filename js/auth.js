@@ -224,6 +224,10 @@ auth.onAuthStateChanged(user => {
             if (profPhone) profPhone.value = savedPhone;
             if (profEmailReadOnly) profEmailReadOnly.textContent = user.email || '';
 
+            if (typeof ensureCheckoutMatchesCurrentUser === 'function') {
+                ensureCheckoutMatchesCurrentUser(savedName, savedPhone);
+            }
+
             renderStore();
         });
 

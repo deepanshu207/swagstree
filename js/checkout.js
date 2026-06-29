@@ -663,7 +663,7 @@ function payCodAdvance(method) {
     }
 }
 
-function openCart() {
+async function openCart() {
     let h = ""; 
     const groups = {};
     cart.forEach((it, idx) => {
@@ -818,8 +818,12 @@ function openCart() {
     // Hide WhatsApp icon when checkout is open
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 
+    if (typeof ensureCheckoutMatchesCurrentUser === 'function') {
+        await ensureCheckoutMatchesCurrentUser();
+    }
+
     if (typeof autoPopulateCheckoutDetails === 'function') {
-        autoPopulateCheckoutDetails(false);
+        await autoPopulateCheckoutDetails(false);
     }
 }
 
@@ -2907,6 +2911,7 @@ window.clearCheckoutFormFields = function() {
     const msgEl = document.getElementById('checkout-email-msg');
     if (msgEl) msgEl.style.display = 'none';
     window.checkoutDetailsLoadedFor = null;
+    setCheckoutEmailFieldMode(false);
 };
 
 window.refreshCheckoutFormForUser = async function() {
@@ -2914,6 +2919,46 @@ window.refreshCheckoutFormForUser = async function() {
     if (typeof autoPopulateCheckoutDetails === 'function') {
         await autoPopulateCheckoutDetails(true);
     }
+};
+
+function setCheckoutEmailFieldMode(isLoggedIn) {
+    const emailField = document.getElementById('c-email');
+    if (!emailField) return;
+    emailField.readOnly = !!isLoggedIn;
+    emailField.style.opacity = isLoggedIn ? '0.9' : '';
+    emailField.title = isLoggedIn ? 'Orders use your account email' : '';
+}
+
+window.ensureCheckoutMatchesCurrentUser = async function(profileName, profilePhone) {
+    const ownerKey = typeof getCheckoutOwnerKey === 'function' ? getCheckoutOwnerKey() : 'guest';
+    const emailField = document.getElementById('c-email');
+
+    if (!currentUser) {
+        if (window.checkoutDetailsLoadedFor && window.checkoutDetailsLoadedFor.startsWith('user:')) {
+            await autoPopulateCheckoutDetails(true);
+        }
+        setCheckoutEmailFieldMode(false);
+        return;
+    }
+
+    const accountEmail = (currentUser.email || '').trim().toLowerCase();
+    const fieldEmail = emailField ? emailField.value.trim().toLowerCase() : '';
+    const ownerMismatch = window.checkoutDetailsLoadedFor && window.checkoutDetailsLoadedFor !== ownerKey;
+    const emailMismatch = fieldEmail && accountEmail && fieldEmail !== accountEmail;
+
+    if (ownerMismatch || emailMismatch) {
+        await autoPopulateCheckoutDetails(true);
+        return;
+    }
+
+    if (window.checkoutDetailsLoadedFor !== ownerKey) return;
+
+    const nameField = document.getElementById('c-name');
+    const phoneField = document.getElementById('c-phone');
+    if (emailField && accountEmail && !fieldEmail) emailField.value = currentUser.email;
+    if (nameField && profileName && !nameField.value.trim()) nameField.value = profileName;
+    if (phoneField && profilePhone && !phoneField.value.trim()) phoneField.value = profilePhone;
+    setCheckoutEmailFieldMode(true);
 };
 
 async function syncDefaultAddressToCheckout() {
@@ -3053,6 +3098,7 @@ async function autoPopulateCheckoutDetails(forceRefresh) {
     }
 
     window.checkoutDetailsLoadedFor = ownerKey;
+    setCheckoutEmailFieldMode(!!currentUser);
 }
 
 // ── Profile Address Accordion Functions ────────────────────────
