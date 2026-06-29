@@ -1452,6 +1452,122 @@
             </div>
         </div>
 
+        <!-- Auto Data Retention -->
+        <div id="admin-auto-retention-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-broom" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Auto Data Retention</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Automatically purge aged chat logs, backup mail
+                        records, rejected reviews &amp; announcements. Runs when superadmin signs in (max once per hour).</p>
+                </div>
+            </div>
+            <div
+                style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+
+                <div style="display:grid; grid-template-columns:minmax(140px,1fr) minmax(120px,160px); gap:8px 12px; align-items:center;">
+                    <div>
+                        <span style="font-size:12px; color:#fff; font-weight:600;">AI Help Chat Messages</span>
+                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Old AI bot conversation messages</p>
+                    </div>
+                    <select id="auto-retention-ai_chat_messages"
+                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
+                        <option value="never">Never Delete</option>
+                        <option value="hour">After 1 Hour</option>
+                        <option value="day">After 1 Day</option>
+                        <option value="week">After 1 Week</option>
+                        <option value="month" selected>After 1 Month</option>
+                        <option value="year">After 1 Year</option>
+                    </select>
+
+                    <div>
+                        <span style="font-size:12px; color:#fff; font-weight:600;">Live Support Chat Messages</span>
+                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Human admin ↔ customer support history</p>
+                    </div>
+                    <select id="auto-retention-admin_support_messages"
+                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
+                        <option value="never">Never Delete</option>
+                        <option value="hour">After 1 Hour</option>
+                        <option value="day">After 1 Day</option>
+                        <option value="week">After 1 Week</option>
+                        <option value="month">After 1 Month</option>
+                        <option value="year" selected>After 1 Year</option>
+                    </select>
+
+                    <div>
+                        <span style="font-size:12px; color:#fff; font-weight:600;">Empty Support Threads</span>
+                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Thread shells with no messages left</p>
+                    </div>
+                    <select id="auto-retention-empty_support_threads"
+                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
+                        <option value="never">Never Delete</option>
+                        <option value="hour">After 1 Hour</option>
+                        <option value="day">After 1 Day</option>
+                        <option value="week">After 1 Week</option>
+                        <option value="month" selected>After 1 Month</option>
+                        <option value="year">After 1 Year</option>
+                    </select>
+
+                    <div>
+                        <span style="font-size:12px; color:#fff; font-weight:600;">Backup Email Queue Logs</span>
+                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Mail records to backup@swagstree.com</p>
+                    </div>
+                    <select id="auto-retention-backup_mail_logs"
+                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
+                        <option value="never">Never Delete</option>
+                        <option value="hour">After 1 Hour</option>
+                        <option value="day">After 1 Day</option>
+                        <option value="week">After 1 Week</option>
+                        <option value="month" selected>After 1 Month</option>
+                        <option value="year">After 1 Year</option>
+                    </select>
+
+                    <div>
+                        <span style="font-size:12px; color:#fff; font-weight:600;">Rejected Product Reviews</span>
+                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Moderation rejects no longer needed</p>
+                    </div>
+                    <select id="auto-retention-rejected_comments"
+                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
+                        <option value="never">Never Delete</option>
+                        <option value="hour">After 1 Hour</option>
+                        <option value="day">After 1 Day</option>
+                        <option value="week">After 1 Week</option>
+                        <option value="month">After 1 Month</option>
+                        <option value="year" selected>After 1 Year</option>
+                    </select>
+
+                    <div>
+                        <span style="font-size:12px; color:#fff; font-weight:600;">Expired Announcements</span>
+                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Published banners past retention age</p>
+                    </div>
+                    <select id="auto-retention-old_announcements"
+                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
+                        <option value="never" selected>Never Delete</option>
+                        <option value="hour">After 1 Hour</option>
+                        <option value="day">After 1 Day</option>
+                        <option value="week">After 1 Week</option>
+                        <option value="month">After 1 Month</option>
+                        <option value="year">After 1 Year</option>
+                    </select>
+                </div>
+
+                <div style="font-size:11px; color:#888; margin-top:2px;" id="auto-retention-status-text">
+                    Last Auto-Purge: Loading...
+                </div>
+
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+                    <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; height:36px;"
+                        onclick="saveAutoRetentionSettings()">Save Retention Rules</button>
+                    <button class="btn-gold"
+                        style="width:auto; padding:8px 15px; font-size:11px; height:36px; background:#151515; color:#fff; border:1px solid #555;"
+                        onclick="triggerManualAutoRetention()">
+                        <i class="fa fa-play"></i> Run Purge Now
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Superadmin: Feature & Theme Config -->
         <div id="superadmin-theme-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
@@ -2568,15 +2684,16 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.59"></script>
-    <script src="js/app.js?v=9.59"></script>
-    <script src="js/store.js?v=9.59"></script>
-    <script src="js/checkout.js?v=9.59"></script>
-    <script src="js/auth.js?v=9.59"></script>
-    <script src="js/comments.js?v=9.59"></script>
-    <script src="js/support-chat.js?v=9.59"></script>
-    <script src="js/admin.js?v=9.59"></script>
-    <script src="js/cloudinary-admin.js?v=9.59"></script>
+    <script src="js/features.js?v=9.60"></script>
+    <script src="js/app.js?v=9.60"></script>
+    <script src="js/store.js?v=9.60"></script>
+    <script src="js/checkout.js?v=9.60"></script>
+    <script src="js/auth.js?v=9.60"></script>
+    <script src="js/comments.js?v=9.60"></script>
+    <script src="js/support-chat.js?v=9.60"></script>
+    <script src="js/auto-retention.js?v=9.60"></script>
+    <script src="js/admin.js?v=9.60"></script>
+    <script src="js/cloudinary-admin.js?v=9.60"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

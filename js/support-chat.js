@@ -91,7 +91,8 @@ window.applySupportChatTabsVisibility = applySupportChatTabsVisibility;
 const CHAT_PRODUCT_DISPLAY_LIMIT = 10;
 const SUPPORT_CHANNEL = 'support';
 const AI_CHANNEL = 'ai';
-
+window.SUPPORT_CHANNEL = SUPPORT_CHANNEL;
+window.AI_CHANNEL = AI_CHANNEL;
 window.supportMessagesCache = window.supportMessagesCache || { ai: [], support: [] };
 const supportKnownMsgIds = { ai: new Set(), support: new Set() };
 
@@ -103,6 +104,7 @@ function getMessageChannel(msg) {
     if (msg.escalated) return SUPPORT_CHANNEL;
     return AI_CHANNEL;
 }
+window.getMessageChannel = getMessageChannel;
 
 function getChatBody(channel) {
     const ch = channel || (window.supportChatState.activeTab === 'admin' ? SUPPORT_CHANNEL : AI_CHANNEL);
@@ -1189,6 +1191,19 @@ async function deleteSupportMessagesFromThreadByChannel(threadId, channel) {
         await batch.commit();
     }
 
+    await updateThreadAfterChannelMessageRemoval(threadRef, remaining, targetChannel);
+    return toDelete.length;
+}
+
+async function deleteAdminSupportMessagesFromThread(threadId) {
+    return deleteSupportMessagesFromThreadByChannel(threadId, SUPPORT_CHANNEL);
+}
+
+async function deleteAiSupportMessagesFromThread(threadId) {
+    return deleteSupportMessagesFromThreadByChannel(threadId, AI_CHANNEL);
+}
+
+async function updateThreadAfterChannelMessageRemoval(threadRef, remaining, targetChannel) {
     remaining.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
     const last = remaining[remaining.length - 1];
     const hasSupportRemaining = remaining.some(m => getMessageChannel(m) === SUPPORT_CHANNEL);
@@ -1226,17 +1241,69 @@ async function deleteSupportMessagesFromThreadByChannel(threadId, channel) {
     if (threadSnap.exists) {
         await threadRef.set(update, { merge: true });
     }
+}
 
+async function purgeSupportMessagesOlderThanFromThread(threadId, channel, cutoffMs) {
+    const targetChannel = channel === SUPPORT_CHANNEL ? SUPPORT_CHANNEL : AI_CHANNEL;
+    const threadRef = db.collection('support_threads').doc(threadId);
+    const snap = await threadRef.collection('messages').get();
+    const toDelete = [];
+    const remaining = [];
+
+    snap.forEach(doc => {
+        const data = doc.data();
+        const msgTime = data.createdAt?.toMillis?.() || 0;
+        if (getMessageChannel(data) === targetChannel && msgTime > 0 && msgTime < cutoffMs) {
+            toDelete.push(doc.ref);
+        } else {
+            remaining.push({ id: doc.id, ...data });
+        }
+    });
+
+    if (!toDelete.length) return 0;
+
+    let refs = toDelete.slice();
+    while (refs.length) {
+        const chunk = refs.splice(0, 400);
+        const batch = db.batch();
+        chunk.forEach(ref => batch.delete(ref));
+        await batch.commit();
+    }
+
+    await updateThreadAfterChannelMessageRemoval(threadRef, remaining, targetChannel);
     return toDelete.length;
 }
 
-async function deleteAdminSupportMessagesFromThread(threadId) {
-    return deleteSupportMessagesFromThreadByChannel(threadId, SUPPORT_CHANNEL);
-}
+window.purgeSupportMessagesOlderThan = async function(channel, maxAgeMs) {
+    if (!isSuperAdmin || !maxAgeMs || maxAgeMs <= 0) return 0;
+    const cutoffMs = Date.now() - maxAgeMs;
+    const snap = await db.collection('support_threads').get();
+    let totalDeleted = 0;
+    for (const doc of snap.docs) {
+        totalDeleted += await purgeSupportMessagesOlderThanFromThread(doc.id, channel, cutoffMs);
+    }
+    return totalDeleted;
+};
 
-async function deleteAiSupportMessagesFromThread(threadId) {
-    return deleteSupportMessagesFromThreadByChannel(threadId, AI_CHANNEL);
-}
+window.purgeEmptySupportThreadsOlderThan = async function(maxAgeMs) {
+    if (!isSuperAdmin || !maxAgeMs || maxAgeMs <= 0) return 0;
+    const cutoffMs = Date.now() - maxAgeMs;
+    const snap = await db.collection('support_threads').get();
+    let deleted = 0;
+
+    for (const doc of snap.docs) {
+        const data = doc.data();
+        const msgSnap = await doc.ref.collection('messages').limit(1).get();
+        if (!msgSnap.empty) continue;
+
+        const threadTime = data.lastMessageAt?.toMillis?.() || data.createdAt?.toMillis?.() || 0;
+        if (threadTime > 0 && threadTime < cutoffMs) {
+            await doc.ref.delete();
+            deleted++;
+        }
+    }
+    return deleted;
+};
 
 function getCustomerUidsFromParams(uid, mergedUidsParam) {
     let uids = [uid];

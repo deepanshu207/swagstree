@@ -2573,6 +2573,7 @@ async function deliverBackupJson(backupData, filename, isAuto, forceEmail) {
             const downloadUrl = d.secure_url;
             await db.collection('mail').add({
                 to: 'backup@swagstree.com',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 message: {
                     subject: `Swag Stree ${isAuto ? 'Auto' : 'Manual'} Backup: ${filename}`,
                     text: `Your ${isAuto ? 'automated' : 'manual'} database backup is ready.\n\nDownload Link: ${downloadUrl}\n\nCollections: ${(backupData._meta?.collections || []).join(', ')}\n\nGenerated at: ${now.toLocaleString()}`

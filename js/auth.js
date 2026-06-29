@@ -93,6 +93,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
+            if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();
         }
     }
 }, error => {
@@ -259,6 +260,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
+            if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();
         }
 
         // Update profile header
