@@ -35,61 +35,78 @@ body {
 .header { 
     display: flex; 
     align-items: center; 
-    padding: clamp(8px, 2vw, 12px) clamp(10px, 3vw, 20px);
-    background: rgba(0, 0, 0, 0.96); 
-    backdrop-filter: blur(12px); 
-    -webkit-backdrop-filter: blur(12px);
+    min-height: 54px;
+    padding: clamp(10px, 2.5vw, 14px) clamp(12px, 3.5vw, 24px);
+    background: rgba(0, 0, 0, 0.97); 
+    backdrop-filter: blur(14px); 
+    -webkit-backdrop-filter: blur(14px);
     position: sticky; 
     top: 0; 
     z-index: 1000; 
-    border-bottom: 1px solid var(--border); 
-    gap: clamp(8px, 2vw, 16px);
+    border-bottom: 1px solid rgba(255, 215, 0, 0.12); 
+    gap: clamp(10px, 2.5vw, 18px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
 }
 
 .header-brand {
     display: flex;
     align-items: center;
-    gap: clamp(6px, 1.5vw, 10px);
+    gap: clamp(8px, 2vw, 12px);
     flex: 1 1 auto;
     min-width: 0;
 }
 
+.logo-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(40px, 10.5vw, 48px);
+    height: clamp(40px, 10.5vw, 48px);
+    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.03) 100%);
+    border: 1px solid rgba(255, 215, 0, 0.22);
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
 .logo-img {
-    height: clamp(28px, 7vw, 40px);
+    height: clamp(32px, 8.5vw, 40px);
     width: auto;
     object-fit: contain;
     flex-shrink: 0;
-    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.2));
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.25));
 }
 
 .brand-name,
 .brand {
-    font-size: clamp(11px, 3.2vw, 15px);
-    font-weight: 900;
+    font-size: clamp(13px, 3.8vw, 17px);
+    font-weight: 800;
     color: var(--gold);
-    letter-spacing: clamp(1px, 0.35vw, 2.5px);
-    line-height: 1.1;
+    letter-spacing: clamp(1.2px, 0.45vw, 2.8px);
+    line-height: 1.15;
     text-transform: uppercase;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+    text-shadow: 0 1px 12px rgba(255, 215, 0, 0.18);
 }
 
 .header-actions {
     display: flex;
     align-items: center;
-    gap: clamp(4px, 1.2vw, 8px);
+    gap: clamp(6px, 1.6vw, 10px);
     flex-shrink: 0;
 }
 
 .header-social-bar,
 .social-tools { 
     display: flex; 
-    gap: clamp(4px, 1vw, 6px);
+    gap: clamp(6px, 1.5vw, 8px);
     align-items: center; 
-    padding-right: clamp(4px, 1vw, 8px);
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    padding-right: clamp(6px, 1.5vw, 10px);
+    margin-right: clamp(2px, 0.5vw, 4px);
+    border-right: 1px solid rgba(255, 255, 255, 0.14);
     height: auto;
 }
 
@@ -97,26 +114,31 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: clamp(30px, 8vw, 36px);
-    height: clamp(30px, 8vw, 36px);
+    width: clamp(36px, 9.5vw, 42px);
+    height: clamp(36px, 9.5vw, 42px);
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
     color: #fff;
     cursor: pointer;
-    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
     text-decoration: none;
     position: relative;
     padding: 0;
-    font-size: clamp(13px, 3.5vw, 16px);
+    font-size: clamp(15px, 4vw, 18px);
     line-height: 1;
     flex-shrink: 0;
 }
 
+.header-action-btn i {
+    pointer-events: none;
+}
+
 .header-action-btn:hover,
 .header-action-btn:focus-visible {
-    border-color: rgba(255, 215, 0, 0.45);
-    background: rgba(255, 215, 0, 0.08);
+    border-color: rgba(255, 215, 0, 0.5);
+    background: rgba(255, 215, 0, 0.1);
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.12);
     outline: none;
 }
 
@@ -127,34 +149,34 @@ body {
 .header-icon-instagram i { color: #E1306C; }
 .header-icon-whatsapp i { color: #25D366; }
 .header-icon-facebook i { color: #1877F2; }
-.header-icon-filter i { color: var(--gold); }
+.header-icon-filter i { color: var(--gold); font-size: 0.92em; }
 
 .header-cart-btn {
-    border-color: rgba(255, 215, 0, 0.25);
-    background: rgba(255, 215, 0, 0.06);
+    border-color: rgba(255, 215, 0, 0.32);
+    background: rgba(255, 215, 0, 0.08);
 }
 
 .header-cart-btn i {
     color: #fff;
-    font-size: clamp(14px, 3.8vw, 18px);
+    font-size: clamp(16px, 4.2vw, 19px);
 }
 
 .header-cart-badge {
     position: absolute;
-    top: -4px;
-    right: -4px;
+    top: -5px;
+    right: -5px;
     background: var(--red);
     color: #fff;
-    font-size: clamp(8px, 2.2vw, 10px);
-    min-width: clamp(14px, 3.8vw, 16px);
-    height: clamp(14px, 3.8vw, 16px);
-    padding: 0 3px;
+    font-size: clamp(9px, 2.4vw, 11px);
+    min-width: clamp(16px, 4.2vw, 18px);
+    height: clamp(16px, 4.2vw, 18px);
+    padding: 0 4px;
     border-radius: 50%;
     display: grid;
     place-items: center;
     font-weight: 800;
     line-height: 1;
-    border: 1.5px solid #000;
+    border: 2px solid #000;
     box-sizing: border-box;
 }
 
@@ -2203,28 +2225,66 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
     .header {
-        padding: 12px 24px;
-        gap: 20px;
+        min-height: 58px;
     }
 
-    .header-brand {
-        gap: 12px;
+    .logo-wrap {
+        width: 46px;
+        height: 46px;
     }
 
     .logo-img {
-        height: 40px;
+        height: 38px;
     }
 
     .brand-name {
-        font-size: 15px;
-        letter-spacing: 2.5px;
+        font-size: 16px;
     }
 
     .header-action-btn {
-        width: 36px;
-        height: 36px;
+        width: 40px;
+        height: 40px;
+        font-size: 17px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .header {
+        min-height: 64px;
+        padding: 14px 28px;
+        gap: 22px;
+    }
+
+    .header-brand {
+        gap: 14px;
+    }
+
+    .logo-wrap {
+        width: 50px;
+        height: 50px;
+        border-radius: 14px;
+    }
+
+    .logo-img {
+        height: 42px;
+    }
+
+    .brand-name {
+        font-size: 17px;
+        letter-spacing: 3px;
+    }
+
+    .header-action-btn {
+        width: 42px;
+        height: 42px;
+        font-size: 18px;
+    }
+
+    .header-social-bar {
+        gap: 8px;
+        padding-right: 12px;
     }
 
     #home-view,
@@ -2597,33 +2657,39 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 
 
-/* Mobile Header Responsiveness Overrides */
+/* Mobile Header — keep readable minimum sizes */
 @media (max-width: 480px) {
     .header {
-        padding: 8px 10px;
-        gap: clamp(4px, 1.5vw, 8px);
+        padding: 10px 12px;
+        gap: 8px;
+        min-height: 52px;
     }
     .header-brand {
-        gap: clamp(5px, 1.2vw, 8px);
+        gap: 8px;
+    }
+    .logo-wrap {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
     }
     .logo-img {
-        height: clamp(26px, 6.5vw, 32px);
+        height: 32px;
     }
     .brand-name {
-        font-size: clamp(10px, 3vw, 12px);
-        letter-spacing: clamp(0.8px, 0.4vw, 1.5px);
+        font-size: clamp(12px, 3.6vw, 14px);
+        letter-spacing: 1.2px;
     }
     .header-social-bar {
-        gap: 3px;
-        padding-right: 4px;
+        gap: 5px;
+        padding-right: 6px;
     }
     .header-action-btn {
-        width: clamp(28px, 7.5vw, 32px);
-        height: clamp(28px, 7.5vw, 32px);
-        font-size: clamp(12px, 3.2vw, 14px);
+        width: 36px;
+        height: 36px;
+        font-size: 15px;
     }
     .header-cart-btn i {
-        font-size: clamp(13px, 3.5vw, 15px);
+        font-size: 16px;
     }
     .lang-select-container {
         margin-right: 0 !important;
@@ -2638,6 +2704,15 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
         height: clamp(26px, 7vw, 30px) !important;
         max-width: clamp(55px, 16vw, 75px) !important;
     }
+}
+
+@media (max-width: 360px) {
+    #facebook-menu-btn {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
     .catalog-controls-row {
         gap: 5px;
         padding: 0 12px;
