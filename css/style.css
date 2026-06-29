@@ -1932,8 +1932,13 @@ body {
 }
 
 /* Catalog Controls Row & Count Badge */
+#home-view,
+#wish-view {
+    --catalog-section-gap: 8px;
+}
+
 .home-search-wrap {
-    padding: 10px 15px 0 15px;
+    padding: 10px 15px var(--catalog-section-gap) 15px;
 }
 
 .home-search-input {
@@ -1941,12 +1946,13 @@ body {
 }
 
 .wishlist-title {
-    padding: 10px 15px 0 15px;
+    padding: 10px 15px var(--catalog-section-gap) 15px;
     margin: 0;
 }
 
 .catalog-controls-row {
-    padding: 8px 12px 10px 12px;
+    padding: 0 12px;
+    margin: 0;
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
@@ -1957,6 +1963,11 @@ body {
     overflow: visible;
     min-height: 36px;
     --catalog-actions-width: 150px;
+}
+
+#home-view > .grid,
+#wish-view > .grid {
+    padding: var(--catalog-section-gap) 15px 15px 15px;
 }
 
 .catalog-count-label {
@@ -2025,9 +2036,20 @@ body {
 }
 
 @media (min-width: 600px) {
+    #home-view,
+    #wish-view {
+        --catalog-section-gap: 10px;
+    }
+
+    .home-search-wrap,
+    .wishlist-title {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
     .catalog-controls-row {
         gap: 10px;
-        padding: 8px 16px 10px 16px;
+        padding: 0 16px;
         min-height: 38px;
     }
     .catalog-controls-row .count-badge,
@@ -2039,12 +2061,31 @@ body {
 }
 
 @media (min-width: 1024px) {
+    #home-view,
+    #wish-view {
+        --catalog-section-gap: 12px;
+    }
+
+    .home-search-wrap,
+    .wishlist-title {
+        padding-left: 24px;
+        padding-right: 24px;
+    }
+
     .catalog-controls-row {
         gap: 12px;
         max-width: 1200px;
         margin: 0 auto;
-        padding: 8px 24px 12px 24px;
+        padding: 0 24px;
         min-height: 40px;
+    }
+
+    #home-view > .grid,
+    #wish-view > .grid {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-left: 24px;
+        padding-right: 24px;
     }
     .catalog-controls-row .count-badge,
     .catalog-controls-row .catalog-count-label {
@@ -2342,15 +2383,19 @@ body {
     } */
     .catalog-controls-row {
         gap: 5px;
-        padding: 6px 12px 8px 12px;
+        padding: 0 12px;
         min-height: 34px;
     }
     .home-search-wrap {
-        padding: 8px 12px 0 12px;
+        padding: 8px 12px var(--catalog-section-gap, 8px) 12px;
     }
     .wishlist-title {
-        padding: 8px 12px 0 12px;
+        padding: 8px 12px var(--catalog-section-gap, 8px) 12px;
         font-size: clamp(16px, 4.5vw, 20px);
+    }
+    #home-view > .grid,
+    #wish-view > .grid {
+        padding: var(--catalog-section-gap, 8px) 12px 12px 12px;
     }
     .catalog-controls-row .count-badge,
     .catalog-count-label {
