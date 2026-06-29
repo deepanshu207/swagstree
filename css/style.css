@@ -1989,10 +1989,12 @@ body {
         font-size: 9px !important;
         left: 8px !important;
     } */
+    .catalog-controls-row #header-support-chat-btn,
     .catalog-controls-row #announcement-bell-btn {
         width: 28px !important;
         height: 28px !important;
     }
+    .catalog-controls-row #header-support-chat-btn i,
     .catalog-controls-row #announcement-bell-btn i {
         font-size: 11px !important;
     }
