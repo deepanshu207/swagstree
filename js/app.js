@@ -56,6 +56,7 @@ function showToast(m) {
     t.style.display = 'block'; 
     setTimeout(() => t.style.display = 'none', 2000); 
 }
+window.showToast = showToast;
 
 // We map custom/common names to hex codes for the preview bubble,
 // and also return friendly display names.
@@ -263,6 +264,7 @@ function closeModal(id) {
     // Refresh WhatsApp visibility when any modal closes
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
+window.closeModal = closeModal;
 
 // WhatsApp Floating Icon Visibility Controller
 // Rules:
@@ -308,7 +310,7 @@ function updateWhatsAppVisibility() {
 }
 
 // 4. NAVIGATION SYSTEM
-function nav(id, el) { 
+function navigateTo(id, el) { 
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active')); 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); 
     document.getElementById(id + '-view').classList.add('active'); 
@@ -347,21 +349,21 @@ function nav(id, el) {
     const bottomNavs = document.querySelectorAll(`.bottom-nav .nav-item`);
     
     desktopNavs.forEach(n => {
-        const clickAttr = n.getAttribute('onclick') || '';
-        if (clickAttr.includes(`'${id}'`)) {
+        const view = n.getAttribute('data-nav-view');
+        if (view === id) {
             n.classList.add('active');
         } else {
             n.classList.remove('active');
         }
     });
     bottomNavs.forEach(n => {
-        const clickAttr = n.getAttribute('onclick') || '';
-        if (clickAttr.includes(`'${id}'`)) {
+        const view = n.getAttribute('data-nav-view');
+        if (view === id) {
             n.classList.add('active');
         } else {
             n.classList.remove('active');
         }
-    }); 
+    });
 
     // Reset wishlist page limit when navigating to wishlist
     if (id === 'wish') {
@@ -395,6 +397,7 @@ function nav(id, el) {
     // Update WhatsApp floating icon visibility based on current tab and user role
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
+window.navigateTo = navigateTo;
 
 // Initialize on load
 window.onload = () => { 

@@ -91,7 +91,8 @@ window.applySupportChatTabsVisibility = applySupportChatTabsVisibility;
 const CHAT_PRODUCT_DISPLAY_LIMIT = 10;
 const SUPPORT_CHANNEL = 'support';
 const AI_CHANNEL = 'ai';
-
+window.SUPPORT_CHANNEL = SUPPORT_CHANNEL;
+window.AI_CHANNEL = AI_CHANNEL;
 window.supportMessagesCache = window.supportMessagesCache || { ai: [], support: [] };
 const supportKnownMsgIds = { ai: new Set(), support: new Set() };
 
@@ -103,6 +104,7 @@ function getMessageChannel(msg) {
     if (msg.escalated) return SUPPORT_CHANNEL;
     return AI_CHANNEL;
 }
+window.getMessageChannel = getMessageChannel;
 
 function getChatBody(channel) {
     const ch = channel || (window.supportChatState.activeTab === 'admin' ? SUPPORT_CHANNEL : AI_CHANNEL);
@@ -372,7 +374,7 @@ function buildExploreMoreHtml(total, shown, maxPrice) {
         <strong style="color:var(--gold);">${more} more</strong> style${more > 1 ? 's' : ''} match — explore the full catalog or let me filter Home for you.
         <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
             ${filterBtn}
-            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="nav('home'); toggleAIChat();">Browse Home</button>
+            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>
         </div>
     </div>`;
 }
@@ -380,7 +382,7 @@ function buildExploreMoreHtml(total, shown, maxPrice) {
 window.applyChatPriceFilter = function(maxPrice) {
     const max = Number(maxPrice);
     if (!max || max <= 0) return;
-    if (typeof nav === 'function') nav('home');
+    if (typeof navigateTo === 'function') navigateTo('home');
     window.filterMinPrice = window.priceAbsoluteMin || 0;
     window.filterMaxPrice = max;
     const minRange = document.getElementById('price-min-range');
@@ -584,7 +586,7 @@ async function generateSmartSupportReply(userText) {
             text: currentUser
                 ? "You can **track orders** in Profile → My Orders. I can also connect you with admin for order-specific help."
                 : "Please **sign in** to view your orders under Profile. Guest orders linked to your email appear after login.",
-            extraHtml: currentUser ? `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="nav('user'); toggleAIChat();">Open My Orders</button>` : ''
+            extraHtml: currentUser ? `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('user'); toggleAIChat();">Open My Orders</button>` : ''
         };
     }
     if (intent === 'contact') {
@@ -1123,6 +1125,9 @@ function hasSupportChatCapability() {
 
 window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride) {
     if (!isAdmin || !hasSupportChatCapability()) return showToast('You do not have permission to manage support chats.');
+    if (typeof isGuestCustomerRecord === 'function' && isGuestCustomerRecord({ uid, email })) {
+        return showToast('Guest checkout has no profile chat — use Support Inbox for anonymous visitors.');
+    }
     const threadId = threadIdOverride || getCustomerThreadIdForUser(uid);
     if (!threadId) return showToast('Unable to create a console thread.');
     window.supportChatState.adminThreadId = threadId;
@@ -1189,6 +1194,19 @@ async function deleteSupportMessagesFromThreadByChannel(threadId, channel) {
         await batch.commit();
     }
 
+    await updateThreadAfterChannelMessageRemoval(threadRef, remaining, targetChannel);
+    return toDelete.length;
+}
+
+async function deleteAdminSupportMessagesFromThread(threadId) {
+    return deleteSupportMessagesFromThreadByChannel(threadId, SUPPORT_CHANNEL);
+}
+
+async function deleteAiSupportMessagesFromThread(threadId) {
+    return deleteSupportMessagesFromThreadByChannel(threadId, AI_CHANNEL);
+}
+
+async function updateThreadAfterChannelMessageRemoval(threadRef, remaining, targetChannel) {
     remaining.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
     const last = remaining[remaining.length - 1];
     const hasSupportRemaining = remaining.some(m => getMessageChannel(m) === SUPPORT_CHANNEL);
@@ -1226,17 +1244,69 @@ async function deleteSupportMessagesFromThreadByChannel(threadId, channel) {
     if (threadSnap.exists) {
         await threadRef.set(update, { merge: true });
     }
+}
 
+async function purgeSupportMessagesOlderThanFromThread(threadId, channel, cutoffMs) {
+    const targetChannel = channel === SUPPORT_CHANNEL ? SUPPORT_CHANNEL : AI_CHANNEL;
+    const threadRef = db.collection('support_threads').doc(threadId);
+    const snap = await threadRef.collection('messages').get();
+    const toDelete = [];
+    const remaining = [];
+
+    snap.forEach(doc => {
+        const data = doc.data();
+        const msgTime = data.createdAt?.toMillis?.() || 0;
+        if (getMessageChannel(data) === targetChannel && msgTime > 0 && msgTime < cutoffMs) {
+            toDelete.push(doc.ref);
+        } else {
+            remaining.push({ id: doc.id, ...data });
+        }
+    });
+
+    if (!toDelete.length) return 0;
+
+    let refs = toDelete.slice();
+    while (refs.length) {
+        const chunk = refs.splice(0, 400);
+        const batch = db.batch();
+        chunk.forEach(ref => batch.delete(ref));
+        await batch.commit();
+    }
+
+    await updateThreadAfterChannelMessageRemoval(threadRef, remaining, targetChannel);
     return toDelete.length;
 }
 
-async function deleteAdminSupportMessagesFromThread(threadId) {
-    return deleteSupportMessagesFromThreadByChannel(threadId, SUPPORT_CHANNEL);
-}
+window.purgeSupportMessagesOlderThan = async function(channel, maxAgeMs) {
+    if (!isSuperAdmin || !maxAgeMs || maxAgeMs <= 0) return 0;
+    const cutoffMs = Date.now() - maxAgeMs;
+    const snap = await db.collection('support_threads').get();
+    let totalDeleted = 0;
+    for (const doc of snap.docs) {
+        totalDeleted += await purgeSupportMessagesOlderThanFromThread(doc.id, channel, cutoffMs);
+    }
+    return totalDeleted;
+};
 
-async function deleteAiSupportMessagesFromThread(threadId) {
-    return deleteSupportMessagesFromThreadByChannel(threadId, AI_CHANNEL);
-}
+window.purgeEmptySupportThreadsOlderThan = async function(maxAgeMs) {
+    if (!isSuperAdmin || !maxAgeMs || maxAgeMs <= 0) return 0;
+    const cutoffMs = Date.now() - maxAgeMs;
+    const snap = await db.collection('support_threads').get();
+    let deleted = 0;
+
+    for (const doc of snap.docs) {
+        const data = doc.data();
+        const msgSnap = await doc.ref.collection('messages').limit(1).get();
+        if (!msgSnap.empty) continue;
+
+        const threadTime = data.lastMessageAt?.toMillis?.() || data.createdAt?.toMillis?.() || 0;
+        if (threadTime > 0 && threadTime < cutoffMs) {
+            await doc.ref.delete();
+            deleted++;
+        }
+    }
+    return deleted;
+};
 
 function getCustomerUidsFromParams(uid, mergedUidsParam) {
     let uids = [uid];
@@ -1485,14 +1555,14 @@ window.updateCatalogControlsRowLayout = function() {
         row.classList.toggle('catalog-row-no-announcement', !annEnabled);
         row.classList.toggle('catalog-row-icons-minimal', !chatEnabled && !annEnabled);
 
-        let actionsWidth = isMobile ? 94 : (isTablet ? 108 : 120);
-        if (chatEnabled) actionsWidth += isMobile ? 34 : 38;
-        if (annEnabled) actionsWidth += isMobile ? 34 : 38;
+        let actionsWidth = isMobile ? 102 : (isTablet ? 116 : 128);
+        if (chatEnabled) actionsWidth += isMobile ? 36 : 40;
+        if (annEnabled) actionsWidth += isMobile ? 36 : 40;
 
         if (isWish) {
             row.classList.add('catalog-row-wishlist');
             if (!chatEnabled && !annEnabled) {
-                const sortWidth = isMobile ? 98 : (isTablet ? 112 : 124);
+                const sortWidth = isMobile ? 104 : (isTablet ? 118 : 130);
                 row.style.setProperty('--catalog-actions-width', `${sortWidth}px`);
             } else {
                 row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);

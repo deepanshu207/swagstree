@@ -540,17 +540,45 @@ function formatCatalogProductCount(visible, total, variant) {
         : `Showing ${v} of ${t} Products`;
 }
 
+function escapeCatalogCountHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function emphasizeCatalogCountText(text) {
+    return String(text).split(/(\d+)/).map((part) => {
+        if (/^\d+$/.test(part)) {
+            return `<span class="catalog-count-num">${part}</span>`;
+        }
+        if (!part) return '';
+        return `<span class="catalog-count-word">${escapeCatalogCountHtml(part)}</span>`;
+    }).join('');
+}
+
+function renderCatalogCountMarkup(visible, total, variant) {
+    const text = formatCatalogProductCount(visible, total, variant);
+    const icon = '<i class="fa fa-layer-group catalog-count-icon" aria-hidden="true"></i>';
+    return icon + `<span class="catalog-count-text">${emphasizeCatalogCountText(text)}</span>`;
+}
+
 function applyCatalogCountLabel(el, visible, total) {
     if (!el) return;
     el.dataset.visible = String(visible);
     el.dataset.total = String(total);
-    el.textContent = formatCatalogProductCount(visible, total, 'full');
+    const plainText = formatCatalogProductCount(visible, total, 'full');
+    el.innerHTML = renderCatalogCountMarkup(visible, total, 'full');
+    el.setAttribute('aria-label', plainText);
     el.style.display = 'inline-flex';
 
     requestAnimationFrame(() => {
         if (!el.isConnected) return;
         if (el.scrollWidth > el.clientWidth + 2) {
-            el.textContent = formatCatalogProductCount(visible, total, 'short');
+            const shortText = formatCatalogProductCount(visible, total, 'short');
+            el.innerHTML = renderCatalogCountMarkup(visible, total, 'short');
+            el.setAttribute('aria-label', shortText);
         }
     });
 }
@@ -1149,11 +1177,14 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         ? overrideActiveIdx
         : (targetIndex > -1 ? targetIndex : 0);
 
+    window.detailGalleryImages = imagesToDisplay.slice();
+    window.detailGalleryActiveIndex = activeThumbIdx > -1 ? activeThumbIdx : 0;
+
     // Render gallery with mapping metadata
     const galleryHtml = imagesToDisplay.length 
         ? imagesToDisplay.map((img, index) => {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '' };
-            return `<img src="${img}" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}">`;
+            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" onclick="openProductDetailImageZoom(${index}, event)" alt="Product image ${index + 1}">`;
         }).join('') 
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
 
@@ -1311,6 +1342,11 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             trigger360.style.display = 'none';
         }
     }
+
+    const zoomTrigger = document.getElementById('det-zoom-trigger');
+    if (zoomTrigger) {
+        zoomTrigger.style.display = imagesToDisplay.length > 0 ? 'inline-flex' : 'none';
+    }
 }
 
 function closeDetail() {
@@ -1318,6 +1354,7 @@ function closeDetail() {
     detView.style.display = 'none';
     detView.classList.remove('active-detail-flex');
     window.history.replaceState({}, '', window.location.pathname);
+    if (typeof closeAnnouncementImageZoom === 'function') closeAnnouncementImageZoom();
 
     if (typeof stopProductCommentsListener === 'function') stopProductCommentsListener();
     window.selectedCommentRating = 0;
@@ -1478,6 +1515,7 @@ function syncSizeChips() {
 window.syncSizeChips = syncSizeChips;
 
 function updateActiveThumbnailBorder(idx) {
+    window.detailGalleryActiveIndex = idx;
     const thumbs = document.querySelectorAll('#det-thumbs .det-thumb-item');
     thumbs.forEach((thumb, i) => {
         if (i === idx) {
@@ -1504,6 +1542,7 @@ function toggleFilter() {
     // Hide/show WhatsApp icon when filter slider toggles
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
+window.toggleFilter = toggleFilter;
 
 function setFilterSize(el, sz) {
     displayedProductsLimit = productsPageLimitSetting;
@@ -1816,6 +1855,7 @@ function resetFilters() {
     document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
     applySortAndFilter();
 }
+window.resetFilters = resetFilters;
 
 function getProductTimestamp(p) {
     if (!p.updatedAt) return 0;
@@ -2409,7 +2449,7 @@ window.renderFooter = renderFooter;
 function openFooterPage(pageId) {
     // Save previous active section to return back to it
     const activeSection = document.querySelector('.section.active');
-    if (activeSection && activeSection.id !== 'about-view' && activeSection.id !== 'privacy-view') {
+    if (activeSection && activeSection.id !== 'about-view' && activeSection.id !== 'privacy-view' && activeSection.id !== 'promo-view') {
         footerPreviousSectionId = activeSection.id.replace('-view', '');
     }
 
@@ -2427,8 +2467,8 @@ window.openFooterPage = openFooterPage;
 
 function closeFooterPage() {
     // Restore previous active section
-    if (typeof nav === 'function') {
-        nav(footerPreviousSectionId);
+    if (typeof navigateTo === 'function') {
+        navigateTo(footerPreviousSectionId);
     } else {
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         const fallback = document.getElementById(footerPreviousSectionId + '-view');
@@ -2455,9 +2495,242 @@ window.getActive360Images = getActive360Images;
 function closeAnnouncementModal() {
     const modal = document.getElementById('announcement-modal');
     if (modal) modal.style.display = 'none';
+    closeAnnouncementImageZoom();
     updateAnnouncementBellUI();
 }
 window.closeAnnouncementModal = closeAnnouncementModal;
+
+function isValidAnnouncementImageUrl(url) {
+    const img = String(url || '').trim();
+    return img && img !== 'null' && img !== 'undefined'
+        && (img.startsWith('http://') || img.startsWith('https://'));
+}
+
+function getAnnouncementImages(ann) {
+    if (!ann) return [];
+    if (Array.isArray(ann.images) && ann.images.length) {
+        return ann.images.map(u => String(u || '').trim()).filter(isValidAnnouncementImageUrl);
+    }
+    const legacy = String(ann.image || '').trim();
+    return isValidAnnouncementImageUrl(legacy) ? [legacy] : [];
+}
+window.getAnnouncementImages = getAnnouncementImages;
+
+let announcementZoomState = {
+    images: [],
+    index: 0,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    pinching: false,
+    pinchStartDistance: 0,
+    pinchStartScale: 1,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragOriginX: 0,
+    dragOriginY: 0
+};
+
+function applyAnnouncementZoomTransform() {
+    const img = document.getElementById('announcement-lightbox-img');
+    if (!img) return;
+    const { scale, translateX, translateY } = announcementZoomState;
+    img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+}
+
+function updateAnnouncementZoomUi() {
+    const counter = document.getElementById('announcement-lightbox-counter');
+    const prevBtn = document.querySelector('.announcement-lightbox-prev');
+    const nextBtn = document.querySelector('.announcement-lightbox-next');
+    const total = announcementZoomState.images.length;
+    const current = total ? announcementZoomState.index + 1 : 0;
+
+    if (counter) counter.textContent = total ? `${current} / ${total}` : '0 / 0';
+    if (prevBtn) prevBtn.style.display = total > 1 ? 'grid' : 'none';
+    if (nextBtn) nextBtn.style.display = total > 1 ? 'grid' : 'none';
+}
+
+function resetAnnouncementZoomView() {
+    announcementZoomState.scale = 1;
+    announcementZoomState.translateX = 0;
+    announcementZoomState.translateY = 0;
+    applyAnnouncementZoomTransform();
+}
+
+function openMediaZoomLightbox(images, startIndex) {
+    const list = (images || []).filter(Boolean);
+    if (!list.length) return;
+
+    announcementZoomState.images = list;
+    announcementZoomState.index = Math.max(0, Math.min(startIndex || 0, list.length - 1));
+    resetAnnouncementZoomView();
+
+    const lightbox = document.getElementById('announcement-image-lightbox');
+    const img = document.getElementById('announcement-lightbox-img');
+    if (img) img.src = list[announcementZoomState.index];
+    if (lightbox) lightbox.style.display = 'flex';
+    updateAnnouncementZoomUi();
+}
+window.openMediaZoomLightbox = openMediaZoomLightbox;
+
+function openProductDetailImageZoom(index, event) {
+    if (event) event.stopPropagation();
+    const images = window.detailGalleryImages || [];
+    if (!images.length) return;
+    window.detailGalleryActiveIndex = Math.max(0, Math.min(index || 0, images.length - 1));
+    openMediaZoomLightbox(images, window.detailGalleryActiveIndex);
+}
+window.openProductDetailImageZoom = openProductDetailImageZoom;
+
+function openAnnouncementImageZoom(announcementId, imageIndex, event) {
+    if (event) event.stopPropagation();
+
+    const ann = (window.activeAnnouncements || []).find(a => a.id === announcementId);
+    const images = getAnnouncementImages(ann);
+    if (!images.length) return;
+
+    openMediaZoomLightbox(images, imageIndex || 0);
+}
+window.openAnnouncementImageZoom = openAnnouncementImageZoom;
+
+function closeAnnouncementImageZoom(event) {
+    if (event) {
+        const target = event.target;
+        const isBackdrop = target && target.id === 'announcement-image-lightbox';
+        const isCloseBtn = target && target.classList && target.classList.contains('announcement-lightbox-close');
+        if (!isBackdrop && !isCloseBtn) return;
+        event.stopPropagation();
+    }
+
+    const lightbox = document.getElementById('announcement-image-lightbox');
+    if (lightbox) lightbox.style.display = 'none';
+    const img = document.getElementById('announcement-lightbox-img');
+    if (img) img.src = '';
+    announcementZoomState.images = [];
+    resetAnnouncementZoomView();
+}
+window.closeAnnouncementImageZoom = closeAnnouncementImageZoom;
+
+function announcementImageZoomNav(delta, event) {
+    if (event) event.stopPropagation();
+    const total = announcementZoomState.images.length;
+    if (total <= 1) return;
+
+    announcementZoomState.index = (announcementZoomState.index + delta + total) % total;
+    const img = document.getElementById('announcement-lightbox-img');
+    if (img) img.src = announcementZoomState.images[announcementZoomState.index];
+    resetAnnouncementZoomView();
+    updateAnnouncementZoomUi();
+}
+window.announcementImageZoomNav = announcementImageZoomNav;
+
+function setAnnouncementZoomScale(delta, event) {
+    if (event) event.stopPropagation();
+    announcementZoomState.scale = Math.min(4, Math.max(1, announcementZoomState.scale + delta));
+    if (announcementZoomState.scale === 1) {
+        announcementZoomState.translateX = 0;
+        announcementZoomState.translateY = 0;
+    }
+    applyAnnouncementZoomTransform();
+}
+window.setAnnouncementZoomScale = setAnnouncementZoomScale;
+
+function resetAnnouncementZoomScale(event) {
+    if (event) event.stopPropagation();
+    resetAnnouncementZoomView();
+}
+window.resetAnnouncementZoomScale = resetAnnouncementZoomScale;
+
+function initAnnouncementImageZoomGestures() {
+    const stage = document.getElementById('announcement-lightbox-stage');
+    const img = document.getElementById('announcement-lightbox-img');
+    if (!stage || !img || stage.dataset.zoomBound === '1') return;
+    stage.dataset.zoomBound = '1';
+
+    stage.addEventListener('wheel', (e) => {
+        if (document.getElementById('announcement-image-lightbox')?.style.display === 'none') return;
+        e.preventDefault();
+        setAnnouncementZoomScale(e.deltaY < 0 ? 0.15 : -0.15);
+    }, { passive: false });
+
+    stage.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        if (announcementZoomState.scale > 1) resetAnnouncementZoomView();
+        else {
+            announcementZoomState.scale = 2;
+            applyAnnouncementZoomTransform();
+        }
+    });
+
+    stage.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            announcementZoomState.pinching = true;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            announcementZoomState.pinchStartDistance = Math.hypot(dx, dy);
+            announcementZoomState.pinchStartScale = announcementZoomState.scale;
+        } else if (e.touches.length === 1 && announcementZoomState.scale > 1) {
+            announcementZoomState.dragging = true;
+            announcementZoomState.dragStartX = e.touches[0].clientX;
+            announcementZoomState.dragStartY = e.touches[0].clientY;
+            announcementZoomState.dragOriginX = announcementZoomState.translateX;
+            announcementZoomState.dragOriginY = announcementZoomState.translateY;
+        }
+    }, { passive: true });
+
+    stage.addEventListener('touchmove', (e) => {
+        if (announcementZoomState.pinching && e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const distance = Math.hypot(dx, dy);
+            if (announcementZoomState.pinchStartDistance > 0) {
+                const ratio = distance / announcementZoomState.pinchStartDistance;
+                announcementZoomState.scale = Math.min(4, Math.max(1, announcementZoomState.pinchStartScale * ratio));
+                applyAnnouncementZoomTransform();
+            }
+        } else if (announcementZoomState.dragging && e.touches.length === 1) {
+            announcementZoomState.translateX = announcementZoomState.dragOriginX + (e.touches[0].clientX - announcementZoomState.dragStartX);
+            announcementZoomState.translateY = announcementZoomState.dragOriginY + (e.touches[0].clientY - announcementZoomState.dragStartY);
+            applyAnnouncementZoomTransform();
+        }
+    }, { passive: true });
+
+    const endTouch = () => {
+        announcementZoomState.pinching = false;
+        announcementZoomState.dragging = false;
+        if (announcementZoomState.scale < 1) {
+            resetAnnouncementZoomView();
+        }
+    };
+    stage.addEventListener('touchend', endTouch, { passive: true });
+    stage.addEventListener('touchcancel', endTouch, { passive: true });
+
+    img.addEventListener('mousedown', (e) => {
+        if (announcementZoomState.scale <= 1) return;
+        e.preventDefault();
+        announcementZoomState.dragging = true;
+        announcementZoomState.dragStartX = e.clientX;
+        announcementZoomState.dragStartY = e.clientY;
+        announcementZoomState.dragOriginX = announcementZoomState.translateX;
+        announcementZoomState.dragOriginY = announcementZoomState.translateY;
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!announcementZoomState.dragging) return;
+        announcementZoomState.translateX = announcementZoomState.dragOriginX + (e.clientX - announcementZoomState.dragStartX);
+        announcementZoomState.translateY = announcementZoomState.dragOriginY + (e.clientY - announcementZoomState.dragStartY);
+        applyAnnouncementZoomTransform();
+    });
+    window.addEventListener('mouseup', () => {
+        announcementZoomState.dragging = false;
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAnnouncementImageZoomGestures);
+} else {
+    initAnnouncementImageZoomGestures();
+}
 
 let currentAnnouncementIndex = 0;
 
@@ -2472,6 +2745,7 @@ function openAnnouncementModal() {
     if (modal) modal.style.display = 'flex';
     renderAnnouncementSlide();
 }
+window.openAnnouncementModal = openAnnouncementModal;
 
 window.expandedAnnouncementId = null;
 
@@ -2522,6 +2796,17 @@ function renderAnnouncementSlide() {
                 const isUnread = !readIds.includes(ann.id);
                 const isExpanded = window.expandedAnnouncementId === ann.id;
                 const dateStr = ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleDateString([], {month: 'short', day: 'numeric'}) : 'Just now';
+                const images = getAnnouncementImages(ann);
+                const imagesHtml = images.length ? `
+                        <div class="announcement-images-gallery">
+                            ${images.map((url, idx) => `
+                                <button type="button" class="announcement-gallery-thumb" onclick="openAnnouncementImageZoom('${ann.id}', ${idx}, event)" title="Tap to zoom">
+                                    <img src="${url}" alt="Announcement image ${idx + 1}" loading="lazy">
+                                    <span class="announcement-gallery-zoom-hint"><i class="fa fa-magnifying-glass-plus"></i></span>
+                                </button>
+                            `).join('')}
+                        </div>
+                ` : '';
                 
                 return `
                     <div style="border: 1px solid ${isUnread ? 'rgba(255,215,0,0.2)' : '#222'}; background:${isUnread ? 'rgba(255,215,0,0.02)' : '#111'}; border-radius:10px; overflow:hidden; transition:all 0.2s; display:flex; flex-direction:column;">
@@ -2545,21 +2830,7 @@ function renderAnnouncementSlide() {
                         <!-- Expanded Details -->
                         ${isExpanded ? `
                         <div style="padding: 12px; background:#0a0a0a; border-top:1px solid #222; display:flex; flex-direction:column; gap:10px;">
-${(() => {
-    const img = String(ann.image || '').trim();
-
-    const validImage =
-        img &&
-        img !== 'null' &&
-        img !== 'undefined' &&
-        (img.startsWith('http://') || img.startsWith('https://'));
-
-    return validImage ? `
-        <div style="width:100%; max-height:200px; border-radius:6px; overflow:hidden; border:1px solid #222; background:#000; display:flex; align-items:center; justify-content:center;">
-            <img src="${img}" style="width:100%; height:auto; max-height:200px; object-fit:contain;">
-        </div>
-    ` : '';
-})()}
+                            ${imagesHtml}
                             <p style="color:#eee; font-size:12px; line-height:1.6; margin:0; word-break:break-word; white-space:pre-wrap; text-align:left;">${ann.message}</p>
                             
                             <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px dashed #222; padding-top:8px;">

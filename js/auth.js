@@ -25,13 +25,13 @@ function updateAdminPrivilegesUI() {
     // Redirect to home if user is in admin view but no longer admin
     const adminView = document.getElementById('admin-view');
     if (adminView && adminView.classList.contains('active') && !isAdmin) {
-        if (typeof nav === 'function') nav('home');
+        if (typeof navigateTo === 'function') navigateTo('home');
     }
     
     // Redirect to home if user is in super view but no longer superadmin
     const superView = document.getElementById('super-view');
     if (superView && superView.classList.contains('active') && !isSuperAdmin) {
-        if (typeof nav === 'function') nav('home');
+        if (typeof navigateTo === 'function') navigateTo('home');
     }
 
     if (isSuperAdmin && typeof loadAssignedAdmins === 'function') {
@@ -93,6 +93,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
+            if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();
         }
     }
 }, error => {
@@ -259,6 +260,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
+            if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();
         }
 
         // Update profile header
@@ -797,6 +799,7 @@ async function loadAllCustomers() {
         const rawCustomers = [];
         snap.forEach(doc => rawCustomers.push({ uid: doc.id, ...doc.data() }));
         allCustomersCache = deduplicateCustomersByEmail(rawCustomers);
+        allCustomersCache = await mergeGuestCheckoutCustomersFromOrders(allCustomersCache);
 
         allCustomersCache.sort((a, b) => {
             const tA = a.createdAt ? a.createdAt.toMillis() : 0;
@@ -908,7 +911,133 @@ function getCustomersPageLimit() {
     return val > 0 ? val : 10;
 }
 
+function isGuestCustomerRecord(customer) {
+    if (!customer) return true;
+    if (customer.guestCheckout === true || customer.isGuest === true) return true;
+    const uid = (customer.uid || '').toLowerCase();
+    if (uid.startsWith('guest_')) return true;
+    const email = (customer.email || '').trim();
+    const providers = customer.providers || [];
+    const hasAuthProvider = Array.isArray(providers)
+        && providers.some(p => p === 'google.com' || p === 'password');
+    return !email && !hasAuthProvider;
+}
+window.isGuestCustomerRecord = isGuestCustomerRecord;
+
+function buildGuestCustomerDocId(email) {
+    const normalized = (email || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return 'guest_' + normalized.replace(/[@.]/g, '_');
+}
+
+function getCustomerDisplayName(customer) {
+    const name = (customer?.displayName || '').trim();
+    if (name) return name;
+    const email = (customer?.email || '').trim();
+    if (email) return email.split('@')[0];
+    const phone = (customer?.phone || '').trim();
+    if (phone) return `Guest • ${phone}`;
+    return isGuestCustomerRecord(customer) ? 'Guest Customer' : 'Unnamed User';
+}
+
+function getCustomerDisplayEmail(customer) {
+    return (customer?.email || '').trim();
+}
+
+async function mergeGuestCheckoutCustomersFromOrders(customers) {
+    try {
+        const snap = await db.collection('orders').orderBy('timestamp', 'desc').limit(400).get();
+        const byEmail = new Map();
+        const byUid = new Map();
+
+        (customers || []).forEach(c => {
+            const email = getCustomerDisplayEmail(c).toLowerCase();
+            if (email) byEmail.set(email, c);
+            if (c.uid) byUid.set(c.uid, c);
+        });
+
+        snap.forEach(doc => {
+            const o = doc.data();
+            if (!o.isGuest) return;
+            const email = (o.email || '').trim().toLowerCase();
+            const patch = {
+                email,
+                displayName: (o.recipient || '').trim(),
+                phone: (o.phone || '').trim(),
+                timestamp: o.timestamp
+            };
+
+            if (o.uid && byUid.has(o.uid) && !getCustomerDisplayEmail(byUid.get(o.uid))) {
+                const existing = byUid.get(o.uid);
+                existing.email = patch.email || existing.email;
+                existing.displayName = existing.displayName || patch.displayName;
+                existing.phone = existing.phone || patch.phone;
+                existing.guestCheckout = true;
+                existing.isGuest = true;
+                if (email) byEmail.set(email, existing);
+                return;
+            }
+
+            if (!email) return;
+            if (byEmail.has(email)) {
+                const existing = byEmail.get(email);
+                existing.displayName = existing.displayName || patch.displayName || email.split('@')[0];
+                existing.phone = existing.phone || patch.phone;
+                existing.guestCheckout = true;
+                existing.isGuest = true;
+                return;
+            }
+
+            const guestId = buildGuestCustomerDocId(email) || o.uid || `guest_${doc.id}`;
+            if (byUid.has(guestId)) return;
+
+            const guestCustomer = {
+                uid: guestId,
+                email,
+                displayName: patch.displayName || email.split('@')[0],
+                phone: patch.phone || '',
+                isGuest: true,
+                guestCheckout: true,
+                createdAt: patch.timestamp || null,
+                _fromGuestOrder: true
+            };
+            customers.push(guestCustomer);
+            byEmail.set(email, guestCustomer);
+            byUid.set(guestId, guestCustomer);
+        });
+
+        return customers.map(c => {
+            if (getCustomerDisplayEmail(c)) {
+                return {
+                    ...c,
+                    displayName: getCustomerDisplayName(c)
+                };
+            }
+            const fromUid = byUid.get(c.uid);
+            if (fromUid && getCustomerDisplayEmail(fromUid)) {
+                return {
+                    ...c,
+                    email: fromUid.email,
+                    displayName: getCustomerDisplayName({ ...c, email: fromUid.email }),
+                    phone: c.phone || fromUid.phone || '',
+                    guestCheckout: true,
+                    isGuest: true
+                };
+            }
+            return c;
+        });
+    } catch (e) {
+        console.warn('mergeGuestCheckoutCustomersFromOrders failed:', e);
+        return customers;
+    }
+}
+window.mergeGuestCheckoutCustomersFromOrders = mergeGuestCheckoutCustomersFromOrders;
+
 function getCustomerAuthBadge(data) {
+    if (data?.guestCheckout === true || (data?.isGuest === true && !((data.providers || []).some(p => p === 'google.com' || p === 'password')))) {
+        return { methodLabel: "Guest Checkout", badgeIcon: "fa-user-secret", badgeColor: "#888" };
+    }
+
     let methodLabel = "Email/Password";
     let badgeIcon = "fa-envelope";
     let badgeColor = "var(--gold)";
@@ -972,9 +1101,13 @@ function renderAllCustomersList(list) {
     let html = '';
     itemsToRender.forEach(data => {
         const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
-        const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
-        const safeEmail = (data.email || '').replace(/'/g, "\\'");
-        const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
+        const safeName = getCustomerDisplayName(data).replace(/'/g, "\\'");
+        const safeEmail = getCustomerDisplayEmail(data).replace(/'/g, "\\'");
+        const displayEmail = getCustomerDisplayEmail(data) || (isGuestCustomerRecord(data) ? 'No email on file' : 'No email');
+        const canChat = !isGuestCustomerRecord(data)
+            && typeof hasAdminCapability === 'function'
+            && hasAdminCapability('manageSupportChat');
+        const chatBtn = canChat
             ? `<button class="btn-gold admin-customer-card__chat" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" title="Chat with customer"><i class="fa fa-comments"></i></button>`
             : '';
         const mergedNote = data._mergedAccountCount > 1
@@ -985,14 +1118,14 @@ function renderAllCustomersList(list) {
         html += `
             <div class="admin-customer-card">
                 <div class="admin-customer-card__avatar">
-                    ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
+                    ${getCustomerDisplayName(data).charAt(0).toUpperCase()}
                 </div>
                 <div class="admin-customer-card__body">
                     <div class="admin-customer-card__header">
-                        <div class="admin-customer-card__name">${data.displayName || 'Unnamed User'}</div>
+                        <div class="admin-customer-card__name">${getCustomerDisplayName(data)}</div>
                         ${authBadge}
                     </div>
-                    <div class="admin-customer-card__meta">${data.email || 'No email'}${data.phone ? ' • ' + data.phone : ''}</div>
+                    <div class="admin-customer-card__meta">${displayEmail}${data.phone ? ' • ' + data.phone : ''}</div>
                     <div class="admin-customer-card__joined">Joined: ${date}</div>
                     ${mergedNote}
                 </div>
@@ -1259,6 +1392,7 @@ async function loadSuperCustomers() {
             });
         });
         superCustomersCache = deduplicateCustomersByEmail(rawCustomers);
+        superCustomersCache = await mergeGuestCheckoutCustomersFromOrders(superCustomersCache);
 
         superCustomersCache.sort((a, b) => {
             const nameA = (a.displayName || a.email || '').toLowerCase();
@@ -1310,16 +1444,25 @@ function renderSuperCustomersList(list) {
             ? `<div style="font-size:10px; color:#888; margin-top:4px;">Merged ${c._mergedAccountCount} duplicate logins (Google / Email)</div>`
             : '';
         const authBadge = buildCustomerAuthBadgeHtml(c);
-        const safeName = (c.displayName || 'Customer').replace(/'/g, "\\'");
+        const isGuestRecord = isGuestCustomerRecord(c);
+        const safeName = getCustomerDisplayName(c).replace(/'/g, "\\'");
         const mergedUidsParam = (c._mergedUids || [c.uid]).join(',');
+        const displayEmail = getCustomerDisplayEmail(c) || (isGuestRecord ? 'No email on file' : 'No email');
 
+        const canManageChat = !isGuestRecord
+            && typeof hasAdminCapability === 'function'
+            && hasAdminCapability('manageSupportChat');
+        const guestChatHint = isGuestRecord
+            ? `<span style="font-size:10px; color:#666; font-style:italic;">Guest checkout — use Support Inbox for anonymous chats</span>`
+            : '';
         const actionButtons = isSelfOrSystem ? `
             <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
         ` : `
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
-            ${(typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat')) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>
+            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>` : ''}
+            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>` : ''}
+            ${guestChatHint}
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
@@ -1330,14 +1473,14 @@ function renderSuperCustomersList(list) {
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 8px;">
                     <div style="display:flex; align-items:flex-start; gap:10px; flex-shrink: 1; min-width: 0;">
                         <div style="width:35px; height:35px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--gold); font-size:14px; flex-shrink: 0;">
-                            ${(c.displayName || c.email || 'U').charAt(0).toUpperCase()}
+                            ${getCustomerDisplayName(c).charAt(0).toUpperCase()}
                         </div>
                         <div style="flex-shrink: 1; min-width: 0;">
                             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;">
-                                <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width:100%;">${c.displayName || 'Unnamed User'}</div>
+                                <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width:100%;">${getCustomerDisplayName(c)}</div>
                                 ${authBadge}
                             </div>
-                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'}${c.phone ? ' • ' + c.phone : ''}</div>
+                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayEmail}${c.phone ? ' • ' + c.phone : ''}</div>
                             ${mergedNote}
                         </div>
                     </div>
@@ -1561,6 +1704,60 @@ async function clearCustomerOrderHistory(uid, email) {
 }
 
 // 3. Bulk & Destructive resets
+
+/** Settings docs intentionally preserved during factory reset (API keys, features, customers config). */
+const FACTORY_RESET_PRESERVED_SETTINGS = [
+    'email', 'telegram', 'session', 'pagination', 'features_config',
+    'features_content', 'footer', 'diaries', 'comments'
+];
+
+/** Commerce/catalog settings removed during factory reset. */
+const FACTORY_RESET_SETTINGS_TO_CLEAR = ['backup', 'cod', 'cart', 'promos'];
+
+function assertSuperAdminDestructive() {
+    if (!isSuperAdmin) {
+        showToast('Only superadmin can perform this action.');
+        return false;
+    }
+    return true;
+}
+
+async function confirmSuperAdminDestructive(warning, verifyPhrase) {
+    if (!assertSuperAdminDestructive()) return false;
+    if (!confirm(warning)) return false;
+    const typed = prompt(`To verify, type '${verifyPhrase}':`);
+    if (typed !== verifyPhrase) {
+        showToast('Verification failed. Deletion aborted.');
+        return false;
+    }
+    return true;
+}
+
+function afterDestructiveRefresh(scope) {
+    if (scope === 'products' || scope === 'factory') {
+        if (typeof applySortAndFilter === 'function') applySortAndFilter();
+        if (typeof renderAdmin === 'function') renderAdmin();
+    }
+    if (scope === 'feedbacks' || scope === 'factory') {
+        if (typeof renderFeedbacks === 'function') renderFeedbacks();
+        if (typeof renderAdminFeedbackList === 'function') renderAdminFeedbackList();
+    }
+    if (scope === 'announcements' || scope === 'factory') {
+        if (typeof loadAnnouncementSettingsAdmin === 'function') loadAnnouncementSettingsAdmin();
+    }
+    if (scope === 'comments' || scope === 'factory') {
+        if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
+    }
+    if (scope === 'support' || scope === 'factory') {
+        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+    }
+    if (scope === 'admins' || scope === 'factory') {
+        if (typeof loadAssignedAdmins === 'function') loadAssignedAdmins();
+        updateAdminPrivilegesUI();
+    }
+}
+
 async function batchDeleteCollection(collectionName) {
     const snap = await db.collection(collectionName).get();
     if (snap.empty) return 0;
@@ -1568,7 +1765,7 @@ async function batchDeleteCollection(collectionName) {
     let docs = snap.docs;
     let deletedCount = 0;
     
-    while(docs.length > 0) {
+    while (docs.length > 0) {
         const chunk = docs.splice(0, 400);
         const batch = db.batch();
         chunk.forEach(doc => {
@@ -1580,94 +1777,213 @@ async function batchDeleteCollection(collectionName) {
     return deletedCount;
 }
 
-async function deleteAllProductsPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    
-    if (!confirm("⚠️ DANGER: You are about to delete ALL products in the catalog.\nThis will wipe all variants and inventory. Continue?")) return;
-    const confirmText = prompt("To verify, please type 'DELETE ALL PRODUCTS' in the box below:");
-    if (confirmText !== "DELETE ALL PRODUCTS") {
-        return showToast("Verification failed. Deletion aborted.");
+async function batchDeleteSupportThreadsFully() {
+    const snap = await db.collection('support_threads').get();
+    if (snap.empty) return 0;
+
+    let threadCount = 0;
+    for (const doc of snap.docs) {
+        let msgDocs = (await doc.ref.collection('messages').get()).docs;
+        while (msgDocs.length > 0) {
+            const chunk = msgDocs.splice(0, 400);
+            const batch = db.batch();
+            chunk.forEach((m) => batch.delete(m.ref));
+            await batch.commit();
+        }
+        await doc.ref.delete();
+        threadCount++;
     }
+    return threadCount;
+}
+
+async function batchDeleteMailBackups() {
+    const snapshot = await db.collection('mail').where('to', '==', 'backup@swagstree.com').get();
+    if (snapshot.empty) return 0;
+
+    let docs = snapshot.docs;
+    let deletedCount = 0;
+    while (docs.length > 0) {
+        const chunk = docs.splice(0, 400);
+        const batch = db.batch();
+        chunk.forEach((doc) => {
+            batch.delete(doc.ref);
+            deletedCount++;
+        });
+        await batch.commit();
+    }
+    return deletedCount;
+}
+
+async function clearFactoryResetSettings() {
+    for (const docId of FACTORY_RESET_SETTINGS_TO_CLEAR) {
+        await db.collection('settings').doc(docId).delete().catch(() => {});
+    }
+}
+
+async function runCollectionDeletePrompt({
+    warning,
+    verifyPhrase,
+    collectionName,
+    successLabel,
+    refreshScope,
+    toastPrefix = '🗑️ Erased'
+}) {
+    if (!await confirmSuperAdminDestructive(warning, verifyPhrase)) return;
 
     try {
-        showToast("Processing bulk deletion...");
-        const count = await batchDeleteCollection("products");
-        showToast(`🗑️ Erased ${count} products.`);
-        if (typeof applySortAndFilter === 'function') applySortAndFilter();
+        showToast('Processing bulk deletion...');
+        const count = await batchDeleteCollection(collectionName);
+        showToast(`${toastPrefix} ${count} ${successLabel}.`);
+        afterDestructiveRefresh(refreshScope);
     } catch (e) {
-        console.error("Error deleting products:", e);
-        showToast("Failed to delete products.");
+        console.error(`Error deleting ${collectionName}:`, e);
+        showToast(`Failed to delete ${successLabel.toLowerCase()}.`);
     }
+}
+
+async function deleteAllProductsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: You are about to delete ALL products in the catalog.\nThis will wipe all variants and inventory. Continue?",
+        verifyPhrase: 'DELETE ALL PRODUCTS',
+        collectionName: 'products',
+        successLabel: 'products',
+        refreshScope: 'products'
+    });
 }
 
 async function deleteAllOrdersPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    
-    if (!confirm("⚠️ DANGER: You are about to delete ALL orders in the database.\nThis will wipe out all customer order logs. Continue?")) return;
-    const confirmText = prompt("To verify, please type 'DELETE ALL ORDERS' in the box below:");
-    if (confirmText !== "DELETE ALL ORDERS") {
-        return showToast("Verification failed. Deletion aborted.");
-    }
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: You are about to delete ALL orders in the database.\nThis will wipe out all customer order logs. Continue?",
+        verifyPhrase: 'DELETE ALL ORDERS',
+        collectionName: 'orders',
+        successLabel: 'orders',
+        refreshScope: 'orders'
+    });
+}
 
-    try {
-        showToast("Processing bulk deletion...");
-        const count = await batchDeleteCollection("orders");
-        showToast(`🗑️ Erased ${count} orders.`);
-    } catch (e) {
-        console.error("Error deleting orders:", e);
-        showToast("Failed to delete orders.");
-    }
+async function deleteAllFeedbacksPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Delete ALL testimonials, feedback posts, and diary entries?\nThis cannot be undone.",
+        verifyPhrase: 'DELETE ALL FEEDBACKS',
+        collectionName: 'feedbacks',
+        successLabel: 'feedbacks',
+        refreshScope: 'feedbacks'
+    });
+}
+
+async function deleteAllAnnouncementsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Delete ALL global announcements?\nStorefront announcement banners will be cleared. Continue?",
+        verifyPhrase: 'DELETE ALL ANNOUNCEMENTS',
+        collectionName: 'announcements',
+        successLabel: 'announcements',
+        refreshScope: 'announcements'
+    });
+}
+
+async function deleteAllProductCommentsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Delete ALL product comments (pending, approved, and rejected)?\nThis cannot be undone.",
+        verifyPhrase: 'DELETE ALL COMMENTS',
+        collectionName: 'product_comments',
+        successLabel: 'comments',
+        refreshScope: 'comments'
+    });
+}
+
+async function deleteAllAssignedAdminsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Remove ALL assigned admin roles?\nCustom admins will lose access. Superadmin login is not affected.",
+        verifyPhrase: 'DELETE ALL ADMINS',
+        collectionName: 'admins',
+        successLabel: 'assigned admins',
+        refreshScope: 'admins'
+    });
 }
 
 async function deleteAllAdminSupportChatsPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    if (!confirm("⚠️ DANGER: Delete ALL Live Support (admin) chat messages for every customer thread?\n\nAI Help history will be kept. This cannot be undone.")) return;
-    const confirmText = prompt("To verify, type 'DELETE ALL ADMIN CHATS':");
-    if (confirmText !== "DELETE ALL ADMIN CHATS") {
-        return showToast("Verification failed. Deletion aborted.");
-    }
+    if (!await confirmSuperAdminDestructive(
+        "⚠️ DANGER: Delete ALL Live Support (admin) chat messages for every customer thread?\n\nAI Help history will be kept. This cannot be undone.",
+        'DELETE ALL ADMIN CHATS'
+    )) return;
 
     try {
         showToast("Deleting all admin support chats...");
         const count = typeof deleteAllSupportChatsByChannel === 'function'
             ? await deleteAllSupportChatsByChannel('support')
             : 0;
-        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
-        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+        afterDestructiveRefresh('support');
         showToast(count ? `🗑️ Deleted ${count} Live Support message${count === 1 ? '' : 's'}.` : 'No Live Support messages found.');
     } catch (e) {
         console.error("Error deleting all admin support chats:", e);
         showToast("Failed to delete admin support chats.");
     }
 }
-window.deleteAllAdminSupportChatsPrompt = deleteAllAdminSupportChatsPrompt;
 
 async function deleteAllAiSupportChatsPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    if (!confirm("⚠️ DANGER: Delete ALL AI Help chat messages for every customer thread?\n\nLive Support history will be kept. This cannot be undone.")) return;
-    const confirmText = prompt("To verify, type 'DELETE ALL AI CHATS':");
-    if (confirmText !== "DELETE ALL AI CHATS") {
-        return showToast("Verification failed. Deletion aborted.");
-    }
+    if (!await confirmSuperAdminDestructive(
+        "⚠️ DANGER: Delete ALL AI Help chat messages for every customer thread?\n\nLive Support history will be kept. This cannot be undone.",
+        'DELETE ALL AI CHATS'
+    )) return;
 
     try {
         showToast("Deleting all AI help chats...");
         const count = typeof deleteAllSupportChatsByChannel === 'function'
             ? await deleteAllSupportChatsByChannel('ai')
             : 0;
+        afterDestructiveRefresh('support');
         showToast(count ? `🗑️ Deleted ${count} AI Help message${count === 1 ? '' : 's'}.` : 'No AI Help messages found.');
     } catch (e) {
         console.error("Error deleting all AI help chats:", e);
         showToast("Failed to delete AI help chats.");
     }
 }
-window.deleteAllAiSupportChatsPrompt = deleteAllAiSupportChatsPrompt;
+
+async function deleteAllSupportThreadsPrompt() {
+    if (!await confirmSuperAdminDestructive(
+        "⚠️ DANGER: Delete ALL support threads and every message (Live Support + AI Help)?\n\nThis removes entire conversation records. This cannot be undone.",
+        'DELETE ALL SUPPORT THREADS'
+    )) return;
+
+    try {
+        showToast('Deleting all support threads...');
+        const count = await batchDeleteSupportThreadsFully();
+        afterDestructiveRefresh('support');
+        showToast(count ? `🗑️ Deleted ${count} support thread${count === 1 ? '' : 's'} and all messages.` : 'No support threads found.');
+    } catch (e) {
+        console.error('Error deleting all support threads:', e);
+        showToast('Failed to delete support threads.');
+    }
+}
 
 async function cleanEverythingPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    
-    if (!confirm("🚨 WARNING: You are initiating a complete factory reset.\nThis will erase ALL products, orders, promos, settings, and assigned admin roles. Continue?")) return;
-    if (!confirm("Are you absolutely sure? Everything will be wiped out completely.")) return;
+    if (!assertSuperAdminDestructive()) return;
+
+    const preservedSettingsNote = FACTORY_RESET_PRESERVED_SETTINGS.join(', ');
+    const preservedList = [
+        'All customer accounts (users), addresses & wishlists',
+        'Email, Telegram, session & pagination settings',
+        `Feature toggles & content settings (${preservedSettingsNote})`
+    ].join('\n  • ');
+
+    const deletedList = [
+        'Products, orders, assigned admins',
+        'Feedbacks, announcements, product comments',
+        'All support chat threads & messages',
+        'Promos, cart/COD settings & backup logs'
+    ].join('\n  • ');
+
+    if (!confirm(
+        '🚨 FACTORY RESET WARNING\n\n' +
+        'WILL DELETE:\n  • ' + deletedList + '\n\n' +
+        'WILL KEEP SAFE:\n  • ' + preservedList + '\n\n' +
+        'Cloudinary images are NOT deleted automatically.\n' +
+        'Use "Delete All Cloudinary Media" separately if needed.\n\n' +
+        'Continue?'
+    )) return;
+
+    if (!confirm('Final warning: This cannot be undone. Proceed with factory reset?')) return;
+
     const confirmText = prompt("To confirm the FACTORY RESET, type 'RESET EVERYTHING':");
     if (confirmText !== "RESET EVERYTHING") {
         return showToast("Verification failed. Reset aborted.");
@@ -1675,52 +1991,57 @@ async function cleanEverythingPrompt() {
 
     try {
         showToast("Performing factory reset...");
-        
+
         const productsCount = await batchDeleteCollection("products");
         const ordersCount = await batchDeleteCollection("orders");
         const adminsCount = await batchDeleteCollection("admins");
+        const feedbacksCount = await batchDeleteCollection("feedbacks");
+        const announcementsCount = await batchDeleteCollection("announcements");
+        const commentsCount = await batchDeleteCollection("product_comments");
+        const supportThreadsCount = await batchDeleteSupportThreadsFully();
+        const backupMailCount = await batchDeleteMailBackups();
 
-        // Clear backup logs
-        const backupSnapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
-        const backupBatch = db.batch();
-        backupSnapshot.forEach(doc => {
-            backupBatch.delete(doc.ref);
-        });
-        await backupBatch.commit();
-        await db.collection("settings").doc("backup").delete();
+        await clearFactoryResetSettings();
 
-        await db.collection("settings").doc("cod").delete();
-        await db.collection("settings").doc("cart").delete();
-        await db.collection("settings").doc("promos").delete();
+        showToast(
+            `✅ Factory reset complete. Removed ${productsCount} products, ${ordersCount} orders, ` +
+            `${adminsCount} admins, ${feedbacksCount} feedbacks, ${announcementsCount} announcements, ` +
+            `${commentsCount} comments, ${supportThreadsCount} support threads, ${backupMailCount} backup logs. ` +
+            `Customer accounts preserved.`
+        );
 
-        showToast(`✅ Factory Reset Complete. Erased: ${productsCount} products, ${ordersCount} orders, and ${adminsCount} admins.`);
-        if (typeof applySortAndFilter === 'function') applySortAndFilter();
+        afterDestructiveRefresh('factory');
     } catch (e) {
         console.error("Error in factory reset:", e);
-        showToast("Reset failed.");
+        showToast("Reset failed. Some data may have been partially deleted — check Firebase console.");
     }
 }
 
+window.deleteAllProductsPrompt = deleteAllProductsPrompt;
+window.deleteAllOrdersPrompt = deleteAllOrdersPrompt;
+window.deleteAllFeedbacksPrompt = deleteAllFeedbacksPrompt;
+window.deleteAllAnnouncementsPrompt = deleteAllAnnouncementsPrompt;
+window.deleteAllProductCommentsPrompt = deleteAllProductCommentsPrompt;
+window.deleteAllAssignedAdminsPrompt = deleteAllAssignedAdminsPrompt;
+window.deleteAllAdminSupportChatsPrompt = deleteAllAdminSupportChatsPrompt;
+window.deleteAllAiSupportChatsPrompt = deleteAllAiSupportChatsPrompt;
+window.deleteAllSupportThreadsPrompt = deleteAllSupportThreadsPrompt;
+window.cleanEverythingPrompt = cleanEverythingPrompt;
+
 window.deleteFirebaseBackupsPrompt = async function() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!assertSuperAdminDestructive()) return;
     if (!confirm("🚨 WARNING: This will permanently delete all backup email records for backup@swagstree.com and reset your backup timestamp. Continue?")) return;
     
     try {
         showToast("Deleting backup email records...");
-        const snapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
-        if (snapshot.empty) {
+        const deletedCount = await batchDeleteMailBackups();
+        if (!deletedCount) {
             showToast("No backup records found.");
             return;
         }
         
-        const batch = db.batch();
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-        
-        await db.collection("settings").doc("backup").delete();
-        showToast(`✅ Deleted ${snapshot.size} backup records.`);
+        await db.collection("settings").doc("backup").delete().catch(() => {});
+        showToast(`✅ Deleted ${deletedCount} backup records.`);
         
         const statusEl = document.getElementById('admin-backup-status-text');
         if (statusEl) statusEl.innerHTML = "Last Auto-Backup: Never";

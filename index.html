@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=4.9">
+    <link rel="stylesheet" href="css/style.css?v=6.0">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -160,46 +160,55 @@
 
     <!-- Main Header -->
     <header class="header">
-        <img src="assets/logo.png" class="logo-img" onerror="this.src='https://i.ibb.co/3mN5SgN/1000591447.png'"
-            alt="Swag Stree Logo">
-        <div class="brand">SWAG STREE</div>
+        <div class="header-brand">
+            <div class="logo-wrap">
+                <img src="assets/logo.png" class="logo-img" onerror="this.src='https://i.ibb.co/3mN5SgN/1000591447.png'"
+                    alt="Swag Stree Logo">
+            </div>
+            <span class="brand-name">SWAG STREE</span>
+        </div>
 
         <!-- Desktop Navigation -->
-        <div class="desktop-nav">
-            <div class="nav-item active" onclick="nav('home', this)">Home</div>
-            <div class="nav-item" onclick="nav('wish', this)">Wishlist</div>
-            <div id="nav-adm-desktop" class="nav-item" style="display:none" onclick="nav('admin', this)">Admin</div>
-            <div id="nav-super-desktop" class="nav-item" style="display:none" onclick="nav('super', this)">Superadmin
+        <nav class="desktop-nav" aria-label="Main navigation">
+            <div class="nav-item active" data-nav-view="home">Home</div>
+            <div class="nav-item" data-nav-view="wish">Wishlist</div>
+            <div id="nav-adm-desktop" class="nav-item" style="display:none" data-nav-view="admin">Admin</div>
+            <div id="nav-super-desktop" class="nav-item" style="display:none" data-nav-view="super">Superadmin
             </div>
-            <div class="nav-item" onclick="nav('user', this)">Profile & Orders</div>
-        </div>
+            <div class="nav-item" data-nav-view="user">Profile & Orders</div>
+        </nav>
 
-        <!-- Socials & Cart -->
-        <div class="social-tools">
-            <a href="https://instagram.com/swag_stree" target="_blank" id="instagram-menu-btn"><i
-                    class="fab fa-instagram"></i></a>
-            <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank" id="whatsapp-menu-btn"><i
-                    class="fab fa-whatsapp"></i></a>
-            <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank" id="facebook-menu-btn"><i
-                    class="fab fa-facebook"></i></a>
-            <i class="fa fa-sliders" onclick="toggleFilter()"
-                style="color:var(--gold); cursor:pointer; font-size:18px"></i>
-        </div>
+        <div class="header-actions">
+            <div class="header-social-tray social-tools" aria-label="Social links">
+                <a href="https://instagram.com/swag_stree" target="_blank" rel="noopener noreferrer"
+                    id="instagram-menu-btn" class="header-action-btn header-icon-instagram" aria-label="Instagram"><i
+                        class="fab fa-instagram"></i></a>
+                <a href="https://chat.whatsapp.com/GO2JIzNSswT6KlpJH45hHS" target="_blank" rel="noopener noreferrer"
+                    id="whatsapp-menu-btn" class="header-action-btn header-icon-whatsapp" aria-label="WhatsApp"><i
+                        class="fab fa-whatsapp"></i></a>
+                <a href="https://www.facebook.com/share/1CRwnQckvY/" target="_blank" rel="noopener noreferrer"
+                    id="facebook-menu-btn" class="header-action-btn header-icon-facebook" aria-label="Facebook"><i
+                        class="fab fa-facebook"></i></a>
+            </div>
 
-        <!-- Language Switcher -->
-        <div class="lang-select-container" id="lang-selector-wrap" style="display:none; position:relative;">
-            <i class="fa fa-language"></i>
-            <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select">
-                <option value="en">🇬🇧 EN</option>
-                <option value="hi">🇮🇳 HI</option>
-                <option value="es">🇪🇸 ES</option>
-            </select>
-        </div>
+            <button type="button" class="header-action-btn header-icon-filter" onclick="toggleFilter()"
+                aria-label="Filters"><i class="fa fa-sliders"></i></button>
 
-        <div class="cart-trigger" onclick="openCart()">
-            <i class="fa fa-shopping-bag" style="font-size:22px"></i>
-            <span id="cart-badge"
-                style="position:absolute; top:-6px; right:-6px; background:var(--red); font-size:10px; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-weight:bold">0</span>
+            <!-- Language Switcher -->
+            <div class="lang-select-container" id="lang-selector-wrap" style="display:none;">
+                <i class="fa fa-language"></i>
+                <select id="lang-select" onchange="setLanguage(this.value)" class="lang-select">
+                    <option value="en">🇬🇧 EN</option>
+                    <option value="hi">🇮🇳 HI</option>
+                    <option value="es">🇪🇸 ES</option>
+                </select>
+            </div>
+
+            <button type="button" class="header-action-btn header-cart-btn cart-trigger" onclick="openCart()"
+                aria-label="Shopping cart">
+                <i class="fa fa-shopping-bag"></i>
+                <span id="cart-badge" class="header-cart-badge">0</span>
+            </button>
         </div>
     </header>
 
@@ -227,7 +236,7 @@
                 data-i18n="search_placeholder">
         </div>
         <div class="catalog-controls-row">
-            <span id="product-count" class="count-badge catalog-count-label" style="display:none;"></span>
+            <span id="product-count" class="count-badge catalog-count-label catalog-count-pill" style="display:none;" role="status"></span>
 
             <div class="catalog-controls-actions">
                 <!-- Support Chat Button -->
@@ -317,7 +326,7 @@
                 oninput="wishSearchHandler()" autocomplete="off" data-i18n="search_placeholder">
         </div>
         <div class="catalog-controls-row catalog-row-wishlist">
-            <span id="wish-count" class="count-badge catalog-count-label" style="display:none;"></span>
+            <span id="wish-count" class="count-badge catalog-count-label catalog-count-pill" style="display:none;" role="status"></span>
 
             <div class="catalog-controls-actions">
                 <div id="wish-header-support-chat-btn" onclick="openSupportChat()" class="catalog-icon-btn" style="display:none;">
@@ -750,6 +759,16 @@
                 <!-- Promo items render here -->
             </div>
 
+            <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; padding:10px 12px; background:#1a1a1a; border:1px solid #333; border-radius:10px; cursor:pointer;">
+                <input type="checkbox" id="admin-promo-show-picker" style="margin:3px 0 0; width:16px; height:16px; flex-shrink:0;">
+                <span style="font-size:12px; color:#ddd; line-height:1.45;">
+                    <strong style="color:#fff;">Show promos in checkout options</strong><br>
+                    <span style="color:#777; font-size:11px;">When enabled, customers see an “Apply Promo” button at checkout with a list of eligible codes. Off by default.</span>
+                </span>
+            </label>
+            <button class="btn-gold" style="width:100%; padding:10px; font-size:12px; margin-bottom:12px;"
+                onclick="savePromoOptionsSetting()">Save Promo Options Setting</button>
+
             <div
                 style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
                 <div style="display:flex; gap:10px; align-items:center;">
@@ -784,6 +803,10 @@
                             style="margin:0; font-size:11px; padding:6px; background:#222; border:1px solid #444; color:#fff; border-radius:8px; width:100%;">
                     </div>
                 </div>
+                <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#bbb; cursor:pointer;">
+                    <input type="checkbox" id="admin-promo-show-in-picker" style="margin:0; width:15px; height:15px;">
+                    Show this promo in checkout options
+                </label>
                 <div style="display:flex; justify-content:flex-end; margin-top:4px;">
                     <button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;"
                         onclick="addPromoCode()">+ Add Promo</button>
@@ -1282,23 +1305,15 @@
                             style="margin:0 0 4px; font-size:12px; height:60px; resize:vertical; background:#222; border:1px solid #333; color:#fff; border-radius:8px; padding:8px;"></textarea>
                     </div>
                     <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span style="font-size:11px; color:#aaa;">Announcement Image</span>
-                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <span style="font-size:11px; color:#aaa;">Announcement Images <span style="color:#666; font-weight:400;">(optional, multiple allowed)</span></span>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
                             <label for="admin-announcement-file"
-                                style="display:inline-block; padding:8px 16px; background:#222; border:1px dashed #555; color:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; transition:all 0.2s;">
-                                <i class="fa fa-cloud-upload-alt" style="margin-right:4px;"></i> Upload Images
+                                style="display:inline-flex; align-items:center; gap:6px; width:fit-content; padding:8px 16px; background:#222; border:1px dashed #555; color:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; transition:all 0.2s;">
+                                <i class="fa fa-cloud-upload-alt"></i> Add Images
                             </label>
-                            <input type="file" id="admin-announcement-file" accept="image/*" style="display:none;"
+                            <input type="file" id="admin-announcement-file" accept="image/*" multiple style="display:none;"
                                 onchange="handleAnnouncementFileUpload(this)">
-
-                            <div id="admin-announcement-image-preview-container"
-                                style="display:none; align-items:center; gap:8px; background:#111; padding:4px 8px; border-radius:6px; border:1px solid #333;">
-                                <img id="admin-announcement-image-preview" src=""
-                                    style="width:30px; height:30px; object-fit:cover; border-radius:4px;">
-                                <span style="font-size:10px; color:#ff4757; cursor:pointer; font-weight:700;"
-                                    onclick="removeAnnouncementImage()">Remove</span>
-                            </div>
-                            <input type="hidden" id="admin-announcement-image" value="">
+                            <div id="admin-announcement-images-preview" class="announcement-admin-images-grid"></div>
                         </div>
                     </div>
                     <div style="display:flex; gap:10px; margin-top:5px;">
@@ -1440,6 +1455,155 @@
                 </div>
                 <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
                     onclick="saveSessionSettings()">Save</button>
+            </div>
+        </div>
+
+        <!-- Auto Data Retention -->
+        <div id="admin-auto-retention-settings"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-broom" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Auto Data Retention</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Control how long chat logs, mail records &amp;
+                        moderation data are kept before cleanup</p>
+                </div>
+            </div>
+            <div class="retention-panel-inner">
+
+                <div class="retention-info-box">
+                    <i class="fa fa-circle-info"></i>
+                    <div>
+                        <strong>What does cleanup (purge) do?</strong>
+                        It permanently deletes <em>old</em> records that are older than the age you pick below.
+                        Products, orders, customers, and settings are never touched — only the listed log types.
+                        Cleanup runs automatically when you sign in (max once per hour), or tap <strong>Clean Up Now</strong> anytime.
+                    </div>
+                </div>
+
+                <div class="retention-policy-list">
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-robot"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>AI Help Chat Messages</strong>
+                                <span>Bot conversation history in customer threads</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-ai_chat_messages" aria-label="AI Help Chat retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month" selected>Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-headset"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Live Support Chat Messages</strong>
+                                <span>Human admin ↔ customer support history</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-admin_support_messages" aria-label="Live Support Chat retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month">Delete after 1 month</option>
+                            <option value="year" selected>Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-inbox"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Empty Support Threads</strong>
+                                <span>Leftover thread shells with no messages</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-empty_support_threads" aria-label="Empty Support Threads retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month" selected>Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-envelope"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Backup Email Queue Logs</strong>
+                                <span>Firestore mail records sent to backup@swagstree.com</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-backup_mail_logs" aria-label="Backup Email Logs retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month" selected>Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-comment-slash"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Rejected Product Reviews</strong>
+                                <span>Moderation rejects no longer shown on storefront</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-rejected_comments" aria-label="Rejected Reviews retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month">Delete after 1 month</option>
+                            <option value="year" selected>Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-bullhorn"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Expired Announcements</strong>
+                                <span>Published banner announcements past their age limit</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-old_announcements" aria-label="Announcements retention">
+                            <option value="never" selected>Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month">Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="retention-status" id="auto-retention-status-text">
+                    <i class="fa fa-clock-rotate-left"></i>
+                    <div>Last cleanup: <b>Loading…</b></div>
+                </div>
+
+                <div class="retention-actions">
+                    <button class="btn-gold" onclick="saveAutoRetentionSettings()">
+                        <i class="fa fa-floppy-disk"></i> Save Rules
+                    </button>
+                    <button class="btn-gold btn-retention-secondary" onclick="triggerManualAutoRetention()">
+                        <i class="fa fa-broom"></i> Clean Up Now
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -1696,8 +1860,8 @@
                 <i class="fa fa-database" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Database Backup & Restore</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Export/Import Firestore collection data
-                        backups</p>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Backup products, orders, users, announcements,
+                        comments, chats, settings &amp; admins</p>
                 </div>
             </div>
             <div
@@ -1736,7 +1900,13 @@
                     <button class="btn-gold"
                         style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px; background:#111; color:#fff; border:1px solid var(--gold);"
                         onclick="triggerManualBackupEmail()">
-                        <i class="fa fa-envelope"></i> Firebase Collection Backup
+                        <i class="fa fa-envelope"></i> Email Full Backup
+                    </button>
+
+                    <button class="btn-gold"
+                        style="width:auto; padding:10px 16px; font-size:11px; display:flex; align-items:center; gap:6px; background:#151515; color:#fff; border:1px solid #555;"
+                        onclick="triggerUsersBackup()">
+                        <i class="fa fa-users"></i> Backup Users &amp; Auth
                     </button>
 
                     <button class="btn-gold"
@@ -1849,6 +2019,19 @@
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Support
+                            Threads</span>
+                        <span style="font-size:10px; color:#666;">Remove every support thread and all messages (Live
+                            Support + AI Help)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllSupportThreadsPrompt()">Delete All Threads</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
                         <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
                             Products</span>
                         <span style="font-size:10px; color:#666;">Permanently delete all product catalogs and
@@ -1875,6 +2058,57 @@
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
+                            Feedbacks</span>
+                        <span style="font-size:10px; color:#666;">Remove all testimonials, diary entries, and feedback
+                            posts</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllFeedbacksPrompt()">Delete All Feedbacks</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
+                            Announcements</span>
+                        <span style="font-size:10px; color:#666;">Clear every global storefront announcement</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAnnouncementsPrompt()">Delete Announcements</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Product
+                            Comments</span>
+                        <span style="font-size:10px; color:#666;">Remove all customer product comments (pending,
+                            approved, rejected)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllProductCommentsPrompt()">Delete All Comments</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Assigned
+                            Admins</span>
+                        <span style="font-size:10px; color:#666;">Remove custom admin roles (superadmin login is not
+                            affected)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAssignedAdminsPrompt()">Delete All Admins</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
                         <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete Firebase
                             Backups</span>
                         <span style="font-size:10px; color:#666;">Clear all backup records from the firebase
@@ -1888,10 +2122,23 @@
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
+                            Cloudinary Media</span>
+                        <span style="font-size:10px; color:#666;">Permanently remove all product, announcement, and
+                            feedback images/files from Cloudinary storage (Firestore data kept)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllCloudinaryDataPrompt()">Delete Cloudinary</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
                         <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Clean
                             Everything</span>
-                        <span style="font-size:10px; color:#666;">Factory reset: Erase all products, orders, promos,
-                            settings, and assigned admins</span>
+                        <span style="font-size:10px; color:#666;">Factory reset: Clears catalog, orders, admins,
+                            chats, feedbacks &amp; promos — keeps customer accounts &amp; API settings safe</span>
                     </div>
                     <button class="btn-gold"
                         style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
@@ -1962,6 +2209,9 @@
                 <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
                 <div id="det-indicators" class="indicators"></div>
                 <!-- 360 viewer button -->
+                <button id="det-zoom-trigger" onclick="openProductDetailImageZoom(window.detailGalleryActiveIndex || 0, event)"
+                    style="display:none; position:absolute; left:15px; bottom:15px; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.25); border-radius:30px; color:#fff; padding:8px 12px; font-size:10px; font-weight:800; cursor:pointer; align-items:center; gap:5px; z-index:10;"><i
+                        class="fa fa-magnifying-glass-plus"></i> ZOOM</button>
                 <button id="det-360-trigger" onclick="open360Viewer(activeProductId)"
                     style="display:none; position:absolute; right:15px; bottom:15px; background:rgba(0,0,0,0.7); border:1px solid var(--gold); border-radius:30px; color:var(--gold); padding:8px 12px; font-size:10px; font-weight:800; cursor:pointer; align-items:center; gap:5px; z-index:10;"><i
                         class="fa fa-sync"></i> 360° VIEW</button>
@@ -2118,18 +2368,45 @@
         </div>
     </div>
 
+    <!-- Announcement Image Zoom Lightbox -->
+    <div id="announcement-image-lightbox" class="announcement-image-lightbox" style="display:none;" onclick="closeAnnouncementImageZoom(event)">
+        <button type="button" class="announcement-lightbox-close" onclick="closeAnnouncementImageZoom(event)" aria-label="Close">&times;</button>
+        <button type="button" class="announcement-lightbox-nav announcement-lightbox-prev" onclick="announcementImageZoomNav(-1, event)" aria-label="Previous image">
+            <i class="fa fa-chevron-left"></i>
+        </button>
+        <div class="announcement-lightbox-stage" id="announcement-lightbox-stage">
+            <img id="announcement-lightbox-img" src="" alt="Announcement image">
+        </div>
+        <button type="button" class="announcement-lightbox-nav announcement-lightbox-next" onclick="announcementImageZoomNav(1, event)" aria-label="Next image">
+            <i class="fa fa-chevron-right"></i>
+        </button>
+        <div class="announcement-lightbox-toolbar">
+            <button type="button" onclick="setAnnouncementZoomScale(-0.25, event)" aria-label="Zoom out"><i class="fa fa-minus"></i></button>
+            <span id="announcement-lightbox-counter">1 / 1</span>
+            <button type="button" onclick="setAnnouncementZoomScale(0.25, event)" aria-label="Zoom in"><i class="fa fa-plus"></i></button>
+            <button type="button" onclick="resetAnnouncementZoomScale(event)" aria-label="Reset zoom"><i class="fa fa-compress"></i></button>
+        </div>
+    </div>
+
     <!-- MODAL: Cart & Checkout -->
     <div id="cart-modal" class="modal">
         <div class="modal-box" style="padding-top: 15px;">
             <h3 style="margin-top:0;">Checkout</h3>
             <div id="cart-items" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
 
-            <!-- Promo Code -->
-            <div style="display:flex; gap:10px; margin-bottom: 10px;">
-                <input id="promo-code" placeholder="Promo Code" style="margin-bottom:0; flex:1;">
-                <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
-            </div>
-            <div id="active-promos-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px;"></div>
+                <!-- Apply Promo (Blinkit-style row — opens promo modal) -->
+                <div id="checkout-promo-row-wrap" style="display:none; margin-bottom:12px;">
+                    <div id="checkout-promo-row" class="checkout-promo-row" role="button" tabindex="0" data-open-promo-view aria-label="Apply Promo">
+                        <span class="checkout-promo-row-left">
+                            <i class="fa fa-ticket-alt checkout-promo-row-icon"></i>
+                            <span id="checkout-promo-row-text">Apply Promo</span>
+                        </span>
+                        <span class="checkout-promo-row-right">
+                            <span id="checkout-promo-row-action" style="display:none;"></span>
+                            <i class="fa fa-chevron-right checkout-promo-row-chevron"></i>
+                        </span>
+                    </div>
+                </div>
 
             <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 20px; font-size: 14px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Subtotal</span><span
@@ -2284,6 +2561,26 @@
         </div>
     </div>
 
+    <!-- SECTION: Apply Promo (full-screen, like Privacy Policy) -->
+    <div id="promo-view" class="section promo-view-section">
+        <div class="promo-view-header">
+            <button type="button" class="promo-view-back" onclick="closePromoView()" aria-label="Back to checkout">
+                <i class="fa fa-arrow-left"></i>
+            </button>
+            <h3 class="promo-view-title">Apply Promo</h3>
+        </div>
+        <div class="promo-view-card">
+            <div class="promo-view-manual">
+                <input id="promo-code" type="text" placeholder="Enter promo code" autocomplete="off">
+                <button type="button" class="btn-gold promo-view-apply-btn" onclick="applyPromoFromModal()">Apply</button>
+            </div>
+            <p class="promo-view-section-label">Available offers</p>
+            <div id="promo-view-list" class="promo-view-list">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
     <!-- SECTION: About Us View -->
     <div id="about-view" class="section"
         style="padding:20px; background:#000; min-height:100vh; box-sizing:border-box;">
@@ -2369,14 +2666,14 @@
     </footer>
 
     <!-- Mobile Bottom Navigation -->
-    <nav class="bottom-nav">
-        <div class="nav-item active" onclick="nav('home', this)"><i class="fa fa-house"></i>Home</div>
-        <div class="nav-item" onclick="nav('wish', this)"><i class="fa fa-heart"></i>Wish</div>
-        <div id="nav-adm" class="nav-item" style="display:none" onclick="nav('admin', this)"><i
+    <nav class="bottom-nav" aria-label="Main navigation">
+        <div class="nav-item active" data-nav-view="home"><i class="fa fa-house"></i>Home</div>
+        <div class="nav-item" data-nav-view="wish"><i class="fa fa-heart"></i>Wish</div>
+        <div id="nav-adm" class="nav-item" style="display:none" data-nav-view="admin"><i
                 class="fa fa-gear"></i>Admin</div>
-        <div id="nav-super" class="nav-item" style="display:none" onclick="nav('super', this)"><i
+        <div id="nav-super" class="nav-item" style="display:none" data-nav-view="super"><i
                 class="fa fa-user-shield"></i>Super</div>
-        <div class="nav-item" onclick="nav('user', this)"><i class="fa fa-user"></i>Profile</div>
+        <div class="nav-item" data-nav-view="user"><i class="fa fa-user"></i>Profile</div>
     </nav>
     <!-- Confetti Canvas overlay -->
     <canvas id="confetti-canvas"></canvas>
@@ -2476,14 +2773,17 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.53"></script>
-    <script src="js/app.js?v=9.53"></script>
-    <script src="js/store.js?v=9.53"></script>
-    <script src="js/checkout.js?v=9.53"></script>
-    <script src="js/auth.js?v=9.53"></script>
-    <script src="js/comments.js?v=9.53"></script>
-    <script src="js/support-chat.js?v=9.53"></script>
-    <script src="js/admin.js?v=9.53"></script>
+    <script src="js/features.js?v=9.67"></script>
+    <script src="js/app.js?v=9.67"></script>
+    <script src="js/store.js?v=9.67"></script>
+    <script src="js/checkout.js?v=9.67"></script>
+    <script src="js/auth.js?v=9.67"></script>
+    <script src="js/comments.js?v=9.67"></script>
+    <script src="js/support-chat.js?v=9.67"></script>
+    <script src="js/auto-retention.js?v=9.67"></script>
+    <script src="js/admin.js?v=9.67"></script>
+    <script src="js/cloudinary-admin.js?v=9.67"></script>
+    <script src="js/bind-globals.js?v=9.67"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

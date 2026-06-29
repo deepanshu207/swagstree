@@ -1238,19 +1238,27 @@ window.savePaginationSettings = async function() {
 // ── Promo Code Settings ─────────────────────────────────────────────────────
 let adminPromoList = [];
 let promoListInterval = null;
+let promoPickerEnabled = false;
 
 async function loadPromoSettings() {
     try {
         const snap = await db.collection('settings').doc('promos').get();
         if (snap.exists) {
-            const list = snap.data().list || [];
+            const data = snap.data() || {};
+            const list = data.list || [];
+            promoPickerEnabled = data.showPromoInOptions === true || data.showPromoPicker === true;
             adminPromoList = list.map(p => {
                 if (p.expiresAt && !p.endsAt) {
                     p.endsAt = p.expiresAt;
                 }
+                if (p.showInOptions === undefined) {
+                    p.showInOptions = p.showInPicker === true;
+                }
                 return p;
             });
         }
+        const pickerToggle = document.getElementById('admin-promo-show-picker');
+        if (pickerToggle) pickerToggle.checked = promoPickerEnabled;
         renderAdminPromoList();
     } catch(e) {
         console.error('loadPromoSettings error:', e);
@@ -1329,6 +1337,10 @@ function renderAdminPromoList() {
                             <input id="inline-promo-max-uses-${index}" type="number" min="1" placeholder="Unlimited" value="${p.maxUses || ''}" style="margin:0; font-size:11px; padding:6px; background:#222; border:1px solid #444; color:#fff; border-radius:8px; width:100%;">
                         </div>
                     </div>
+                    <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#bbb; cursor:pointer;">
+                        <input type="checkbox" id="inline-promo-show-in-picker-${index}" ${(p.showInOptions || p.showInPicker) ? 'checked' : ''} style="margin:0; width:15px; height:15px;">
+                        Show this promo in checkout options
+                    </label>
                     <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end; margin-top:4px;">
                         <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px;" onclick="saveInlinePromoChanges(${index})">Save</button>
                         <button style="width:auto; padding:6px 12px; font-size:11px; background:none; border:1px solid #555; color:#aaa; border-radius:8px; cursor:pointer;" onclick="cancelInlineEdit()">Cancel</button>
@@ -1341,15 +1353,24 @@ function renderAdminPromoList() {
             ? `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}/${p.maxUses}]</span>`
             : `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}]</span>`;
 
+        const optionsBadge = (p.showInOptions || p.showInPicker)
+            ? `<span style="color:var(--gold); font-size:10px; margin-left:8px; font-weight:700;">[In checkout options]</span>`
+            : '';
+
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:10px; border-radius:10px; border:1px dashed #444; flex-wrap:wrap; gap:10px;">
                 <div>
                     <span style="color:var(--gold); font-weight:bold; font-size:13px; letter-spacing:1px;">${p.code}</span>
                     <span style="color:#aaa; font-size:11px; margin-left:8px;">${p.discount}% OFF</span>
                     ${usesText}
+                    ${optionsBadge}
                     ${scheduleText}
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#888; cursor:pointer;" title="Show in checkout options">
+                        <input type="checkbox" ${(p.showInOptions || p.showInPicker) ? 'checked' : ''} onchange="togglePromoShowInOptions(${index}, this.checked)" style="margin:0; width:14px; height:14px;">
+                        Options
+                    </label>
                     <i class="fa fa-edit" style="color:var(--gold); font-size:12px; cursor:pointer; padding:5px;" onclick="editPromoCode(${index})" title="Edit Promo"></i>
                     <i class="fa fa-trash" style="color:#ff4444; font-size:12px; cursor:pointer; padding:5px;" onclick="removePromoCode(${index})" title="Delete Promo"></i>
                 </div>
@@ -1383,7 +1404,12 @@ async function addPromoCode() {
         return showToast('Promo code already exists');
     }
     
-    const newPromo = { code, discount, usedCount: 0 };
+    const newPromo = {
+        code,
+        discount,
+        usedCount: 0,
+        showInOptions: !!document.getElementById('admin-promo-show-in-picker')?.checked
+    };
     
     const startsAtVal = startInp && startInp.value ? new Date(startInp.value).getTime() : null;
     const endsAtVal = endInp && endInp.value ? new Date(endInp.value).getTime() : null;
@@ -1407,6 +1433,8 @@ async function addPromoCode() {
     if (startInp) startInp.value = '';
     if (endInp) endInp.value = '';
     if (maxUsesInp) maxUsesInp.value = '';
+    const showInPickerInp = document.getElementById('admin-promo-show-in-picker');
+    if (showInPickerInp) showInPickerInp.checked = false;
     showToast('Promo code added: ' + code);
 }
 
@@ -1421,10 +1449,11 @@ async function removePromoCode(index) {
 
 async function saveAdminPromoSettings() {
     try {
-        await db.collection('settings').doc('promos').set({ list: adminPromoList }, { merge: true });
+        await db.collection('settings').doc('promos').set({
+            list: adminPromoList
+        }, { merge: true });
         renderAdminPromoList();
         
-        // Also update the global list in checkout.js if it's currently loaded in the same window
         if (typeof activePromosList !== 'undefined') {
             activePromosList = adminPromoList;
         }
@@ -1434,6 +1463,26 @@ async function saveAdminPromoSettings() {
     }
 }
 
+async function savePromoOptionsSetting() {
+    try {
+        promoPickerEnabled = !!document.getElementById('admin-promo-show-picker')?.checked;
+        await db.collection('settings').doc('promos').set({
+            showPromoInOptions: promoPickerEnabled,
+            showPromoPicker: promoPickerEnabled
+        }, { merge: true });
+        if (typeof window.checkoutPromoPickerEnabled !== 'undefined') {
+            window.checkoutPromoPickerEnabled = promoPickerEnabled;
+        }
+        showToast(promoPickerEnabled
+            ? 'Promo options enabled — customers will see Apply Promo at checkout'
+            : 'Promo options disabled — Apply Promo hidden at checkout');
+    } catch (e) {
+        console.error('savePromoOptionsSetting error:', e);
+        showToast('Failed to save promo options setting');
+    }
+}
+window.savePromoOptionsSetting = savePromoOptionsSetting;
+
 window.editPromoCode = function(index) {
     editingPromoIndex = index;
     renderAdminPromoList();
@@ -1442,6 +1491,19 @@ window.editPromoCode = function(index) {
 window.cancelInlineEdit = function() {
     editingPromoIndex = null;
     renderAdminPromoList();
+}
+
+window.togglePromoShowInOptions = async function(index, checked) {
+    if (index < 0 || index >= adminPromoList.length) return;
+    adminPromoList[index].showInOptions = !!checked;
+    adminPromoList[index].showInPicker = !!checked;
+    try {
+        await saveAdminPromoSettings();
+        showToast(checked ? 'Promo will appear in checkout options' : 'Promo hidden from checkout options');
+    } catch (e) {
+        console.error('togglePromoShowInOptions failed:', e);
+        showToast('Failed to update promo option');
+    }
 }
 
 window.saveInlinePromoChanges = async function(index) {
@@ -1494,6 +1556,10 @@ window.saveInlinePromoChanges = async function(index) {
     if (p.usedCount === undefined) {
         p.usedCount = 0;
     }
+
+    const showInOptionsInp = document.getElementById(`inline-promo-show-in-picker-${index}`);
+    p.showInOptions = !!showInOptionsInp?.checked;
+    p.showInPicker = p.showInOptions;
     
     editingPromoIndex = null;
     await saveAdminPromoSettings();
@@ -2449,6 +2515,225 @@ class FirestoreBatcher {
     }
 }
 
+const BACKUP_FORMAT_VERSION = 2;
+const FIRESTORE_BACKUP_COLLECTIONS = [
+    'products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings', 'announcements'
+];
+
+async function fetchCollectionBackupDocs(collectionName) {
+    const snap = await db.collection(collectionName).get();
+    const docs = [];
+    snap.forEach((doc) => docs.push({ id: doc.id, data: doc.data() }));
+    return docs;
+}
+
+async function fetchUsersBackupDocs() {
+    const usersSnap = await db.collection('users').get();
+    const usersList = [];
+    for (const doc of usersSnap.docs) {
+        const userData = doc.data();
+        const addrSnap = await db.collection('users').doc(doc.id).collection('addresses').get();
+        const addresses = [];
+        addrSnap.forEach((aDoc) => addresses.push({ id: aDoc.id, data: aDoc.data() }));
+        usersList.push({ id: doc.id, data: userData, addresses });
+    }
+    return usersList;
+}
+
+async function fetchSupportThreadsBackupDocs() {
+    const supportSnap = await db.collection('support_threads').get();
+    const supportThreadsList = [];
+    for (const doc of supportSnap.docs) {
+        const msgSnap = await db.collection('support_threads').doc(doc.id).collection('messages').get();
+        const messages = [];
+        msgSnap.forEach((mDoc) => messages.push({ id: mDoc.id, data: mDoc.data() }));
+        supportThreadsList.push({ id: doc.id, data: doc.data(), messages });
+    }
+    return supportThreadsList;
+}
+
+async function buildBackupPayload(scope = 'full') {
+    const projectId = (typeof firebaseConfig !== 'undefined' && firebaseConfig.projectId) ? firebaseConfig.projectId : 'swagstree-web';
+    const createdAt = new Date().toISOString();
+
+    if (scope === 'users') {
+        return {
+            _meta: {
+                version: BACKUP_FORMAT_VERSION,
+                createdAt,
+                scope: 'users',
+                app: 'swagstree',
+                projectId,
+                collections: ['users']
+            },
+            users: await fetchUsersBackupDocs()
+        };
+    }
+
+    const backupData = {
+        _meta: {
+            version: BACKUP_FORMAT_VERSION,
+            createdAt,
+            scope: 'full',
+            app: 'swagstree',
+            projectId,
+            collections: [...FIRESTORE_BACKUP_COLLECTIONS, 'support_threads', 'users']
+        }
+    };
+
+    for (const col of FIRESTORE_BACKUP_COLLECTIONS) {
+        backupData[col] = await fetchCollectionBackupDocs(col);
+    }
+    backupData.support_threads = await fetchSupportThreadsBackupDocs();
+    backupData.users = await fetchUsersBackupDocs();
+    return backupData;
+}
+
+function buildBackupFilename(scope, isAuto) {
+    const dateStr = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
+    if (scope === 'users') {
+        return `swagstree_users_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
+    }
+    return `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
+}
+
+async function fetchAuthUsersExport() {
+    const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+    if (!user) throw new Error('You must be logged in to export auth users.');
+    const token = await user.getIdToken(true);
+    const resp = await fetch('/api/auth/export', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    let data = {};
+    try {
+        data = await resp.json();
+    } catch (_) {
+        throw new Error('Auth export server returned an invalid response.');
+    }
+    if (!resp.ok || !data.ok) {
+        throw new Error(data.error || `Auth export failed (${resp.status}).`);
+    }
+    return data;
+}
+
+async function deliverBackupJson(backupData, filename, isAuto, forceEmail) {
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+
+    if (isAuto || forceEmail) {
+        try {
+            showToast('⏳ Uploading backup to secure storage...');
+            const fd = new FormData();
+            fd.append('file', blob, filename);
+            fd.append('upload_preset', typeof PRESET !== 'undefined' ? PRESET : 'swagstree_upload');
+            const cloudName = typeof CLOUD_NAME !== 'undefined' ? CLOUD_NAME : 'mysharecloud';
+            const r = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+                method: 'POST',
+                body: fd
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ? d.error.message : 'Cloudinary upload failed');
+            const downloadUrl = d.secure_url;
+            await db.collection('mail').add({
+                to: 'backup@swagstree.com',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                message: {
+                    subject: `Swag Stree ${isAuto ? 'Auto' : 'Manual'} Backup: ${filename}`,
+                    text: `Your ${isAuto ? 'automated' : 'manual'} database backup is ready.\n\nDownload Link: ${downloadUrl}\n\nCollections: ${(backupData._meta?.collections || []).join(', ')}\n\nGenerated at: ${now.toLocaleString()}`
+                }
+            });
+            showToast('✅ Backup completed and emailed to backup@swagstree.com!');
+        } catch (err) {
+            console.error('Backup upload/email failed:', err);
+            showToast('⚠️ Backup failed to email (CORS or Storage error)');
+        }
+    } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast(`Backup download started: ${filename}`);
+    }
+
+    URL.revokeObjectURL(url);
+
+    const nowMs = Date.now();
+    await db.collection('settings').doc('backup').set({ lastBackupTime: nowMs }, { merge: true });
+    const statusEl = document.getElementById('admin-backup-status-text');
+    if (statusEl) {
+        statusEl.innerHTML = `Last Backup Time: <b>${new Date(nowMs).toLocaleString()}</b>`;
+    }
+}
+
+function isValidBackupData(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (data._meta?.scope === 'users') return Array.isArray(data.users);
+    return !!(data.products && data.orders && data.settings && data.users);
+}
+
+async function restoreUsersBackupDocs(users) {
+    const batcher = new FirestoreBatcher();
+    for (const user of users) {
+        await batcher.set(db.collection('users').doc(user.id), user.data);
+        if (user.addresses && Array.isArray(user.addresses)) {
+            for (const addr of user.addresses) {
+                await batcher.set(
+                    db.collection('users').doc(user.id).collection('addresses').doc(addr.id),
+                    addr.data
+                );
+            }
+        }
+    }
+    await batcher.commit();
+}
+
+async function restoreFullBackupDocs(data) {
+    const batcher = new FirestoreBatcher();
+    const cols = [...FIRESTORE_BACKUP_COLLECTIONS];
+    for (const col of cols) {
+        if (data[col] && Array.isArray(data[col])) {
+            for (const doc of data[col]) {
+                await batcher.set(db.collection(col).doc(doc.id), doc.data);
+            }
+        }
+    }
+
+    if (data.support_threads && Array.isArray(data.support_threads)) {
+        for (const thread of data.support_threads) {
+            await batcher.set(db.collection('support_threads').doc(thread.id), thread.data);
+            if (thread.messages && Array.isArray(thread.messages)) {
+                for (const msg of thread.messages) {
+                    await batcher.set(
+                        db.collection('support_threads').doc(thread.id).collection('messages').doc(msg.id),
+                        msg.data
+                    );
+                }
+            }
+        }
+    }
+
+    if (data.users && Array.isArray(data.users)) {
+        for (const user of data.users) {
+            await batcher.set(db.collection('users').doc(user.id), user.data);
+            if (user.addresses && Array.isArray(user.addresses)) {
+                for (const addr of user.addresses) {
+                    await batcher.set(
+                        db.collection('users').doc(user.id).collection('addresses').doc(addr.id),
+                        addr.data
+                    );
+                }
+            }
+        }
+    }
+
+    await batcher.commit();
+}
+
 async function loadBackupSettings() {
     try {
         const snap = await db.collection('settings').doc('backup').get();
@@ -2519,208 +2804,103 @@ async function checkAndRunAutoBackup(interval, lastBackupTime) {
 }
 
 async function triggerManualBackup() {
-    showToast("⏳ Preparing database backup... Please wait.");
+    showToast('⏳ Preparing database backup... Please wait.');
     try {
         await runBackup(false, false);
-    } catch(err) {
-        console.error("Manual backup failed:", err);
-        showToast("Failed to generate backup");
+    } catch (err) {
+        console.error('Manual backup failed:', err);
+        showToast('Failed to generate backup');
     }
 }
 
 async function triggerManualBackupEmail() {
-    showToast("⏳ Preparing database backup for email... Please wait.");
+    showToast('⏳ Preparing database backup for email... Please wait.');
     try {
         await runBackup(false, true);
-    } catch(err) {
-        console.error("Manual email backup failed:", err);
-        showToast("Failed to generate backup");
+    } catch (err) {
+        console.error('Manual email backup failed:', err);
+        showToast('Failed to generate backup');
+    }
+}
+
+async function triggerUsersBackup() {
+    if (!isSuperAdmin) return showToast('Only superadmin can export users & auth.');
+
+    showToast('⏳ Preparing users & auth backup...');
+    try {
+        const payload = await buildBackupPayload('users');
+        try {
+            const authExport = await fetchAuthUsersExport();
+            payload.auth_users = authExport.users || [];
+            payload._meta.authUsersCount = payload.auth_users.length;
+            payload._meta.authExported = true;
+            payload._meta.authExportedAt = authExport.exportedAt;
+        } catch (authErr) {
+            console.warn('Auth export unavailable:', authErr);
+            payload._meta.authExported = false;
+            payload._meta.authExportNote = authErr.message || 'Auth export requires FIREBASE_SERVICE_ACCOUNT on the server.';
+        }
+
+        await deliverBackupJson(payload, buildBackupFilename('users', false), false, false);
+        const authNote = payload._meta.authExported
+            ? ` (${payload.auth_users.length} Firebase Auth accounts included)`
+            : ' (Firestore profiles only — configure auth export on server for login metadata)';
+        showToast(`✅ Users backup download started${authNote}`);
+    } catch (err) {
+        console.error('Users backup failed:', err);
+        showToast('Failed to create users backup.');
     }
 }
 
 async function runBackup(isAuto = false, forceEmail = false) {
-    const collections = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
-    const backupData = {};
-    
-    // Fetch regular collections
-    for (const col of collections) {
-        const snap = await db.collection(col).get();
-        const docs = [];
-        snap.forEach(doc => {
-            docs.push({ id: doc.id, data: doc.data() });
-        });
-        backupData[col] = docs;
-    }
-
-    const supportSnap = await db.collection('support_threads').get();
-    const supportThreadsList = [];
-    for (const doc of supportSnap.docs) {
-        const msgSnap = await db.collection('support_threads').doc(doc.id).collection('messages').get();
-        const messages = [];
-        msgSnap.forEach(mDoc => {
-            messages.push({ id: mDoc.id, data: mDoc.data() });
-        });
-        supportThreadsList.push({ id: doc.id, data: doc.data(), messages });
-    }
-    backupData['support_threads'] = supportThreadsList;
-    
-    // Fetch users collection with subcollection addresses
-    const usersSnap = await db.collection('users').get();
-    const usersList = [];
-    for (const doc of usersSnap.docs) {
-        const userData = doc.data();
-        const addrSnap = await db.collection('users').doc(doc.id).collection('addresses').get();
-        const addresses = [];
-        addrSnap.forEach(aDoc => {
-            addresses.push({ id: aDoc.id, data: aDoc.data() });
-        });
-        usersList.push({ id: doc.id, data: userData, addresses: addresses });
-    }
-    backupData['users'] = usersList;
-    
-    // Convert to JSON and trigger download/email
-    const jsonString = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const now = new Date();
-    const dateStr = now.toISOString().replace(/T/, '_').replace(/\\.+/, '').replace(/:/g, '-');
-    const filename = `swagstree_backup_${isAuto ? 'auto_' : 'manual_'}${dateStr}.json`;
-    
-    if (isAuto || forceEmail) {
-        try {
-            showToast("⏳ Uploading backup to secure storage...");
-            
-            const fd = new FormData();
-            fd.append("file", blob, filename);
-            fd.append("upload_preset", typeof PRESET !== 'undefined' ? PRESET : "swagstree_upload");
-            const cloudName = typeof CLOUD_NAME !== 'undefined' ? CLOUD_NAME : "mysharecloud";
-            
-            const r = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-                method: "POST",
-                body: fd
-            });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.error ? d.error.message : "Cloudinary upload failed");
-            
-            const downloadUrl = d.secure_url;
-            
-            await db.collection('mail').add({
-                to: 'backup@swagstree.com',
-                message: {
-                    subject: `Swag Stree ${isAuto ? 'Auto' : 'Manual'} Backup: ${filename}`,
-                    text: `Your ${isAuto ? 'automated' : 'manual'} database backup is ready.\n\nDownload Link: ${downloadUrl}\n\nNote: This file is stored securely in your Cloudinary Storage.\n\nGenerated at: ${now.toLocaleString()}`
-                }
-            });
-            showToast(`✅ Backup completed and emailed to backup@swagstree.com!`);
-        } catch (err) {
-            console.error("Backup upload/email failed:", err);
-            showToast("⚠️ Backup failed to email (CORS or Storage error)");
-        }
-    } else {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        showToast(`Backup download started: ${filename}`);
-    }
-    
-    URL.revokeObjectURL(url);
-    
-    // Update last backup timestamp in settings/backup
-    const nowMs = Date.now();
-    await db.collection('settings').doc('backup').set({ lastBackupTime: nowMs }, { merge: true });
-    
-    // Refresh status text
-    const statusEl = document.getElementById('admin-backup-status-text');
-    if (statusEl) {
-        statusEl.innerHTML = `Last Backup Time: <b>${new Date(nowMs).toLocaleString()}</b>`;
-    }
+    const backupData = await buildBackupPayload('full');
+    await deliverBackupJson(backupData, buildBackupFilename('full', isAuto), isAuto, forceEmail);
 }
 
 async function restoreBackupFromFile(input) {
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
-    
+
     const reader = new FileReader();
     reader.onload = async function(e) {
         try {
             const data = JSON.parse(e.target.result);
-            
-            // Validation
-            if (!data.products || !data.orders || !data.feedbacks || !data.settings || !data.users || !data.admins) {
-                showToast("⚠️ Invalid backup file format!");
+
+            if (!isValidBackupData(data)) {
+                showToast('⚠️ Invalid backup file format!');
                 input.value = '';
                 return;
-            }
-            
-            const confirmMsg = "CRITICAL WARNING:\n\n" +
-                               "Restoring this backup will insert or overwrite documents in all collections (products, orders, feedbacks, users, settings, admins).\n" +
-                               "It is highly recommended to download a backup of your current database first.\n\n" +
-                               "To proceed with the restore operation, please type \"RESTORE\" in the prompt below:";
-            
-            const promptVal = prompt(confirmMsg);
-            if (promptVal !== 'RESTORE') {
-                showToast("Restore operation cancelled.");
-                input.value = '';
-                return;
-            }
-            
-            showToast("⏳ Restoring database in batches... Do not close the window.");
-            
-            const batcher = new FirestoreBatcher();
-            
-            // Restore regular collections
-            const cols = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
-            for (const col of cols) {
-                if (data[col] && Array.isArray(data[col])) {
-                    for (const doc of data[col]) {
-                        await batcher.set(db.collection(col).doc(doc.id), doc.data);
-                    }
-                }
             }
 
-            if (data.support_threads && Array.isArray(data.support_threads)) {
-                for (const thread of data.support_threads) {
-                    await batcher.set(db.collection('support_threads').doc(thread.id), thread.data);
-                    if (thread.messages && Array.isArray(thread.messages)) {
-                        for (const msg of thread.messages) {
-                            await batcher.set(
-                                db.collection('support_threads').doc(thread.id).collection('messages').doc(msg.id),
-                                msg.data
-                            );
-                        }
-                    }
-                }
+            const isUsersScope = data._meta?.scope === 'users';
+            const confirmMsg = isUsersScope
+                ? 'CRITICAL WARNING:\n\nThis will overwrite Firestore user profiles and saved addresses from the backup file.\nFirebase Auth login accounts are NOT changed by this restore.\n\nType "RESTORE USERS" to proceed:'
+                : 'CRITICAL WARNING:\n\nRestoring this backup will insert or overwrite documents in all collections (products, orders, feedbacks, announcements, comments, users, settings, admins, support chats).\n\nDownload a backup of your current database first.\n\nType "RESTORE" to proceed:';
+
+            const expectedPhrase = isUsersScope ? 'RESTORE USERS' : 'RESTORE';
+            const promptVal = prompt(confirmMsg);
+            if (promptVal !== expectedPhrase) {
+                showToast('Restore operation cancelled.');
+                input.value = '';
+                return;
             }
-            
-            // Restore users and subcollection addresses
-            if (data.users && Array.isArray(data.users)) {
-                for (const user of data.users) {
-                    await batcher.set(db.collection('users').doc(user.id), user.data);
-                    
-                    if (user.addresses && Array.isArray(user.addresses)) {
-                        for (const addr of user.addresses) {
-                            await batcher.set(
-                                db.collection('users').doc(user.id).collection('addresses').doc(addr.id),
-                                addr.data
-                            );
-                        }
-                    }
-                }
+
+            showToast('⏳ Restoring database in batches... Do not close the window.');
+
+            if (isUsersScope) {
+                await restoreUsersBackupDocs(data.users);
+                showToast('✅ User profiles restored successfully! Reloading page...');
+            } else {
+                await restoreFullBackupDocs(data);
+                showToast('✅ Database restored successfully! Reloading page...');
             }
-            
-            await batcher.commit();
-            showToast("✅ Database restored successfully! Reloading page...");
+
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
-            
-        } catch(err) {
-            console.error("Error restoring backup:", err);
-            showToast("Failed to restore backup. Please ensure the file is valid JSON.");
+        } catch (err) {
+            console.error('Error restoring backup:', err);
+            showToast('Failed to restore backup. Please ensure the file is valid JSON.');
         } finally {
             input.value = '';
         }
@@ -2731,10 +2911,55 @@ async function restoreBackupFromFile(input) {
 window.loadBackupSettings = loadBackupSettings;
 window.saveBackupSettings = saveBackupSettings;
 window.triggerManualBackup = triggerManualBackup;
+window.triggerManualBackupEmail = triggerManualBackupEmail;
+window.triggerUsersBackup = triggerUsersBackup;
 window.restoreBackupFromFile = restoreBackupFromFile;
 
 // ── Global Announcement Administration ──────────────────────────────────────
 let editingAnnouncementId = null;
+window.announcementDraftImages = window.announcementDraftImages || [];
+
+function isValidAnnouncementImageUrl(url) {
+    const img = String(url || '').trim();
+    return img && img !== 'null' && img !== 'undefined'
+        && (img.startsWith('http://') || img.startsWith('https://'));
+}
+
+function getAnnouncementImagesFromData(data) {
+    if (!data) return [];
+    if (Array.isArray(data.images) && data.images.length) {
+        return data.images.map(u => String(u || '').trim()).filter(isValidAnnouncementImageUrl);
+    }
+    const legacy = String(data.image || '').trim();
+    return isValidAnnouncementImageUrl(legacy) ? [legacy] : [];
+}
+
+function renderAnnouncementImagesPreview() {
+    const container = document.getElementById('admin-announcement-images-preview');
+    if (!container) return;
+
+    const images = window.announcementDraftImages || [];
+    if (!images.length) {
+        container.innerHTML = '<p class="announcement-admin-images-empty">No images added — announcement will be text only.</p>';
+        return;
+    }
+
+    container.innerHTML = images.map((url, index) => `
+        <div class="announcement-admin-image-card">
+            <img src="${url}" alt="Announcement image ${index + 1}">
+            <button type="button" class="announcement-admin-image-remove" onclick="removeAnnouncementImageAt(${index})" title="Remove image">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function clearAnnouncementImages() {
+    window.announcementDraftImages = [];
+    const fileInput = document.getElementById('admin-announcement-file');
+    if (fileInput) fileInput.value = '';
+    renderAnnouncementImagesPreview();
+}
 
 function toggleAnnouncementAccordion() {
     const content = document.getElementById('announcement-accordion-content');
@@ -2753,76 +2978,77 @@ window.toggleAnnouncementAccordion = toggleAnnouncementAccordion;
 
 async function handleAnnouncementFileUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const previewContainer = document.getElementById("admin-announcement-image-preview-container");
-    const previewImg = document.getElementById("admin-announcement-image-preview");
-    const hiddenInput = document.getElementById("admin-announcement-image");
-    
+
     const uploadLabel = document.querySelector('label[for="admin-announcement-file"]');
-    const originalText = uploadLabel ? uploadLabel.innerHTML : "Upload Image to Cloudinary";
-    if (uploadLabel) uploadLabel.innerHTML = `<i class="fa fa-spinner fa-spin"></i> Uploading...`;
-    
+    const originalText = uploadLabel ? uploadLabel.innerHTML : '<i class="fa fa-cloud-upload-alt"></i> Add Images';
+    const files = Array.from(input.files);
+
+    if (uploadLabel) uploadLabel.innerHTML = `<i class="fa fa-spinner fa-spin"></i> Uploading ${files.length}…`;
+
     try {
-        const url = await uploadToCloudinary(file);
-        if (hiddenInput) hiddenInput.value = url;
-        if (previewImg) previewImg.src = url;
-        if (previewContainer) previewContainer.style.display = "flex";
-        showToast("Image uploaded to Cloudinary successfully!");
+        for (const file of files) {
+            const url = await uploadToCloudinary(file);
+            window.announcementDraftImages.push(url);
+        }
+        renderAnnouncementImagesPreview();
+        showToast(`${files.length} image${files.length === 1 ? '' : 's'} uploaded.`);
     } catch (e) {
         console.error(e);
-        showToast("Upload failed: " + e.message);
+        showToast('Upload failed: ' + e.message);
     } finally {
         if (uploadLabel) uploadLabel.innerHTML = originalText;
+        input.value = '';
     }
 }
 window.handleAnnouncementFileUpload = handleAnnouncementFileUpload;
 
+function removeAnnouncementImageAt(index) {
+    if (!Array.isArray(window.announcementDraftImages)) return;
+    window.announcementDraftImages.splice(index, 1);
+    renderAnnouncementImagesPreview();
+}
+window.removeAnnouncementImageAt = removeAnnouncementImageAt;
+
 function removeAnnouncementImage() {
-    const previewContainer = document.getElementById("admin-announcement-image-preview-container");
-    const previewImg = document.getElementById("admin-announcement-image-preview");
-    const hiddenInput = document.getElementById("admin-announcement-image");
-    const fileInput = document.getElementById("admin-announcement-file");
-    
-    if (hiddenInput) hiddenInput.value = "";
-    if (previewImg) previewImg.src = "";
-    if (previewContainer) previewContainer.style.display = "none";
-    if (fileInput) fileInput.value = "";
+    clearAnnouncementImages();
 }
 window.removeAnnouncementImage = removeAnnouncementImage;
 
 async function publishAnnouncement() {
     const textEl = document.getElementById("admin-announcement-msg");
-    const imageEl = document.getElementById("admin-announcement-image");
     if (!textEl) return;
-    
+
     const msg = textEl.value.trim();
-    const imageUrl = imageEl ? imageEl.value.trim() : "";
-    
+    const images = (window.announcementDraftImages || []).filter(isValidAnnouncementImageUrl);
+
     if (!msg) {
         showToast("Please enter an announcement message.");
         return;
     }
-    
+
+    const payload = {
+        message: msg,
+        images,
+        image: firebase.firestore.FieldValue.delete(),
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
     try {
         if (editingAnnouncementId) {
-            await db.collection("announcements").doc(editingAnnouncementId).update({
-                message: msg,
-                image: imageUrl,
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            await db.collection("announcements").doc(editingAnnouncementId).update(payload);
             showToast("Announcement updated successfully!");
             cancelAnnouncementEdit();
         } else {
             const id = 'ann_' + Date.now();
             await db.collection("announcements").doc(id).set({
-                id: id,
+                id,
                 message: msg,
-                image: imageUrl,
+                images,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
             showToast("Announcement published successfully!");
             textEl.value = "";
-            removeAnnouncementImage();
+            clearAnnouncementImages();
         }
     } catch (e) {
         console.error("Error publishing/updating announcement:", e);
@@ -2855,23 +3081,13 @@ async function editAnnouncementAdmin(id) {
         }
         const data = snap.data();
         const textEl = document.getElementById("admin-announcement-msg");
-        const imageEl = document.getElementById("admin-announcement-image");
-        const previewContainer = document.getElementById("admin-announcement-image-preview-container");
-        const previewImg = document.getElementById("admin-announcement-image-preview");
         const pubBtn = document.getElementById("admin-announcement-pub-btn");
         const cancelBtn = document.getElementById("admin-announcement-cancel-btn");
         
         if (textEl) textEl.value = data.message || "";
-        if (imageEl) imageEl.value = data.image || "";
-        
-        if (data.image) {
-            if (previewImg) previewImg.src = data.image;
-            if (previewContainer) previewContainer.style.display = "flex";
-        } else {
-            if (previewImg) previewImg.src = "";
-            if (previewContainer) previewContainer.style.display = "none";
-        }
-        
+        window.announcementDraftImages = getAnnouncementImagesFromData(data);
+        renderAnnouncementImagesPreview();
+
         editingAnnouncementId = id;
         if (pubBtn) pubBtn.textContent = "Update Announcement";
         if (cancelBtn) cancelBtn.style.display = "block";
@@ -2896,13 +3112,14 @@ function cancelAnnouncementEdit() {
     const cancelBtn = document.getElementById("admin-announcement-cancel-btn");
     
     if (textEl) textEl.value = "";
-    removeAnnouncementImage();
+    clearAnnouncementImages();
     if (pubBtn) pubBtn.textContent = "Publish";
     if (cancelBtn) cancelBtn.style.display = "none";
 }
 window.cancelAnnouncementEdit = cancelAnnouncementEdit;
 
 function loadAnnouncementSettingsAdmin() {
+    renderAnnouncementImagesPreview();
     db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(snap => {
         const list = [];
         snap.forEach(doc => {
@@ -2927,21 +3144,33 @@ function renderAdminAnnouncements(list) {
         return;
     }
     
-    container.innerHTML = list.map(ann => `
+    container.innerHTML = list.map(ann => {
+        const images = getAnnouncementImagesFromData(ann);
+        const thumb = images[0]
+            ? `<img src="${images[0]}" style="width:40px; height:40px; object-fit:cover; border-radius:4px; border:1px solid #222; flex-shrink:0;">`
+            : `<div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:#222; border-radius:4px; border:1px solid #333; flex-shrink:0;"><i class="fa fa-bullhorn" style="color:#ffd700; font-size:12px;"></i></div>`;
+        const imageCount = images.length > 1
+            ? `<span style="font-size:9px; color:var(--gold); font-weight:700;">+${images.length - 1} img</span>`
+            : '';
+
+        return `
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; background:#111; border:1px solid #333; border-radius:8px;">
             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                ${ann.image? `<img src="${ann.image}" style="width:40px; height:40px; object-fit:cover; border-radius:4px; border:1px solid #222; flex-shrink:0;">` : `<div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:#222; border-radius:4px; border:1px solid #333; flex-shrink:0;"><i class="fa fa-bullhorn" style="color:#ffd700; font-size:12px;"></i></div>`}
+                ${thumb}
                 <div style="min-width:0; flex:1;">
                     <p style="margin:0; font-size:11px; color:#fff; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word;">${ann.message}</p>
-                    <span style="font-size:9px; color:#666;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                        <span style="font-size:9px; color:#666;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>
+                        ${imageCount}
+                    </div>
                 </div>
             </div>
             <div style="display:flex; gap:6px; flex-shrink:0;">
                 <button onclick="editAnnouncementAdmin('${ann.id}')" style="background:#ffd700; border:none; color:#000; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:700;"><i class="fa fa-edit"></i></button>
                 <button onclick="deleteAnnouncementAdmin('${ann.id}')" style="background:#ff4757; border:none; color:#fff; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:700;"><i class="fa fa-trash"></i></button>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 
