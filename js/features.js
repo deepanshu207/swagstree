@@ -1282,7 +1282,9 @@ function applyFeatureTogglesUI() {
     }
     const bellBtn = document.getElementById('announcement-bell-btn');
     if (bellBtn) {
-        bellBtn.style.display = config.announcementBell !== false ? 'flex' : 'none';
+        const showBell = config.announcementBell !== false;
+        bellBtn.style.display = showBell ? 'flex' : 'none';
+        bellBtn.classList.toggle('catalog-action-hidden', !showBell);
     }
     
     // Discount Wheel
@@ -1339,6 +1341,7 @@ function applyFeatureTogglesUI() {
     }
 
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
+    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
     if (typeof refreshCommentsEnabledUI === 'function') {
         refreshCommentsEnabledUI(false);
     }

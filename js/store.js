@@ -354,7 +354,11 @@ function loadData() {
             });
         });
         const isAnnBellEnabled = !window.APP_FEATURES || window.APP_FEATURES.announcementBell !== false;
-        if (bell) bell.style.display = isAnnBellEnabled ? 'flex' : 'none';
+        if (bell) {
+            bell.style.display = isAnnBellEnabled ? 'flex' : 'none';
+            bell.classList.toggle('catalog-action-hidden', !isAnnBellEnabled);
+        }
+        if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
         updateAnnouncementBellUI();
     }, error => {
         console.error("Firestore announcements list load error:", error);
@@ -514,13 +518,9 @@ function isProductOutOfStock(p) {
 window.isProductOutOfStock = isProductOutOfStock;
 
 function formatCatalogProductCount(visible, total) {
-    const fullText = typeof window.getI18nText === 'function'
+    return typeof window.getI18nText === 'function'
         ? window.getI18nText('showing_products', { visible, total })
         : `Showing ${visible} of ${total} Products`;
-    const compactText = typeof window.getI18nText === 'function'
-        ? window.getI18nText('showing_products_compact', { visible, total })
-        : `Showing ${visible} of ${total}`;
-    return `<span class="count-full">${fullText}</span><span class="count-compact">${compactText}</span>`;
 }
 
 function renderProducts(items, targetId) {
@@ -580,7 +580,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = formatCatalogProductCount(0, 0);
+                countContainer.textContent = formatCatalogProductCount(0, 0);
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -603,7 +603,7 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
-            countContainer.innerHTML = formatCatalogProductCount(visible, items.length);
+            countContainer.textContent = formatCatalogProductCount(visible, items.length);
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {
@@ -688,7 +688,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = formatCatalogProductCount(0, 0);
+                countContainer.textContent = formatCatalogProductCount(0, 0);
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -711,7 +711,7 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
-            countContainer.innerHTML = formatCatalogProductCount(visible, items.length);
+            countContainer.textContent = formatCatalogProductCount(visible, items.length);
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {

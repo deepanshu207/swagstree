@@ -1556,6 +1556,37 @@ body {
     align-items: center;
     gap: 10px;
 }
+.ai-chat-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 10px;
+    background: #0d0d0d;
+    border-bottom: 1px solid var(--border);
+}
+.ai-chat-tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 10px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+.ai-chat-tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+    background: rgba(255, 215, 0, 0.05);
+}
+.ai-chat-tab i {
+    font-size: 11px;
+}
 .ai-chat-avatar {
     width: 32px;
     height: 32px;
@@ -1900,8 +1931,14 @@ body {
     white-space: nowrap;
 }
 
-.catalog-count-label .count-compact {
-    display: none;
+.catalog-controls-row.catalog-row-icons-minimal .catalog-count-label {
+    flex: 1 1 auto;
+    max-width: none;
+}
+
+.catalog-controls-row.catalog-row-no-chat .catalog-count-label,
+.catalog-controls-row.catalog-row-no-announcement .catalog-count-label {
+    max-width: none;
 }
 
 .catalog-controls-actions {
@@ -2092,17 +2129,15 @@ body {
     .catalog-controls-row .count-badge,
     .catalog-count-label {
         font-size: 9px;
-        padding: 5px 9px;
-        letter-spacing: 0.4px;
-        flex: 0 1 auto;
+        padding: 5px 10px;
+        letter-spacing: 0.35px;
+        flex: 1 1 auto;
         min-width: 0;
+        max-width: 46vw;
+    }
+    .catalog-controls-row.catalog-row-icons-minimal .catalog-count-label,
+    .catalog-controls-row.catalog-row-no-chat.catalog-row-no-announcement .catalog-count-label {
         max-width: none;
-    }
-    .catalog-count-label .count-full {
-        display: none;
-    }
-    .catalog-count-label .count-compact {
-        display: inline;
     }
     .catalog-controls-actions {
         gap: 5px;

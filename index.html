@@ -313,21 +313,21 @@
     <div id="wish-view" class="section">
         <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
         <div class="catalog-controls-row">
-            <span id="wish-count" class="count-badge" style="display:none;">0 Products</span>
-            
-            <div id="wish-sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
-                <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
-                    <i class="fa fa-sort"
-                        style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
-                    <select id="wish-sort-logic" class="premium-select"
-                        style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;"
-                        onchange="changeWishlistSort(this.value)">
-                        <option value="none" data-i18n="default_sorting">Default Sort</option>
-                        <option value="low" data-i18n="low_high">Price: Low to High</option>
-                        <option value="high" data-i18n="high_low">Price: High to Low</option>
-                        <option value="newest" data-i18n="newest">Newest Arrivals</option>
-                        <option value="best" data-i18n="best">Best Selling</option>
-                    </select>
+            <span id="wish-count" class="count-badge catalog-count-label" style="display:none;"></span>
+
+            <div class="catalog-controls-actions">
+                <div id="wish-sort-logic-container" class="catalog-sort-wrap" style="display:none;">
+                    <div class="select-wrapper catalog-sort-select">
+                        <i class="fa fa-sort catalog-sort-icon"></i>
+                        <select id="wish-sort-logic" class="premium-select catalog-sort-dropdown"
+                            onchange="changeWishlistSort(this.value)">
+                            <option value="none" data-i18n="default_sorting">Default Sort</option>
+                            <option value="low" data-i18n="low_high">Price: Low to High</option>
+                            <option value="high" data-i18n="high_low">Price: High to Low</option>
+                            <option value="newest" data-i18n="newest">Newest Arrivals</option>
+                            <option value="best" data-i18n="best">Best Selling</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2328,6 +2328,14 @@
             <span class="theme-drawer-close" style="margin-left:auto; font-size:20px; cursor:pointer;"
                 onclick="toggleAIChat()">&times;</span>
         </div>
+        <div class="ai-chat-tabs" id="ai-chat-tabs">
+            <button type="button" id="ai-chat-tab-ai" class="ai-chat-tab active" onclick="switchSupportChatTab('ai')">
+                <i class="fa fa-robot"></i> AI Help
+            </button>
+            <button type="button" id="ai-chat-tab-admin" class="ai-chat-tab" onclick="switchSupportChatTab('admin')">
+                <i class="fa fa-headset"></i> Live Support
+            </button>
+        </div>
         <div class="ai-chat-body" id="ai-chat-body"></div>
         <div class="ai-chat-chips" id="ai-chat-chips"></div>
         <div class="ai-chat-input-area">
@@ -2359,14 +2367,14 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.37"></script>
-    <script src="js/app.js?v=9.37"></script>
-    <script src="js/store.js?v=9.37"></script>
-    <script src="js/checkout.js?v=9.37"></script>
-    <script src="js/auth.js?v=9.37"></script>
-    <script src="js/comments.js?v=9.37"></script>
-    <script src="js/support-chat.js?v=9.37"></script>
-    <script src="js/admin.js?v=9.37"></script>
+    <script src="js/features.js?v=9.38"></script>
+    <script src="js/app.js?v=9.38"></script>
+    <script src="js/store.js?v=9.38"></script>
+    <script src="js/checkout.js?v=9.38"></script>
+    <script src="js/auth.js?v=9.38"></script>
+    <script src="js/comments.js?v=9.38"></script>
+    <script src="js/support-chat.js?v=9.38"></script>
+    <script src="js/admin.js?v=9.38"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

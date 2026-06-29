@@ -16,6 +16,7 @@ window.supportChatState = window.supportChatState || {
     activeThreadId: null,
     adminThreadId: null,
     mode: 'ai',
+    activeTab: 'ai',
     loaded: false
 };
 
@@ -28,13 +29,18 @@ let supportNotifyInitialized = false;
 const supportSeenAdminMsgIds = new Set();
 window.supportThreadsCache = window.supportThreadsCache || [];
 
-const SUPPORT_QUICK_CHIPS = [
+const AI_SUPPORT_CHIPS = [
     'Suggest outfits under ₹1000',
     'Track my order',
     'Best sellers',
-    'Contact support',
-    'Talk to admin',
-    'Return or complaint'
+    'Contact support'
+];
+
+const ADMIN_SUPPORT_CHIPS = [
+    'Order not received',
+    'Return or refund',
+    'Wrong or damaged item',
+    'Payment issue'
 ];
 
 function escHtml(str) {
@@ -264,14 +270,49 @@ function buildProductCardsHtml(products) {
     }).join('');
 }
 
-function renderSupportQuickChips() {
+function renderSupportQuickChips(tab) {
     const container = document.getElementById('ai-chat-chips');
     if (!container) return;
+    const chips = tab === 'admin' ? ADMIN_SUPPORT_CHIPS : AI_SUPPORT_CHIPS;
     container.style.display = 'flex';
-    container.innerHTML = SUPPORT_QUICK_CHIPS.map(chip =>
+    container.innerHTML = chips.map(chip =>
         `<div class="ai-chat-chip" onclick="sendChatMessageWithText('${chip.replace(/'/g, "\\'")}')">${escHtml(chip)}</div>`
     ).join('');
 }
+
+function updateSupportChatTabUI(tab) {
+    window.supportChatState.activeTab = tab;
+    const aiTab = document.getElementById('ai-chat-tab-ai');
+    const adminTab = document.getElementById('ai-chat-tab-admin');
+    const input = document.getElementById('ai-chat-input');
+    if (aiTab) aiTab.classList.toggle('active', tab === 'ai');
+    if (adminTab) adminTab.classList.toggle('active', tab === 'admin');
+    if (input) {
+        input.placeholder = tab === 'admin'
+            ? 'Describe your issue — our team will reply here...'
+            : 'Ask about products, prices, or orders...';
+    }
+    renderSupportQuickChips(tab);
+    if (tab === 'admin') {
+        updateSupportChatHeader('human', true);
+    } else {
+        updateSupportChatHeader('ai', false);
+    }
+}
+
+window.switchSupportChatTab = function(tab) {
+    if (tab !== 'ai' && tab !== 'admin') return;
+    updateSupportChatTabUI(tab);
+    if (tab === 'admin') {
+        const body = document.getElementById('ai-chat-body');
+        const hasAdminHint = body && body.querySelector('[data-admin-tab-hint]');
+        if (body && !hasAdminHint && body.childElementCount === 0) {
+            appendSupportBubble('bot', 'You are now in **Live Support**. Tell us your issue and a real admin will reply in this chat.');
+            const last = body.lastElementChild;
+            if (last) last.setAttribute('data-admin-tab-hint', '1');
+        }
+    }
+};
 
 function updateSupportChatHeader(mode, waitingHuman) {
     const subtitle = document.getElementById('ai-chat-status-text');
@@ -346,15 +387,8 @@ async function generateSmartSupportReply(userText) {
     }
     if (intent === 'human' || intent === 'complaint') {
         return {
-            text: intent === 'complaint'
-                ? "I'm sorry you're facing an issue. I've **escalated this to our admin team**. They will reply here shortly.\n\nYou can also reach us on WhatsApp or email while you wait."
-                : "Connecting you with a **live admin**. Please describe your question — our team will reply in this chat shortly.",
-            escalate: true,
-            extraHtml: `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-                <a href="https://wa.me/${contact.wa}" target="_blank" style="font-size:10px;color:var(--gold);">WhatsApp</a>
-                <span style="color:#444">•</span>
-                <a href="mailto:${escHtml(contact.email)}" style="font-size:10px;color:var(--gold);">${escHtml(contact.email)}</a>
-            </div>`
+            text: "For **live help from our team**, please open the **Live Support** tab above.",
+            extraHtml: `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="switchSupportChatTab('admin')">Open Live Support</button>`
         };
     }
     if (intent === 'order') {
@@ -465,11 +499,45 @@ async function syncSupportChatHeaderFromThread(threadId) {
     }
 }
 
-async function handleSupportCustomerMessage(text) {
+async function handleAdminSupportMessage(text) {
+    const threadId = getCurrentCustomerThreadId();
+    const profile = getCustomerProfile();
+    await ensureSupportThread(threadId, profile);
+
+    window.supportChatState.loaded = true;
+    appendSupportBubble('customer', text);
+
+    const customerMsg = {
+        sender: 'customer',
+        text,
+        type: 'complaint',
+        customerName: profile.name,
+        customerEmail: profile.email
+    };
+    try {
+        await persistSupportMessage(threadId, customerMsg);
+        await escalateSupportThread(threadId, 'complaint');
+    } catch (e) {
+        console.warn('Could not persist admin support message:', e);
+    }
+
+    updateSupportChatHeader('human', true);
+    appendSupportBubble('bot', "Thanks — your message was sent to our **support team**. We'll reply here as soon as possible.\n\nYou can also reach us on WhatsApp while you wait.", getContactInfoHtml());
+}
+
+function getContactInfoHtml() {
+    const contact = getContactInfo();
+    return `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+        <a href="https://wa.me/${contact.wa}" target="_blank" style="font-size:10px;color:var(--gold);">WhatsApp</a>
+        <span style="color:#444">•</span>
+        <a href="mailto:${escHtml(contact.email)}" style="font-size:10px;color:var(--gold);">${escHtml(contact.email)}</a>
+    </div>`;
+}
+
+async function handleAiSupportMessage(text) {
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
     const intent = detectSupportIntent(text);
-    const isEscalation = intent === 'complaint' || intent === 'human';
 
     await ensureSupportThread(threadId, profile);
 
@@ -479,7 +547,7 @@ async function handleSupportCustomerMessage(text) {
     const customerMsg = {
         sender: 'customer',
         text,
-        type: isEscalation ? (intent === 'complaint' ? 'complaint' : 'escalation') : 'text',
+        type: 'text',
         customerName: profile.name,
         customerEmail: profile.email
     };
@@ -489,19 +557,11 @@ async function handleSupportCustomerMessage(text) {
         console.warn('Could not persist customer message:', e);
     }
 
-    if (isEscalation) {
-        try {
-            await escalateSupportThread(threadId, intent);
-        } catch (e) {
-            console.warn('Could not escalate support thread:', e);
-        }
-    }
-
     const threadSnap = await db.collection('support_threads').doc(threadId).get();
     const threadData = threadSnap.exists ? threadSnap.data() : {};
-    if (threadData.mode === 'human' && !isEscalation && !canAnswerWhileAdminIsPending(intent)) {
+    if (threadData.mode === 'human' && !canAnswerWhileAdminIsPending(intent)) {
         updateSupportChatHeader('human', threadData.status === 'waiting_admin');
-        appendSupportBubble('bot', 'I have added this to your support conversation. Our team will reply here soon.');
+        appendSupportBubble('bot', 'This looks like a support follow-up. Please use the **Live Support** tab so our team can help you.', `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="switchSupportChatTab('admin')">Open Live Support</button>`);
         return;
     }
 
@@ -518,30 +578,24 @@ async function handleSupportCustomerMessage(text) {
             text: reply.text,
             type: reply.products ? 'product_suggest' : 'text'
         };
-        if (reply.escalate) aiMsg.escalated = true;
 
         try {
             await persistSupportMessage(threadId, aiMsg);
-            if (reply.escalate) {
-                await escalateSupportThread(threadId, intent === 'complaint' ? 'complaint' : 'human');
-            }
         } catch (persistErr) {
             console.warn('Could not persist AI reply (shown locally):', persistErr);
-            if (reply.escalate) {
-                try {
-                    await escalateSupportThread(threadId, intent === 'complaint' ? 'complaint' : 'human');
-                } catch (e) {
-                    console.warn('Could not escalate after AI persist failure:', e);
-                }
-            }
         }
-
-        if (reply.escalate) updateSupportChatHeader('human', true);
     } catch (e) {
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
         console.error('Support chat reply failed:', e);
-        appendSupportBubble('bot', 'Something went wrong. Please try again or tap **Talk to admin**.');
+        appendSupportBubble('bot', 'Something went wrong. Please try again or switch to **Live Support**.');
     }
+}
+
+async function handleSupportCustomerMessage(text) {
+    if (window.supportChatState.activeTab === 'admin') {
+        return handleAdminSupportMessage(text);
+    }
+    return handleAiSupportMessage(text);
 }
 
 function stopCustomerMessagesListener() {
@@ -582,6 +636,7 @@ function subscribeCustomerThread(threadId) {
                 window.supportChatState.loaded = true;
                 syncSupportChatHeaderFromThread(threadId);
             } else if (newAdminMsgs.length) {
+                if (typeof switchSupportChatTab === 'function') switchSupportChatTab('admin');
                 newAdminMsgs.forEach(m => {
                     appendSupportBubble('admin', m.text);
                     knownIds.add(m.id);
@@ -620,13 +675,24 @@ window.openSupportChat = async function() {
     await ensureSupportThread(threadId, profile);
     subscribeCustomerThread(threadId);
 
+    const threadSnap = await db.collection('support_threads').doc(threadId).get();
+    const threadData = threadSnap.exists ? threadSnap.data() : {};
+    const defaultTab = threadData.mode === 'human' ? 'admin' : 'ai';
+
     const msgSnap = await db.collection('support_threads').doc(threadId).collection('messages').limit(1).get();
     const body = document.getElementById('ai-chat-body');
     if (body && msgSnap.empty && body.childElementCount === 0) {
-        const welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, orders, or tap **Talk to admin** for live help.";
-        appendSupportBubble('bot', welcome);
+        if (defaultTab === 'admin') {
+            appendSupportBubble('bot', 'Welcome to **Live Support**. Describe your issue and our team will reply here.');
+            const last = body.lastElementChild;
+            if (last) last.setAttribute('data-admin-tab-hint', '1');
+        } else {
+            const welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, or orders. Need a person? Open the **Live Support** tab.";
+            appendSupportBubble('bot', welcome);
+        }
     }
-    renderSupportQuickChips();
+
+    updateSupportChatTabUI(defaultTab);
     await syncSupportChatHeaderFromThread(threadId);
     applySupportUnreadBadge(0);
 };
@@ -855,8 +921,10 @@ function updateSupportChatVisibility() {
     const enabled = !!(window.APP_FEATURES && window.APP_FEATURES.aiChatbot);
     const headerBtn = document.getElementById('header-support-chat-btn');
     const floatBtn = document.getElementById('ai-chat-trigger');
-    if (headerBtn) headerBtn.style.display = enabled ? 'flex' : 'none';
-    // Use header icon on home; hide duplicate floating bot when enabled
+    if (headerBtn) {
+        headerBtn.style.display = enabled ? 'flex' : 'none';
+        headerBtn.classList.toggle('catalog-action-hidden', !enabled);
+    }
     if (floatBtn) floatBtn.style.display = 'none';
     if (!enabled) {
         const box = document.getElementById('ai-chat-box');
@@ -868,8 +936,21 @@ function updateSupportChatVisibility() {
     }
     if (enabled) startSupportCustomerWatcher();
     else stopSupportCustomerWatcher();
+    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
 }
 window.updateSupportChatVisibility = updateSupportChatVisibility;
+
+window.updateCatalogControlsRowLayout = function() {
+    const row = document.querySelector('#home-view .catalog-controls-row');
+    if (!row) return;
+    const chatBtn = document.getElementById('header-support-chat-btn');
+    const annBtn = document.getElementById('announcement-bell-btn');
+    const chatVisible = chatBtn && chatBtn.style.display !== 'none';
+    const annVisible = annBtn && annBtn.style.display !== 'none';
+    row.classList.toggle('catalog-row-no-chat', !chatVisible);
+    row.classList.toggle('catalog-row-no-announcement', !annVisible);
+    row.classList.toggle('catalog-row-icons-minimal', !chatVisible && !annVisible);
+};
 
 window.cleanupSupportChatListeners = function() {
     stopCustomerMessagesListener();
