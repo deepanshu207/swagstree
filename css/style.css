@@ -500,9 +500,6 @@ body.footer-hidden {
         transform: translate3d(0, 0, 0);
         cursor: zoom-in;
     }
-    #det-zoom-trigger {
-        display: inline-flex !important;
-    }
     #det-thumbs {
         width: 90%;
         margin: 15px auto 0 !important;
