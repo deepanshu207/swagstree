@@ -339,6 +339,9 @@ function loadData() {
 
     db.collection("settings").doc("footer").onSnapshot(snap => {
         window.footerSettings = snap.exists ? snap.data() : {
+            showFooter: false,
+            footerTemplate: 'classic',
+            footerLayout: 'auto',
             copyright: "Swagstree",
             aboutText: `<h3>Who We Are</h3><p>Swag Stree is a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
