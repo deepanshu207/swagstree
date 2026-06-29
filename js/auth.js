@@ -282,6 +282,10 @@ auth.onAuthStateChanged(user => {
             displayedOrdersLimit = ordersPageLimitSetting;
             loadOrders();
         }
+
+        if (typeof refreshCheckoutFormForUser === 'function') {
+            refreshCheckoutFormForUser();
+        }
     } else {
         isSuperAdmin = false;
         isAdmin = false;
@@ -320,6 +324,10 @@ auth.onAuthStateChanged(user => {
         }
         if (typeof cleanupSupportChatListeners === 'function') {
             cleanupSupportChatListeners();
+        }
+
+        if (typeof clearCheckoutFormFields === 'function') {
+            clearCheckoutFormFields();
         }
     }
 
@@ -691,6 +699,7 @@ async function saveProfile() {
         if (avatar) avatar.innerText = nameVal.charAt(0).toUpperCase();
 
         showToast("✅ Profile updated!");
+        window.checkoutDetailsLoadedFor = null;
     } catch (e) {
         console.error("Profile update error:", e);
         showToast("Failed to update profile. Try again.");

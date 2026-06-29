@@ -819,7 +819,7 @@ function openCart() {
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 
     if (typeof autoPopulateCheckoutDetails === 'function') {
-        autoPopulateCheckoutDetails();
+        autoPopulateCheckoutDetails(false);
     }
 }
 
@@ -1356,6 +1356,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         if (phoneField) phoneField.value = '';
         if (emailField) emailField.value = '';
         if (addrField) addrField.value = '';
+        window.checkoutDetailsLoadedFor = null;
         closeModal('cart-modal');
         // Only reload order history for logged-in users
         if (currentUser) loadOrders();
@@ -2894,6 +2895,27 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
 window.triggerEmailNotification = triggerEmailNotification;
 
 // ── Checkout Auto-population from Saved Profile Address ──────────────────
+window.getCheckoutOwnerKey = function() {
+    return currentUser && currentUser.uid ? `user:${currentUser.uid}` : 'guest';
+};
+
+window.clearCheckoutFormFields = function() {
+    ['c-name', 'c-phone', 'c-email', 'c-addr'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const msgEl = document.getElementById('checkout-email-msg');
+    if (msgEl) msgEl.style.display = 'none';
+    window.checkoutDetailsLoadedFor = null;
+};
+
+window.refreshCheckoutFormForUser = async function() {
+    window.checkoutDetailsLoadedFor = null;
+    if (typeof autoPopulateCheckoutDetails === 'function') {
+        await autoPopulateCheckoutDetails(true);
+    }
+};
+
 async function syncDefaultAddressToCheckout() {
     const addrField = document.getElementById('c-addr');
     if (!addrField) return;
@@ -2938,11 +2960,13 @@ async function syncDefaultAddressToCheckout() {
     }
 }
 
-async function autoPopulateCheckoutDetails() {
+async function autoPopulateCheckoutDetails(forceRefresh) {
     const nameField = document.getElementById('c-name');
     const phoneField = document.getElementById('c-phone');
     const emailField = document.getElementById('c-email');
     const addrField = document.getElementById('c-addr');
+    const ownerKey = typeof getCheckoutOwnerKey === 'function' ? getCheckoutOwnerKey() : (currentUser ? 'user' : 'guest');
+    const shouldRefresh = !!forceRefresh || window.checkoutDetailsLoadedFor !== ownerKey;
 
     if (emailField && !emailField.dataset.listenerAdded) {
         emailField.dataset.listenerAdded = 'true';
@@ -2991,54 +3015,44 @@ async function autoPopulateCheckoutDetails() {
         });
     }
 
+    if (!shouldRefresh) return;
+
+    if (nameField) nameField.value = '';
+    if (phoneField) phoneField.value = '';
+    if (emailField) emailField.value = '';
+    if (addrField) addrField.value = '';
+    const msgEl = document.getElementById('checkout-email-msg');
+    if (msgEl) msgEl.style.display = 'none';
+
     if (currentUser) {
-        // Logged-in user: Prefill name & email
-        if (nameField && !nameField.value.trim()) {
-            nameField.value = currentUser.displayName || '';
-        }
-        if (emailField && !emailField.value.trim()) {
-            emailField.value = currentUser.email || '';
-        }
-        
+        if (emailField) emailField.value = currentUser.email || '';
+        if (nameField) nameField.value = currentUser.displayName || '';
+
         try {
             const userDoc = await db.collection("users").doc(currentUser.uid).get();
             if (userDoc.exists) {
                 const uData = userDoc.data();
-                if (nameField && !nameField.value.trim() && uData.displayName) {
-                    nameField.value = uData.displayName;
-                }
-                if (phoneField && !phoneField.value.trim() && uData.phone) {
-                    phoneField.value = uData.phone;
-                }
+                if (nameField && uData.displayName) nameField.value = uData.displayName;
+                if (phoneField && uData.phone) phoneField.value = uData.phone;
             }
 
-            // Prefill with default profile address from Firestore
-            if (addrField && !addrField.value.trim()) {
-                await syncDefaultAddressToCheckout();
-            }
+            if (addrField) await syncDefaultAddressToCheckout();
         } catch (e) {
             console.error("Error populating from Firestore:", e);
         }
     } else {
-        // Guest user: Prefill from localStorage cache of previous checkouts
-        if (nameField && !nameField.value.trim()) {
-            nameField.value = localStorage.getItem("swagstree_guest_name") || '';
-        }
-        if (phoneField && !phoneField.value.trim()) {
-            phoneField.value = localStorage.getItem("swagstree_guest_phone") || '';
-        }
-        if (emailField && !emailField.value.trim()) {
+        if (nameField) nameField.value = localStorage.getItem("swagstree_guest_name") || '';
+        if (phoneField) phoneField.value = localStorage.getItem("swagstree_guest_phone") || '';
+        if (emailField) {
             emailField.value = localStorage.getItem("swagstree_guest_email") || '';
-            // Manually run check on initial auto-populate for guests if they have cached email
             setTimeout(() => {
-                const event = new Event('blur');
-                emailField.dispatchEvent(event);
+                emailField.dispatchEvent(new Event('blur'));
             }, 100);
         }
-        if (addrField && !addrField.value.trim()) {
-            await syncDefaultAddressToCheckout();
-        }
+        if (addrField) await syncDefaultAddressToCheckout();
     }
+
+    window.checkoutDetailsLoadedFor = ownerKey;
 }
 
 // ── Profile Address Accordion Functions ────────────────────────
