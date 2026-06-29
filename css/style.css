@@ -533,6 +533,172 @@ input[type="checkbox"], input[type="radio"] {
 .btn-gold { width: 100%; padding: 16px; background: var(--gold); color: black; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; text-transform: uppercase; }
 .btn-gold:disabled { background: #555; color: #222; cursor: not-allowed; }
 
+/* Auto Data Retention (Superadmin) */
+.retention-panel-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #1a1a1a;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #333;
+}
+.retention-info-box {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    background: rgba(255, 215, 0, 0.06);
+    border: 1px solid rgba(255, 215, 0, 0.18);
+    border-radius: 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #bbb;
+}
+.retention-info-box i {
+    color: var(--gold);
+    font-size: 14px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+.retention-info-box strong {
+    color: #fff;
+    font-weight: 600;
+}
+.retention-policy-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.retention-policy-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+}
+.retention-policy-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+.retention-policy-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.15);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: var(--gold);
+    font-size: 14px;
+}
+.retention-policy-text {
+    flex: 1;
+    min-width: 0;
+}
+.retention-policy-text strong {
+    display: block;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 600;
+    line-height: 1.3;
+}
+.retention-policy-text span {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: #777;
+    line-height: 1.4;
+}
+.retention-policy-row select {
+    margin: 0;
+    width: 100%;
+    font-size: 13px;
+    background: #222;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 10px 12px;
+    height: 42px;
+    box-sizing: border-box;
+}
+.retention-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #121212;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    font-size: 11px;
+    color: #888;
+    line-height: 1.45;
+}
+.retention-status i {
+    color: #666;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+.retention-status b {
+    color: #ccc;
+    font-weight: 600;
+}
+.retention-status-detail {
+    display: block;
+    margin-top: 3px;
+    color: #666;
+}
+.retention-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.retention-actions .btn-gold {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 11px;
+    height: auto;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1.2;
+    text-transform: none;
+    letter-spacing: 0.02em;
+}
+.retention-actions .btn-retention-secondary {
+    background: #151515;
+    color: #fff;
+    border: 1px solid #555;
+}
+@media (min-width: 640px) {
+    .retention-policy-row {
+        flex-direction: row;
+        align-items: center;
+    }
+    .retention-policy-head {
+        flex: 1;
+        min-width: 0;
+    }
+    .retention-policy-row select {
+        width: 170px;
+        flex-shrink: 0;
+    }
+    .retention-actions {
+        grid-template-columns: auto auto;
+        justify-content: flex-start;
+    }
+    .retention-actions .btn-gold {
+        width: auto;
+        min-width: 160px;
+    }
+}
+
 /* 6. OVERLAYS & MODALS */
 #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #fff; color: #000; padding: 12px 25px; border-radius: 50px; font-weight: bold; z-index: 9999; display: none; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; padding-bottom: 90px; }

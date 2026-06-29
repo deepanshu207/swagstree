@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=5.4">
+    <link rel="stylesheet" href="css/style.css?v=5.5">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -1459,110 +1459,143 @@
                 <i class="fa fa-broom" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Auto Data Retention</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Automatically purge aged chat logs, backup mail
-                        records, rejected reviews &amp; announcements. Runs when superadmin signs in (max once per hour).</p>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Control how long chat logs, mail records &amp;
+                        moderation data are kept before cleanup</p>
                 </div>
             </div>
-            <div
-                style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
+            <div class="retention-panel-inner">
 
-                <div style="display:grid; grid-template-columns:minmax(140px,1fr) minmax(120px,160px); gap:8px 12px; align-items:center;">
+                <div class="retention-info-box">
+                    <i class="fa fa-circle-info"></i>
                     <div>
-                        <span style="font-size:12px; color:#fff; font-weight:600;">AI Help Chat Messages</span>
-                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Old AI bot conversation messages</p>
+                        <strong>What does cleanup (purge) do?</strong>
+                        It permanently deletes <em>old</em> records that are older than the age you pick below.
+                        Products, orders, customers, and settings are never touched — only the listed log types.
+                        Cleanup runs automatically when you sign in (max once per hour), or tap <strong>Clean Up Now</strong> anytime.
                     </div>
-                    <select id="auto-retention-ai_chat_messages"
-                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
-                        <option value="never">Never Delete</option>
-                        <option value="hour">After 1 Hour</option>
-                        <option value="day">After 1 Day</option>
-                        <option value="week">After 1 Week</option>
-                        <option value="month" selected>After 1 Month</option>
-                        <option value="year">After 1 Year</option>
-                    </select>
-
-                    <div>
-                        <span style="font-size:12px; color:#fff; font-weight:600;">Live Support Chat Messages</span>
-                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Human admin ↔ customer support history</p>
-                    </div>
-                    <select id="auto-retention-admin_support_messages"
-                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
-                        <option value="never">Never Delete</option>
-                        <option value="hour">After 1 Hour</option>
-                        <option value="day">After 1 Day</option>
-                        <option value="week">After 1 Week</option>
-                        <option value="month">After 1 Month</option>
-                        <option value="year" selected>After 1 Year</option>
-                    </select>
-
-                    <div>
-                        <span style="font-size:12px; color:#fff; font-weight:600;">Empty Support Threads</span>
-                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Thread shells with no messages left</p>
-                    </div>
-                    <select id="auto-retention-empty_support_threads"
-                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
-                        <option value="never">Never Delete</option>
-                        <option value="hour">After 1 Hour</option>
-                        <option value="day">After 1 Day</option>
-                        <option value="week">After 1 Week</option>
-                        <option value="month" selected>After 1 Month</option>
-                        <option value="year">After 1 Year</option>
-                    </select>
-
-                    <div>
-                        <span style="font-size:12px; color:#fff; font-weight:600;">Backup Email Queue Logs</span>
-                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Mail records to backup@swagstree.com</p>
-                    </div>
-                    <select id="auto-retention-backup_mail_logs"
-                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
-                        <option value="never">Never Delete</option>
-                        <option value="hour">After 1 Hour</option>
-                        <option value="day">After 1 Day</option>
-                        <option value="week">After 1 Week</option>
-                        <option value="month" selected>After 1 Month</option>
-                        <option value="year">After 1 Year</option>
-                    </select>
-
-                    <div>
-                        <span style="font-size:12px; color:#fff; font-weight:600;">Rejected Product Reviews</span>
-                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Moderation rejects no longer needed</p>
-                    </div>
-                    <select id="auto-retention-rejected_comments"
-                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
-                        <option value="never">Never Delete</option>
-                        <option value="hour">After 1 Hour</option>
-                        <option value="day">After 1 Day</option>
-                        <option value="week">After 1 Week</option>
-                        <option value="month">After 1 Month</option>
-                        <option value="year" selected>After 1 Year</option>
-                    </select>
-
-                    <div>
-                        <span style="font-size:12px; color:#fff; font-weight:600;">Expired Announcements</span>
-                        <p style="margin:2px 0 0; font-size:10px; color:#666;">Published banners past retention age</p>
-                    </div>
-                    <select id="auto-retention-old_announcements"
-                        style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 10px; height:36px;">
-                        <option value="never" selected>Never Delete</option>
-                        <option value="hour">After 1 Hour</option>
-                        <option value="day">After 1 Day</option>
-                        <option value="week">After 1 Week</option>
-                        <option value="month">After 1 Month</option>
-                        <option value="year">After 1 Year</option>
-                    </select>
                 </div>
 
-                <div style="font-size:11px; color:#888; margin-top:2px;" id="auto-retention-status-text">
-                    Last Auto-Purge: Loading...
+                <div class="retention-policy-list">
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-robot"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>AI Help Chat Messages</strong>
+                                <span>Bot conversation history in customer threads</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-ai_chat_messages" aria-label="AI Help Chat retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month" selected>Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-headset"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Live Support Chat Messages</strong>
+                                <span>Human admin ↔ customer support history</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-admin_support_messages" aria-label="Live Support Chat retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month">Delete after 1 month</option>
+                            <option value="year" selected>Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-inbox"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Empty Support Threads</strong>
+                                <span>Leftover thread shells with no messages</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-empty_support_threads" aria-label="Empty Support Threads retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month" selected>Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-envelope"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Backup Email Queue Logs</strong>
+                                <span>Firestore mail records sent to backup@swagstree.com</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-backup_mail_logs" aria-label="Backup Email Logs retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month" selected>Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-comment-slash"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Rejected Product Reviews</strong>
+                                <span>Moderation rejects no longer shown on storefront</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-rejected_comments" aria-label="Rejected Reviews retention">
+                            <option value="never">Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month">Delete after 1 month</option>
+                            <option value="year" selected>Delete after 1 year</option>
+                        </select>
+                    </div>
+
+                    <div class="retention-policy-row">
+                        <div class="retention-policy-head">
+                            <div class="retention-policy-icon"><i class="fa fa-bullhorn"></i></div>
+                            <div class="retention-policy-text">
+                                <strong>Expired Announcements</strong>
+                                <span>Published banner announcements past their age limit</span>
+                            </div>
+                        </div>
+                        <select id="auto-retention-old_announcements" aria-label="Announcements retention">
+                            <option value="never" selected>Keep forever</option>
+                            <option value="hour">Delete after 1 hour</option>
+                            <option value="day">Delete after 1 day</option>
+                            <option value="week">Delete after 1 week</option>
+                            <option value="month">Delete after 1 month</option>
+                            <option value="year">Delete after 1 year</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
-                    <button class="btn-gold" style="width:auto; padding:8px 15px; font-size:11px; height:36px;"
-                        onclick="saveAutoRetentionSettings()">Save Retention Rules</button>
-                    <button class="btn-gold"
-                        style="width:auto; padding:8px 15px; font-size:11px; height:36px; background:#151515; color:#fff; border:1px solid #555;"
-                        onclick="triggerManualAutoRetention()">
-                        <i class="fa fa-play"></i> Run Purge Now
+                <div class="retention-status" id="auto-retention-status-text">
+                    <i class="fa fa-clock-rotate-left"></i>
+                    <div>Last cleanup: <b>Loading…</b></div>
+                </div>
+
+                <div class="retention-actions">
+                    <button class="btn-gold" onclick="saveAutoRetentionSettings()">
+                        <i class="fa fa-floppy-disk"></i> Save Rules
+                    </button>
+                    <button class="btn-gold btn-retention-secondary" onclick="triggerManualAutoRetention()">
+                        <i class="fa fa-broom"></i> Clean Up Now
                     </button>
                 </div>
             </div>
@@ -2684,16 +2717,16 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.60"></script>
-    <script src="js/app.js?v=9.60"></script>
-    <script src="js/store.js?v=9.60"></script>
-    <script src="js/checkout.js?v=9.60"></script>
-    <script src="js/auth.js?v=9.60"></script>
-    <script src="js/comments.js?v=9.60"></script>
-    <script src="js/support-chat.js?v=9.60"></script>
-    <script src="js/auto-retention.js?v=9.60"></script>
-    <script src="js/admin.js?v=9.60"></script>
-    <script src="js/cloudinary-admin.js?v=9.60"></script>
+    <script src="js/features.js?v=9.61"></script>
+    <script src="js/app.js?v=9.61"></script>
+    <script src="js/store.js?v=9.61"></script>
+    <script src="js/checkout.js?v=9.61"></script>
+    <script src="js/auth.js?v=9.61"></script>
+    <script src="js/comments.js?v=9.61"></script>
+    <script src="js/support-chat.js?v=9.61"></script>
+    <script src="js/auto-retention.js?v=9.61"></script>
+    <script src="js/admin.js?v=9.61"></script>
+    <script src="js/cloudinary-admin.js?v=9.61"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

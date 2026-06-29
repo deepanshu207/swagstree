@@ -100,19 +100,19 @@ function renderRetentionStatus(lastRunTime, lastRunSummary) {
     if (!statusEl) return;
 
     if (!lastRunTime) {
-        statusEl.innerHTML = 'Last Auto-Purge: <b>Never</b>';
+        statusEl.innerHTML = '<i class="fa fa-clock-rotate-left"></i><div>Last cleanup: <b>Never</b><span class="retention-status-detail">No automatic cleanup has run yet.</span></div>';
         return;
     }
 
     const when = new Date(lastRunTime).toLocaleString();
-    let detail = '';
+    let detail = 'Database is up to date — nothing old enough to remove.';
     if (lastRunSummary && typeof lastRunSummary === 'object') {
         const parts = Object.entries(lastRunSummary)
             .filter(([, count]) => count > 0)
-            .map(([key, count]) => `${key}: ${count}`);
-        detail = parts.length ? ` — ${parts.join(', ')}` : ' — nothing to purge';
+            .map(([key, count]) => `${count} ${key}`);
+        if (parts.length) detail = `Removed: ${parts.join(', ')}.`;
     }
-    statusEl.innerHTML = `Last Auto-Purge: <b>${when}</b>${detail}`;
+    statusEl.innerHTML = `<i class="fa fa-clock-rotate-left"></i><div>Last cleanup: <b>${when}</b><span class="retention-status-detail">${detail}</span></div>`;
 }
 
 async function purgeBackupMailLogsOlderThan(maxAgeMs) {
@@ -239,10 +239,10 @@ async function runAutoRetentionPurge(manual) {
 
     if (manual) {
         showToast(totalRemoved
-            ? `Auto-purge complete — ${totalRemoved} item${totalRemoved === 1 ? '' : 's'} removed`
-            : 'Auto-purge complete — nothing matched retention rules');
+            ? `Cleanup complete — ${totalRemoved} old record${totalRemoved === 1 ? '' : 's'} removed`
+            : 'Cleanup complete — nothing was old enough to remove');
     } else if (totalRemoved > 0) {
-        showToast(`🧹 Auto-purge removed ${totalRemoved} aged record${totalRemoved === 1 ? '' : 's'}`);
+        showToast(`🧹 Auto-cleanup removed ${totalRemoved} old record${totalRemoved === 1 ? '' : 's'}`);
     }
 
     return { totalRemoved, summary };
@@ -304,8 +304,13 @@ async function saveAutoRetentionSettings() {
 }
 
 async function triggerManualAutoRetention() {
-    if (!isSuperAdmin) return showToast('Only superadmin can run auto-purge.');
-    if (!confirm('Run retention purge now?\n\nData older than each policy interval will be permanently deleted.')) {
+    if (!isSuperAdmin) return showToast('Only superadmin can run cleanup.');
+    if (!confirm(
+        'Clean up old data now?\n\n' +
+        'This permanently deletes records OLDER than each rule below.\n' +
+        'Recent chats, orders, products & customers are NOT affected.\n\n' +
+        'Continue?'
+    )) {
         return;
     }
 
@@ -315,13 +320,13 @@ async function triggerManualAutoRetention() {
         policies[def.id] = el ? el.value : def.defaultInterval;
     });
 
-    showToast('Running retention purge...');
+    showToast('Running cleanup…');
     try {
         await db.collection('settings').doc(AUTO_RETENTION_DOC).set({ policies }, { merge: true });
         await runAutoRetentionPurge(true);
     } catch (err) {
         console.error('triggerManualAutoRetention error:', err);
-        showToast('Retention purge failed.');
+        showToast('Cleanup failed.');
     }
 }
 
