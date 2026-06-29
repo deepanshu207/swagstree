@@ -60,10 +60,10 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=4.4">
+    <link rel="stylesheet" href="css/style.css?v=4.9">
 </head>
 
-<body class="footer-hidden">
+<body class="footer-hidden catalog-controls-pending">
 
     <!-- Announcement Bar -->
     <div id="announcement-bar" style="display:none;">
@@ -215,36 +215,37 @@
             <div id="home-hero-carousel-dots" class="hero-carousel-dots"></div>
         </div>
 
-        <div style="padding:15px">
+        <div class="home-search-wrap">
             <!-- Hidden auth fields to prevent browser auto-fill bugs -->
             <div
                 style="opacity: 0; position: absolute; top: 0; left: 0; height: 0; width: 0; z-index: -1; overflow: hidden;">
                 <input type="text" name="email" tabindex="-1">
                 <input type="password" name="password" tabindex="-1">
             </div>
-            <input type="text" id="app_search" placeholder="Search products..." oninput="searchHandler()"
+            <input type="text" id="app_search" class="home-search-input" placeholder="Search products..." oninput="searchHandler()"
                 autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');"
                 data-i18n="search_placeholder">
         </div>
         <div class="catalog-controls-row">
-            <span id="product-count" class="count-badge" style="display:none;"></span>
+            <span id="product-count" class="count-badge catalog-count-label" style="display:none;"></span>
 
-            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <div class="catalog-controls-actions">
+                <!-- Support Chat Button -->
+                <div id="header-support-chat-btn" onclick="openSupportChat()" class="catalog-icon-btn" style="display:none;">
+                    <i class="fa fa-comments"></i>
+                    <span id="header-support-chat-badge" class="catalog-icon-badge"></span>
+                </div>
                 <!-- Announcement Megaphone Button -->
-                <div id="announcement-bell-btn" onclick="openAnnouncementModal()"
-                    style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
-                    <i class="fa fa-bullhorn" style="color:#777; font-size:12px; opacity:0.6;"></i>
-                    <span id="announcement-badge"
-                        style="display:none; position:absolute; top:-2px; right:-2px; width:7px; height:7px; border-radius:50%; background:#ff4757; box-shadow:0 0 6px #ff4757;"></span>
+                <div id="announcement-bell-btn" onclick="openAnnouncementModal()" class="catalog-icon-btn" style="display:none;">
+                    <i class="fa fa-bullhorn"></i>
+                    <span id="announcement-badge" class="catalog-announcement-badge"></span>
                 </div>
 
                 <!-- Sort Container -->
-                <div id="sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
-                    <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
-                        <i class="fa fa-sort"
-                            style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
-                        <select id="sort-logic" class="premium-select"
-                            style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;"
+                <div id="sort-logic-container" class="catalog-sort-wrap" style="display:none;">
+                    <div class="select-wrapper catalog-sort-select">
+                        <i class="fa fa-sort catalog-sort-icon"></i>
+                        <select id="sort-logic" class="premium-select catalog-sort-dropdown"
                             onchange="changeSortLogic(this.value, 'main')">
                             <option value="none" data-i18n="default_sorting">Default Sort</option>
                             <option value="low" data-i18n="low_high">Price: Low to High</option>
@@ -310,23 +311,35 @@
 
     <!-- SECTION: Wishlist -->
     <div id="wish-view" class="section">
-        <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
-        <div class="catalog-controls-row">
-            <span id="wish-count" class="count-badge" style="display:none;">0 Products</span>
-            
-            <div id="wish-sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
-                <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
-                    <i class="fa fa-sort"
-                        style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
-                    <select id="wish-sort-logic" class="premium-select"
-                        style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;"
-                        onchange="changeWishlistSort(this.value)">
-                        <option value="none" data-i18n="default_sorting">Default Sort</option>
-                        <option value="low" data-i18n="low_high">Price: Low to High</option>
-                        <option value="high" data-i18n="high_low">Price: High to Low</option>
-                        <option value="newest" data-i18n="newest">Newest Arrivals</option>
-                        <option value="best" data-i18n="best">Best Selling</option>
-                    </select>
+        <h3 class="wishlist-title">Wishlist</h3>
+        <div class="wish-search-wrap" id="wish-search-wrap">
+            <input type="text" id="wish_search" class="home-search-input" placeholder="Search wishlist..."
+                oninput="wishSearchHandler()" autocomplete="off" data-i18n="search_placeholder">
+        </div>
+        <div class="catalog-controls-row catalog-row-wishlist">
+            <span id="wish-count" class="count-badge catalog-count-label" style="display:none;"></span>
+
+            <div class="catalog-controls-actions">
+                <div id="wish-header-support-chat-btn" onclick="openSupportChat()" class="catalog-icon-btn" style="display:none;">
+                    <i class="fa fa-comments"></i>
+                    <span id="wish-header-support-chat-badge" class="catalog-icon-badge"></span>
+                </div>
+                <div id="wish-announcement-bell-btn" onclick="openAnnouncementModal()" class="catalog-icon-btn" style="display:none;">
+                    <i class="fa fa-bullhorn"></i>
+                    <span id="wish-announcement-badge" class="catalog-announcement-badge"></span>
+                </div>
+                <div id="wish-sort-logic-container" class="catalog-sort-wrap" style="display:none;">
+                    <div class="select-wrapper catalog-sort-select">
+                        <i class="fa fa-sort catalog-sort-icon"></i>
+                        <select id="wish-sort-logic" class="premium-select catalog-sort-dropdown"
+                            onchange="changeWishlistSort(this.value)">
+                            <option value="none" data-i18n="default_sorting">Default Sort</option>
+                            <option value="low" data-i18n="low_high">Price: Low to High</option>
+                            <option value="high" data-i18n="high_low">Price: High to Low</option>
+                            <option value="newest" data-i18n="newest">Newest Arrivals</option>
+                            <option value="best" data-i18n="best">Best Selling</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -636,7 +649,10 @@
                     <button class="btn-gold" onclick="loadAllCustomers()" style="padding:4px 10px; font-size:12px;"><i
                             class="fa fa-sync"></i> Refresh</button>
                 </h4>
+                <input type="text" id="admin-customer-search" placeholder="Search by name, email, phone, or UID..."
+                    oninput="resetAllCustomerLimitAndFilter()" style="margin-bottom:12px; font-size:13px; width:100%; box-sizing:border-box;">
                 <div id="all-customers-list"></div>
+                <div id="all-customers-load-more-container" style="text-align:center; padding: 15px 0 0 0;"></div>
             </div>
         </div>
     </div>
@@ -798,6 +814,12 @@
                     <input id="admin-orders-page-limit" type="number" min="1" step="1" value="20"
                         style="margin:0; font-size:12px;" placeholder="Default is 20">
                 </div>
+                <div>
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Manage Customers Page
+                        Limit</span>
+                    <input id="admin-customers-page-limit" type="number" min="1" step="1" value="10"
+                        style="margin:0; font-size:12px;" placeholder="Default is 10">
+                </div>
             </div>
             <button class="btn-gold"
                 style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
@@ -847,7 +869,8 @@
                         <select id="admin-chatbot-engine"
                             style="margin:0; font-size:12px; background:#222; color:#fff; border:1px solid #444; border-radius:8px; padding:6px 12px; height:36px; width:100%;"
                             onchange="toggleGeminiKeyVisibility(this.value)">
-                            <option value="pollinations">Pollinations AI (Keyless)</option>
+                            <option value="local">Local Smart Assistant (Free, default)</option>
+                            <option value="pollinations">Pollinations AI (Free cloud, optional)</option>
                             <option value="gemini">Google Gemini (API Key required)</option>
                         </select>
                     </div>
@@ -1300,6 +1323,29 @@
             </div>
         </div>
 
+        <!-- Support Chats Inbox -->
+        <div id="admin-support-inbox-section" style="display:none; margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
+                onclick="toggleAdminSupportAccordion()">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa fa-headset" style="color:var(--gold); font-size:15px;"></i>
+                    <div>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Support Chats
+                            <span id="admin-support-pending-badge"
+                                style="display:none; margin-left:8px; font-size:10px; background:var(--red); color:#fff; padding:2px 8px; border-radius:10px; font-weight:700;">0</span>
+                        </h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">View and reply to customer AI & live support conversations</p>
+                    </div>
+                </div>
+                <i id="admin-support-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg);"></i>
+            </div>
+            <div id="admin-support-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto;">
+                <div id="admin-support-inbox-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+        </div>
+
         <!-- Product Comments Moderation -->
         <div id="admin-comments-moderation" style="display:none; margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
@@ -1472,8 +1518,13 @@
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
                     <label
                         style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
-                        <input type="checkbox" id="toggle-ai-chat" style="margin:0; width:16px; height:16px;"> AI
-                        Support Chatbot
+                        <input type="checkbox" id="toggle-ai-chat" style="margin:0; width:16px; height:16px;"> AI Help
+                        Chat
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-admin-support-chat" style="margin:0; width:16px; height:16px;">
+                        Live Support Chat (Admin)
                     </label>
                     <label
                         style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
@@ -1519,6 +1570,58 @@
                         style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
                         <input type="checkbox" id="toggle-product-comments" style="margin:0; width:16px; height:16px;">
                         Product Reviews & Comments
+                    </label>
+                </div>
+
+                <div style="height:1px; background:#333; margin:12px 0 8px;"></div>
+                <span style="font-size:11px; color:#aaa; font-weight:700; display:block; margin-bottom:8px;">Catalog
+                    Controls — Home Tab</span>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-home-search" style="margin:0; width:16px; height:16px;"> Product
+                        Search
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-home-sort" style="margin:0; width:16px; height:16px;"> Sort
+                        Dropdown
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-home-announcement" style="margin:0; width:16px; height:16px;">
+                        Announcement Bell
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-home-chat" style="margin:0; width:16px; height:16px;"> Support
+                        Chat
+                    </label>
+                </div>
+
+                <span
+                    style="font-size:11px; color:#aaa; font-weight:700; display:block; margin:12px 0 8px;">Catalog
+                    Controls — Wishlist Tab</span>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-wish-search" style="margin:0; width:16px; height:16px;"> Product
+                        Search
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-wish-sort" style="margin:0; width:16px; height:16px;"> Sort
+                        Dropdown
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-wish-announcement" style="margin:0; width:16px; height:16px;">
+                        Announcement Bell
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-wish-chat" style="margin:0; width:16px; height:16px;"> Support
+                        Chat
                     </label>
                 </div>
 
@@ -1693,7 +1796,7 @@
             </div>
 
             <!-- Search input -->
-            <input type="text" id="super-customer-search" placeholder="Search customers by name, email, or phone..."
+            <input type="text" id="super-customer-search" placeholder="Search by name, email, phone, or UID..."
                 oninput="resetSuperCustomerLimitAndFilter()" style="margin-bottom:12px; font-size:13px;">
 
             <div id="super-customer-list"
@@ -1717,6 +1820,32 @@
             </div>
 
             <div style="display:flex; flex-direction:column; gap:12px;">
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Admin
+                            Support Chats</span>
+                        <span style="font-size:10px; color:#666;">Remove every Live Support message across all customer
+                            threads (AI Help kept)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAdminSupportChatsPrompt()">Delete All Admin Chats</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All AI Help
+                            Chats</span>
+                        <span style="font-size:10px; color:#666;">Remove every AI Help message across all customer threads
+                            (Live Support kept)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAiSupportChatsPrompt()">Delete All AI Chats</button>
+                </div>
+
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
@@ -2015,12 +2144,12 @@
             </div>
 
             <input id="c-name" placeholder="Recipient Name" autocomplete="name">
-            <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel">
-            <input id="c-email" placeholder="Email Address" type="email">
+            <input id="c-phone" placeholder="10-Digit Phone" maxlength="10" type="tel" autocomplete="tel">
+            <input id="c-email" placeholder="Email Address" type="email" autocomplete="email">
             <div id="checkout-email-msg"
                 style="display:none; font-size:11px; margin-top:-8px; margin-bottom:12px; font-weight:500; text-align:left; transition:all 0.3s; line-height:1.4;">
             </div>
-            <textarea id="c-addr" placeholder="Full Delivery Address"></textarea>
+            <textarea id="c-addr" placeholder="Full Delivery Address" autocomplete="street-address"></textarea>
 
             <!-- Payment Methods -->
             <p style="font-size:11px; color:#666; margin-bottom:10px;">PAYMENT METHOD</p>
@@ -2292,33 +2421,69 @@
             <div class="ai-chat-avatar">
                 <i class="fa fa-robot" style="color:var(--gold);"></i>
             </div>
-            <div>
-                <p style="margin:0; font-size:12px; font-weight:700; color:#fff;" data-i18n="ai_chat_title">Swag Stree
-                    Support AI</p>
-                <p style="margin:2px 0 0 0; font-size:10px; color:#25D366;"><i class="fa fa-circle"
-                        style="font-size:8px;"></i> Active Assistant</p>
+            <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <p style="margin:0; font-size:12px; font-weight:700; color:#fff;" data-i18n="ai_chat_title">Swag Stree Support</p>
+                    <span id="ai-chat-mode-badge" style="font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px; background:rgba(37,211,102,0.12); color:#25D366;">AI</span>
+                </div>
+                <p id="ai-chat-status-text" style="margin:2px 0 0 0; font-size:10px; color:#25D366;"><i class="fa fa-circle"
+                        style="font-size:8px;"></i> AI assistant online</p>
             </div>
-            <span class="theme-drawer-close" style="margin-left:auto; font-size:20px;"
+            <span class="theme-drawer-close" style="margin-left:auto; font-size:20px; cursor:pointer;"
                 onclick="toggleAIChat()">&times;</span>
         </div>
-        <div class="ai-chat-body" id="ai-chat-body"></div>
+        <div class="ai-chat-tabs" id="ai-chat-tabs">
+            <button type="button" id="ai-chat-tab-ai" class="ai-chat-tab active" onclick="switchSupportChatTab('ai')">
+                <i class="fa fa-robot"></i> AI Help
+            </button>
+            <button type="button" id="ai-chat-tab-admin" class="ai-chat-tab" onclick="switchSupportChatTab('admin')">
+                <i class="fa fa-headset"></i> Live Support
+            </button>
+        </div>
+        <div class="ai-chat-body-wrap" id="ai-chat-body-ai-wrap">
+            <div class="ai-chat-body" id="ai-chat-body-ai"></div>
+        </div>
+        <div class="ai-chat-body-wrap" id="ai-chat-body-support-wrap" style="display:none;">
+            <div class="ai-chat-body" id="ai-chat-body-support"></div>
+        </div>
         <div class="ai-chat-chips" id="ai-chat-chips"></div>
         <div class="ai-chat-input-area">
-            <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Type message..."
+            <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Ask about products, orders, or support..."
                 onkeydown="if(event.key==='Enter') sendChatMessage()">
             <button class="ai-chat-send" onclick="sendChatMessage()"><i class="fa fa-paper-plane"></i></button>
         </div>
     </div>
 
+    <!-- Admin Customer Chat Modal -->
+    <div id="admin-customer-chat-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index:2500;">
+        <div class="modal-box" style="max-width:480px; width:92%; padding:0; overflow:hidden; display:flex; flex-direction:column; max-height:85vh;">
+            <div style="padding:15px 18px; border-bottom:1px solid #222; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div>
+                    <h3 id="admin-customer-chat-name" style="margin:0; font-size:14px;">Customer</h3>
+                    <p id="admin-customer-chat-email" style="margin:4px 0 0; font-size:11px; color:#888;"></p>
+                </div>
+                <span onclick="closeAdminCustomerChat()" style="cursor:pointer; font-size:22px; color:#888;">&times;</span>
+            </div>
+            <div id="admin-customer-chat-body" class="admin-customer-chat-body" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; min-height:280px; max-height:50vh; background:#0a0a0a;"></div>
+            <div style="padding:12px; border-top:1px solid #222; display:flex; gap:8px;">
+                <input id="admin-customer-chat-input" type="text" placeholder="Reply to customer..."
+                    style="margin:0; flex:1; font-size:13px;"
+                    onkeydown="if(event.key==='Enter') sendAdminCustomerChat()">
+                <button class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px;" onclick="sendAdminCustomerChat()"><i class="fa fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.30"></script>
-    <script src="js/app.js?v=9.30"></script>
-    <script src="js/store.js?v=9.30"></script>
-    <script src="js/checkout.js?v=9.30"></script>
-    <script src="js/auth.js?v=9.30"></script>
-    <script src="js/comments.js?v=9.30"></script>
-    <script src="js/admin.js?v=9.30"></script>
+    <script src="js/features.js?v=9.53"></script>
+    <script src="js/app.js?v=9.53"></script>
+    <script src="js/store.js?v=9.53"></script>
+    <script src="js/checkout.js?v=9.53"></script>
+    <script src="js/auth.js?v=9.53"></script>
+    <script src="js/comments.js?v=9.53"></script>
+    <script src="js/support-chat.js?v=9.53"></script>
+    <script src="js/admin.js?v=9.53"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

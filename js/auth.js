@@ -49,6 +49,7 @@ function updateAdminPrivilegesUI() {
 
     if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
+    if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
 }
 
 // Global real-time listener for admins
@@ -89,6 +90,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
+            if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
@@ -222,6 +224,10 @@ auth.onAuthStateChanged(user => {
             if (profPhone) profPhone.value = savedPhone;
             if (profEmailReadOnly) profEmailReadOnly.textContent = user.email || '';
 
+            if (typeof ensureCheckoutMatchesCurrentUser === 'function') {
+                ensureCheckoutMatchesCurrentUser(savedName, savedPhone);
+            }
+
             renderStore();
         });
 
@@ -250,6 +256,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
+            if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
@@ -278,6 +285,10 @@ auth.onAuthStateChanged(user => {
         if (typeof loadOrders === "function") {
             displayedOrdersLimit = ordersPageLimitSetting;
             loadOrders();
+        }
+
+        if (typeof refreshCheckoutFormForUser === 'function') {
+            refreshCheckoutFormForUser();
         }
     } else {
         isSuperAdmin = false;
@@ -314,6 +325,13 @@ auth.onAuthStateChanged(user => {
 
         if (typeof cleanupCommentsListeners === 'function') {
             cleanupCommentsListeners();
+        }
+        if (typeof cleanupSupportChatListeners === 'function') {
+            cleanupSupportChatListeners();
+        }
+
+        if (typeof clearCheckoutFormFields === 'function') {
+            clearCheckoutFormFields();
         }
     }
 
@@ -685,6 +703,7 @@ async function saveProfile() {
         if (avatar) avatar.innerText = nameVal.charAt(0).toUpperCase();
 
         showToast("✅ Profile updated!");
+        window.checkoutDetailsLoadedFor = null;
     } catch (e) {
         console.error("Profile update error:", e);
         showToast("Failed to update profile. Try again.");
@@ -755,88 +774,257 @@ async function loadAllCustomers() {
     if (!isAdmin) return;
     const container = document.getElementById('all-customers-list');
     if (!container) return;
-    
+
+    const searchInput = document.getElementById('admin-customer-search');
+    if (searchInput) searchInput.value = '';
+    displayedAllCustomersLimit = getCustomersPageLimit();
+
     container.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
             <div class="premium-loader"></div>
             <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading customers</p>
         </div>
     `;
-    
+
     try {
         const snap = await db.collection("users").get();
         if (snap.empty) {
+            allCustomersCache = [];
             container.innerHTML = `<p style="text-align:center; color:#555;">No customers found.</p>`;
             return;
         }
-        
-        let allUsers = [];
-        snap.forEach(doc => allUsers.push(doc.data()));
-        
-        allUsers.sort((a, b) => {
+
+        const rawCustomers = [];
+        snap.forEach(doc => rawCustomers.push({ uid: doc.id, ...doc.data() }));
+        allCustomersCache = deduplicateCustomersByEmail(rawCustomers);
+
+        allCustomersCache.sort((a, b) => {
             const tA = a.createdAt ? a.createdAt.toMillis() : 0;
             const tB = b.createdAt ? b.createdAt.toMillis() : 0;
-            return tB - tA; // descending
+            return tB - tA;
         });
-        
-        let html = '';
-        allUsers.forEach(data => {
-            const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
-            
-            // Determine sign-in provider label
-            let methodLabel = "Email/Password"; // Default fallback
-            let badgeIcon = "fa-envelope";
-            let badgeColor = "var(--gold)";
-            if (data.providers && Array.isArray(data.providers)) {
-                const hasGoogle = data.providers.includes('google.com');
-                const hasPassword = data.providers.includes('password');
-                if (hasGoogle && hasPassword) {
-                    methodLabel = "Google & Email/Password";
-                    badgeIcon = "fa-link";
-                    badgeColor = "#25D366";
-                } else if (hasGoogle) {
-                    methodLabel = "Google";
-                    badgeIcon = "fab fa-google";
-                    badgeColor = "#db4437";
-                } else if (hasPassword) {
-                    methodLabel = "Email/Password";
-                    badgeIcon = "fa-envelope";
-                    badgeColor = "var(--gold)";
-                }
-            } else if (data.email) {
-                methodLabel = "Email/Password";
-                badgeIcon = "fa-envelope";
-                badgeColor = "var(--gold)";
-            } else {
-                methodLabel = "Guest Checkout";
-                badgeIcon = "fa-user-secret";
-                badgeColor = "#888";
-            }
 
-            html += `
-                <div style="background:#111; padding:15px; border-radius:8px; border:1px solid #333; margin-top:10px; display:flex; align-items:center; gap:15px;">
-                    <div style="width:40px; height:40px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#FFD700;">
-                        ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
-                    </div>
-                    <div style="flex:1;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                            <div style="font-weight:bold; font-size:15px;">${data.displayName || 'Unnamed User'}</div>
-                            <span style="font-size:10px; padding:3px 8px; border-radius:20px; background:rgba(0,0,0,0.4); border:1px solid #333; color:${badgeColor}; font-weight:600; display:flex; align-items:center; gap:5px;">
-                                <i class="${badgeIcon}"></i> ${methodLabel}
-                            </span>
-                        </div>
-                        <div style="color:#aaa; font-size:13px; margin-top:4px;">${data.email || 'No email'} ${data.phone ? '• ' + data.phone : ''}</div>
-                        <div style="color:#666; font-size:11px; margin-top:4px;">Joined: ${date}</div>
-                    </div>
-                </div>
-            `;
-        });
-        container.innerHTML = html;
+        renderAllCustomersList(allCustomersCache);
     } catch (e) {
         console.error("Error loading customers:", e);
         container.innerHTML = `<p style="text-align:center; color:#ff4444;">Failed to load customers.</p>`;
     }
 }
+
+function normalizePhoneDigits(phone) {
+    return (phone || '').replace(/\D/g, '');
+}
+
+function matchCustomerSearch(customer, query) {
+    const q = (query || '').toLowerCase().trim();
+    if (!q) return true;
+
+    const qDigits = q.replace(/\D/g, '');
+    const name = (customer.displayName || '').toLowerCase();
+    const email = (customer.email || '').toLowerCase();
+    const phone = (customer.phone || '').toLowerCase();
+    const phoneDigits = normalizePhoneDigits(customer.phone);
+    const uid = (customer.uid || '').toLowerCase();
+    const address = (customer.address || customer.shippingAddress || '').toLowerCase();
+
+    if (name.includes(q) || email.includes(q) || phone.includes(q) || uid.includes(q) || address.includes(q)) {
+        return true;
+    }
+    if (qDigits.length >= 3 && phoneDigits.includes(qDigits)) return true;
+    if (q.includes('@') && email.includes(q)) return true;
+    return false;
+}
+
+function getCustomerDedupeScore(customer) {
+    let score = 0;
+    const providers = customer.providers || [];
+    const hasGoogle = providers.includes('google.com');
+    const hasPassword = providers.includes('password');
+    if (hasGoogle && hasPassword) score += 1000;
+    else if (hasGoogle || hasPassword) score += 500;
+    if (customer.displayName) score += 50;
+    if (customer.phone) score += 30;
+    if (customer.status !== 'deactivated') score += 100;
+    score += (customer.createdAt?.toMillis?.() || 0) / 1e15;
+    return score;
+}
+
+function mergeCustomerProviders(records) {
+    const set = new Set();
+    (records || []).forEach(record => {
+        (record.providers || []).forEach(provider => {
+            if (provider) set.add(provider);
+        });
+    });
+    return Array.from(set);
+}
+
+function deduplicateCustomersByEmail(customers) {
+    const byEmail = new Map();
+    const withoutEmail = [];
+
+    customers.forEach(customer => {
+        const email = (customer.email || '').trim().toLowerCase();
+        if (!email) {
+            withoutEmail.push(customer);
+            return;
+        }
+
+        const existing = byEmail.get(email);
+        if (!existing) {
+            byEmail.set(email, {
+                primary: customer,
+                mergedCount: 1,
+                mergedUids: [customer.uid],
+                mergedRecords: [customer]
+            });
+            return;
+        }
+
+        existing.mergedCount += 1;
+        existing.mergedUids.push(customer.uid);
+        existing.mergedRecords.push(customer);
+        if (getCustomerDedupeScore(customer) > getCustomerDedupeScore(existing.primary)) {
+            existing.primary = customer;
+        }
+    });
+
+    const deduped = [];
+    byEmail.forEach(({ primary, mergedCount, mergedUids, mergedRecords }) => {
+        const mergedProviders = mergeCustomerProviders(mergedRecords);
+        deduped.push({
+            ...primary,
+            providers: mergedProviders.length ? mergedProviders : primary.providers,
+            _mergedAccountCount: mergedCount > 1 ? mergedCount : undefined,
+            _mergedUids: mergedCount > 1 ? mergedUids : undefined
+        });
+    });
+
+    return deduped.concat(withoutEmail);
+}
+
+function getCustomersPageLimit() {
+    const val = typeof customersPageLimitSetting !== 'undefined' ? customersPageLimitSetting : 10;
+    return val > 0 ? val : 10;
+}
+
+function getCustomerAuthBadge(data) {
+    let methodLabel = "Email/Password";
+    let badgeIcon = "fa-envelope";
+    let badgeColor = "var(--gold)";
+
+    if (data.providers && Array.isArray(data.providers)) {
+        const hasGoogle = data.providers.includes('google.com');
+        const hasPassword = data.providers.includes('password');
+        if (hasGoogle && hasPassword) {
+            methodLabel = "Google & Email/Password";
+            badgeIcon = "fa-link";
+            badgeColor = "#25D366";
+        } else if (hasGoogle) {
+            methodLabel = "Google";
+            badgeIcon = "fab fa-google";
+            badgeColor = "#db4437";
+        } else if (hasPassword) {
+            methodLabel = "Email/Password";
+            badgeIcon = "fa-envelope";
+            badgeColor = "var(--gold)";
+        }
+    } else if (data.email) {
+        methodLabel = "Email/Password";
+        badgeIcon = "fa-envelope";
+        badgeColor = "var(--gold)";
+    } else {
+        methodLabel = "Guest Checkout";
+        badgeIcon = "fa-user-secret";
+        badgeColor = "#888";
+    }
+
+    return { methodLabel, badgeIcon, badgeColor };
+}
+
+function buildCustomerAuthBadgeHtml(data) {
+    const { methodLabel, badgeIcon, badgeColor } = getCustomerAuthBadge(data);
+    return `<span class="customer-auth-badge" style="--badge-color:${badgeColor};"><i class="${badgeIcon}"></i> ${methodLabel}</span>`;
+}
+
+function renderAllCustomersList(list) {
+    const container = document.getElementById('all-customers-list');
+    if (!container) return;
+
+    const lmContainer = document.getElementById('all-customers-load-more-container');
+
+    if (!list.length) {
+        container.innerHTML = `<p style="text-align:center; color:#555;">No matching customers found.</p>`;
+        if (lmContainer) lmContainer.innerHTML = '';
+        return;
+    }
+
+    let itemsToRender = list;
+    if (list.length > displayedAllCustomersLimit) {
+        itemsToRender = list.slice(0, displayedAllCustomersLimit);
+        if (lmContainer) {
+            lmContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:8px 16px; font-size:11px;" onclick="loadMoreAllCustomers()"><i class="fa fa-chevron-down"></i> Load More</button>`;
+        }
+    } else if (lmContainer) {
+        lmContainer.innerHTML = '';
+    }
+
+    let html = '';
+    itemsToRender.forEach(data => {
+        const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
+        const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
+        const safeEmail = (data.email || '').replace(/'/g, "\\'");
+        const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
+            ? `<button class="btn-gold admin-customer-card__chat" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" title="Chat with customer"><i class="fa fa-comments"></i></button>`
+            : '';
+        const mergedNote = data._mergedAccountCount > 1
+            ? `<div class="admin-customer-card__merged">Merged ${data._mergedAccountCount} duplicate logins (Google / Email)</div>`
+            : '';
+        const authBadge = buildCustomerAuthBadgeHtml(data);
+
+        html += `
+            <div class="admin-customer-card">
+                <div class="admin-customer-card__avatar">
+                    ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div class="admin-customer-card__body">
+                    <div class="admin-customer-card__header">
+                        <div class="admin-customer-card__name">${data.displayName || 'Unnamed User'}</div>
+                        ${authBadge}
+                    </div>
+                    <div class="admin-customer-card__meta">${data.email || 'No email'}${data.phone ? ' • ' + data.phone : ''}</div>
+                    <div class="admin-customer-card__joined">Joined: ${date}</div>
+                    ${mergedNote}
+                </div>
+                ${chatBtn}
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function filterAllCustomers() {
+    const q = document.getElementById('admin-customer-search')?.value || '';
+    if (!q.trim()) {
+        renderAllCustomersList(allCustomersCache);
+        return;
+    }
+    const filtered = allCustomersCache.filter(c => matchCustomerSearch(c, q));
+    renderAllCustomersList(filtered);
+}
+
+function resetAllCustomerLimitAndFilter() {
+    displayedAllCustomersLimit = getCustomersPageLimit();
+    filterAllCustomers();
+}
+
+function loadMoreAllCustomers() {
+    displayedAllCustomersLimit += getCustomersPageLimit();
+    filterAllCustomers();
+}
+window.filterAllCustomers = filterAllCustomers;
+window.resetAllCustomerLimitAndFilter = resetAllCustomerLimitAndFilter;
+window.loadMoreAllCustomers = loadMoreAllCustomers;
 
 // ── SUPERADMIN CAPABILITIES ──────────────────────────────────────────────────
 
@@ -1039,14 +1227,15 @@ async function toggleAdminStatus(email, currentStatus) {
 
 // 2. Manage Customers
 let superCustomersCache = [];
-let displayedSuperCustomersLimit = 20;
+let allCustomersCache = [];
+let displayedSuperCustomersLimit = 10;
 
 async function loadSuperCustomers() {
     if (!isSuperAdmin) return;
     const container = document.getElementById('super-customer-list');
     if (!container) return;
 
-    displayedSuperCustomersLimit = 20;
+    displayedSuperCustomersLimit = getCustomersPageLimit();
     container.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
             <div class="premium-loader"></div>
@@ -1062,13 +1251,14 @@ async function loadSuperCustomers() {
             return;
         }
 
-        superCustomersCache = [];
+        const rawCustomers = [];
         snap.forEach(doc => {
-            superCustomersCache.push({
+            rawCustomers.push({
                 uid: doc.id,
                 ...doc.data()
             });
         });
+        superCustomersCache = deduplicateCustomersByEmail(rawCustomers);
 
         superCustomersCache.sort((a, b) => {
             const nameA = (a.displayName || a.email || '').toLowerCase();
@@ -1116,11 +1306,20 @@ function renderSuperCustomersList(list) {
         
         const emailLower = (c.email || '').toLowerCase();
         const isSelfOrSystem = emailLower === SUPER_ADMIN_EMAIL.toLowerCase() || emailLower === ADMIN_EMAIL.toLowerCase();
+        const mergedNote = c._mergedAccountCount > 1
+            ? `<div style="font-size:10px; color:#888; margin-top:4px;">Merged ${c._mergedAccountCount} duplicate logins (Google / Email)</div>`
+            : '';
+        const authBadge = buildCustomerAuthBadgeHtml(c);
+        const safeName = (c.displayName || 'Customer').replace(/'/g, "\\'");
+        const mergedUidsParam = (c._mergedUids || [c.uid]).join(',');
 
         const actionButtons = isSelfOrSystem ? `
             <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
         ` : `
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
+            ${(typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat')) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>
+            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
@@ -1128,14 +1327,18 @@ function renderSuperCustomersList(list) {
 
         html += `
             <div style="background:#181818; padding:15px; border-radius:12px; border:1px solid #282828; display:flex; flex-direction:column; gap:12px; min-width: 0;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
-                    <div style="display:flex; align-items:center; gap:10px; flex-shrink: 1; min-width: 0;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 8px;">
+                    <div style="display:flex; align-items:flex-start; gap:10px; flex-shrink: 1; min-width: 0;">
                         <div style="width:35px; height:35px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--gold); font-size:14px; flex-shrink: 0;">
                             ${(c.displayName || c.email || 'U').charAt(0).toUpperCase()}
                         </div>
                         <div style="flex-shrink: 1; min-width: 0;">
-                            <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.displayName || 'Unnamed User'}</div>
-                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'} ${c.phone ? ' • ' + c.phone : ''}</div>
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;">
+                                <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width:100%;">${c.displayName || 'Unnamed User'}</div>
+                                ${authBadge}
+                            </div>
+                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'}${c.phone ? ' • ' + c.phone : ''}</div>
+                            ${mergedNote}
                         </div>
                     </div>
                     <span style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; color:${statusColor}; background:${statusBg}; border:1px solid ${statusColor}33; text-transform:uppercase; letter-spacing:0.5px; flex-shrink: 0;">${statusText}</span>
@@ -1150,28 +1353,23 @@ function renderSuperCustomersList(list) {
 }
 
 function filterSuperCustomers() {
-    const q = document.getElementById('super-customer-search').value.toLowerCase().trim();
-    if (!q) {
+    const q = document.getElementById('super-customer-search')?.value || '';
+    if (!q.trim()) {
         renderSuperCustomersList(superCustomersCache);
         return;
     }
 
-    const filtered = superCustomersCache.filter(c => {
-        const name = (c.displayName || '').toLowerCase();
-        const email = (c.email || '').toLowerCase();
-        const phone = (c.phone || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || phone.includes(q);
-    });
+    const filtered = superCustomersCache.filter(c => matchCustomerSearch(c, q));
     renderSuperCustomersList(filtered);
 }
 
 function resetSuperCustomerLimitAndFilter() {
-    displayedSuperCustomersLimit = 20;
+    displayedSuperCustomersLimit = getCustomersPageLimit();
     filterSuperCustomers();
 }
 
 function loadMoreSuperCustomers() {
-    displayedSuperCustomersLimit += 20;
+    displayedSuperCustomersLimit += getCustomersPageLimit();
     filterSuperCustomers();
 }
 
@@ -1420,6 +1618,50 @@ async function deleteAllOrdersPrompt() {
         showToast("Failed to delete orders.");
     }
 }
+
+async function deleteAllAdminSupportChatsPrompt() {
+    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!confirm("⚠️ DANGER: Delete ALL Live Support (admin) chat messages for every customer thread?\n\nAI Help history will be kept. This cannot be undone.")) return;
+    const confirmText = prompt("To verify, type 'DELETE ALL ADMIN CHATS':");
+    if (confirmText !== "DELETE ALL ADMIN CHATS") {
+        return showToast("Verification failed. Deletion aborted.");
+    }
+
+    try {
+        showToast("Deleting all admin support chats...");
+        const count = typeof deleteAllSupportChatsByChannel === 'function'
+            ? await deleteAllSupportChatsByChannel('support')
+            : 0;
+        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+        showToast(count ? `🗑️ Deleted ${count} Live Support message${count === 1 ? '' : 's'}.` : 'No Live Support messages found.');
+    } catch (e) {
+        console.error("Error deleting all admin support chats:", e);
+        showToast("Failed to delete admin support chats.");
+    }
+}
+window.deleteAllAdminSupportChatsPrompt = deleteAllAdminSupportChatsPrompt;
+
+async function deleteAllAiSupportChatsPrompt() {
+    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!confirm("⚠️ DANGER: Delete ALL AI Help chat messages for every customer thread?\n\nLive Support history will be kept. This cannot be undone.")) return;
+    const confirmText = prompt("To verify, type 'DELETE ALL AI CHATS':");
+    if (confirmText !== "DELETE ALL AI CHATS") {
+        return showToast("Verification failed. Deletion aborted.");
+    }
+
+    try {
+        showToast("Deleting all AI help chats...");
+        const count = typeof deleteAllSupportChatsByChannel === 'function'
+            ? await deleteAllSupportChatsByChannel('ai')
+            : 0;
+        showToast(count ? `🗑️ Deleted ${count} AI Help message${count === 1 ? '' : 's'}.` : 'No AI Help messages found.');
+    } catch (e) {
+        console.error("Error deleting all AI help chats:", e);
+        showToast("Failed to delete AI help chats.");
+    }
+}
+window.deleteAllAiSupportChatsPrompt = deleteAllAiSupportChatsPrompt;
 
 async function cleanEverythingPrompt() {
     if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
@@ -1672,6 +1914,12 @@ async function loadSuperadminFeatures() {
             
             // Set checkboxes
             if (document.getElementById('toggle-ai-chat')) document.getElementById('toggle-ai-chat').checked = !!data.aiChatbot;
+            if (document.getElementById('toggle-admin-support-chat')) {
+                const normalized = typeof normalizeSupportChatFeatures === 'function'
+                    ? normalizeSupportChatFeatures(data)
+                    : { adminSupportChat: !!data.adminSupportChat || !!data.aiChatbot };
+                document.getElementById('toggle-admin-support-chat').checked = !!normalized.adminSupportChat;
+            }
             if (document.getElementById('toggle-360-viewer')) document.getElementById('toggle-360-viewer').checked = !!data.threeSixtyViewer;
             if (document.getElementById('toggle-theme-picker')) document.getElementById('toggle-theme-picker').checked = !!data.themeSwitcher;
             if (document.getElementById('toggle-language')) document.getElementById('toggle-language').checked = !!data.multiLanguage;
@@ -1684,6 +1932,20 @@ async function loadSuperadminFeatures() {
                 if (document.getElementById('toggle-newsletter')) document.getElementById('toggle-newsletter').checked = !!data.widgets.newsletterPopup;
             }
             if (document.getElementById('toggle-product-comments')) document.getElementById('toggle-product-comments').checked = data.productComments !== false;
+
+            if (typeof syncCatalogControlCheckboxes === 'function') {
+                syncCatalogControlCheckboxes(data);
+            } else if (data.catalogControls) {
+                const cc = data.catalogControls;
+                if (document.getElementById('toggle-home-search')) document.getElementById('toggle-home-search').checked = cc.home?.search !== false;
+                if (document.getElementById('toggle-home-sort')) document.getElementById('toggle-home-sort').checked = cc.home?.sort !== false;
+                if (document.getElementById('toggle-home-announcement')) document.getElementById('toggle-home-announcement').checked = cc.home?.announcement !== false;
+                if (document.getElementById('toggle-home-chat')) document.getElementById('toggle-home-chat').checked = cc.home?.chat !== false;
+                if (document.getElementById('toggle-wish-search')) document.getElementById('toggle-wish-search').checked = !!cc.wishlist?.search;
+                if (document.getElementById('toggle-wish-sort')) document.getElementById('toggle-wish-sort').checked = cc.wishlist?.sort !== false;
+                if (document.getElementById('toggle-wish-announcement')) document.getElementById('toggle-wish-announcement').checked = !!cc.wishlist?.announcement;
+                if (document.getElementById('toggle-wish-chat')) document.getElementById('toggle-wish-chat').checked = !!cc.wishlist?.chat;
+            }
             
             toggleCustomColorPickers(data.themePreset || 'outlaw');
         }
@@ -1712,6 +1974,7 @@ async function saveSuperadminFeatures() {
         themePreset: preset,
         customColors: customColors,
         aiChatbot: !!document.getElementById('toggle-ai-chat')?.checked,
+        adminSupportChat: !!document.getElementById('toggle-admin-support-chat')?.checked,
         threeSixtyViewer: !!document.getElementById('toggle-360-viewer')?.checked,
         themeSwitcher: !!document.getElementById('toggle-theme-picker')?.checked,
         multiLanguage: !!document.getElementById('toggle-language')?.checked,
@@ -1722,11 +1985,28 @@ async function saveSuperadminFeatures() {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
             newsletterPopup: !!document.getElementById('toggle-newsletter')?.checked
+        },
+        catalogControls: {
+            home: {
+                search: !!document.getElementById('toggle-home-search')?.checked,
+                sort: !!document.getElementById('toggle-home-sort')?.checked,
+                announcement: !!document.getElementById('toggle-home-announcement')?.checked,
+                chat: !!document.getElementById('toggle-home-chat')?.checked
+            },
+            wishlist: {
+                search: !!document.getElementById('toggle-wish-search')?.checked,
+                sort: !!document.getElementById('toggle-wish-sort')?.checked,
+                announcement: !!document.getElementById('toggle-wish-announcement')?.checked,
+                chat: !!document.getElementById('toggle-wish-chat')?.checked
+            }
         }
     };
     
     try {
         await db.collection("settings").doc("features_config").set(updateObj, { merge: true });
+        window.APP_FEATURES = { ...window.APP_FEATURES, ...updateObj };
+        if (typeof cacheFeaturesConfig === 'function') cacheFeaturesConfig(window.APP_FEATURES);
+        if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
         await db.collection("settings").doc("comments").set({
             enabled: updateObj.productComments
         }, { merge: true });
@@ -1758,7 +2038,7 @@ async function loadAdminFeatureContent() {
             if (document.getElementById('admin-newsletter-delay')) document.getElementById('admin-newsletter-delay').value = data.newsletterDelay || 5;
             if (document.getElementById('admin-wheel-jackpot')) document.getElementById('admin-wheel-jackpot').value = data.wheelJackpotCode || '';
             
-            const engine = data.chatbotEngine || 'pollinations';
+            const engine = data.chatbotEngine || 'local';
             if (document.getElementById('admin-chatbot-engine')) {
                 document.getElementById('admin-chatbot-engine').value = engine;
             }
@@ -1780,7 +2060,7 @@ async function saveAdminFeatureContent() {
         chatbotChips: document.getElementById('admin-bot-chips')?.value || '',
         newsletterDelay: parseInt(document.getElementById('admin-newsletter-delay')?.value || '5', 10),
         wheelJackpotCode: document.getElementById('admin-wheel-jackpot')?.value || '',
-        chatbotEngine: document.getElementById('admin-chatbot-engine')?.value || 'pollinations',
+        chatbotEngine: document.getElementById('admin-chatbot-engine')?.value || 'local',
         geminiApiKey: document.getElementById('admin-gemini-key')?.value || ''
     };
     

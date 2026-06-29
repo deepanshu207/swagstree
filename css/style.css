@@ -1556,6 +1556,37 @@ body {
     align-items: center;
     gap: 10px;
 }
+.ai-chat-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 10px;
+    background: #0d0d0d;
+    border-bottom: 1px solid var(--border);
+}
+.ai-chat-tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 10px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+.ai-chat-tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+    background: rgba(255, 215, 0, 0.05);
+}
+.ai-chat-tab i {
+    font-size: 11px;
+}
 .ai-chat-avatar {
     width: 32px;
     height: 32px;
@@ -1564,6 +1595,12 @@ body {
     border: 1px solid var(--border);
     display: grid;
     place-items: center;
+}
+.ai-chat-body-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 .ai-chat-body {
     flex: 1;
@@ -1632,15 +1669,30 @@ body {
 
 /* Chat Bubbles Product Recommendation Card */
 .ai-chat-product-card {
-    background: #111;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: rgba(255,255,255,0.03);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 8px;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-top: 5px;
-    width: 100%;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    margin-bottom: 6px;
+}
+.ai-chat-product-card:last-child {
+    margin-bottom: 0;
+}
+.ai-chat-product-scroll {
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+.ai-chat-filter-btn {
+    width: auto !important;
+    padding: 6px 10px !important;
+    font-size: 10px !important;
+    margin: 0 !important;
 }
 .ai-chat-product-card img {
     width: 45px;
@@ -1801,6 +1853,11 @@ body {
 #announcement-bell-btn:hover i {
     color: #fff !important;
 }
+#header-support-chat-btn:hover {
+    border-color: var(--gold) !important;
+    background: #1c1c0a !important;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
+}
 #sort-logic:hover {
     border-color: var(--gold) !important;
     box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
@@ -1875,33 +1932,505 @@ body {
 }
 
 /* Catalog Controls Row & Count Badge */
+#home-view,
+#wish-view {
+    --catalog-section-gap: 8px;
+}
+
+body.catalog-controls-pending #home-view .home-search-wrap,
+body.catalog-controls-pending #home-view .catalog-controls-row,
+body.catalog-controls-pending #wish-view .wish-search-wrap,
+body.catalog-controls-pending #wish-view .catalog-controls-row {
+    visibility: hidden;
+}
+
+.home-search-wrap,
+.wish-search-wrap {
+    padding: 10px 15px var(--catalog-section-gap) 15px;
+}
+
+.home-search-input {
+    margin-bottom: 0 !important;
+}
+
+.wishlist-title {
+    padding: 10px 15px var(--catalog-section-gap) 15px;
+    margin: 0;
+}
+
 .catalog-controls-row {
-    padding: 0 15px 10px 15px;
+    padding: 0 12px;
+    margin: 0;
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: clamp(6px, 1.8vw, 10px);
     width: 100%;
     box-sizing: border-box;
+    overflow: visible;
+    min-height: 36px;
+    --catalog-actions-width: 150px;
+}
+
+#home-view > .grid,
+#wish-view > .grid {
+    padding: var(--catalog-section-gap) 15px 15px 15px;
+}
+
+.catalog-count-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: calc(100% - var(--catalog-actions-width));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.25;
+    margin: 0;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+}
+
+.catalog-controls-row.catalog-row-icons-minimal .catalog-count-label {
+    max-width: calc(100% - var(--catalog-actions-width));
+}
+
+.catalog-controls-row.catalog-row-no-chat .catalog-count-label,
+.catalog-controls-row.catalog-row-no-announcement .catalog-count-label {
+    max-width: calc(100% - var(--catalog-actions-width));
+}
+
+.catalog-controls-row.catalog-row-no-chat.catalog-row-no-announcement .catalog-count-label {
+    max-width: calc(100% - var(--catalog-actions-width));
+}
+
+.catalog-row-wishlist .catalog-count-label {
+    max-width: calc(100% - var(--catalog-actions-width));
+}
+
+.catalog-controls-actions {
+    display: flex;
+    align-items: center;
+    gap: clamp(5px, 1.5vw, 8px);
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    margin-left: auto;
+    overflow: visible;
+    max-width: var(--catalog-actions-width);
+}
+
+.catalog-row-wishlist .catalog-controls-actions {
+    max-width: none;
+    width: auto;
+}
+
+.catalog-row-wishlist .catalog-sort-wrap {
+    max-width: min(44vw, 140px);
+}
+
+.catalog-controls-row .count-badge,
+.catalog-controls-row .catalog-count-label {
+    font-size: clamp(10px, 2.85vw, 12px);
+    font-weight: 700;
+    padding: 6px 10px;
+    letter-spacing: 0.3px;
+    text-transform: none !important;
+    height: 32px;
+    box-sizing: border-box;
+    align-items: center;
+    width: auto;
+    max-width: calc(100% - var(--catalog-actions-width));
+}
+
+@media (min-width: 600px) {
+    #home-view,
+    #wish-view {
+        --catalog-section-gap: 10px;
+    }
+
+    .home-search-wrap,
+    .wish-search-wrap,
+    .wishlist-title {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .catalog-controls-row {
+        gap: 10px;
+        padding: 0 16px;
+        min-height: 38px;
+    }
+    .catalog-controls-row .count-badge,
+    .catalog-controls-row .catalog-count-label {
+        font-size: 11px;
+        padding: 7px 12px;
+        height: 34px;
+    }
+}
+
+@media (min-width: 1024px) {
+    #home-view,
+    #wish-view {
+        --catalog-section-gap: 12px;
+    }
+
+    .home-search-wrap,
+    .wish-search-wrap,
+    .wishlist-title {
+        padding-left: 24px;
+        padding-right: 24px;
+    }
+
+    .catalog-controls-row {
+        gap: 12px;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px;
+        min-height: 40px;
+    }
+
+    #home-view > .grid,
+    #wish-view > .grid {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-left: 24px;
+        padding-right: 24px;
+    }
+    .catalog-controls-row .count-badge,
+    .catalog-controls-row .catalog-count-label {
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        height: 36px;
+    }
+}
+
+.catalog-icon-btn {
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #111;
+    border: 1px solid #222;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    overflow: visible;
+    z-index: 1;
+}
+
+.catalog-icon-btn .fa-comments {
+    color: var(--gold);
+    font-size: 12px;
+}
+
+.catalog-icon-btn .fa-bullhorn {
+    color: #777;
+    font-size: 12px;
+    opacity: 0.6;
+}
+
+.catalog-icon-badge,
+.catalog-announcement-badge,
+#announcement-badge {
+    display: none;
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 10px;
+    background: #ff4757;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 15px;
+    text-align: center;
+    box-shadow: 0 0 6px #ff4757;
+    box-sizing: border-box;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.catalog-announcement-badge:not(:empty),
+#announcement-badge:not(:empty) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.catalog-sort-wrap {
+    display: none;
+    align-items: center;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 42vw;
+}
+
+.catalog-sort-select {
+    margin: 0;
+    min-width: 0;
+    width: 100%;
+    max-width: 120px;
+    position: relative;
+}
+
+.catalog-sort-dropdown {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    height: 32px !important;
+    min-height: 32px !important;
+    margin-bottom: 0;
+    padding: 4px 22px 4px 22px !important;
+    font-size: clamp(9px, 2.5vw, 11px) !important;
+    line-height: 1.2 !important;
+    border: 1px solid #222;
+    background-color: #111;
+    color: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFD700' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 6px center !important;
+    background-size: 10px !important;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.catalog-sort-icon {
+    position: absolute;
+    left: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #ffd700;
+    font-size: 9px;
+    pointer-events: none;
+    z-index: 2;
+    line-height: 1;
+}
+
+.admin-customer-card {
+    background: #111;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.admin-customer-card__avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #FFD700;
+    flex-shrink: 0;
+}
+
+.admin-customer-card__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-customer-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-customer-card__name {
+    font-weight: bold;
+    font-size: 15px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+}
+
+.admin-customer-card__badge,
+.customer-auth-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid #333;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    color: var(--badge-color, var(--gold));
+}
+
+.admin-customer-card__meta,
+.admin-customer-card__joined {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-customer-card__meta {
+    color: #aaa;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+.admin-customer-card__joined {
+    color: #666;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+.admin-customer-card__merged {
+    color: #888;
+    font-size: 10px;
+    margin-top: 4px;
+    line-height: 1.35;
+}
+
+.admin-customer-card__chat {
+    width: auto !important;
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+    margin: 0 !important;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.admin-customer-chat-body {
+    gap: 2px;
+}
+
+.admin-chat-msg {
+    display: flex;
+    flex-direction: column;
+    margin: 10px 0;
+    max-width: 92%;
+}
+
+.admin-chat-msg-admin {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.admin-chat-msg-customer,
+.admin-chat-msg-bot {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.admin-chat-msg-meta {
+    font-size: 9px;
+    color: #777;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.admin-chat-msg-meta strong {
+    color: #ccc;
+    font-weight: 700;
+}
+
+.admin-chat-msg-badge {
+    font-size: 8px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.admin-chat-msg-badge.complaint {
+    background: rgba(255, 71, 87, 0.15);
+    color: #ff6b7a;
+}
+
+.admin-chat-msg-badge.ai {
+    background: rgba(136, 136, 136, 0.15);
+    color: #aaa;
+}
+
+.admin-chat-msg-bubble {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.admin-chat-msg-customer .admin-chat-msg-bubble {
+    background: #222;
+    border: 1px solid #333;
+    color: #fff;
+}
+
+.admin-chat-msg-admin .admin-chat-msg-bubble {
+    background: var(--gold);
+    color: #000;
+}
+
+.admin-chat-msg-bot .admin-chat-msg-bubble {
+    background: #151515;
+    border: 1px solid #2a2a2a;
+    color: #bbb;
+}
+
+.admin-chat-day-divider {
+    align-self: center;
+    font-size: 9px;
+    color: #666;
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 3px 10px;
+    margin: 12px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .count-badge {
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid rgba(255, 215, 0, 0.25);
-    padding: 6px 14px;
-    border-radius: 25px;
+    padding: 5px 10px;
+    border-radius: 20px;
     color: var(--gold);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.5px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     white-space: nowrap;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
     transition: all 0.3s ease;
+    line-height: 1.2;
 }
 .count-badge:hover {
     border-color: var(--gold);
@@ -1966,29 +2495,66 @@ body {
         right: -4px !important;
     } */
     .catalog-controls-row {
-        gap: 6px;
+        gap: 5px;
+        padding: 0 12px;
+        min-height: 34px;
     }
-    .catalog-controls-row .count-badge {
-        font-size: 9px;
-        padding: 5px 10px;
+    .home-search-wrap,
+    .wish-search-wrap {
+        padding: 8px 12px var(--catalog-section-gap, 8px) 12px;
     }
-    .catalog-controls-row select {
-        font-size: 9px !important;
-        height: 28px !important;
-        padding: 2px 4px 2px 20px !important;
+    .wishlist-title {
+        padding: 8px 12px var(--catalog-section-gap, 8px) 12px;
+        font-size: clamp(16px, 4.5vw, 20px);
     }
-    .catalog-controls-row .select-wrapper {
-        min-width: 100px !important;
+    #home-view > .grid,
+    #wish-view > .grid {
+        padding: var(--catalog-section-gap, 8px) 12px 12px 12px;
     }
-    /* .catalog-controls-row .select-wrapper i {
-        font-size: 9px !important;
-        left: 8px !important;
-    } */
-    .catalog-controls-row #announcement-bell-btn {
-        width: 28px !important;
-        height: 28px !important;
+    .catalog-controls-row .count-badge,
+    .catalog-count-label {
+        font-size: clamp(10px, 3vw, 11px);
+        padding: 5px 8px;
+        height: 30px;
     }
-    .catalog-controls-row #announcement-bell-btn i {
+    .catalog-controls-actions {
+        gap: 4px;
+    }
+    .catalog-row-wishlist .catalog-sort-wrap {
+        max-width: min(42vw, 120px);
+    }
+    .catalog-sort-wrap {
+        max-width: min(36vw, 110px);
+    }
+    .catalog-sort-select {
+        max-width: 100%;
+    }
+    .catalog-controls-row select,
+    .catalog-sort-dropdown {
+        font-size: clamp(9px, 2.6vw, 10px) !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 2px 18px 2px 18px !important;
+        background-position: right 4px center !important;
+        background-size: 8px !important;
+    }
+    .catalog-sort-icon {
+        left: 6px;
+        font-size: 8px;
+    }
+    .catalog-icon-btn,
+    .catalog-controls-row #header-support-chat-btn,
+    .catalog-controls-row #announcement-bell-btn,
+    .catalog-controls-row #wish-header-support-chat-btn,
+    .catalog-controls-row #wish-announcement-bell-btn {
+        width: 30px !important;
+        height: 30px !important;
+    }
+    .catalog-icon-btn i,
+    .catalog-controls-row #header-support-chat-btn i,
+    .catalog-controls-row #announcement-bell-btn i,
+    .catalog-controls-row #wish-header-support-chat-btn i,
+    .catalog-controls-row #wish-announcement-bell-btn i {
         font-size: 11px !important;
     }
 }

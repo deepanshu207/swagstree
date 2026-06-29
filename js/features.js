@@ -6,6 +6,7 @@
 window.APP_FEATURES = window.APP_FEATURES || {
     threeSixtyViewer: false,
     aiChatbot: false,
+    adminSupportChat: false,
     themeSwitcher: false,
     multiLanguage: false,
     announcementBar: false,
@@ -22,6 +23,10 @@ window.APP_FEATURES = window.APP_FEATURES || {
         facebook: true,
         instagram: true,
         phone: true
+    },
+    catalogControls: {
+        home: { search: true, sort: true, announcement: true, chat: true },
+        wishlist: { search: false, sort: true, announcement: false, chat: false }
     }
 };
 
@@ -30,6 +35,8 @@ const I18N_DICTIONARY = {
     en: {
         search_placeholder: "Search products...",
         showing_products: "Showing {visible} of {total} Products",
+        showing_products_short: "Showing {visible} of {total} Pro...",
+        showing_products_compact: "Showing {visible} of {total} Pro...",
         wishlist_title: "My Wishlist",
         cart_title: "Shopping Cart",
         checkout: "Checkout Now",
@@ -55,6 +62,8 @@ const I18N_DICTIONARY = {
     hi: {
         search_placeholder: "उत्पाद खोजें...",
         showing_products: "{total} में से {visible} उत्पाद दिख रहे हैं",
+        showing_products_short: "{total} में से {visible} Pro...",
+        showing_products_compact: "{total} में से {visible} Pro...",
         wishlist_title: "मेरी विशलिस्ट",
         cart_title: "शॉपिंग कार्ट",
         checkout: "चेकआउट करें",
@@ -80,6 +89,8 @@ const I18N_DICTIONARY = {
     es: {
         search_placeholder: "Buscar productos...",
         showing_products: "Mostrando {visible} de {total} Productos",
+        showing_products_short: "Mostrando {visible} de {total} Pro...",
+        showing_products_compact: "Mostrando {visible} de {total} Pro...",
         wishlist_title: "Mi Lista",
         cart_title: "Carrito de Compras",
         checkout: "Pagar Ahora",
@@ -204,7 +215,7 @@ function selectTheme(themeKey) {
 window.selectTheme = selectTheme;
 
 // 4. FLOATING AI SUPPORT CHATBOT
-let chatHistory = [];
+window.chatHistory = window.chatHistory || [];
 
 function parseMarkdown(text) {
     if (!text) return "";
@@ -296,10 +307,15 @@ IMPORTANT GUIDELINES:
 
 async function getAIResponse() {
     const contentSettings = window.APP_FEATURES_CONTENT || {};
+    const engine = contentSettings.chatbotEngine || 'local';
 
-    if (contentSettings.chatbotEngine === 'gemini' && contentSettings.geminiApiKey) {
+    if (engine === 'local') {
+        throw new Error('Local engine does not use cloud AI');
+    }
+
+    if (engine === 'gemini' && contentSettings.geminiApiKey) {
         const systemPrompt = generateSystemPrompt(false);
-        const recentHistory = chatHistory.slice(-10);
+        const recentHistory = window.chatHistory.slice(-10);
         const apiKey = contentSettings.geminiApiKey.trim();
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
@@ -333,9 +349,11 @@ async function getAIResponse() {
             throw new Error('Invalid or empty response structure from Gemini API');
         }
         return replyText.trim();
-    } else {
+    }
+
+    if (engine === 'pollinations') {
         const systemPrompt = generateSystemPrompt(true);
-        const recentHistory = chatHistory.slice(-6); // Keep history slightly shorter for GET requests
+        const recentHistory = window.chatHistory.slice(-6); // Keep history slightly shorter for GET requests
         let promptWithHistory = "";
         recentHistory.forEach((h, index) => {
             if (index === recentHistory.length - 1) {
@@ -355,10 +373,12 @@ async function getAIResponse() {
         const text = await response.text();
         return text.trim();
     }
+
+    throw new Error(`Unsupported chatbot engine: ${engine}`);
 }
 
 function appendTypingIndicator() {
-    const body = document.getElementById('ai-chat-body');
+    const body = document.getElementById('ai-chat-body-ai') || document.getElementById('ai-chat-body');
     if (!body) return null;
     
     const div = document.createElement('div');
@@ -399,14 +419,15 @@ function toggleAIChat() {
     const isHidden = chatContainer.style.display === 'none' || !chatContainer.style.display;
     chatContainer.style.display = isHidden ? 'flex' : 'none';
     
-    if (isHidden && chatHistory.length === 0) {
+    if (isHidden && window.chatHistory.length === 0) {
         appendChatMessage('bot', getI18nText('ai_chat_welcome'));
     }
 }
 window.toggleAIChat = toggleAIChat;
+window.getAIResponse = getAIResponse;
 
 function appendChatMessage(sender, text) {
-    const body = document.getElementById('ai-chat-body');
+    const body = document.getElementById('ai-chat-body-ai') || document.getElementById('ai-chat-body');
     if (!body) return;
     
     const div = document.createElement('div');
@@ -433,7 +454,7 @@ function appendChatMessage(sender, text) {
     
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
-    chatHistory.push({ sender, text });
+    window.chatHistory.push({ sender, text });
 }
 
 async function handleBotReply(text) {
@@ -1165,6 +1186,7 @@ window.APP_FEATURES_CONTENT = window.APP_FEATURES_CONTENT || {
     announcementText: "✨ EXTRA 10% OFF ON PRE-PAID ORDERS! CODE: PREPAID10 ✨",
     chatbotWelcome: "Hi! How can I help you style your day today?",
     chatbotChips: "Sizes, Price, Track Order, Discount Code",
+    chatbotEngine: 'local',
     newsletterDelay: 5,
     wheelJackpotCode: "WIN50"
 };
@@ -1226,6 +1248,184 @@ function applyCustomHexColors(colors) {
 }
 window.applyCustomHexColors = applyCustomHexColors;
 
+const FEATURES_CONFIG_CACHE_KEY = 'swag_features_config';
+
+function cacheFeaturesConfig(config) {
+    try {
+        if (config && typeof config === 'object') {
+            localStorage.setItem(FEATURES_CONFIG_CACHE_KEY, JSON.stringify(config));
+        }
+    } catch (e) {}
+}
+window.cacheFeaturesConfig = cacheFeaturesConfig;
+
+function hydrateFeaturesFromCache() {
+    try {
+        const raw = localStorage.getItem(FEATURES_CONFIG_CACHE_KEY);
+        if (!raw) return false;
+        const cached = JSON.parse(raw);
+        if (cached && typeof cached === 'object') {
+            window.APP_FEATURES = { ...window.APP_FEATURES, ...normalizeSupportChatFeatures(cached) };
+            window._featuresUiApplied = true;
+            return true;
+        }
+    } catch (e) {}
+    return false;
+}
+
+function normalizeSupportChatFeatures(config) {
+    const c = config && typeof config === 'object' ? { ...config } : {};
+    if (c.adminSupportChat === undefined && c.aiChatbot !== undefined) {
+        c.adminSupportChat = !!c.aiChatbot;
+    }
+    return c;
+}
+
+function isSupportChatGloballyEnabled(config) {
+    const c = normalizeSupportChatFeatures(config || window.APP_FEATURES || {});
+    return !!(c.aiChatbot || c.adminSupportChat);
+}
+
+function normalizeCatalogControls(config) {
+    const c = config && typeof config === 'object' ? config : {};
+    const chatGlobal = isSupportChatGloballyEnabled(c);
+    const annGlobal = c.announcementBell !== false;
+    const defaults = {
+        home: { search: true, sort: true, announcement: annGlobal, chat: chatGlobal },
+        wishlist: { search: false, sort: true, announcement: false, chat: false }
+    };
+    const saved = c.catalogControls || {};
+    return {
+        home: { ...defaults.home, ...(saved.home || {}) },
+        wishlist: { ...defaults.wishlist, ...(saved.wishlist || {}) }
+    };
+}
+window.normalizeCatalogControls = normalizeCatalogControls;
+
+function isCatalogControlEnabled(view, feature) {
+    const config = window.APP_FEATURES || {};
+    const cc = normalizeCatalogControls(config);
+    const viewKey = view === 'wishlist' ? 'wishlist' : 'home';
+    const enabled = !!cc[viewKey]?.[feature];
+    if (feature === 'chat') return isSupportChatGloballyEnabled(config) && enabled;
+    if (feature === 'announcement') return config.announcementBell !== false && enabled;
+    return enabled;
+}
+window.isCatalogControlEnabled = isCatalogControlEnabled;
+
+function syncCatalogControlCheckboxes(config) {
+    const cc = normalizeCatalogControls(config || window.APP_FEATURES || {});
+    const map = [
+        ['toggle-home-search', cc.home.search],
+        ['toggle-home-sort', cc.home.sort],
+        ['toggle-home-announcement', cc.home.announcement],
+        ['toggle-home-chat', cc.home.chat],
+        ['toggle-wish-search', cc.wishlist.search],
+        ['toggle-wish-sort', cc.wishlist.sort],
+        ['toggle-wish-announcement', cc.wishlist.announcement],
+        ['toggle-wish-chat', cc.wishlist.chat]
+    ];
+    map.forEach(([id, checked]) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!checked;
+    });
+}
+window.syncCatalogControlCheckboxes = syncCatalogControlCheckboxes;
+
+function syncCatalogControlsReady() {
+    if (!document.body) return;
+    if (!window._featuresUiApplied) return;
+    if (!window.productsLoaded) return;
+    if (window._announcementsHydrated !== true) return;
+    document.body.classList.remove('catalog-controls-pending');
+    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+    if (typeof updateAnnouncementBellUI === 'function') updateAnnouncementBellUI();
+}
+window.syncCatalogControlsReady = syncCatalogControlsReady;
+
+function applyCatalogControlsVisibility() {
+    const config = window.APP_FEATURES || {};
+    const cc = normalizeCatalogControls(config);
+    const chatGlobal = isSupportChatGloballyEnabled(config);
+    const annGlobal = config.announcementBell !== false;
+
+    const homeSearch = document.querySelector('#home-view .home-search-wrap');
+    if (homeSearch) homeSearch.style.display = cc.home.search ? '' : 'none';
+
+    const wishSearch = document.getElementById('wish-search-wrap');
+    if (wishSearch) wishSearch.style.display = cc.wishlist.search ? '' : 'none';
+
+    const homeChat = document.getElementById('header-support-chat-btn');
+    const wishChat = document.getElementById('wish-header-support-chat-btn');
+    const showHomeChat = chatGlobal && cc.home.chat;
+    const showWishChat = chatGlobal && cc.wishlist.chat;
+    if (homeChat) {
+        homeChat.style.display = showHomeChat ? 'flex' : 'none';
+        homeChat.classList.toggle('catalog-action-hidden', !showHomeChat);
+    }
+    if (wishChat) {
+        wishChat.style.display = showWishChat ? 'flex' : 'none';
+        wishChat.classList.toggle('catalog-action-hidden', !showWishChat);
+    }
+    if (!chatGlobal) {
+        const box = document.getElementById('ai-chat-box');
+        if (box) box.style.display = 'none';
+    }
+
+    const homeBell = document.getElementById('announcement-bell-btn');
+    const wishBell = document.getElementById('wish-announcement-bell-btn');
+    const showHomeAnn = annGlobal && cc.home.announcement;
+    const showWishAnn = annGlobal && cc.wishlist.announcement;
+    if (homeBell) {
+        homeBell.style.display = showHomeAnn ? 'flex' : 'none';
+        homeBell.classList.toggle('catalog-action-hidden', !showHomeAnn);
+    }
+    if (wishBell) {
+        wishBell.style.display = showWishAnn ? 'flex' : 'none';
+        wishBell.classList.toggle('catalog-action-hidden', !showWishAnn);
+    }
+
+    const homeSort = document.getElementById('sort-logic-container');
+    const wishSort = document.getElementById('wish-sort-logic-container');
+    if (homeSort && homeSort.style.display !== 'none' && !cc.home.sort) {
+        homeSort.style.display = 'none';
+    }
+    if (wishSort && wishSort.style.display !== 'none' && !cc.wishlist.sort) {
+        wishSort.style.display = 'none';
+    }
+
+    window._featuresUiApplied = true;
+    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+    syncCatalogControlsReady();
+}
+window.applyCatalogControlsVisibility = applyCatalogControlsVisibility;
+
+function applyFeaturesConfigFromFirestore(data) {
+    if (data && typeof data === 'object') {
+        window.APP_FEATURES = { ...window.APP_FEATURES, ...normalizeSupportChatFeatures(data) };
+    }
+    cacheFeaturesConfig(window.APP_FEATURES);
+    applyFeatureTogglesUI();
+}
+
+function startFeaturesConfigListener() {
+    if (window._featuresConfigListenerStarted || typeof db === 'undefined') return;
+    window._featuresConfigListenerStarted = true;
+    db.collection('settings').doc('features_config').onSnapshot(doc => {
+        if (doc.exists) {
+            applyFeaturesConfigFromFirestore(doc.data());
+        } else {
+            db.collection('settings').doc('features_config').set(window.APP_FEATURES).catch(() => {});
+            cacheFeaturesConfig(window.APP_FEATURES);
+            applyFeatureTogglesUI();
+        }
+    }, err => {
+        console.log('Firestore features listener error, using local defaults:', err);
+        applyFeatureTogglesUI();
+    });
+}
+window.startFeaturesConfigListener = startFeaturesConfigListener;
+
 function applyFeatureTogglesUI() {
     const config = window.APP_FEATURES || {};
     
@@ -1238,15 +1438,10 @@ function applyFeatureTogglesUI() {
         }
     }
     
-    // AI Support Chat
-    const aiChatBtn = document.getElementById('ai-chat-trigger');
-    if (aiChatBtn) {
-        aiChatBtn.style.display = config.aiChatbot ? 'grid' : 'none';
-        if (!config.aiChatbot) {
-            const box = document.getElementById('ai-chat-box');
-            if (box) box.style.display = 'none';
-        }
-    }
+    // AI Support Chat — per-tab visibility handled in applyCatalogControlsVisibility
+    const floatBtn = document.getElementById('ai-chat-trigger');
+    if (floatBtn) floatBtn.style.display = 'none';
+    if (typeof applySupportChatTabsVisibility === 'function') applySupportChatTabsVisibility();
     
     // Theme Customizer Drawer
     const themeBtn = document.getElementById('theme-trigger-btn');
@@ -1266,8 +1461,9 @@ function applyFeatureTogglesUI() {
         annBar.style.display = config.announcementBar !== false ? 'block' : 'none';
     }
     const bellBtn = document.getElementById('announcement-bell-btn');
-    if (bellBtn) {
-        bellBtn.style.display = config.announcementBell !== false ? 'flex' : 'none';
+    if (bellBtn && config.announcementBell === false) {
+        bellBtn.style.display = 'none';
+        bellBtn.classList.add('catalog-action-hidden');
     }
     
     // Discount Wheel
@@ -1308,6 +1504,9 @@ function applyFeatureTogglesUI() {
             if (document.getElementById('picker-text')) document.getElementById('picker-text').value = config.customColors.text || '#ffffff';
         }
         if (document.getElementById('toggle-ai-chat')) document.getElementById('toggle-ai-chat').checked = !!config.aiChatbot;
+        if (document.getElementById('toggle-admin-support-chat')) {
+            document.getElementById('toggle-admin-support-chat').checked = !!normalizeSupportChatFeatures(config).adminSupportChat;
+        }
         if (document.getElementById('toggle-360-viewer')) document.getElementById('toggle-360-viewer').checked = !!config.threeSixtyViewer;
         if (document.getElementById('toggle-theme-picker')) document.getElementById('toggle-theme-picker').checked = !!config.themeSwitcher;
         if (document.getElementById('toggle-language')) document.getElementById('toggle-language').checked = !!config.multiLanguage;
@@ -1321,13 +1520,26 @@ function applyFeatureTogglesUI() {
         if (document.getElementById('toggle-product-comments')) {
             document.getElementById('toggle-product-comments').checked = config.productComments !== false;
         }
+        syncCatalogControlCheckboxes(config);
     }
 
+    applyCatalogControlsVisibility();
+    if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
+    if (typeof updateAnnouncementBellUI === 'function') updateAnnouncementBellUI();
     if (typeof refreshCommentsEnabledUI === 'function') {
         refreshCommentsEnabledUI(false);
     }
 }
 window.applyFeatureTogglesUI = applyFeatureTogglesUI;
+
+hydrateFeaturesFromCache();
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => applyFeatureTogglesUI(), { once: true });
+    } else {
+        applyFeatureTogglesUI();
+    }
+}
 
 function renderChatbotChips(chipsStr) {
     const container = document.getElementById('ai-chat-chips');

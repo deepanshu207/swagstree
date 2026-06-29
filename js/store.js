@@ -18,9 +18,11 @@ if (typeof window.productsLoaded === 'undefined') window.productsLoaded = false;
 
 if (typeof window.productsPageLimitSetting === 'undefined') window.productsPageLimitSetting = 20;
 if (typeof window.ordersPageLimitSetting === 'undefined') window.ordersPageLimitSetting = 20;
+if (typeof window.customersPageLimitSetting === 'undefined') window.customersPageLimitSetting = 10;
 if (typeof window.displayedProductsLimit === 'undefined') window.displayedProductsLimit = window.productsPageLimitSetting;
 if (typeof window.displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = window.productsPageLimitSetting;
 if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = window.ordersPageLimitSetting;
+if (typeof window.displayedAllCustomersLimit === 'undefined') window.displayedAllCustomersLimit = window.customersPageLimitSetting;
 if (typeof window.ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
 if (typeof window.deepLinkHandled === 'undefined') window.deepLinkHandled = false;
 
@@ -292,6 +294,8 @@ function updateDetailURL() {
 
 // 1. DATA LOADING
 function loadData() {
+    if (typeof startFeaturesConfigListener === 'function') startFeaturesConfigListener();
+
     db.collection("products").onSnapshot(snap => {
         products = snap.docs.map(doc => {
             const p = { ...doc.data(), id: doc.id };
@@ -301,6 +305,7 @@ function loadData() {
         window.productsLoaded = true;
         renderStore();
         renderFilters();
+        if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
         if (typeof renderAdmin === "function") renderAdmin();
         checkDeepLink(); // open shared product link if present
         
@@ -345,7 +350,6 @@ function loadData() {
     });
 
     db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(snap => {
-        const bell = document.getElementById('announcement-bell-btn');
         window.activeAnnouncements = [];
         snap.forEach(doc => {
             window.activeAnnouncements.push({
@@ -353,11 +357,14 @@ function loadData() {
                 ...doc.data()
             });
         });
-        const isAnnBellEnabled = !window.APP_FEATURES || window.APP_FEATURES.announcementBell !== false;
-        if (bell) bell.style.display = isAnnBellEnabled ? 'flex' : 'none';
-        updateAnnouncementBellUI();
+        window._announcementsHydrated = true;
+        if (typeof syncCatalogControlsReady === 'function') syncCatalogControlsReady();
+        if (typeof updateAnnouncementBellUI === 'function') updateAnnouncementBellUI();
     }, error => {
         console.error("Firestore announcements list load error:", error);
+        window.activeAnnouncements = window.activeAnnouncements || [];
+        window._announcementsHydrated = true;
+        if (typeof syncCatalogControlsReady === 'function') syncCatalogControlsReady();
     });
 }
 
@@ -367,6 +374,12 @@ function renderStore() {
     const wishSortEl = document.getElementById('wish-sort-logic');
     const sort = wishSortEl ? wishSortEl.value : 'none';
     let wishProducts = products.filter(p => wishlist.includes(p.id));
+
+    const wishSearchEl = document.getElementById('wish_search');
+    const wishQ = wishSearchEl ? wishSearchEl.value.trim().toLowerCase() : '';
+    if (wishQ) {
+        wishProducts = wishProducts.filter(p => (p.name || '').toLowerCase().includes(wishQ));
+    }
     
     if (sort === 'low') wishProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
     if (sort === 'high') wishProducts.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
@@ -513,6 +526,54 @@ function isProductOutOfStock(p) {
 }
 window.isProductOutOfStock = isProductOutOfStock;
 
+function formatCatalogProductCount(visible, total, variant) {
+    const v = Number(visible) || 0;
+    const t = Number(total) || 0;
+    const useShort = variant === 'short';
+    if (typeof window.getI18nText === 'function') {
+        return useShort
+            ? window.getI18nText('showing_products_short', { visible: v, total: t })
+            : window.getI18nText('showing_products', { visible: v, total: t });
+    }
+    return useShort
+        ? `Showing ${v} of ${t} Pro...`
+        : `Showing ${v} of ${t} Products`;
+}
+
+function applyCatalogCountLabel(el, visible, total) {
+    if (!el) return;
+    el.dataset.visible = String(visible);
+    el.dataset.total = String(total);
+    el.textContent = formatCatalogProductCount(visible, total, 'full');
+    el.style.display = 'inline-flex';
+
+    requestAnimationFrame(() => {
+        if (!el.isConnected) return;
+        if (el.scrollWidth > el.clientWidth + 2) {
+            el.textContent = formatCatalogProductCount(visible, total, 'short');
+        }
+    });
+}
+
+window.refreshCatalogCountLabels = function() {
+    const productCount = document.getElementById('product-count');
+    const wishCount = document.getElementById('wish-count');
+    if (productCount && productCount.style.display !== 'none' && productCount.dataset.visible != null) {
+        applyCatalogCountLabel(
+            productCount,
+            Number(productCount.dataset.visible),
+            Number(productCount.dataset.total)
+        );
+    }
+    if (wishCount && wishCount.style.display !== 'none' && wishCount.dataset.visible != null) {
+        applyCatalogCountLabel(
+            wishCount,
+            Number(wishCount.dataset.visible),
+            Number(wishCount.dataset.total)
+        );
+    }
+};
+
 function renderProducts(items, targetId) {
     const container = document.getElementById(targetId);
     if (!container) return;
@@ -570,10 +631,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = typeof window.getI18nText === 'function'
-                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
-                    : '0 Products';
-                countContainer.style.display = 'inline-flex';
+                applyCatalogCountLabel(countContainer, 0, 0);
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
@@ -595,13 +653,13 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
-            countContainer.innerHTML = typeof window.getI18nText === 'function'
-                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
-                : `Showing ${visible} of ${items.length} Products`;
-            countContainer.style.display = 'inline-flex';
+            applyCatalogCountLabel(countContainer, visible, items.length);
         }
         if (sortLogicContainer) {
-            sortLogicContainer.style.display = 'flex';
+            const showSort = typeof isCatalogControlEnabled === 'function'
+                ? isCatalogControlEnabled('home', 'sort')
+                : true;
+            sortLogicContainer.style.display = showSort ? 'flex' : 'none';
         }
 
         const settings = window.diariesSettings || { placement: 'last', showSection: true };
@@ -682,10 +740,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = typeof window.getI18nText === 'function'
-                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
-                    : '0 Products';
-                countContainer.style.display = 'inline-flex';
+                applyCatalogCountLabel(countContainer, 0, 0);
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
@@ -707,13 +762,13 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
-            countContainer.innerHTML = typeof window.getI18nText === 'function'
-                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
-                : `Showing ${visible} of ${items.length} Products`;
-            countContainer.style.display = 'inline-flex';
+            applyCatalogCountLabel(countContainer, visible, items.length);
         }
         if (sortLogicContainer) {
-            sortLogicContainer.style.display = 'flex';
+            const showSort = typeof isCatalogControlEnabled === 'function'
+                ? isCatalogControlEnabled('wishlist', 'sort')
+                : true;
+            sortLogicContainer.style.display = showSort ? 'flex' : 'none';
         }
 
         container.innerHTML = itemsToRender.map(productCardHtml).join('');
@@ -726,6 +781,13 @@ function renderProducts(items, targetId) {
     }
 
     setupInfiniteScrollObserver();
+
+    if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof updateCatalogControlsRowLayout === 'function') {
+        updateCatalogControlsRowLayout();
+    }
+    if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof syncCatalogControlsReady === 'function') {
+        syncCatalogControlsReady();
+    }
 }
 
 // 3. PRODUCT DETAILS
@@ -1301,6 +1363,12 @@ function searchHandler() {
     const q = document.getElementById('app_search').value.toLowerCase();
     renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
 }
+
+function wishSearchHandler() {
+    displayedWishlistLimit = productsPageLimitSetting;
+    renderStore();
+}
+window.wishSearchHandler = wishSearchHandler;
 
 function updateDots(el) {
     const idx = Math.round(el.scrollLeft / el.offsetWidth);
@@ -2534,51 +2602,53 @@ function toggleAnnouncementReadState(id, event) {
 window.toggleAnnouncementReadState = toggleAnnouncementReadState;
 
 function updateAnnouncementBellUI() {
-    const bellIcon = document.querySelector('#announcement-bell-btn i');
-    const badge = document.getElementById('announcement-badge');
-    if (!bellIcon) return;
-    
+    const bellConfigs = [
+        { btnId: 'announcement-bell-btn', badgeId: 'announcement-badge' },
+        { btnId: 'wish-announcement-bell-btn', badgeId: 'wish-announcement-badge' }
+    ];
+
     const list = window.activeAnnouncements || [];
-    if (list.length === 0) {
-        bellIcon.style.color = '#ffd700'; // Keep yellow as default
-        bellIcon.style.opacity = '1.0';
-        if (badge) badge.style.display = 'none';
-        return;
-    }
-    
     let readIds = [];
     try {
         readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
-    } catch(e) {
+    } catch (e) {
         readIds = [];
     }
-    
     const unread = list.filter(ann => !readIds.includes(ann.id));
-    if (unread.length > 0) {
-        bellIcon.style.color = '#ff4757'; // RED when there are unread announcements
-        bellIcon.style.opacity = '1.0';
-        if (badge) {
-            badge.style.display = 'flex';
-            badge.textContent = unread.length;
-            badge.style.width = '14px';
-            badge.style.height = '14px';
-            badge.style.fontSize = '8px';
-            badge.style.fontWeight = '800';
-            badge.style.color = '#fff';
-            badge.style.background = '#ff4757';
-            badge.style.borderRadius = '50%';
-            badge.style.alignItems = 'center';
-            badge.style.justifyContent = 'center';
-            badge.style.position = 'absolute';
-            badge.style.top = '-4px';
-            badge.style.right = '-4px';
-            badge.style.boxShadow = '0 0 6px #ff4757';
+
+    bellConfigs.forEach(({ btnId, badgeId }) => {
+        const btn = document.getElementById(btnId);
+        if (!btn || btn.style.display === 'none') return;
+        const bellIcon = btn.querySelector('i');
+        const badge = document.getElementById(badgeId);
+        if (!bellIcon) return;
+
+        if (list.length === 0) {
+            bellIcon.style.color = '#ffd700';
+            bellIcon.style.opacity = '1.0';
+            if (badge) {
+                badge.style.display = 'none';
+                badge.textContent = '';
+            }
+            return;
         }
-    } else {
-        bellIcon.style.color = '#ffd700'; // YELLOW default/read color
-        bellIcon.style.opacity = '1.0';
-        if (badge) badge.style.display = 'none';
-    }
+
+        if (unread.length > 0) {
+            bellIcon.style.color = '#ff4757';
+            bellIcon.style.opacity = '1.0';
+            if (badge) {
+                badge.textContent = unread.length > 9 ? '9+' : String(unread.length);
+                badge.style.display = 'flex';
+            }
+        } else {
+            bellIcon.style.color = '#ffd700';
+            bellIcon.style.opacity = '1.0';
+            if (badge) {
+                badge.style.display = 'none';
+                badge.textContent = '';
+            }
+        }
+    });
 }
 window.updateAnnouncementBellUI = updateAnnouncementBellUI;
 

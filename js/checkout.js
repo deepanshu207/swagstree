@@ -127,6 +127,24 @@ function resolveCssColor(colorVal) {
     return cleanColor;
 }
 
+function buildEmailProductThumbnail(imageUrl, size = 54) {
+    const inner = size - 8;
+    const safeUrl = imageUrl || '';
+    return `
+    <table width="${size}" height="${size}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; background:#f7f7f7; border:1px solid #eee; border-radius:8px;">
+      <tr>
+        <td width="${size}" height="${size}" align="center" valign="middle" style="padding:4px; line-height:0; text-align:center;">
+          <img src="${safeUrl}" alt="product" width="${inner}" style="display:block; margin:0 auto; max-width:${inner}px; max-height:${inner}px; width:auto; height:auto; border:0; outline:none; text-decoration:none;" />
+        </td>
+      </tr>
+    </table>`;
+}
+
+function buildEmailSwatchThumbnail(imageUrl, size = 22) {
+    const inner = size - 4;
+    return `<img src="${imageUrl}" width="${inner}" height="${inner}" style="border-radius:4px; border:1px solid #ddd; display:inline-block; vertical-align:middle; margin-right:6px; max-width:${inner}px; max-height:${inner}px; width:auto; height:auto; object-fit:contain; background:#f7f7f7;" alt="swatch">`;
+}
+
 // ── UPI Configuration ──────────────────────────────────────────────────────
 const UPI_ID   = '7683020636@pthdfc';
 const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
@@ -162,6 +180,13 @@ const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
             // Profile & Orders page limit
             ordersPageLimitSetting = typeof data.ordersLimit === 'number' ? data.ordersLimit : 20;
             displayedOrdersLimit = ordersPageLimitSetting;
+
+            // Customers page limit (Manage Customers / All Customers)
+            customersPageLimitSetting = typeof data.customersLimit === 'number' ? data.customersLimit : 10;
+            displayedAllCustomersLimit = customersPageLimitSetting;
+            if (typeof displayedSuperCustomersLimit !== 'undefined') {
+                displayedSuperCustomersLimit = customersPageLimitSetting;
+            }
             
             if (typeof renderStore === 'function') renderStore();
         }
@@ -663,7 +688,7 @@ function payCodAdvance(method) {
     }
 }
 
-function openCart() {
+async function openCart() {
     let h = ""; 
     const groups = {};
     cart.forEach((it, idx) => {
@@ -818,8 +843,12 @@ function openCart() {
     // Hide WhatsApp icon when checkout is open
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 
+    if (typeof ensureCheckoutMatchesCurrentUser === 'function') {
+        await ensureCheckoutMatchesCurrentUser();
+    }
+
     if (typeof autoPopulateCheckoutDetails === 'function') {
-        autoPopulateCheckoutDetails();
+        await autoPopulateCheckoutDetails(false);
     }
 }
 
@@ -986,7 +1015,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
             const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
 
             const patternImgHtml = hasSwatch
-                ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
+                ? buildEmailSwatchThumbnail(it.variantPatternImage)
                 : '';
 
             const colorCircleHtml = it.variantColor ? `
@@ -1021,8 +1050,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         return `
         <tr>
           <td style="padding:14px 0; border-bottom:1px solid #f3f3f3; vertical-align:top; width:54px;">
-            <img src="${g.image}" width="54" height="54"
-                 style="border-radius:8px; object-fit:cover; display:block; border:1px solid #eee;" alt="product">
+            ${buildEmailProductThumbnail(g.image)}
           </td>
           <td style="padding:14px 0 14px 12px; border-bottom:1px solid #f3f3f3; vertical-align:top;">
             <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:8px; line-height:1.35;">${g.name}</div>
@@ -1356,6 +1384,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         if (phoneField) phoneField.value = '';
         if (emailField) emailField.value = '';
         if (addrField) addrField.value = '';
+        window.checkoutDetailsLoadedFor = null;
         closeModal('cart-modal');
         // Only reload order history for logged-in users
         if (currentUser) loadOrders();
@@ -2751,7 +2780,7 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
                 const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
 
                 const patternImgHtml = hasSwatch
-                    ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
+                    ? buildEmailSwatchThumbnail(it.variantPatternImage)
                     : '';
 
                 const colorCircleHtml = it.variantColor ? `
@@ -2795,8 +2824,7 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
             return `
             <tr>
               <td style="padding:14px 0; border-bottom:1px solid #f3f3f3; vertical-align:top; width:54px;">
-                <img src="${g.image}" width="54" height="54"
-                     style="border-radius:8px; object-fit:cover; display:block; border:1px solid #eee;" alt="product">
+                ${buildEmailProductThumbnail(g.image)}
               </td>
               <td style="padding:14px 0 14px 12px; border-bottom:1px solid #f3f3f3; vertical-align:top;">
                 <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:8px; line-height:1.35;">${g.name}</div>
@@ -2894,6 +2922,68 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
 window.triggerEmailNotification = triggerEmailNotification;
 
 // ── Checkout Auto-population from Saved Profile Address ──────────────────
+window.getCheckoutOwnerKey = function() {
+    return currentUser && currentUser.uid ? `user:${currentUser.uid}` : 'guest';
+};
+
+window.clearCheckoutFormFields = function() {
+    ['c-name', 'c-phone', 'c-email', 'c-addr'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const msgEl = document.getElementById('checkout-email-msg');
+    if (msgEl) msgEl.style.display = 'none';
+    window.checkoutDetailsLoadedFor = null;
+    setCheckoutEmailFieldMode(false);
+};
+
+window.refreshCheckoutFormForUser = async function() {
+    window.checkoutDetailsLoadedFor = null;
+    if (typeof autoPopulateCheckoutDetails === 'function') {
+        await autoPopulateCheckoutDetails(true);
+    }
+};
+
+function setCheckoutEmailFieldMode(isLoggedIn) {
+    const emailField = document.getElementById('c-email');
+    if (!emailField) return;
+    emailField.readOnly = !!isLoggedIn;
+    emailField.style.opacity = isLoggedIn ? '0.9' : '';
+    emailField.title = isLoggedIn ? 'Orders use your account email' : '';
+}
+
+window.ensureCheckoutMatchesCurrentUser = async function(profileName, profilePhone) {
+    const ownerKey = typeof getCheckoutOwnerKey === 'function' ? getCheckoutOwnerKey() : 'guest';
+    const emailField = document.getElementById('c-email');
+
+    if (!currentUser) {
+        if (window.checkoutDetailsLoadedFor && window.checkoutDetailsLoadedFor.startsWith('user:')) {
+            await autoPopulateCheckoutDetails(true);
+        }
+        setCheckoutEmailFieldMode(false);
+        return;
+    }
+
+    const accountEmail = (currentUser.email || '').trim().toLowerCase();
+    const fieldEmail = emailField ? emailField.value.trim().toLowerCase() : '';
+    const ownerMismatch = window.checkoutDetailsLoadedFor && window.checkoutDetailsLoadedFor !== ownerKey;
+    const emailMismatch = fieldEmail && accountEmail && fieldEmail !== accountEmail;
+
+    if (ownerMismatch || emailMismatch) {
+        await autoPopulateCheckoutDetails(true);
+        return;
+    }
+
+    if (window.checkoutDetailsLoadedFor !== ownerKey) return;
+
+    const nameField = document.getElementById('c-name');
+    const phoneField = document.getElementById('c-phone');
+    if (emailField && accountEmail && !fieldEmail) emailField.value = currentUser.email;
+    if (nameField && profileName && !nameField.value.trim()) nameField.value = profileName;
+    if (phoneField && profilePhone && !phoneField.value.trim()) phoneField.value = profilePhone;
+    setCheckoutEmailFieldMode(true);
+};
+
 async function syncDefaultAddressToCheckout() {
     const addrField = document.getElementById('c-addr');
     if (!addrField) return;
@@ -2938,11 +3028,13 @@ async function syncDefaultAddressToCheckout() {
     }
 }
 
-async function autoPopulateCheckoutDetails() {
+async function autoPopulateCheckoutDetails(forceRefresh) {
     const nameField = document.getElementById('c-name');
     const phoneField = document.getElementById('c-phone');
     const emailField = document.getElementById('c-email');
     const addrField = document.getElementById('c-addr');
+    const ownerKey = typeof getCheckoutOwnerKey === 'function' ? getCheckoutOwnerKey() : (currentUser ? 'user' : 'guest');
+    const shouldRefresh = !!forceRefresh || window.checkoutDetailsLoadedFor !== ownerKey;
 
     if (emailField && !emailField.dataset.listenerAdded) {
         emailField.dataset.listenerAdded = 'true';
@@ -2991,54 +3083,45 @@ async function autoPopulateCheckoutDetails() {
         });
     }
 
+    if (!shouldRefresh) return;
+
+    if (nameField) nameField.value = '';
+    if (phoneField) phoneField.value = '';
+    if (emailField) emailField.value = '';
+    if (addrField) addrField.value = '';
+    const msgEl = document.getElementById('checkout-email-msg');
+    if (msgEl) msgEl.style.display = 'none';
+
     if (currentUser) {
-        // Logged-in user: Prefill name & email
-        if (nameField && !nameField.value.trim()) {
-            nameField.value = currentUser.displayName || '';
-        }
-        if (emailField && !emailField.value.trim()) {
-            emailField.value = currentUser.email || '';
-        }
-        
+        if (emailField) emailField.value = currentUser.email || '';
+        if (nameField) nameField.value = currentUser.displayName || '';
+
         try {
             const userDoc = await db.collection("users").doc(currentUser.uid).get();
             if (userDoc.exists) {
                 const uData = userDoc.data();
-                if (nameField && !nameField.value.trim() && uData.displayName) {
-                    nameField.value = uData.displayName;
-                }
-                if (phoneField && !phoneField.value.trim() && uData.phone) {
-                    phoneField.value = uData.phone;
-                }
+                if (nameField && uData.displayName) nameField.value = uData.displayName;
+                if (phoneField && uData.phone) phoneField.value = uData.phone;
             }
 
-            // Prefill with default profile address from Firestore
-            if (addrField && !addrField.value.trim()) {
-                await syncDefaultAddressToCheckout();
-            }
+            if (addrField) await syncDefaultAddressToCheckout();
         } catch (e) {
             console.error("Error populating from Firestore:", e);
         }
     } else {
-        // Guest user: Prefill from localStorage cache of previous checkouts
-        if (nameField && !nameField.value.trim()) {
-            nameField.value = localStorage.getItem("swagstree_guest_name") || '';
-        }
-        if (phoneField && !phoneField.value.trim()) {
-            phoneField.value = localStorage.getItem("swagstree_guest_phone") || '';
-        }
-        if (emailField && !emailField.value.trim()) {
+        if (nameField) nameField.value = localStorage.getItem("swagstree_guest_name") || '';
+        if (phoneField) phoneField.value = localStorage.getItem("swagstree_guest_phone") || '';
+        if (emailField) {
             emailField.value = localStorage.getItem("swagstree_guest_email") || '';
-            // Manually run check on initial auto-populate for guests if they have cached email
             setTimeout(() => {
-                const event = new Event('blur');
-                emailField.dispatchEvent(event);
+                emailField.dispatchEvent(new Event('blur'));
             }, 100);
         }
-        if (addrField && !addrField.value.trim()) {
-            await syncDefaultAddressToCheckout();
-        }
+        if (addrField) await syncDefaultAddressToCheckout();
     }
+
+    window.checkoutDetailsLoadedFor = ownerKey;
+    setCheckoutEmailFieldMode(!!currentUser);
 }
 
 // ── Profile Address Accordion Functions ────────────────────────

@@ -25,6 +25,7 @@ var isSuperAdmin = false;
 var assignedAdmins = [];
 var productsPageLimitSetting = 20;
 var ordersPageLimitSetting = 20;
+var customersPageLimitSetting = 10;
 var editingId = null;
 
 // UI State
@@ -45,6 +46,7 @@ var confirmationResult = null; // Used for SMS OTP fallback
 var displayedProductsLimit = 20;
 var displayedWishlistLimit = 20;
 var displayedOrdersLimit = 20;
+var displayedAllCustomersLimit = 10;
 var ordersUnsubscribe = null;
 
 // 3. UTILITIES
@@ -378,6 +380,7 @@ function nav(id, el) {
         if (typeof refreshBrevoQuota === 'function') refreshBrevoQuota();
         if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
         if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
+        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
     }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
@@ -411,21 +414,7 @@ window.onload = () => {
     }
 
     // Real-time Sync of App Features Configuration
-    if (typeof db !== 'undefined') {
-        db.collection("settings").doc("features_config").onSnapshot(doc => {
-            if (doc.exists) {
-                window.APP_FEATURES = doc.data();
-            } else {
-                db.collection("settings").doc("features_config").set(window.APP_FEATURES).catch(e => console.log(e));
-            }
-            if (typeof window.applyFeatureTogglesUI === 'function') {
-                window.applyFeatureTogglesUI();
-            }
-        }, err => {
-            console.log("Firestore features listener error, using local defaults:", err);
-            if (typeof window.applyFeatureTogglesUI === 'function') {
-                window.applyFeatureTogglesUI();
-            }
-        });
+    if (typeof startFeaturesConfigListener === 'function') {
+        startFeaturesConfigListener();
     }
 };
