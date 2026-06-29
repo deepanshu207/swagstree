@@ -204,7 +204,7 @@ function selectTheme(themeKey) {
 window.selectTheme = selectTheme;
 
 // 4. FLOATING AI SUPPORT CHATBOT
-let chatHistory = [];
+window.chatHistory = window.chatHistory || [];
 
 function parseMarkdown(text) {
     if (!text) return "";
@@ -299,7 +299,7 @@ async function getAIResponse() {
 
     if (contentSettings.chatbotEngine === 'gemini' && contentSettings.geminiApiKey) {
         const systemPrompt = generateSystemPrompt(false);
-        const recentHistory = chatHistory.slice(-10);
+        const recentHistory = window.chatHistory.slice(-10);
         const apiKey = contentSettings.geminiApiKey.trim();
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
@@ -335,7 +335,7 @@ async function getAIResponse() {
         return replyText.trim();
     } else {
         const systemPrompt = generateSystemPrompt(true);
-        const recentHistory = chatHistory.slice(-6); // Keep history slightly shorter for GET requests
+        const recentHistory = window.chatHistory.slice(-6); // Keep history slightly shorter for GET requests
         let promptWithHistory = "";
         recentHistory.forEach((h, index) => {
             if (index === recentHistory.length - 1) {
@@ -399,11 +399,12 @@ function toggleAIChat() {
     const isHidden = chatContainer.style.display === 'none' || !chatContainer.style.display;
     chatContainer.style.display = isHidden ? 'flex' : 'none';
     
-    if (isHidden && chatHistory.length === 0) {
+    if (isHidden && window.chatHistory.length === 0) {
         appendChatMessage('bot', getI18nText('ai_chat_welcome'));
     }
 }
 window.toggleAIChat = toggleAIChat;
+window.getAIResponse = getAIResponse;
 
 function appendChatMessage(sender, text) {
     const body = document.getElementById('ai-chat-body');
@@ -433,7 +434,7 @@ function appendChatMessage(sender, text) {
     
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
-    chatHistory.push({ sender, text });
+    window.chatHistory.push({ sender, text });
 }
 
 async function handleBotReply(text) {
@@ -1323,6 +1324,7 @@ function applyFeatureTogglesUI() {
         }
     }
 
+    if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
     if (typeof refreshCommentsEnabledUI === 'function') {
         refreshCommentsEnabledUI(false);
     }

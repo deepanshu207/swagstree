@@ -230,6 +230,13 @@
             <span id="product-count" class="count-badge" style="display:none;"></span>
 
             <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                <!-- Support Chat Button -->
+                <div id="header-support-chat-btn" onclick="openSupportChat()"
+                    style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
+                    <i class="fa fa-comments" style="color:var(--gold); font-size:12px;"></i>
+                    <span id="header-support-chat-badge"
+                        style="display:none; position:absolute; top:-3px; right:-3px; min-width:14px; height:14px; padding:0 3px; border-radius:8px; background:#ff4757; color:#fff; font-size:8px; font-weight:700; line-height:14px; text-align:center; box-shadow:0 0 6px #ff4757;"></span>
+                </div>
                 <!-- Announcement Megaphone Button -->
                 <div id="announcement-bell-btn" onclick="openAnnouncementModal()"
                     style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
@@ -1300,6 +1307,29 @@
             </div>
         </div>
 
+        <!-- Support Chats Inbox -->
+        <div id="admin-support-inbox-section" style="display:none; margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
+                onclick="toggleAdminSupportAccordion()">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa fa-headset" style="color:var(--gold); font-size:15px;"></i>
+                    <div>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Support Chats
+                            <span id="admin-support-pending-badge"
+                                style="display:none; margin-left:8px; font-size:10px; background:var(--red); color:#fff; padding:2px 8px; border-radius:10px; font-weight:700;">0</span>
+                        </h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">View and reply to customer AI & live support conversations</p>
+                    </div>
+                </div>
+                <i id="admin-support-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg);"></i>
+            </div>
+            <div id="admin-support-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto;">
+                <div id="admin-support-inbox-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+        </div>
+
         <!-- Product Comments Moderation -->
         <div id="admin-comments-moderation" style="display:none; margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
@@ -2292,33 +2322,56 @@
             <div class="ai-chat-avatar">
                 <i class="fa fa-robot" style="color:var(--gold);"></i>
             </div>
-            <div>
-                <p style="margin:0; font-size:12px; font-weight:700; color:#fff;" data-i18n="ai_chat_title">Swag Stree
-                    Support AI</p>
-                <p style="margin:2px 0 0 0; font-size:10px; color:#25D366;"><i class="fa fa-circle"
-                        style="font-size:8px;"></i> Active Assistant</p>
+            <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <p style="margin:0; font-size:12px; font-weight:700; color:#fff;" data-i18n="ai_chat_title">Swag Stree Support</p>
+                    <span id="ai-chat-mode-badge" style="font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px; background:rgba(37,211,102,0.12); color:#25D366;">AI</span>
+                </div>
+                <p id="ai-chat-status-text" style="margin:2px 0 0 0; font-size:10px; color:#25D366;"><i class="fa fa-circle"
+                        style="font-size:8px;"></i> AI assistant online</p>
             </div>
-            <span class="theme-drawer-close" style="margin-left:auto; font-size:20px;"
+            <span class="theme-drawer-close" style="margin-left:auto; font-size:20px; cursor:pointer;"
                 onclick="toggleAIChat()">&times;</span>
         </div>
         <div class="ai-chat-body" id="ai-chat-body"></div>
         <div class="ai-chat-chips" id="ai-chat-chips"></div>
         <div class="ai-chat-input-area">
-            <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Type message..."
+            <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Ask about products, orders, or support..."
                 onkeydown="if(event.key==='Enter') sendChatMessage()">
             <button class="ai-chat-send" onclick="sendChatMessage()"><i class="fa fa-paper-plane"></i></button>
         </div>
     </div>
 
+    <!-- Admin Customer Chat Modal -->
+    <div id="admin-customer-chat-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index:2500;">
+        <div class="modal-box" style="max-width:480px; width:92%; padding:0; overflow:hidden; display:flex; flex-direction:column; max-height:85vh;">
+            <div style="padding:15px 18px; border-bottom:1px solid #222; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div>
+                    <h3 id="admin-customer-chat-name" style="margin:0; font-size:14px;">Customer</h3>
+                    <p id="admin-customer-chat-email" style="margin:4px 0 0; font-size:11px; color:#888;"></p>
+                </div>
+                <span onclick="closeAdminCustomerChat()" style="cursor:pointer; font-size:22px; color:#888;">&times;</span>
+            </div>
+            <div id="admin-customer-chat-body" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; min-height:280px; max-height:50vh; background:#0a0a0a;"></div>
+            <div style="padding:12px; border-top:1px solid #222; display:flex; gap:8px;">
+                <input id="admin-customer-chat-input" type="text" placeholder="Reply to customer..."
+                    style="margin:0; flex:1; font-size:13px;"
+                    onkeydown="if(event.key==='Enter') sendAdminCustomerChat()">
+                <button class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px;" onclick="sendAdminCustomerChat()"><i class="fa fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.30"></script>
-    <script src="js/app.js?v=9.30"></script>
-    <script src="js/store.js?v=9.30"></script>
-    <script src="js/checkout.js?v=9.30"></script>
-    <script src="js/auth.js?v=9.30"></script>
-    <script src="js/comments.js?v=9.30"></script>
-    <script src="js/admin.js?v=9.30"></script>
+    <script src="js/features.js?v=9.31"></script>
+    <script src="js/app.js?v=9.31"></script>
+    <script src="js/store.js?v=9.31"></script>
+    <script src="js/checkout.js?v=9.31"></script>
+    <script src="js/auth.js?v=9.31"></script>
+    <script src="js/comments.js?v=9.31"></script>
+    <script src="js/support-chat.js?v=9.31"></script>
+    <script src="js/admin.js?v=9.31"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

@@ -49,6 +49,7 @@ function updateAdminPrivilegesUI() {
 
     if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
+    if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
 }
 
 // Global real-time listener for admins
@@ -89,6 +90,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
+            if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
@@ -250,6 +252,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadAdminFooterSettings === 'function') loadAdminFooterSettings();
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
+            if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
         }
@@ -771,7 +774,7 @@ async function loadAllCustomers() {
         }
         
         let allUsers = [];
-        snap.forEach(doc => allUsers.push(doc.data()));
+        snap.forEach(doc => allUsers.push({ uid: doc.id, ...doc.data() }));
         
         allUsers.sort((a, b) => {
             const tA = a.createdAt ? a.createdAt.toMillis() : 0;
@@ -813,6 +816,12 @@ async function loadAllCustomers() {
                 badgeColor = "#888";
             }
 
+            const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
+            const safeEmail = (data.email || '').replace(/'/g, "\\'");
+            const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
+                ? `<button class="btn-gold" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" style="width:auto; padding:8px 12px; font-size:11px; margin:0; flex-shrink:0;" title="Chat with customer"><i class="fa fa-comments"></i></button>`
+                : '';
+
             html += `
                 <div style="background:#111; padding:15px; border-radius:8px; border:1px solid #333; margin-top:10px; display:flex; align-items:center; gap:15px;">
                     <div style="width:40px; height:40px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#FFD700;">
@@ -828,6 +837,7 @@ async function loadAllCustomers() {
                         <div style="color:#aaa; font-size:13px; margin-top:4px;">${data.email || 'No email'} ${data.phone ? '• ' + data.phone : ''}</div>
                         <div style="color:#666; font-size:11px; margin-top:4px;">Joined: ${date}</div>
                     </div>
+                    ${chatBtn}
                 </div>
             `;
         });
@@ -1121,6 +1131,7 @@ function renderSuperCustomersList(list) {
             <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
         ` : `
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
+            ${(typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat')) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${(c.displayName || 'Customer').replace(/'/g, "\\'")}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>

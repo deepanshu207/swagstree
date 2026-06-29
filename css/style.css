@@ -1801,6 +1801,11 @@ body {
 #announcement-bell-btn:hover i {
     color: #fff !important;
 }
+#header-support-chat-btn:hover {
+    border-color: var(--gold) !important;
+    background: #1c1c0a !important;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
+}
 #sort-logic:hover {
     border-color: var(--gold) !important;
     box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
