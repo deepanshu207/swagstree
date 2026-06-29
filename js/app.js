@@ -314,10 +314,19 @@ function navigateTo(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active')); 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); 
     document.getElementById(id + '-view').classList.add('active'); 
+
+    // Home/Wish use document scroll — reset so short tabs don't inherit a deep scroll position
+    if (id === 'home' || id === 'wish') {
+        if (typeof resetStorefrontScroll === 'function') {
+            resetStorefrontScroll();
+        } else {
+            window.scrollTo(0, 0);
+        }
+    }
     
     // Show footer always on Home and Wish views only if there is visible content enabled
     if (typeof renderFooter === 'function') {
-        renderFooter();
+        renderFooter(id === 'home' || id === 'wish' ? id : undefined);
     } else {
         const appFooter = document.getElementById('app-footer');
         if (appFooter) {
@@ -369,6 +378,10 @@ function navigateTo(id, el) {
     if (id === 'wish') {
         displayedWishlistLimit = productsPageLimitSetting;
         if (typeof renderStore === 'function') renderStore();
+        requestAnimationFrame(() => {
+            if (typeof resetStorefrontScroll === 'function') resetStorefrontScroll();
+            if (typeof renderFooter === 'function') renderFooter('wish');
+        });
     }
 
     // Render admin list on navigation to admin view

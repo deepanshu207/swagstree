@@ -259,6 +259,22 @@ function mountStorefrontFooter(footerEl, layoutId, sectionId) {
     }
 }
 
+function resetStorefrontScroll() {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+}
+
+/** Re-mount footer only when the grid update matches the visible storefront tab */
+function syncStorefrontFooterMount(forGridId) {
+    const sectionId = forGridId === 'wish-grid' ? 'wish' : 'home';
+    const active = document.querySelector('.section.active');
+    if (!active || active.id !== `${sectionId}-view`) return;
+    if (typeof window.renderFooter === 'function') {
+        window.renderFooter(sectionId);
+    }
+}
+
 function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
     const tplGrid = document.getElementById('admin-footer-template-grid');
     const layoutGrid = document.getElementById('admin-footer-layout-grid');
@@ -328,6 +344,8 @@ window.buildFooterLinksHtml = buildFooterLinksHtml;
 window.applyFooterShellClasses = applyFooterShellClasses;
 window.applyFooterBodyPadding = applyFooterBodyPadding;
 window.mountStorefrontFooter = mountStorefrontFooter;
+window.resetStorefrontScroll = resetStorefrontScroll;
+window.syncStorefrontFooterMount = syncStorefrontFooterMount;
 window.resolveFooterPositionMode = resolveFooterPositionMode;
 window.isMobileFooterViewport = isMobileFooterViewport;
 window.normalizeFooterTemplateId = normalizeFooterTemplateId;

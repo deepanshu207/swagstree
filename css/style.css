@@ -284,6 +284,12 @@ body {
     .storefront-footer-dock {
         width: 100%;
     }
+    .storefront-footer-anchor:empty {
+        display: none !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
     .storefront-footer-dock:not(:has(#app-footer)) {
         display: none;
     }
@@ -2406,14 +2412,16 @@ body {
     transform: scale(1.05);
 }
 
-/* Instagram embed — clip cross-origin header (profile + follower count) */
+/* Instagram embed — clip header (followers) and footer ("View more on Instagram") */
 :root {
     --ig-embed-header-offset: 64px;
+    --ig-embed-footer-offset: 56px;
+    --ig-embed-visible-height: 330px;
 }
 .ig-embed-clip {
     position: relative;
     width: 100%;
-    height: 370px;
+    height: var(--ig-embed-visible-height);
     overflow: hidden;
     background: #111;
     flex-shrink: 0;
@@ -2423,8 +2431,12 @@ body {
     top: calc(-1 * var(--ig-embed-header-offset));
     left: 0;
     width: 100%;
-    height: calc(100% + var(--ig-embed-header-offset));
-    min-height: 430px;
+    height: calc(
+        var(--ig-embed-visible-height) +
+        var(--ig-embed-header-offset) +
+        var(--ig-embed-footer-offset)
+    );
+    min-height: 420px;
     border: none;
     background: #111;
     pointer-events: auto;
