@@ -1177,11 +1177,14 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         ? overrideActiveIdx
         : (targetIndex > -1 ? targetIndex : 0);
 
+    window.detailGalleryImages = imagesToDisplay.slice();
+    window.detailGalleryActiveIndex = activeThumbIdx > -1 ? activeThumbIdx : 0;
+
     // Render gallery with mapping metadata
     const galleryHtml = imagesToDisplay.length 
         ? imagesToDisplay.map((img, index) => {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '' };
-            return `<img src="${img}" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}">`;
+            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" onclick="openProductDetailImageZoom(${index}, event)" alt="Product image ${index + 1}">`;
         }).join('') 
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
 
@@ -1339,6 +1342,11 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             trigger360.style.display = 'none';
         }
     }
+
+    const zoomTrigger = document.getElementById('det-zoom-trigger');
+    if (zoomTrigger) {
+        zoomTrigger.style.display = imagesToDisplay.length > 0 ? 'inline-flex' : 'none';
+    }
 }
 
 function closeDetail() {
@@ -1346,6 +1354,7 @@ function closeDetail() {
     detView.style.display = 'none';
     detView.classList.remove('active-detail-flex');
     window.history.replaceState({}, '', window.location.pathname);
+    if (typeof closeAnnouncementImageZoom === 'function') closeAnnouncementImageZoom();
 
     if (typeof stopProductCommentsListener === 'function') stopProductCommentsListener();
     window.selectedCommentRating = 0;
@@ -1506,6 +1515,7 @@ function syncSizeChips() {
 window.syncSizeChips = syncSizeChips;
 
 function updateActiveThumbnailBorder(idx) {
+    window.detailGalleryActiveIndex = idx;
     const thumbs = document.querySelectorAll('#det-thumbs .det-thumb-item');
     thumbs.forEach((thumb, i) => {
         if (i === idx) {
@@ -2546,6 +2556,31 @@ function resetAnnouncementZoomView() {
     applyAnnouncementZoomTransform();
 }
 
+function openMediaZoomLightbox(images, startIndex) {
+    const list = (images || []).filter(Boolean);
+    if (!list.length) return;
+
+    announcementZoomState.images = list;
+    announcementZoomState.index = Math.max(0, Math.min(startIndex || 0, list.length - 1));
+    resetAnnouncementZoomView();
+
+    const lightbox = document.getElementById('announcement-image-lightbox');
+    const img = document.getElementById('announcement-lightbox-img');
+    if (img) img.src = list[announcementZoomState.index];
+    if (lightbox) lightbox.style.display = 'flex';
+    updateAnnouncementZoomUi();
+}
+window.openMediaZoomLightbox = openMediaZoomLightbox;
+
+function openProductDetailImageZoom(index, event) {
+    if (event) event.stopPropagation();
+    const images = window.detailGalleryImages || [];
+    if (!images.length) return;
+    window.detailGalleryActiveIndex = Math.max(0, Math.min(index || 0, images.length - 1));
+    openMediaZoomLightbox(images, window.detailGalleryActiveIndex);
+}
+window.openProductDetailImageZoom = openProductDetailImageZoom;
+
 function openAnnouncementImageZoom(announcementId, imageIndex, event) {
     if (event) event.stopPropagation();
 
@@ -2553,15 +2588,7 @@ function openAnnouncementImageZoom(announcementId, imageIndex, event) {
     const images = getAnnouncementImages(ann);
     if (!images.length) return;
 
-    announcementZoomState.images = images;
-    announcementZoomState.index = Math.max(0, Math.min(imageIndex || 0, images.length - 1));
-    resetAnnouncementZoomView();
-
-    const lightbox = document.getElementById('announcement-image-lightbox');
-    const img = document.getElementById('announcement-lightbox-img');
-    if (img) img.src = images[announcementZoomState.index];
-    if (lightbox) lightbox.style.display = 'flex';
-    updateAnnouncementZoomUi();
+    openMediaZoomLightbox(images, imageIndex || 0);
 }
 window.openAnnouncementImageZoom = openAnnouncementImageZoom;
 

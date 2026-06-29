@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=5.6">
+    <link rel="stylesheet" href="css/style.css?v=5.7">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -759,6 +759,14 @@
                 <!-- Promo items render here -->
             </div>
 
+            <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:12px; padding:10px 12px; background:#1a1a1a; border:1px solid #333; border-radius:10px; cursor:pointer;">
+                <input type="checkbox" id="admin-promo-show-picker" style="margin:3px 0 0; width:16px; height:16px; flex-shrink:0;" onchange="saveAdminPromoSettings()">
+                <span style="font-size:12px; color:#ddd; line-height:1.45;">
+                    <strong style="color:#fff;">Show promo picker in checkout</strong><br>
+                    <span style="color:#777; font-size:11px;">When enabled, customers can tap eligible promo codes listed below. Off by default — manual code entry still works.</span>
+                </span>
+            </label>
+
             <div
                 style="display:flex; flex-direction:column; gap:10px; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333;">
                 <div style="display:flex; gap:10px; align-items:center;">
@@ -793,6 +801,10 @@
                             style="margin:0; font-size:11px; padding:6px; background:#222; border:1px solid #444; color:#fff; border-radius:8px; width:100%;">
                     </div>
                 </div>
+                <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#bbb; cursor:pointer;">
+                    <input type="checkbox" id="admin-promo-show-in-picker" style="margin:0; width:15px; height:15px;">
+                    Show in checkout picker (requires global toggle above)
+                </label>
                 <div style="display:flex; justify-content:flex-end; margin-top:4px;">
                     <button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; white-space:nowrap;"
                         onclick="addPromoCode()">+ Add Promo</button>
@@ -2195,6 +2207,9 @@
                 <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
                 <div id="det-indicators" class="indicators"></div>
                 <!-- 360 viewer button -->
+                <button id="det-zoom-trigger" onclick="openProductDetailImageZoom(window.detailGalleryActiveIndex || 0, event)"
+                    style="display:none; position:absolute; left:15px; bottom:15px; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.25); border-radius:30px; color:#fff; padding:8px 12px; font-size:10px; font-weight:800; cursor:pointer; align-items:center; gap:5px; z-index:10;"><i
+                        class="fa fa-magnifying-glass-plus"></i> ZOOM</button>
                 <button id="det-360-trigger" onclick="open360Viewer(activeProductId)"
                     style="display:none; position:absolute; right:15px; bottom:15px; background:rgba(0,0,0,0.7); border:1px solid var(--gold); border-radius:30px; color:var(--gold); padding:8px 12px; font-size:10px; font-weight:800; cursor:pointer; align-items:center; gap:5px; z-index:10;"><i
                         class="fa fa-sync"></i> 360° VIEW</button>
@@ -2377,12 +2392,15 @@
             <h3 style="margin-top:0;">Checkout</h3>
             <div id="cart-items" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
 
-            <!-- Promo Code -->
-            <div style="display:flex; gap:10px; margin-bottom: 10px;">
-                <input id="promo-code" placeholder="Promo Code" style="margin-bottom:0; flex:1;">
-                <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
-            </div>
-            <div id="active-promos-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px;"></div>
+                <!-- Promo Code -->
+                <div id="checkout-promo-picker-wrap" style="display:none; margin-bottom:10px;">
+                    <p style="font-size:11px; color:#888; margin:0 0 8px; font-weight:600;">Available offers</p>
+                    <div id="active-promos-display" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:0;"></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-bottom: 10px;">
+                    <input id="promo-code" placeholder="Promo Code" style="margin-bottom:0; flex:1;">
+                    <button class="btn-gold" style="width:auto; padding:0 20px;" onclick="applyPromo()">Apply</button>
+                </div>
 
             <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 20px; font-size: 14px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Subtotal</span><span
@@ -2729,16 +2747,16 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.62"></script>
-    <script src="js/app.js?v=9.62"></script>
-    <script src="js/store.js?v=9.62"></script>
-    <script src="js/checkout.js?v=9.62"></script>
-    <script src="js/auth.js?v=9.62"></script>
-    <script src="js/comments.js?v=9.62"></script>
-    <script src="js/support-chat.js?v=9.62"></script>
-    <script src="js/auto-retention.js?v=9.62"></script>
-    <script src="js/admin.js?v=9.62"></script>
-    <script src="js/cloudinary-admin.js?v=9.62"></script>
+    <script src="js/features.js?v=9.63"></script>
+    <script src="js/app.js?v=9.63"></script>
+    <script src="js/store.js?v=9.63"></script>
+    <script src="js/checkout.js?v=9.63"></script>
+    <script src="js/auth.js?v=9.63"></script>
+    <script src="js/comments.js?v=9.63"></script>
+    <script src="js/support-chat.js?v=9.63"></script>
+    <script src="js/auto-retention.js?v=9.63"></script>
+    <script src="js/admin.js?v=9.63"></script>
+    <script src="js/cloudinary-admin.js?v=9.63"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

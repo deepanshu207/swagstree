@@ -391,18 +391,34 @@ function changeQty(idx, delta) {
 // Array to hold active promos loaded from Firestore
 let activePromosList = [];
 let loadPromosPromise = null;
+window.checkoutPromoPickerEnabled = false;
+
+function getPromoScheduleStatus(promo, now = Date.now()) {
+    if (!promo) return 'invalid';
+    if (promo.endsAt && now > promo.endsAt) return 'expired';
+    if (promo.startsAt && now < promo.startsAt) return 'scheduled';
+    if (promo.maxUses && (promo.usedCount || 0) >= promo.maxUses) return 'exhausted';
+    return 'active';
+}
+
+function isPromoEligibleForPicker(promo) {
+    return !!promo?.showInPicker && getPromoScheduleStatus(promo) === 'active';
+}
 
 async function loadPromos() {
     try {
         const snap = await db.collection('settings').doc('promos').get();
         if (snap.exists) {
-            const list = snap.data().list || [];
+            const data = snap.data() || {};
+            const list = data.list || [];
+            window.checkoutPromoPickerEnabled = data.showPromoPicker === true;
             
             // Map legacy expiresAt to endsAt
             const normalizedList = list.map(p => {
                 if (p.expiresAt && !p.endsAt) {
                     p.endsAt = p.expiresAt;
                 }
+                if (p.showInPicker === undefined) p.showInPicker = false;
                 return p;
             });
 
@@ -410,6 +426,9 @@ async function loadPromos() {
             activePromosList = normalizedList;
             if (typeof adminPromoList !== 'undefined') {
                 adminPromoList = normalizedList;
+            }
+            if (typeof promoPickerEnabled !== 'undefined') {
+                promoPickerEnabled = window.checkoutPromoPickerEnabled;
             }
         }
     } catch(e) {
@@ -420,7 +439,7 @@ async function loadPromos() {
 // Ensure promos are loaded early
 loadPromosPromise = loadPromos();
 
-async function applyPromo() {
+async function applyPromo(forcedCode) {
     if (loadPromosPromise) {
         try {
             await loadPromosPromise;
@@ -428,8 +447,10 @@ async function applyPromo() {
             console.error("Error awaiting promos load:", e);
         }
     }
-    const code = document.getElementById('promo-code').value.trim().toUpperCase();
+    const promoInput = document.getElementById('promo-code');
+    const code = String(forcedCode || promoInput?.value || '').trim().toUpperCase();
     if (!code) return;
+    if (promoInput) promoInput.value = code;
     
     const promo = activePromosList.find(p => p.code === code);
     const now = Date.now();
@@ -473,6 +494,78 @@ async function applyPromo() {
     }
     openCart(); // refresh totals
 }
+window.applyPromo = applyPromo;
+
+async function selectCheckoutPromo(code) {
+    await applyPromo(code);
+}
+window.selectCheckoutPromo = selectCheckoutPromo;
+
+async function clearCheckoutPromo() {
+    activePromo = null;
+    const promoInput = document.getElementById('promo-code');
+    if (promoInput) promoInput.value = '';
+    showToast('Promo removed');
+    openCart();
+}
+window.clearCheckoutPromo = clearCheckoutPromo;
+
+async function renderCheckoutPromoPicker() {
+    const wrap = document.getElementById('checkout-promo-picker-wrap');
+    const listEl = document.getElementById('active-promos-display');
+    if (!wrap || !listEl) return;
+
+    if (loadPromosPromise) {
+        try { await loadPromosPromise; } catch (_) {}
+    }
+
+    if (!window.checkoutPromoPickerEnabled) {
+        wrap.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+    }
+
+    const visiblePromos = activePromosList.filter(isPromoEligibleForPicker);
+    if (!visiblePromos.length) {
+        wrap.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+    }
+
+    const usedCodes = new Set();
+    if (currentUser) {
+        for (const promo of visiblePromos) {
+            try {
+                const usedSnap = await db.collection('orders')
+                    .where('promoCode', '==', promo.code)
+                    .where('uid', '==', currentUser.uid)
+                    .limit(1)
+                    .get();
+                if (!usedSnap.empty) usedCodes.add(promo.code);
+            } catch (err) {
+                console.error('Error checking promo usage for picker:', err);
+            }
+        }
+    }
+
+    wrap.style.display = 'block';
+    const chips = visiblePromos.map(promo => {
+        const isActive = activePromo && activePromo.code === promo.code;
+        const alreadyUsed = usedCodes.has(promo.code);
+        const cls = `checkout-promo-chip${isActive ? ' active' : ''}${alreadyUsed ? ' disabled' : ''}`;
+        if (alreadyUsed) {
+            return `<button type="button" class="${cls}" disabled title="Already used">${promo.code} · ${promo.discount}% OFF</button>`;
+        }
+        return `<button type="button" class="${cls}" onclick="selectCheckoutPromo('${promo.code}')">${promo.code} · ${promo.discount}% OFF</button>`;
+    }).join('');
+
+    const clearBtn = activePromo
+        ? `<button type="button" class="checkout-promo-chip" style="border-style:dashed; color:#aaa;" onclick="clearCheckoutPromo()">Remove promo</button>`
+        : '';
+
+    listEl.innerHTML = chips + clearBtn;
+}
+window.renderCheckoutPromoPicker = renderCheckoutPromoPicker;
 
 function selectPayment(method) {
     document.querySelectorAll('.payment-chip').forEach(c => c.classList.remove('active'));
@@ -836,7 +929,7 @@ async function openCart() {
     }
     if (noticeAmt) noticeAmt.innerHTML = '&#8377;' + codMinPayment;
 
-    // Promos display removed
+    await renderCheckoutPromoPicker();
 
     document.getElementById('cart-modal').style.display = 'flex';
 

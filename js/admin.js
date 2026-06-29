@@ -1238,19 +1238,25 @@ window.savePaginationSettings = async function() {
 // ── Promo Code Settings ─────────────────────────────────────────────────────
 let adminPromoList = [];
 let promoListInterval = null;
+let promoPickerEnabled = false;
 
 async function loadPromoSettings() {
     try {
         const snap = await db.collection('settings').doc('promos').get();
         if (snap.exists) {
-            const list = snap.data().list || [];
+            const data = snap.data() || {};
+            const list = data.list || [];
+            promoPickerEnabled = data.showPromoPicker === true;
             adminPromoList = list.map(p => {
                 if (p.expiresAt && !p.endsAt) {
                     p.endsAt = p.expiresAt;
                 }
+                if (p.showInPicker === undefined) p.showInPicker = false;
                 return p;
             });
         }
+        const pickerToggle = document.getElementById('admin-promo-show-picker');
+        if (pickerToggle) pickerToggle.checked = promoPickerEnabled;
         renderAdminPromoList();
     } catch(e) {
         console.error('loadPromoSettings error:', e);
@@ -1329,6 +1335,10 @@ function renderAdminPromoList() {
                             <input id="inline-promo-max-uses-${index}" type="number" min="1" placeholder="Unlimited" value="${p.maxUses || ''}" style="margin:0; font-size:11px; padding:6px; background:#222; border:1px solid #444; color:#fff; border-radius:8px; width:100%;">
                         </div>
                     </div>
+                    <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#bbb; cursor:pointer;">
+                        <input type="checkbox" id="inline-promo-show-in-picker-${index}" ${p.showInPicker ? 'checked' : ''} style="margin:0; width:15px; height:15px;">
+                        Show in checkout picker
+                    </label>
                     <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end; margin-top:4px;">
                         <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px;" onclick="saveInlinePromoChanges(${index})">Save</button>
                         <button style="width:auto; padding:6px 12px; font-size:11px; background:none; border:1px solid #555; color:#aaa; border-radius:8px; cursor:pointer;" onclick="cancelInlineEdit()">Cancel</button>
@@ -1341,12 +1351,17 @@ function renderAdminPromoList() {
             ? `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}/${p.maxUses}]</span>`
             : `<span style="color:#aaa; font-size:10px; margin-left:8px;">[Uses: ${p.usedCount || 0}]</span>`;
 
+        const pickerBadge = p.showInPicker
+            ? `<span style="color:var(--gold); font-size:10px; margin-left:8px; font-weight:700;">[Checkout picker]</span>`
+            : '';
+
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:10px; border-radius:10px; border:1px dashed #444; flex-wrap:wrap; gap:10px;">
                 <div>
                     <span style="color:var(--gold); font-weight:bold; font-size:13px; letter-spacing:1px;">${p.code}</span>
                     <span style="color:#aaa; font-size:11px; margin-left:8px;">${p.discount}% OFF</span>
                     ${usesText}
+                    ${pickerBadge}
                     ${scheduleText}
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -1383,7 +1398,7 @@ async function addPromoCode() {
         return showToast('Promo code already exists');
     }
     
-    const newPromo = { code, discount, usedCount: 0 };
+    const newPromo = { code, discount, usedCount: 0, showInPicker: !!document.getElementById('admin-promo-show-in-picker')?.checked };
     
     const startsAtVal = startInp && startInp.value ? new Date(startInp.value).getTime() : null;
     const endsAtVal = endInp && endInp.value ? new Date(endInp.value).getTime() : null;
@@ -1407,6 +1422,8 @@ async function addPromoCode() {
     if (startInp) startInp.value = '';
     if (endInp) endInp.value = '';
     if (maxUsesInp) maxUsesInp.value = '';
+    const showInPickerInp = document.getElementById('admin-promo-show-in-picker');
+    if (showInPickerInp) showInPickerInp.checked = false;
     showToast('Promo code added: ' + code);
 }
 
@@ -1421,12 +1438,19 @@ async function removePromoCode(index) {
 
 async function saveAdminPromoSettings() {
     try {
-        await db.collection('settings').doc('promos').set({ list: adminPromoList }, { merge: true });
+        promoPickerEnabled = !!document.getElementById('admin-promo-show-picker')?.checked;
+        await db.collection('settings').doc('promos').set({
+            list: adminPromoList,
+            showPromoPicker: promoPickerEnabled
+        }, { merge: true });
         renderAdminPromoList();
         
         // Also update the global list in checkout.js if it's currently loaded in the same window
         if (typeof activePromosList !== 'undefined') {
             activePromosList = adminPromoList;
+        }
+        if (typeof window.checkoutPromoPickerEnabled !== 'undefined') {
+            window.checkoutPromoPickerEnabled = promoPickerEnabled;
         }
     } catch(e) {
         console.error('saveAdminPromoSettings error:', e);
@@ -1494,6 +1518,9 @@ window.saveInlinePromoChanges = async function(index) {
     if (p.usedCount === undefined) {
         p.usedCount = 0;
     }
+
+    const showInPickerInp = document.getElementById(`inline-promo-show-in-picker-${index}`);
+    p.showInPicker = !!showInPickerInp?.checked;
     
     editingPromoIndex = null;
     await saveAdminPromoSettings();
