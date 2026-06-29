@@ -28,18 +28,44 @@ function isProductCommentsEnabled() {
     return true;
 }
 
+function renderCommentsEnabledControls() {
+    const enabled = isProductCommentsEnabled();
+    const statusEl = document.getElementById('admin-comments-enabled-status');
+    const badgeEl = document.getElementById('admin-comments-enabled-badge');
+    const enableBtn = document.getElementById('admin-comments-enable-btn');
+    const disableBtn = document.getElementById('admin-comments-disable-btn');
+    const saving = !!window._commentsSettingsSaving;
+
+    if (badgeEl) {
+        badgeEl.textContent = enabled ? 'ENABLED' : 'DISABLED';
+        badgeEl.style.color = enabled ? '#2ecc71' : 'var(--red)';
+        badgeEl.style.background = enabled ? 'rgba(46, 204, 113, 0.12)' : 'rgba(255, 71, 87, 0.12)';
+        badgeEl.style.borderColor = enabled ? 'rgba(46, 204, 113, 0.35)' : 'rgba(255, 71, 87, 0.35)';
+    }
+    if (statusEl) {
+        statusEl.textContent = enabled
+            ? 'Customers can view and submit reviews on product pages.'
+            : 'Reviews are hidden on all product pages. Existing reviews are kept in admin.';
+        statusEl.style.color = enabled ? '#aaa' : '#888';
+    }
+    if (enableBtn) {
+        enableBtn.disabled = saving || enabled;
+        enableBtn.style.opacity = (saving || enabled) ? '0.4' : '1';
+        enableBtn.style.cursor = (saving || enabled) ? 'not-allowed' : 'pointer';
+    }
+    if (disableBtn) {
+        disableBtn.disabled = saving || !enabled;
+        disableBtn.style.opacity = (saving || !enabled) ? '0.4' : '1';
+        disableBtn.style.cursor = (saving || !enabled) ? 'not-allowed' : 'pointer';
+    }
+}
+
 function refreshCommentsEnabledUI(forceReload) {
     const enabled = isProductCommentsEnabled();
     const changed = lastCommentsEnabledState !== enabled;
     lastCommentsEnabledState = enabled;
 
-    const toggle = document.getElementById('admin-comments-enabled');
-    if (toggle) toggle.checked = enabled;
-    const statusEl = document.getElementById('admin-comments-enabled-status');
-    if (statusEl) {
-        statusEl.textContent = enabled ? 'Reviews are ON for customers' : 'Reviews are OFF — hidden on all products';
-        statusEl.style.color = enabled ? '#2ecc71' : 'var(--red)';
-    }
+    renderCommentsEnabledControls();
 
     if (!forceReload && !changed) return;
 
@@ -133,23 +159,56 @@ window.initCommentsSettingsListener = function() {
 window.loadCommentsSettings = async function() {
     if (!isAdmin) return;
     initCommentsSettingsListener();
+    try {
+        const snap = await db.collection('settings').doc('comments').get();
+        window.COMMENTS_SETTINGS = snap.exists ? snap.data() : { enabled: true };
+        refreshCommentsEnabledUI(true);
+    } catch (e) {
+        console.error('loadCommentsSettings error:', e);
+        renderCommentsEnabledControls();
+    }
 };
 
-window.saveCommentsSettings = async function() {
+window.setCommentsEnabled = async function(enabled) {
     if (!isAdmin) return showToast('Only admins can change review settings.');
-    const toggle = document.getElementById('admin-comments-enabled');
-    const enabled = !!(toggle && toggle.checked);
+    if (window._commentsSettingsSaving) return;
+    if (isProductCommentsEnabled() === enabled) {
+        renderCommentsEnabledControls();
+        return;
+    }
+
+    window._commentsSettingsSaving = true;
+    renderCommentsEnabledControls();
+
     try {
         await db.collection('settings').doc('comments').set({ enabled }, { merge: true });
         await db.collection('settings').doc('features_config').set({ productComments: enabled }, { merge: true });
         window.COMMENTS_SETTINGS = { ...(window.COMMENTS_SETTINGS || {}), enabled };
         if (window.APP_FEATURES) window.APP_FEATURES.productComments = enabled;
+
+        const superToggle = document.getElementById('toggle-product-comments');
+        if (superToggle) superToggle.checked = enabled;
+
+        lastCommentsEnabledState = null;
         refreshCommentsEnabledUI(true);
         showToast(enabled ? '✅ Customer reviews enabled.' : 'Reviews disabled on all products.');
     } catch (e) {
-        console.error('saveCommentsSettings error:', e);
-        showToast('Failed to save review settings.');
+        console.error('setCommentsEnabled error:', e);
+        showToast('Failed to update review settings.');
+        renderCommentsEnabledControls();
+    } finally {
+        window._commentsSettingsSaving = false;
+        renderCommentsEnabledControls();
     }
+};
+
+window.enableCustomerReviews = function() {
+    setCommentsEnabled(true);
+};
+
+window.disableCustomerReviews = function() {
+    if (!confirm('Disable customer reviews on all product pages?')) return;
+    setCommentsEnabled(false);
 };
 
 window.toggleAdminCapabilitiesAccordion = function(email) {

@@ -1321,17 +1321,28 @@
             <div id="admin-comments-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
                 <div
-                    style="background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333; display:flex; flex-direction:column; gap:8px;"
+                    style="background:#1a1a1a; padding:14px; border-radius:12px; border:1px solid #333; display:flex; flex-direction:column; gap:12px;"
                     onclick="event.stopPropagation()">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                        <label style="display:flex; align-items:center; gap:10px; font-size:12px; color:#fff; cursor:pointer; font-weight:700;">
-                            <input type="checkbox" id="admin-comments-enabled" checked
-                                style="margin:0; width:18px; height:18px; cursor:pointer;"
-                                onchange="saveCommentsSettings()">
-                            Enable customer reviews on product pages
-                        </label>
+                        <div>
+                            <p style="margin:0 0 4px 0; font-size:12px; color:#fff; font-weight:700;">Customer Reviews on Products</p>
+                            <p id="admin-comments-enabled-status" style="margin:0; font-size:11px; color:#aaa;">Loading review status...</p>
+                        </div>
+                        <span id="admin-comments-enabled-badge"
+                            style="font-size:10px; font-weight:800; letter-spacing:0.5px; padding:5px 10px; border-radius:6px; border:1px solid #444; color:#888; background:#111;">...</span>
                     </div>
-                    <p id="admin-comments-enabled-status" style="margin:0; font-size:11px; color:#2ecc71;">Reviews are ON for customers</p>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button id="admin-comments-enable-btn" type="button" class="btn-gold"
+                            style="width:auto; padding:10px 18px; font-size:12px; margin:0; background:#2ecc71; border-color:#27ae60; color:#fff;"
+                            onclick="enableCustomerReviews()">
+                            <i class="fa fa-check-circle"></i> Enable Reviews
+                        </button>
+                        <button id="admin-comments-disable-btn" type="button" class="btn-gold"
+                            style="width:auto; padding:10px 18px; font-size:12px; margin:0; background:#e74c3c; border-color:#c0392b; color:#fff;"
+                            onclick="disableCustomerReviews()">
+                            <i class="fa fa-ban"></i> Disable Reviews
+                        </button>
+                    </div>
                 </div>
                 <div id="admin-comments-moderation-body" style="display:none; flex-direction:column; gap:12px;">
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
