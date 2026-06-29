@@ -4,27 +4,62 @@ window.FOOTER_TEMPLATES = {
         id: 'classic',
         name: 'Classic Chips',
         description: 'Gold pill links in a row — the original Swag Stree footer.',
-        default: true
+        default: true,
+        group: 'Swag Stree'
     },
     minimal: {
         id: 'minimal',
         name: 'Minimal Strip',
-        description: 'Compact text links with subtle dividers — fits narrow screens.'
+        description: 'Compact text links with dot separators.',
+        group: 'Compact'
+    },
+    underline: {
+        id: 'underline',
+        name: 'Text Links',
+        description: 'Pipe-separated text links — classic e-commerce footer style.',
+        group: 'Compact'
+    },
+    capsule: {
+        id: 'capsule',
+        name: 'Capsule Bar',
+        description: 'One unified bar with gold dividers — quick-commerce app style.',
+        group: 'App Style'
+    },
+    dock: {
+        id: 'dock',
+        name: 'Floating Dock',
+        description: 'Raised dock with three equal slots — modern app navigation.',
+        group: 'App Style'
+    },
+    iconbar: {
+        id: 'iconbar',
+        name: 'Icon Bar',
+        description: 'Large gold icons with labels — mobile app footer style.',
+        group: 'App Style'
     },
     stacked: {
         id: 'stacked',
         name: 'Stacked Cards',
-        description: 'Full-width tap targets — best readability on mobile.'
+        description: 'Full-width list rows — best readability on small phones.',
+        group: 'Readable'
     },
-    luxury: {
-        id: 'luxury',
-        name: 'Luxury Bar',
-        description: 'Premium gold-accent bar with brand strip and spaced links.'
+    split: {
+        id: 'split',
+        name: 'Split Help',
+        description: 'Info links plus a highlighted call strip — support-first layout.',
+        group: 'Readable'
     },
     grid: {
         id: 'grid',
         name: 'Grid Actions',
-        description: 'Equal-size grid buttons — clear and thumb-friendly.'
+        description: 'Three equal tap tiles — thumb-friendly grid.',
+        group: 'Readable'
+    },
+    luxury: {
+        id: 'luxury',
+        name: 'Luxury Bar',
+        description: 'Premium gold brand strip with spaced icon links.',
+        group: 'Swag Stree'
     }
 };
 
@@ -59,8 +94,16 @@ function getFooterLinkItems(settings) {
     return [
         { type: 'about', icon: 'fa-circle-info', label: 'About Us', onclick: "openFooterPage('about')" },
         { type: 'call', icon: 'fa-phone', label: 'Call Us', href: 'tel:' + phone },
-        { type: 'privacy', icon: 'fa-shield-halved', label: 'Privacy', onclick: "openFooterPage('privacy')" }
+        { type: 'privacy', icon: 'fa-shield-halved', label: 'Privacy Policy', onclick: "openFooterPage('privacy')" }
     ];
+}
+
+function renderFooterLinkItem(item, className, innerHtml) {
+    const idAttr = item.type === 'call' ? ' id="footer-contact-link"' : '';
+    if (item.href) {
+        return `<a${idAttr} href="${item.href}" class="${className}">${innerHtml}</a>`;
+    }
+    return `<button type="button" class="${className}" onclick="${item.onclick}">${innerHtml}</button>`;
 }
 
 function buildFooterLinksHtml(templateId, settings) {
@@ -68,50 +111,81 @@ function buildFooterLinksHtml(templateId, settings) {
     const items = getFooterLinkItems(settings);
 
     if (tpl === 'stacked') {
-        return `<div class="footer-links-stacked">${items.map(item => {
-            if (item.href) {
-                return `<a id="footer-contact-link" href="${item.href}" class="footer-stacked-link"><i class="fa ${item.icon}"></i><span>${item.label}</span><i class="fa fa-chevron-right footer-stacked-chevron"></i></a>`;
-            }
-            return `<button type="button" class="footer-stacked-link" onclick="${item.onclick}"><i class="fa ${item.icon}"></i><span>${item.label}</span><i class="fa fa-chevron-right footer-stacked-chevron"></i></button>`;
-        }).join('')}</div>`;
+        return `<div class="footer-links-stacked">${items.map(item =>
+            renderFooterLinkItem(item, 'footer-stacked-link',
+                `<i class="fa ${item.icon}"></i><span>${item.label}</span><i class="fa fa-chevron-right footer-stacked-chevron"></i>`)
+        ).join('')}</div>`;
     }
 
     if (tpl === 'grid') {
-        return `<div class="footer-links-grid">${items.map(item => {
-            if (item.href) {
-                return `<a id="footer-contact-link" href="${item.href}" class="footer-grid-link"><i class="fa ${item.icon}"></i><span>${item.label}</span></a>`;
-            }
-            return `<button type="button" class="footer-grid-link" onclick="${item.onclick}"><i class="fa ${item.icon}"></i><span>${item.label}</span></button>`;
-        }).join('')}</div>`;
+        return `<div class="footer-links-grid">${items.map(item =>
+            renderFooterLinkItem(item, 'footer-grid-link',
+                `<i class="fa ${item.icon}"></i><span>${item.label}</span>`)
+        ).join('')}</div>`;
     }
 
     if (tpl === 'minimal') {
         return `<div class="footer-links-minimal">${items.map((item, idx) => {
             const sep = idx > 0 ? '<span class="footer-minimal-sep">·</span>' : '';
-            if (item.href) {
-                return `${sep}<a id="footer-contact-link" href="${item.href}" class="footer-minimal-link"><i class="fa ${item.icon}"></i> ${item.label}</a>`;
-            }
-            return `${sep}<button type="button" class="footer-minimal-link" onclick="${item.onclick}"><i class="fa ${item.icon}"></i> ${item.label}</button>`;
+            return sep + renderFooterLinkItem(item, 'footer-minimal-link',
+                `<i class="fa ${item.icon}"></i> ${item.label}`);
         }).join('')}</div>`;
+    }
+
+    if (tpl === 'underline') {
+        return `<div class="footer-links-underline">${items.map((item, idx) => {
+            const sep = idx > 0 ? '<span class="footer-underline-sep">|</span>' : '';
+            return sep + renderFooterLinkItem(item, 'footer-underline-link', item.label);
+        }).join('')}</div>`;
+    }
+
+    if (tpl === 'capsule') {
+        return `<div class="footer-links-capsule">${items.map((item, idx) => {
+            const divider = idx > 0 ? '<span class="footer-capsule-divider"></span>' : '';
+            return divider + renderFooterLinkItem(item, 'footer-capsule-segment',
+                `<i class="fa ${item.icon}"></i><span>${item.label}</span>`);
+        }).join('')}</div>`;
+    }
+
+    if (tpl === 'dock') {
+        return `<div class="footer-links-dock">${items.map(item =>
+            renderFooterLinkItem(item, 'footer-dock-slot',
+                `<i class="fa ${item.icon}"></i><span>${item.label}</span>`)
+        ).join('')}</div>`;
+    }
+
+    if (tpl === 'iconbar') {
+        return `<div class="footer-links-iconbar">${items.map(item =>
+            renderFooterLinkItem(item, 'footer-iconbar-item',
+                `<span class="footer-iconbar-icon"><i class="fa ${item.icon}"></i></span><span class="footer-iconbar-label">${item.label}</span>`)
+        ).join('')}</div>`;
+    }
+
+    if (tpl === 'split') {
+        const infoItems = items.filter(i => i.type !== 'call');
+        const callItem = items.find(i => i.type === 'call');
+        return `<div class="footer-links-split">
+            <div class="footer-split-info">${infoItems.map(item =>
+                renderFooterLinkItem(item, 'footer-split-link',
+                    `<i class="fa ${item.icon}"></i><span>${item.label}</span>`)
+            ).join('')}</div>
+            ${callItem ? renderFooterLinkItem(callItem, 'footer-split-call',
+                `<i class="fa ${callItem.icon}"></i><span>${callItem.label}</span><i class="fa fa-arrow-right footer-split-call-arrow"></i>`) : ''}
+        </div>`;
     }
 
     if (tpl === 'luxury') {
         return `<div class="footer-luxury-brand"><span class="footer-luxury-mark"></span><span id="footer-luxury-brand-text">${settings?.copyright || 'Swag Stree'}</span></div>
-            <div class="footer-links-luxury">${items.map(item => {
-                if (item.href) {
-                    return `<a id="footer-contact-link" href="${item.href}" class="footer-luxury-link"><i class="fa ${item.icon}"></i><span>${item.label}</span></a>`;
-                }
-                return `<button type="button" class="footer-luxury-link" onclick="${item.onclick}"><i class="fa ${item.icon}"></i><span>${item.label}</span></button>`;
-            }).join('')}</div>`;
+            <div class="footer-links-luxury">${items.map(item =>
+                renderFooterLinkItem(item, 'footer-luxury-link',
+                    `<i class="fa ${item.icon}"></i><span>${item.label}</span>`)
+            ).join('')}</div>`;
     }
 
     // classic (default)
-    return `<div id="footer-links-row" class="footer-links-classic">${items.map(item => {
-        if (item.href) {
-            return `<a id="footer-contact-link" href="${item.href}" class="footer-chip"><i class="fa ${item.icon}"></i> ${item.label}</a>`;
-        }
-        return `<div onclick="${item.onclick}" class="footer-chip"><i class="fa ${item.icon}"></i> ${item.label}</div>`;
-    }).join('')}</div>`;
+    return `<div id="footer-links-row" class="footer-links-classic">${items.map(item =>
+        renderFooterLinkItem(item, 'footer-chip', `<i class="fa ${item.icon}"></i> ${item.label}`)
+    ).join('')}</div>`;
 }
 
 function applyFooterShellClasses(footerEl, templateId, layoutId) {
@@ -132,17 +206,19 @@ function estimateFooterBodyPadding(settings, templateId, layoutId) {
 
     if (!hasLinks && !hasCopyright) return '75px';
 
-    if (tpl === 'stacked') {
-        if (hasLinks && hasCopyright) return '175px';
-        return hasLinks ? '155px' : '95px';
-    }
-    if (tpl === 'grid') {
-        if (hasLinks && hasCopyright) return '145px';
-        return hasLinks ? '125px' : '95px';
+    const tallTemplates = { stacked: [175, 155], split: [165, 145], grid: [145, 125], dock: [140, 120], iconbar: [135, 115] };
+    if (tallTemplates[tpl]) {
+        const [both, linksOnly] = tallTemplates[tpl];
+        if (hasLinks && hasCopyright) return `${both}px`;
+        return hasLinks ? `${linksOnly}px` : '95px';
     }
     if (tpl === 'luxury') {
         if (hasLinks && hasCopyright) return '130px';
         return hasLinks ? '110px' : '95px';
+    }
+    if (tpl === 'capsule') {
+        if (hasLinks && hasCopyright) return '120px';
+        return hasLinks ? '100px' : '95px';
     }
     if (hasLinks && hasCopyright) return '115px';
     return hasLinks || hasCopyright ? '95px' : '75px';
@@ -157,13 +233,23 @@ function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
     const layout = normalizeFooterLayoutId(selectedLayout);
 
     if (tplGrid) {
-        tplGrid.innerHTML = Object.values(FOOTER_TEMPLATES).map(t => `
-            <label class="footer-template-option${t.id === tpl ? ' selected' : ''}">
-                <input type="radio" name="admin-footer-template" value="${t.id}" ${t.id === tpl ? 'checked' : ''}
-                    onchange="previewAdminFooterTemplate()">
-                <span class="footer-template-option__name">${t.name}${t.default ? ' <em>(Default)</em>' : ''}</span>
-                <span class="footer-template-option__desc">${t.description}</span>
-            </label>`).join('');
+        const groups = {};
+        Object.values(FOOTER_TEMPLATES).forEach(t => {
+            const g = t.group || 'Other';
+            if (!groups[g]) groups[g] = [];
+            groups[g].push(t);
+        });
+        tplGrid.innerHTML = Object.entries(groups).map(([groupName, templates]) => `
+            <div class="footer-template-group">
+                <span class="footer-template-group__label">${groupName}</span>
+                ${templates.map(t => `
+                    <label class="footer-template-option${t.id === tpl ? ' selected' : ''}">
+                        <input type="radio" name="admin-footer-template" value="${t.id}" ${t.id === tpl ? 'checked' : ''}
+                            onchange="previewAdminFooterTemplate()">
+                        <span class="footer-template-option__name">${t.name}${t.default ? ' <em>(Default)</em>' : ''}</span>
+                        <span class="footer-template-option__desc">${t.description}</span>
+                    </label>`).join('')}
+            </div>`).join('');
     }
 
     if (layoutGrid) {
