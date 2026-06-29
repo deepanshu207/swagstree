@@ -699,6 +699,176 @@ input[type="checkbox"], input[type="radio"] {
     }
 }
 
+/* Announcement admin multi-image grid */
+.announcement-admin-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 8px;
+}
+.announcement-admin-image-card {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #333;
+    background: #0a0a0a;
+}
+.announcement-admin-image-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.announcement-admin-image-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 71, 87, 0.95);
+    color: #fff;
+    font-size: 11px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+}
+.announcement-admin-images-empty {
+    font-size: 11px;
+    color: #666;
+    margin: 0;
+}
+
+/* Announcement modal gallery + zoom lightbox */
+.announcement-images-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+}
+.announcement-gallery-thumb {
+    position: relative;
+    border: 1px solid #222;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    padding: 0;
+    cursor: zoom-in;
+    aspect-ratio: 1;
+}
+.announcement-gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.announcement-gallery-zoom-hint {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    color: var(--gold);
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    pointer-events: none;
+}
+.announcement-image-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.94);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 12px 72px;
+    box-sizing: border-box;
+}
+.announcement-lightbox-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #444;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, 0.9);
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+}
+.announcement-lightbox-stage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+}
+.announcement-lightbox-stage img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transform-origin: center center;
+    transition: transform 0.08s linear;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+.announcement-lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid #444;
+    background: rgba(20, 20, 20, 0.85);
+    color: #fff;
+    cursor: pointer;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+}
+.announcement-lightbox-prev { left: 10px; }
+.announcement-lightbox-next { right: 10px; }
+.announcement-lightbox-toolbar {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(20, 20, 20, 0.9);
+    border: 1px solid #333;
+    z-index: 2;
+}
+.announcement-lightbox-toolbar button {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid #444;
+    background: #111;
+    color: #fff;
+    cursor: pointer;
+}
+.announcement-lightbox-toolbar span {
+    font-size: 12px;
+    color: #ccc;
+    min-width: 52px;
+    text-align: center;
+    font-weight: 600;
+}
+
 /* 6. OVERLAYS & MODALS */
 #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #fff; color: #000; padding: 12px 25px; border-radius: 50px; font-weight: bold; z-index: 9999; display: none; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; padding-bottom: 90px; }

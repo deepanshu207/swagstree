@@ -2851,6 +2851,49 @@ window.restoreBackupFromFile = restoreBackupFromFile;
 
 // ── Global Announcement Administration ──────────────────────────────────────
 let editingAnnouncementId = null;
+window.announcementDraftImages = window.announcementDraftImages || [];
+
+function isValidAnnouncementImageUrl(url) {
+    const img = String(url || '').trim();
+    return img && img !== 'null' && img !== 'undefined'
+        && (img.startsWith('http://') || img.startsWith('https://'));
+}
+
+function getAnnouncementImagesFromData(data) {
+    if (!data) return [];
+    if (Array.isArray(data.images) && data.images.length) {
+        return data.images.map(u => String(u || '').trim()).filter(isValidAnnouncementImageUrl);
+    }
+    const legacy = String(data.image || '').trim();
+    return isValidAnnouncementImageUrl(legacy) ? [legacy] : [];
+}
+
+function renderAnnouncementImagesPreview() {
+    const container = document.getElementById('admin-announcement-images-preview');
+    if (!container) return;
+
+    const images = window.announcementDraftImages || [];
+    if (!images.length) {
+        container.innerHTML = '<p class="announcement-admin-images-empty">No images added — announcement will be text only.</p>';
+        return;
+    }
+
+    container.innerHTML = images.map((url, index) => `
+        <div class="announcement-admin-image-card">
+            <img src="${url}" alt="Announcement image ${index + 1}">
+            <button type="button" class="announcement-admin-image-remove" onclick="removeAnnouncementImageAt(${index})" title="Remove image">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function clearAnnouncementImages() {
+    window.announcementDraftImages = [];
+    const fileInput = document.getElementById('admin-announcement-file');
+    if (fileInput) fileInput.value = '';
+    renderAnnouncementImagesPreview();
+}
 
 function toggleAnnouncementAccordion() {
     const content = document.getElementById('announcement-accordion-content');
@@ -2869,76 +2912,77 @@ window.toggleAnnouncementAccordion = toggleAnnouncementAccordion;
 
 async function handleAnnouncementFileUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const previewContainer = document.getElementById("admin-announcement-image-preview-container");
-    const previewImg = document.getElementById("admin-announcement-image-preview");
-    const hiddenInput = document.getElementById("admin-announcement-image");
-    
+
     const uploadLabel = document.querySelector('label[for="admin-announcement-file"]');
-    const originalText = uploadLabel ? uploadLabel.innerHTML : "Upload Image to Cloudinary";
-    if (uploadLabel) uploadLabel.innerHTML = `<i class="fa fa-spinner fa-spin"></i> Uploading...`;
-    
+    const originalText = uploadLabel ? uploadLabel.innerHTML : '<i class="fa fa-cloud-upload-alt"></i> Add Images';
+    const files = Array.from(input.files);
+
+    if (uploadLabel) uploadLabel.innerHTML = `<i class="fa fa-spinner fa-spin"></i> Uploading ${files.length}…`;
+
     try {
-        const url = await uploadToCloudinary(file);
-        if (hiddenInput) hiddenInput.value = url;
-        if (previewImg) previewImg.src = url;
-        if (previewContainer) previewContainer.style.display = "flex";
-        showToast("Image uploaded to Cloudinary successfully!");
+        for (const file of files) {
+            const url = await uploadToCloudinary(file);
+            window.announcementDraftImages.push(url);
+        }
+        renderAnnouncementImagesPreview();
+        showToast(`${files.length} image${files.length === 1 ? '' : 's'} uploaded.`);
     } catch (e) {
         console.error(e);
-        showToast("Upload failed: " + e.message);
+        showToast('Upload failed: ' + e.message);
     } finally {
         if (uploadLabel) uploadLabel.innerHTML = originalText;
+        input.value = '';
     }
 }
 window.handleAnnouncementFileUpload = handleAnnouncementFileUpload;
 
+function removeAnnouncementImageAt(index) {
+    if (!Array.isArray(window.announcementDraftImages)) return;
+    window.announcementDraftImages.splice(index, 1);
+    renderAnnouncementImagesPreview();
+}
+window.removeAnnouncementImageAt = removeAnnouncementImageAt;
+
 function removeAnnouncementImage() {
-    const previewContainer = document.getElementById("admin-announcement-image-preview-container");
-    const previewImg = document.getElementById("admin-announcement-image-preview");
-    const hiddenInput = document.getElementById("admin-announcement-image");
-    const fileInput = document.getElementById("admin-announcement-file");
-    
-    if (hiddenInput) hiddenInput.value = "";
-    if (previewImg) previewImg.src = "";
-    if (previewContainer) previewContainer.style.display = "none";
-    if (fileInput) fileInput.value = "";
+    clearAnnouncementImages();
 }
 window.removeAnnouncementImage = removeAnnouncementImage;
 
 async function publishAnnouncement() {
     const textEl = document.getElementById("admin-announcement-msg");
-    const imageEl = document.getElementById("admin-announcement-image");
     if (!textEl) return;
-    
+
     const msg = textEl.value.trim();
-    const imageUrl = imageEl ? imageEl.value.trim() : "";
-    
+    const images = (window.announcementDraftImages || []).filter(isValidAnnouncementImageUrl);
+
     if (!msg) {
         showToast("Please enter an announcement message.");
         return;
     }
-    
+
+    const payload = {
+        message: msg,
+        images,
+        image: firebase.firestore.FieldValue.delete(),
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
     try {
         if (editingAnnouncementId) {
-            await db.collection("announcements").doc(editingAnnouncementId).update({
-                message: msg,
-                image: imageUrl,
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            await db.collection("announcements").doc(editingAnnouncementId).update(payload);
             showToast("Announcement updated successfully!");
             cancelAnnouncementEdit();
         } else {
             const id = 'ann_' + Date.now();
             await db.collection("announcements").doc(id).set({
-                id: id,
+                id,
                 message: msg,
-                image: imageUrl,
+                images,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
             showToast("Announcement published successfully!");
             textEl.value = "";
-            removeAnnouncementImage();
+            clearAnnouncementImages();
         }
     } catch (e) {
         console.error("Error publishing/updating announcement:", e);
@@ -2971,23 +3015,13 @@ async function editAnnouncementAdmin(id) {
         }
         const data = snap.data();
         const textEl = document.getElementById("admin-announcement-msg");
-        const imageEl = document.getElementById("admin-announcement-image");
-        const previewContainer = document.getElementById("admin-announcement-image-preview-container");
-        const previewImg = document.getElementById("admin-announcement-image-preview");
         const pubBtn = document.getElementById("admin-announcement-pub-btn");
         const cancelBtn = document.getElementById("admin-announcement-cancel-btn");
         
         if (textEl) textEl.value = data.message || "";
-        if (imageEl) imageEl.value = data.image || "";
-        
-        if (data.image) {
-            if (previewImg) previewImg.src = data.image;
-            if (previewContainer) previewContainer.style.display = "flex";
-        } else {
-            if (previewImg) previewImg.src = "";
-            if (previewContainer) previewContainer.style.display = "none";
-        }
-        
+        window.announcementDraftImages = getAnnouncementImagesFromData(data);
+        renderAnnouncementImagesPreview();
+
         editingAnnouncementId = id;
         if (pubBtn) pubBtn.textContent = "Update Announcement";
         if (cancelBtn) cancelBtn.style.display = "block";
@@ -3012,13 +3046,14 @@ function cancelAnnouncementEdit() {
     const cancelBtn = document.getElementById("admin-announcement-cancel-btn");
     
     if (textEl) textEl.value = "";
-    removeAnnouncementImage();
+    clearAnnouncementImages();
     if (pubBtn) pubBtn.textContent = "Publish";
     if (cancelBtn) cancelBtn.style.display = "none";
 }
 window.cancelAnnouncementEdit = cancelAnnouncementEdit;
 
 function loadAnnouncementSettingsAdmin() {
+    renderAnnouncementImagesPreview();
     db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(snap => {
         const list = [];
         snap.forEach(doc => {
@@ -3043,21 +3078,33 @@ function renderAdminAnnouncements(list) {
         return;
     }
     
-    container.innerHTML = list.map(ann => `
+    container.innerHTML = list.map(ann => {
+        const images = getAnnouncementImagesFromData(ann);
+        const thumb = images[0]
+            ? `<img src="${images[0]}" style="width:40px; height:40px; object-fit:cover; border-radius:4px; border:1px solid #222; flex-shrink:0;">`
+            : `<div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:#222; border-radius:4px; border:1px solid #333; flex-shrink:0;"><i class="fa fa-bullhorn" style="color:#ffd700; font-size:12px;"></i></div>`;
+        const imageCount = images.length > 1
+            ? `<span style="font-size:9px; color:var(--gold); font-weight:700;">+${images.length - 1} img</span>`
+            : '';
+
+        return `
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; background:#111; border:1px solid #333; border-radius:8px;">
             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                ${ann.image? `<img src="${ann.image}" style="width:40px; height:40px; object-fit:cover; border-radius:4px; border:1px solid #222; flex-shrink:0;">` : `<div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:#222; border-radius:4px; border:1px solid #333; flex-shrink:0;"><i class="fa fa-bullhorn" style="color:#ffd700; font-size:12px;"></i></div>`}
+                ${thumb}
                 <div style="min-width:0; flex:1;">
                     <p style="margin:0; font-size:11px; color:#fff; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word;">${ann.message}</p>
-                    <span style="font-size:9px; color:#666;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                        <span style="font-size:9px; color:#666;">${ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleString() : 'Just now'}</span>
+                        ${imageCount}
+                    </div>
                 </div>
             </div>
             <div style="display:flex; gap:6px; flex-shrink:0;">
                 <button onclick="editAnnouncementAdmin('${ann.id}')" style="background:#ffd700; border:none; color:#000; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:700;"><i class="fa fa-edit"></i></button>
                 <button onclick="deleteAnnouncementAdmin('${ann.id}')" style="background:#ff4757; border:none; color:#fff; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:700;"><i class="fa fa-trash"></i></button>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 

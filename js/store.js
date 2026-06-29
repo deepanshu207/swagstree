@@ -2483,9 +2483,225 @@ window.getActive360Images = getActive360Images;
 function closeAnnouncementModal() {
     const modal = document.getElementById('announcement-modal');
     if (modal) modal.style.display = 'none';
+    closeAnnouncementImageZoom();
     updateAnnouncementBellUI();
 }
 window.closeAnnouncementModal = closeAnnouncementModal;
+
+function isValidAnnouncementImageUrl(url) {
+    const img = String(url || '').trim();
+    return img && img !== 'null' && img !== 'undefined'
+        && (img.startsWith('http://') || img.startsWith('https://'));
+}
+
+function getAnnouncementImages(ann) {
+    if (!ann) return [];
+    if (Array.isArray(ann.images) && ann.images.length) {
+        return ann.images.map(u => String(u || '').trim()).filter(isValidAnnouncementImageUrl);
+    }
+    const legacy = String(ann.image || '').trim();
+    return isValidAnnouncementImageUrl(legacy) ? [legacy] : [];
+}
+window.getAnnouncementImages = getAnnouncementImages;
+
+let announcementZoomState = {
+    images: [],
+    index: 0,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    pinching: false,
+    pinchStartDistance: 0,
+    pinchStartScale: 1,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragOriginX: 0,
+    dragOriginY: 0
+};
+
+function applyAnnouncementZoomTransform() {
+    const img = document.getElementById('announcement-lightbox-img');
+    if (!img) return;
+    const { scale, translateX, translateY } = announcementZoomState;
+    img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+}
+
+function updateAnnouncementZoomUi() {
+    const counter = document.getElementById('announcement-lightbox-counter');
+    const prevBtn = document.querySelector('.announcement-lightbox-prev');
+    const nextBtn = document.querySelector('.announcement-lightbox-next');
+    const total = announcementZoomState.images.length;
+    const current = total ? announcementZoomState.index + 1 : 0;
+
+    if (counter) counter.textContent = total ? `${current} / ${total}` : '0 / 0';
+    if (prevBtn) prevBtn.style.display = total > 1 ? 'grid' : 'none';
+    if (nextBtn) nextBtn.style.display = total > 1 ? 'grid' : 'none';
+}
+
+function resetAnnouncementZoomView() {
+    announcementZoomState.scale = 1;
+    announcementZoomState.translateX = 0;
+    announcementZoomState.translateY = 0;
+    applyAnnouncementZoomTransform();
+}
+
+function openAnnouncementImageZoom(announcementId, imageIndex, event) {
+    if (event) event.stopPropagation();
+
+    const ann = (window.activeAnnouncements || []).find(a => a.id === announcementId);
+    const images = getAnnouncementImages(ann);
+    if (!images.length) return;
+
+    announcementZoomState.images = images;
+    announcementZoomState.index = Math.max(0, Math.min(imageIndex || 0, images.length - 1));
+    resetAnnouncementZoomView();
+
+    const lightbox = document.getElementById('announcement-image-lightbox');
+    const img = document.getElementById('announcement-lightbox-img');
+    if (img) img.src = images[announcementZoomState.index];
+    if (lightbox) lightbox.style.display = 'flex';
+    updateAnnouncementZoomUi();
+}
+window.openAnnouncementImageZoom = openAnnouncementImageZoom;
+
+function closeAnnouncementImageZoom(event) {
+    if (event) {
+        const target = event.target;
+        const isBackdrop = target && target.id === 'announcement-image-lightbox';
+        const isCloseBtn = target && target.classList && target.classList.contains('announcement-lightbox-close');
+        if (!isBackdrop && !isCloseBtn) return;
+        event.stopPropagation();
+    }
+
+    const lightbox = document.getElementById('announcement-image-lightbox');
+    if (lightbox) lightbox.style.display = 'none';
+    const img = document.getElementById('announcement-lightbox-img');
+    if (img) img.src = '';
+    announcementZoomState.images = [];
+    resetAnnouncementZoomView();
+}
+window.closeAnnouncementImageZoom = closeAnnouncementImageZoom;
+
+function announcementImageZoomNav(delta, event) {
+    if (event) event.stopPropagation();
+    const total = announcementZoomState.images.length;
+    if (total <= 1) return;
+
+    announcementZoomState.index = (announcementZoomState.index + delta + total) % total;
+    const img = document.getElementById('announcement-lightbox-img');
+    if (img) img.src = announcementZoomState.images[announcementZoomState.index];
+    resetAnnouncementZoomView();
+    updateAnnouncementZoomUi();
+}
+window.announcementImageZoomNav = announcementImageZoomNav;
+
+function setAnnouncementZoomScale(delta, event) {
+    if (event) event.stopPropagation();
+    announcementZoomState.scale = Math.min(4, Math.max(1, announcementZoomState.scale + delta));
+    if (announcementZoomState.scale === 1) {
+        announcementZoomState.translateX = 0;
+        announcementZoomState.translateY = 0;
+    }
+    applyAnnouncementZoomTransform();
+}
+window.setAnnouncementZoomScale = setAnnouncementZoomScale;
+
+function resetAnnouncementZoomScale(event) {
+    if (event) event.stopPropagation();
+    resetAnnouncementZoomView();
+}
+window.resetAnnouncementZoomScale = resetAnnouncementZoomScale;
+
+function initAnnouncementImageZoomGestures() {
+    const stage = document.getElementById('announcement-lightbox-stage');
+    const img = document.getElementById('announcement-lightbox-img');
+    if (!stage || !img || stage.dataset.zoomBound === '1') return;
+    stage.dataset.zoomBound = '1';
+
+    stage.addEventListener('wheel', (e) => {
+        if (document.getElementById('announcement-image-lightbox')?.style.display === 'none') return;
+        e.preventDefault();
+        setAnnouncementZoomScale(e.deltaY < 0 ? 0.15 : -0.15);
+    }, { passive: false });
+
+    stage.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        if (announcementZoomState.scale > 1) resetAnnouncementZoomView();
+        else {
+            announcementZoomState.scale = 2;
+            applyAnnouncementZoomTransform();
+        }
+    });
+
+    stage.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            announcementZoomState.pinching = true;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            announcementZoomState.pinchStartDistance = Math.hypot(dx, dy);
+            announcementZoomState.pinchStartScale = announcementZoomState.scale;
+        } else if (e.touches.length === 1 && announcementZoomState.scale > 1) {
+            announcementZoomState.dragging = true;
+            announcementZoomState.dragStartX = e.touches[0].clientX;
+            announcementZoomState.dragStartY = e.touches[0].clientY;
+            announcementZoomState.dragOriginX = announcementZoomState.translateX;
+            announcementZoomState.dragOriginY = announcementZoomState.translateY;
+        }
+    }, { passive: true });
+
+    stage.addEventListener('touchmove', (e) => {
+        if (announcementZoomState.pinching && e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const distance = Math.hypot(dx, dy);
+            if (announcementZoomState.pinchStartDistance > 0) {
+                const ratio = distance / announcementZoomState.pinchStartDistance;
+                announcementZoomState.scale = Math.min(4, Math.max(1, announcementZoomState.pinchStartScale * ratio));
+                applyAnnouncementZoomTransform();
+            }
+        } else if (announcementZoomState.dragging && e.touches.length === 1) {
+            announcementZoomState.translateX = announcementZoomState.dragOriginX + (e.touches[0].clientX - announcementZoomState.dragStartX);
+            announcementZoomState.translateY = announcementZoomState.dragOriginY + (e.touches[0].clientY - announcementZoomState.dragStartY);
+            applyAnnouncementZoomTransform();
+        }
+    }, { passive: true });
+
+    const endTouch = () => {
+        announcementZoomState.pinching = false;
+        announcementZoomState.dragging = false;
+        if (announcementZoomState.scale < 1) {
+            resetAnnouncementZoomView();
+        }
+    };
+    stage.addEventListener('touchend', endTouch, { passive: true });
+    stage.addEventListener('touchcancel', endTouch, { passive: true });
+
+    img.addEventListener('mousedown', (e) => {
+        if (announcementZoomState.scale <= 1) return;
+        e.preventDefault();
+        announcementZoomState.dragging = true;
+        announcementZoomState.dragStartX = e.clientX;
+        announcementZoomState.dragStartY = e.clientY;
+        announcementZoomState.dragOriginX = announcementZoomState.translateX;
+        announcementZoomState.dragOriginY = announcementZoomState.translateY;
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!announcementZoomState.dragging) return;
+        announcementZoomState.translateX = announcementZoomState.dragOriginX + (e.clientX - announcementZoomState.dragStartX);
+        announcementZoomState.translateY = announcementZoomState.dragOriginY + (e.clientY - announcementZoomState.dragStartY);
+        applyAnnouncementZoomTransform();
+    });
+    window.addEventListener('mouseup', () => {
+        announcementZoomState.dragging = false;
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAnnouncementImageZoomGestures);
+} else {
+    initAnnouncementImageZoomGestures();
+}
 
 let currentAnnouncementIndex = 0;
 
@@ -2500,6 +2716,7 @@ function openAnnouncementModal() {
     if (modal) modal.style.display = 'flex';
     renderAnnouncementSlide();
 }
+window.openAnnouncementModal = openAnnouncementModal;
 
 window.expandedAnnouncementId = null;
 
@@ -2550,6 +2767,17 @@ function renderAnnouncementSlide() {
                 const isUnread = !readIds.includes(ann.id);
                 const isExpanded = window.expandedAnnouncementId === ann.id;
                 const dateStr = ann.timestamp ? new Date(ann.timestamp.seconds * 1000).toLocaleDateString([], {month: 'short', day: 'numeric'}) : 'Just now';
+                const images = getAnnouncementImages(ann);
+                const imagesHtml = images.length ? `
+                        <div class="announcement-images-gallery">
+                            ${images.map((url, idx) => `
+                                <button type="button" class="announcement-gallery-thumb" onclick="openAnnouncementImageZoom('${ann.id}', ${idx}, event)" title="Tap to zoom">
+                                    <img src="${url}" alt="Announcement image ${idx + 1}" loading="lazy">
+                                    <span class="announcement-gallery-zoom-hint"><i class="fa fa-magnifying-glass-plus"></i></span>
+                                </button>
+                            `).join('')}
+                        </div>
+                ` : '';
                 
                 return `
                     <div style="border: 1px solid ${isUnread ? 'rgba(255,215,0,0.2)' : '#222'}; background:${isUnread ? 'rgba(255,215,0,0.02)' : '#111'}; border-radius:10px; overflow:hidden; transition:all 0.2s; display:flex; flex-direction:column;">
@@ -2573,21 +2801,7 @@ function renderAnnouncementSlide() {
                         <!-- Expanded Details -->
                         ${isExpanded ? `
                         <div style="padding: 12px; background:#0a0a0a; border-top:1px solid #222; display:flex; flex-direction:column; gap:10px;">
-${(() => {
-    const img = String(ann.image || '').trim();
-
-    const validImage =
-        img &&
-        img !== 'null' &&
-        img !== 'undefined' &&
-        (img.startsWith('http://') || img.startsWith('https://'));
-
-    return validImage ? `
-        <div style="width:100%; max-height:200px; border-radius:6px; overflow:hidden; border:1px solid #222; background:#000; display:flex; align-items:center; justify-content:center;">
-            <img src="${img}" style="width:100%; height:auto; max-height:200px; object-fit:contain;">
-        </div>
-    ` : '';
-})()}
+                            ${imagesHtml}
                             <p style="color:#eee; font-size:12px; line-height:1.6; margin:0; word-break:break-word; white-space:pre-wrap; text-align:left;">${ann.message}</p>
                             
                             <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px; border-top:1px dashed #222; padding-top:8px;">

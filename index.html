@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=5.5">
+    <link rel="stylesheet" href="css/style.css?v=5.6">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -1291,23 +1291,15 @@
                             style="margin:0 0 4px; font-size:12px; height:60px; resize:vertical; background:#222; border:1px solid #333; color:#fff; border-radius:8px; padding:8px;"></textarea>
                     </div>
                     <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span style="font-size:11px; color:#aaa;">Announcement Image</span>
-                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <span style="font-size:11px; color:#aaa;">Announcement Images <span style="color:#666; font-weight:400;">(optional, multiple allowed)</span></span>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
                             <label for="admin-announcement-file"
-                                style="display:inline-block; padding:8px 16px; background:#222; border:1px dashed #555; color:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; transition:all 0.2s;">
-                                <i class="fa fa-cloud-upload-alt" style="margin-right:4px;"></i> Upload Images
+                                style="display:inline-flex; align-items:center; gap:6px; width:fit-content; padding:8px 16px; background:#222; border:1px dashed #555; color:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; transition:all 0.2s;">
+                                <i class="fa fa-cloud-upload-alt"></i> Add Images
                             </label>
-                            <input type="file" id="admin-announcement-file" accept="image/*" style="display:none;"
+                            <input type="file" id="admin-announcement-file" accept="image/*" multiple style="display:none;"
                                 onchange="handleAnnouncementFileUpload(this)">
-
-                            <div id="admin-announcement-image-preview-container"
-                                style="display:none; align-items:center; gap:8px; background:#111; padding:4px 8px; border-radius:6px; border:1px solid #333;">
-                                <img id="admin-announcement-image-preview" src=""
-                                    style="width:30px; height:30px; object-fit:cover; border-radius:4px;">
-                                <span style="font-size:10px; color:#ff4757; cursor:pointer; font-weight:700;"
-                                    onclick="removeAnnouncementImage()">Remove</span>
-                            </div>
-                            <input type="hidden" id="admin-announcement-image" value="">
+                            <div id="admin-announcement-images-preview" class="announcement-admin-images-grid"></div>
                         </div>
                     </div>
                     <div style="display:flex; gap:10px; margin-top:5px;">
@@ -2359,6 +2351,26 @@
         </div>
     </div>
 
+    <!-- Announcement Image Zoom Lightbox -->
+    <div id="announcement-image-lightbox" class="announcement-image-lightbox" style="display:none;" onclick="closeAnnouncementImageZoom(event)">
+        <button type="button" class="announcement-lightbox-close" onclick="closeAnnouncementImageZoom(event)" aria-label="Close">&times;</button>
+        <button type="button" class="announcement-lightbox-nav announcement-lightbox-prev" onclick="announcementImageZoomNav(-1, event)" aria-label="Previous image">
+            <i class="fa fa-chevron-left"></i>
+        </button>
+        <div class="announcement-lightbox-stage" id="announcement-lightbox-stage">
+            <img id="announcement-lightbox-img" src="" alt="Announcement image">
+        </div>
+        <button type="button" class="announcement-lightbox-nav announcement-lightbox-next" onclick="announcementImageZoomNav(1, event)" aria-label="Next image">
+            <i class="fa fa-chevron-right"></i>
+        </button>
+        <div class="announcement-lightbox-toolbar">
+            <button type="button" onclick="setAnnouncementZoomScale(-0.25, event)" aria-label="Zoom out"><i class="fa fa-minus"></i></button>
+            <span id="announcement-lightbox-counter">1 / 1</span>
+            <button type="button" onclick="setAnnouncementZoomScale(0.25, event)" aria-label="Zoom in"><i class="fa fa-plus"></i></button>
+            <button type="button" onclick="resetAnnouncementZoomScale(event)" aria-label="Reset zoom"><i class="fa fa-compress"></i></button>
+        </div>
+    </div>
+
     <!-- MODAL: Cart & Checkout -->
     <div id="cart-modal" class="modal">
         <div class="modal-box" style="padding-top: 15px;">
@@ -2717,16 +2729,16 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.61"></script>
-    <script src="js/app.js?v=9.61"></script>
-    <script src="js/store.js?v=9.61"></script>
-    <script src="js/checkout.js?v=9.61"></script>
-    <script src="js/auth.js?v=9.61"></script>
-    <script src="js/comments.js?v=9.61"></script>
-    <script src="js/support-chat.js?v=9.61"></script>
-    <script src="js/auto-retention.js?v=9.61"></script>
-    <script src="js/admin.js?v=9.61"></script>
-    <script src="js/cloudinary-admin.js?v=9.61"></script>
+    <script src="js/features.js?v=9.62"></script>
+    <script src="js/app.js?v=9.62"></script>
+    <script src="js/store.js?v=9.62"></script>
+    <script src="js/checkout.js?v=9.62"></script>
+    <script src="js/auth.js?v=9.62"></script>
+    <script src="js/comments.js?v=9.62"></script>
+    <script src="js/support-chat.js?v=9.62"></script>
+    <script src="js/auto-retention.js?v=9.62"></script>
+    <script src="js/admin.js?v=9.62"></script>
+    <script src="js/cloudinary-admin.js?v=9.62"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">
