@@ -1911,12 +1911,25 @@ body {
 }
 
 /* Catalog Controls Row & Count Badge */
+.home-search-wrap {
+    padding: 12px 15px 4px 15px;
+}
+
+.home-search-input {
+    margin-bottom: 0 !important;
+}
+
+.wishlist-title {
+    padding: 12px 15px 4px 15px;
+    margin: 0;
+}
+
 .catalog-controls-row {
-    padding: 6px 15px 10px 15px;
+    padding: 4px 15px 10px 15px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    justify-content: flex-start;
+    gap: 6px;
     flex-wrap: nowrap;
     width: 100%;
     box-sizing: border-box;
@@ -1924,28 +1937,34 @@ body {
 }
 
 .catalog-count-label {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
+    max-width: 52vw;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .catalog-controls-row.catalog-row-icons-minimal .catalog-count-label {
-    flex: 1 1 auto;
-    max-width: none;
+    max-width: 72vw;
 }
 
 .catalog-controls-row.catalog-row-no-chat .catalog-count-label,
 .catalog-controls-row.catalog-row-no-announcement .catalog-count-label {
+    max-width: 62vw;
+}
+
+.catalog-controls-row.catalog-row-no-chat.catalog-row-no-announcement .catalog-count-label {
     max-width: none;
+    flex: 1 1 auto;
 }
 
 .catalog-controls-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
+    gap: 5px;
+    flex: 0 0 auto;
+    margin-left: auto;
     overflow: visible;
 }
 
@@ -2042,22 +2061,117 @@ body {
     cursor: pointer;
 }
 
+.admin-customer-chat-body {
+    gap: 2px;
+}
+
+.admin-chat-msg {
+    display: flex;
+    flex-direction: column;
+    margin: 10px 0;
+    max-width: 92%;
+}
+
+.admin-chat-msg-admin {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.admin-chat-msg-customer,
+.admin-chat-msg-bot {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.admin-chat-msg-meta {
+    font-size: 9px;
+    color: #777;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.admin-chat-msg-meta strong {
+    color: #ccc;
+    font-weight: 700;
+}
+
+.admin-chat-msg-badge {
+    font-size: 8px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.admin-chat-msg-badge.complaint {
+    background: rgba(255, 71, 87, 0.15);
+    color: #ff6b7a;
+}
+
+.admin-chat-msg-badge.ai {
+    background: rgba(136, 136, 136, 0.15);
+    color: #aaa;
+}
+
+.admin-chat-msg-bubble {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.admin-chat-msg-customer .admin-chat-msg-bubble {
+    background: #222;
+    border: 1px solid #333;
+    color: #fff;
+}
+
+.admin-chat-msg-admin .admin-chat-msg-bubble {
+    background: var(--gold);
+    color: #000;
+}
+
+.admin-chat-msg-bot .admin-chat-msg-bubble {
+    background: #151515;
+    border: 1px solid #2a2a2a;
+    color: #bbb;
+}
+
+.admin-chat-day-divider {
+    align-self: center;
+    font-size: 9px;
+    color: #666;
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 3px 10px;
+    margin: 12px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .count-badge {
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid rgba(255, 215, 0, 0.25);
-    padding: 6px 14px;
-    border-radius: 25px;
+    padding: 5px 10px;
+    border-radius: 20px;
     color: var(--gold);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.5px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     white-space: nowrap;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
     transition: all 0.3s ease;
+    line-height: 1.2;
 }
 .count-badge:hover {
     border-color: var(--gold);
@@ -2124,24 +2238,27 @@ body {
     .catalog-controls-row {
         gap: 5px;
         flex-wrap: nowrap;
-        padding-top: 8px;
+        padding: 2px 15px 8px 15px;
+    }
+    .home-search-wrap {
+        padding: 10px 15px 2px 15px;
+    }
+    .wishlist-title {
+        padding: 10px 15px 2px 15px;
     }
     .catalog-controls-row .count-badge,
     .catalog-count-label {
-        font-size: 9px;
-        padding: 5px 10px;
-        letter-spacing: 0.35px;
-        flex: 1 1 auto;
-        min-width: 0;
+        font-size: 8px;
+        padding: 4px 8px;
+        letter-spacing: 0.3px;
         max-width: 46vw;
     }
-    .catalog-controls-row.catalog-row-icons-minimal .catalog-count-label,
-    .catalog-controls-row.catalog-row-no-chat.catalog-row-no-announcement .catalog-count-label {
-        max-width: none;
+    .catalog-controls-row.catalog-row-icons-minimal .catalog-count-label {
+        max-width: 68vw;
     }
     .catalog-controls-actions {
-        gap: 5px;
-        flex-shrink: 0;
+        gap: 4px;
+        margin-left: auto;
     }
     .catalog-controls-row select,
     .catalog-sort-dropdown {

@@ -483,19 +483,19 @@ function canAnswerWhileAdminIsPending(intent) {
 
 async function syncSupportChatHeaderFromThread(threadId) {
     try {
-        const snap = await db.collection('support_threads').doc(threadId).get();
-        if (!snap.exists) {
+        if (window.supportChatState.activeTab === 'ai') {
             updateSupportChatHeader('ai', false);
             return;
         }
-        const data = snap.data();
-        if (data.mode === 'human') {
-            updateSupportChatHeader('human', data.status === 'waiting_admin');
-        } else {
-            updateSupportChatHeader('ai', false);
+        const snap = await db.collection('support_threads').doc(threadId).get();
+        if (!snap.exists) {
+            updateSupportChatHeader('human', true);
+            return;
         }
+        const data = snap.data();
+        updateSupportChatHeader('human', data.status === 'waiting_admin');
     } catch (e) {
-        updateSupportChatHeader('ai', false);
+        updateSupportChatHeader('human', true);
     }
 }
 
@@ -532,6 +532,83 @@ function getContactInfoHtml() {
         <span style="color:#444">•</span>
         <a href="mailto:${escHtml(contact.email)}" style="font-size:10px;color:var(--gold);">${escHtml(contact.email)}</a>
     </div>`;
+}
+
+function formatSupportMessageTime(ts) {
+    if (!ts) return '';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    if (Number.isNaN(date.getTime())) return '';
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    if (sameDay) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatSupportDayLabel(ts) {
+    if (!ts) return 'Earlier';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    if (Number.isNaN(date.getTime())) return 'Earlier';
+    const now = new Date();
+    if (date.toDateString() === now.toDateString()) return 'Today';
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function getAdminPreviewPrefix(sender) {
+    if (sender === 'customer') return 'Customer';
+    if (sender === 'admin') return 'You';
+    return 'AI';
+}
+
+function renderAdminChatMessage(msg, customerName) {
+    const wrap = document.createElement('div');
+    const isAdmin = msg.sender === 'admin';
+    const isCustomer = msg.sender === 'customer';
+    const isBot = !isAdmin && !isCustomer;
+    wrap.className = `admin-chat-msg ${isAdmin ? 'admin-chat-msg-admin' : (isCustomer ? 'admin-chat-msg-customer' : 'admin-chat-msg-bot')}`;
+
+    const meta = document.createElement('div');
+    meta.className = 'admin-chat-msg-meta';
+    const label = isAdmin ? 'You (Admin)' : (isCustomer ? escHtml(customerName || 'Customer') : 'AI Assistant');
+    const time = formatSupportMessageTime(msg.createdAt);
+    let badge = '';
+    if (isCustomer && msg.type === 'complaint') {
+        badge = '<span class="admin-chat-msg-badge complaint">Complaint</span>';
+    } else if (isBot) {
+        badge = '<span class="admin-chat-msg-badge ai">Auto</span>';
+    }
+    meta.innerHTML = `<strong>${label}</strong>${time ? `<span>${time}</span>` : ''}${badge}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'admin-chat-msg-bubble';
+    bubble.textContent = msg.text || '';
+
+    wrap.appendChild(meta);
+    wrap.appendChild(bubble);
+    return wrap;
+}
+
+function renderAdminChatMessages(messages, customerName) {
+    const body = document.getElementById('admin-customer-chat-body');
+    if (!body) return;
+    body.innerHTML = '';
+    let lastDay = '';
+    messages.forEach(msg => {
+        const day = formatSupportDayLabel(msg.createdAt);
+        if (day !== lastDay) {
+            const divider = document.createElement('div');
+            divider.className = 'admin-chat-day-divider';
+            divider.textContent = day;
+            body.appendChild(divider);
+            lastDay = day;
+        }
+        body.appendChild(renderAdminChatMessage(msg, customerName));
+    });
+    body.scrollTop = body.scrollHeight;
 }
 
 async function handleAiSupportMessage(text) {
@@ -734,7 +811,7 @@ window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride
     window.supportChatState.adminThreadId = threadId;
 
     document.getElementById('admin-customer-chat-name').textContent = name || 'Customer';
-    document.getElementById('admin-customer-chat-email').textContent = email || '';
+    document.getElementById('admin-customer-chat-email').textContent = email || 'Guest visitor';
     document.getElementById('admin-customer-chat-modal').style.display = 'flex';
     document.getElementById('admin-customer-chat-input').value = '';
 
@@ -742,6 +819,7 @@ window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride
 
     if (adminThreadUnsub) adminThreadUnsub();
     const body = document.getElementById('admin-customer-chat-body');
+    const displayName = name || 'Customer';
     if (body) body.innerHTML = '<p style="color:#666;font-size:12px;">Loading conversation...</p>';
 
     adminThreadUnsub = db.collection('support_threads').doc(threadId)
@@ -749,35 +827,7 @@ window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride
         .onSnapshot(snap => {
             const msgs = [];
             snap.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
-            if (body) {
-                body.innerHTML = '';
-                msgs.forEach(msg => {
-                    const div = document.createElement('div');
-                    div.style.margin = '8px 0';
-                    div.style.padding = '8px 12px';
-                    div.style.borderRadius = '10px';
-                    div.style.maxWidth = '85%';
-                    div.style.fontSize = '12px';
-                    if (msg.sender === 'admin') {
-                        div.style.background = 'var(--gold)';
-                        div.style.color = '#000';
-                        div.style.marginLeft = 'auto';
-                        div.innerText = msg.text;
-                    } else if (msg.sender === 'customer') {
-                        div.style.background = '#222';
-                        div.style.border = '1px solid #333';
-                        div.style.color = '#fff';
-                        div.innerHTML = `<div style="font-size:9px;color:var(--gold);margin-bottom:4px;">CUSTOMER</div>${escHtml(msg.text)}`;
-                    } else {
-                        div.style.background = '#1a1a1a';
-                        div.style.border = '1px solid #333';
-                        div.style.color = '#aaa';
-                        div.innerHTML = `<div style="font-size:9px;color:#888;margin-bottom:4px;">AI</div>${escHtml(msg.text)}`;
-                    }
-                    body.appendChild(div);
-                });
-                body.scrollTop = body.scrollHeight;
-            }
+            renderAdminChatMessages(msgs, displayName);
             db.collection('support_threads').doc(threadId).set({ unreadByAdmin: 0 }, { merge: true }).catch(() => {});
         }, () => {
             db.collection('support_threads').doc(threadId).collection('messages').limit(200)
@@ -785,19 +835,7 @@ window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride
                     const msgs = [];
                     snap.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
                     msgs.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
-                    if (body) {
-                        body.innerHTML = '';
-                        msgs.forEach(msg => {
-                            const div = document.createElement('div');
-                            div.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:10px;font-size:12px;max-width:85%;';
-                            div.style.background = msg.sender === 'admin' ? 'var(--gold)' : '#222';
-                            div.style.color = msg.sender === 'admin' ? '#000' : '#fff';
-                            div.style.marginLeft = msg.sender === 'admin' ? 'auto' : '0';
-                            div.textContent = msg.text;
-                            body.appendChild(div);
-                        });
-                        body.scrollTop = body.scrollHeight;
-                    }
+                    renderAdminChatMessages(msgs, displayName);
                 });
         });
 };
@@ -855,17 +893,21 @@ function renderAdminSupportInbox() {
         const openArgs = t.customerUid
             ? `'${safeUid}','${safeEmail}','${safeName}'`
             : `'','${safeEmail}','${safeName}','${safeThreadId}'`;
+        const previewPrefix = getAdminPreviewPrefix(t.lastMessageSender || 'customer');
+        const previewText = t.lastMessagePreview || 'No messages yet';
         return `
         <div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <strong style="font-size:13px;color:#eee;">${escHtml(t.customerName || 'Guest')}</strong>
                     ${!t.customerUid ? '<span style="font-size:9px;color:#666;">Guest</span>' : ''}
+                    ${t.customerEmail ? `<span style="font-size:9px;color:#555;">${escHtml(t.customerEmail)}</span>` : ''}
                     ${unread ? `<span style="font-size:9px;background:var(--red);color:#fff;padding:2px 6px;border-radius:8px;">${unread} new</span>` : ''}
                     ${isWaiting ? `<span style="font-size:9px;background:rgba(255,215,0,0.15);color:var(--gold);padding:2px 6px;border-radius:8px;">Needs reply</span>` : ''}
-                    <span style="font-size:9px;color:#666;text-transform:uppercase;">${escHtml(t.mode || 'ai')}</span>
                 </div>
-                <p style="margin:4px 0 0;font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.lastMessagePreview || 'No messages')}</p>
+                <p style="margin:4px 0 0;font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    <span style="color:var(--gold);font-weight:700;">${previewPrefix}:</span> ${escHtml(previewText)}
+                </p>
             </div>
             <button class="btn-gold" style="width:auto;padding:8px 12px;font-size:11px;margin:0;" onclick="openAdminCustomerChat(${openArgs})"><i class="fa fa-comments"></i> Open Chat</button>
         </div>`;
@@ -975,4 +1017,5 @@ window.cleanupSupportChatListeners = function() {
 
 document.addEventListener('DOMContentLoaded', () => {
     updateSupportChatVisibility();
+    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
 });

@@ -215,14 +215,14 @@
             <div id="home-hero-carousel-dots" class="hero-carousel-dots"></div>
         </div>
 
-        <div style="padding:15px">
+        <div class="home-search-wrap">
             <!-- Hidden auth fields to prevent browser auto-fill bugs -->
             <div
                 style="opacity: 0; position: absolute; top: 0; left: 0; height: 0; width: 0; z-index: -1; overflow: hidden;">
                 <input type="text" name="email" tabindex="-1">
                 <input type="password" name="password" tabindex="-1">
             </div>
-            <input type="text" id="app_search" placeholder="Search products..." oninput="searchHandler()"
+            <input type="text" id="app_search" class="home-search-input" placeholder="Search products..." oninput="searchHandler()"
                 autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');"
                 data-i18n="search_placeholder">
         </div>
@@ -311,7 +311,7 @@
 
     <!-- SECTION: Wishlist -->
     <div id="wish-view" class="section">
-        <h3 style="padding:15px 15px 8px 15px; margin:0;">Wishlist</h3>
+        <h3 class="wishlist-title">Wishlist</h3>
         <div class="catalog-controls-row">
             <span id="wish-count" class="count-badge catalog-count-label" style="display:none;"></span>
 
@@ -2355,7 +2355,7 @@
                 </div>
                 <span onclick="closeAdminCustomerChat()" style="cursor:pointer; font-size:22px; color:#888;">&times;</span>
             </div>
-            <div id="admin-customer-chat-body" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; min-height:280px; max-height:50vh; background:#0a0a0a;"></div>
+            <div id="admin-customer-chat-body" class="admin-customer-chat-body" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; min-height:280px; max-height:50vh; background:#0a0a0a;"></div>
             <div style="padding:12px; border-top:1px solid #222; display:flex; gap:8px;">
                 <input id="admin-customer-chat-input" type="text" placeholder="Reply to customer..."
                     style="margin:0; flex:1; font-size:13px;"
@@ -2367,14 +2367,14 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.38"></script>
-    <script src="js/app.js?v=9.38"></script>
-    <script src="js/store.js?v=9.38"></script>
-    <script src="js/checkout.js?v=9.38"></script>
-    <script src="js/auth.js?v=9.38"></script>
-    <script src="js/comments.js?v=9.38"></script>
-    <script src="js/support-chat.js?v=9.38"></script>
-    <script src="js/admin.js?v=9.38"></script>
+    <script src="js/features.js?v=9.39"></script>
+    <script src="js/app.js?v=9.39"></script>
+    <script src="js/store.js?v=9.39"></script>
+    <script src="js/checkout.js?v=9.39"></script>
+    <script src="js/auth.js?v=9.39"></script>
+    <script src="js/comments.js?v=9.39"></script>
+    <script src="js/support-chat.js?v=9.39"></script>
+    <script src="js/admin.js?v=9.39"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">
