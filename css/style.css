@@ -2258,7 +2258,8 @@ body {
     flex: 1;
 }
 
-.admin-customer-card__badge {
+.admin-customer-card__badge,
+.customer-auth-badge {
     font-size: 10px;
     padding: 3px 8px;
     border-radius: 20px;
@@ -2271,6 +2272,7 @@ body {
     flex-shrink: 0;
     max-width: 100%;
     white-space: nowrap;
+    color: var(--badge-color, var(--gold));
 }
 
 .admin-customer-card__meta,

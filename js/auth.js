@@ -849,6 +849,16 @@ function getCustomerDedupeScore(customer) {
     return score;
 }
 
+function mergeCustomerProviders(records) {
+    const set = new Set();
+    (records || []).forEach(record => {
+        (record.providers || []).forEach(provider => {
+            if (provider) set.add(provider);
+        });
+    });
+    return Array.from(set);
+}
+
 function deduplicateCustomersByEmail(customers) {
     const byEmail = new Map();
     const withoutEmail = [];
@@ -865,22 +875,26 @@ function deduplicateCustomersByEmail(customers) {
             byEmail.set(email, {
                 primary: customer,
                 mergedCount: 1,
-                mergedUids: [customer.uid]
+                mergedUids: [customer.uid],
+                mergedRecords: [customer]
             });
             return;
         }
 
         existing.mergedCount += 1;
         existing.mergedUids.push(customer.uid);
+        existing.mergedRecords.push(customer);
         if (getCustomerDedupeScore(customer) > getCustomerDedupeScore(existing.primary)) {
             existing.primary = customer;
         }
     });
 
     const deduped = [];
-    byEmail.forEach(({ primary, mergedCount, mergedUids }) => {
+    byEmail.forEach(({ primary, mergedCount, mergedUids, mergedRecords }) => {
+        const mergedProviders = mergeCustomerProviders(mergedRecords);
         deduped.push({
             ...primary,
+            providers: mergedProviders.length ? mergedProviders : primary.providers,
             _mergedAccountCount: mergedCount > 1 ? mergedCount : undefined,
             _mergedUids: mergedCount > 1 ? mergedUids : undefined
         });
@@ -928,6 +942,11 @@ function getCustomerAuthBadge(data) {
     return { methodLabel, badgeIcon, badgeColor };
 }
 
+function buildCustomerAuthBadgeHtml(data) {
+    const { methodLabel, badgeIcon, badgeColor } = getCustomerAuthBadge(data);
+    return `<span class="customer-auth-badge" style="--badge-color:${badgeColor};"><i class="${badgeIcon}"></i> ${methodLabel}</span>`;
+}
+
 function renderAllCustomersList(list) {
     const container = document.getElementById('all-customers-list');
     if (!container) return;
@@ -953,7 +972,6 @@ function renderAllCustomersList(list) {
     let html = '';
     itemsToRender.forEach(data => {
         const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
-        const { methodLabel, badgeIcon, badgeColor } = getCustomerAuthBadge(data);
         const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
         const safeEmail = (data.email || '').replace(/'/g, "\\'");
         const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
@@ -962,6 +980,7 @@ function renderAllCustomersList(list) {
         const mergedNote = data._mergedAccountCount > 1
             ? `<div class="admin-customer-card__merged">Merged ${data._mergedAccountCount} duplicate logins (Google / Email)</div>`
             : '';
+        const authBadge = buildCustomerAuthBadgeHtml(data);
 
         html += `
             <div class="admin-customer-card">
@@ -971,9 +990,7 @@ function renderAllCustomersList(list) {
                 <div class="admin-customer-card__body">
                     <div class="admin-customer-card__header">
                         <div class="admin-customer-card__name">${data.displayName || 'Unnamed User'}</div>
-                        <span class="admin-customer-card__badge" style="color:${badgeColor};">
-                            <i class="${badgeIcon}"></i> ${methodLabel}
-                        </span>
+                        ${authBadge}
                     </div>
                     <div class="admin-customer-card__meta">${data.email || 'No email'}${data.phone ? ' • ' + data.phone : ''}</div>
                     <div class="admin-customer-card__joined">Joined: ${date}</div>
@@ -1292,12 +1309,16 @@ function renderSuperCustomersList(list) {
         const mergedNote = c._mergedAccountCount > 1
             ? `<div style="font-size:10px; color:#888; margin-top:4px;">Merged ${c._mergedAccountCount} duplicate logins (Google / Email)</div>`
             : '';
+        const authBadge = buildCustomerAuthBadgeHtml(c);
+        const safeName = (c.displayName || 'Customer').replace(/'/g, "\\'");
+        const mergedUidsParam = (c._mergedUids || [c.uid]).join(',');
 
         const actionButtons = isSelfOrSystem ? `
             <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
         ` : `
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
-            ${(typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat')) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${(c.displayName || 'Customer').replace(/'/g, "\\'")}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            ${(typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat')) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
@@ -1305,14 +1326,17 @@ function renderSuperCustomersList(list) {
 
         html += `
             <div style="background:#181818; padding:15px; border-radius:12px; border:1px solid #282828; display:flex; flex-direction:column; gap:12px; min-width: 0;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
-                    <div style="display:flex; align-items:center; gap:10px; flex-shrink: 1; min-width: 0;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 8px;">
+                    <div style="display:flex; align-items:flex-start; gap:10px; flex-shrink: 1; min-width: 0;">
                         <div style="width:35px; height:35px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--gold); font-size:14px; flex-shrink: 0;">
                             ${(c.displayName || c.email || 'U').charAt(0).toUpperCase()}
                         </div>
                         <div style="flex-shrink: 1; min-width: 0;">
-                            <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.displayName || 'Unnamed User'}</div>
-                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'} ${c.phone ? ' • ' + c.phone : ''}</div>
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;">
+                                <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width:100%;">${c.displayName || 'Unnamed User'}</div>
+                                ${authBadge}
+                            </div>
+                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'}${c.phone ? ' • ' + c.phone : ''}</div>
                             ${mergedNote}
                         </div>
                     </div>

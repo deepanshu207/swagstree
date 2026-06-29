@@ -1161,6 +1161,99 @@ window.closeAdminCustomerChat = function() {
     window.supportChatState.adminThreadId = null;
 };
 
+async function deleteAdminSupportMessagesFromThread(threadId) {
+    const threadRef = db.collection('support_threads').doc(threadId);
+    const snap = await threadRef.collection('messages').get();
+    const toDelete = [];
+    const remaining = [];
+
+    snap.forEach(doc => {
+        const data = doc.data();
+        if (getMessageChannel(data) === SUPPORT_CHANNEL) {
+            toDelete.push(doc.ref);
+        } else {
+            remaining.push({ id: doc.id, ...data });
+        }
+    });
+
+    if (!toDelete.length) return 0;
+
+    let refs = toDelete.slice();
+    while (refs.length) {
+        const chunk = refs.splice(0, 400);
+        const batch = db.batch();
+        chunk.forEach(ref => batch.delete(ref));
+        await batch.commit();
+    }
+
+    remaining.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+    const last = remaining[remaining.length - 1];
+    const update = {
+        unreadByAdmin: 0,
+        unreadByCustomer: 0,
+        mode: 'ai',
+        status: 'open',
+        escalateReason: firebase.firestore.FieldValue.delete(),
+        escalatedAt: firebase.firestore.FieldValue.delete(),
+        lastSupportMessageAt: firebase.firestore.FieldValue.delete()
+    };
+
+    if (last) {
+        update.lastMessageAt = last.createdAt || firebase.firestore.FieldValue.serverTimestamp();
+        update.lastMessagePreview = (last.text || '').slice(0, 120);
+        update.lastMessageSender = last.sender || 'system';
+    } else {
+        update.lastMessagePreview = '';
+        update.lastMessageSender = 'system';
+    }
+
+    const threadSnap = await threadRef.get();
+    if (threadSnap.exists) {
+        await threadRef.set(update, { merge: true });
+    }
+
+    return toDelete.length;
+}
+
+window.deleteCustomerAdminSupportChats = async function(uid, email, name, mergedUidsParam) {
+    if (!isSuperAdmin) return showToast('Only superadmin can delete admin support chats.');
+
+    let uids = [uid];
+    if (mergedUidsParam) {
+        uids = String(mergedUidsParam).split(',').map(id => id.trim()).filter(Boolean);
+    }
+    if (!uids.includes(uid)) uids.unshift(uid);
+    uids = [...new Set(uids)];
+
+    const label = name || email || uid;
+    if (!confirm(`Delete all Live Support (admin) chat messages for ${label}?\n\nAI Help messages are kept. This cannot be undone.`)) {
+        return;
+    }
+
+    let totalDeleted = 0;
+    try {
+        for (const id of uids) {
+            const threadId = getCustomerThreadIdForUser(id);
+            totalDeleted += await deleteAdminSupportMessagesFromThread(threadId);
+        }
+
+        const activeThreadId = window.supportChatState.adminThreadId;
+        if (activeThreadId && uids.some(id => getCustomerThreadIdForUser(id) === activeThreadId)) {
+            closeAdminCustomerChat();
+        }
+
+        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+
+        showToast(totalDeleted
+            ? `Deleted ${totalDeleted} Live Support message${totalDeleted === 1 ? '' : 's'}. AI Help history kept.`
+            : 'No Live Support messages found for this customer.');
+    } catch (e) {
+        console.error('deleteCustomerAdminSupportChats failed:', e);
+        showToast('Failed to delete admin support chats. Please try again.');
+    }
+};
+
 window.sendAdminCustomerChat = async function() {
     if (!hasSupportChatCapability()) return showToast('No permission.');
     const input = document.getElementById('admin-customer-chat-input');
