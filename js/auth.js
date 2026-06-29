@@ -311,6 +311,10 @@ auth.onAuthStateChanged(user => {
         if (typeof stopSessionTracker === 'function') {
             stopSessionTracker();
         }
+
+        if (typeof cleanupCommentsListeners === 'function') {
+            cleanupCommentsListeners();
+        }
     }
 
     updateAdminPrivilegesUI();

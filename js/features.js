@@ -1323,8 +1323,8 @@ function applyFeatureTogglesUI() {
         }
     }
 
-    if (typeof activeProductId !== 'undefined' && activeProductId && typeof loadProductComments === 'function') {
-        loadProductComments(activeProductId);
+    if (typeof refreshCommentsEnabledUI === 'function') {
+        refreshCommentsEnabledUI(false);
     }
 }
 window.applyFeatureTogglesUI = applyFeatureTogglesUI;

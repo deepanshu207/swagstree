@@ -20,12 +20,40 @@ let commentsModerationUnsubscribe = null;
 
 window.COMMENTS_SETTINGS = window.COMMENTS_SETTINGS || { enabled: true };
 let commentsSettingsUnsubscribe = null;
+let lastCommentsEnabledState = null;
 
 function isProductCommentsEnabled() {
     if (window.COMMENTS_SETTINGS && window.COMMENTS_SETTINGS.enabled === false) return false;
     if (window.APP_FEATURES && window.APP_FEATURES.productComments === false) return false;
     return true;
 }
+
+function refreshCommentsEnabledUI(forceReload) {
+    const enabled = isProductCommentsEnabled();
+    const changed = lastCommentsEnabledState !== enabled;
+    lastCommentsEnabledState = enabled;
+
+    const toggle = document.getElementById('admin-comments-enabled');
+    if (toggle) toggle.checked = enabled;
+    const statusEl = document.getElementById('admin-comments-enabled-status');
+    if (statusEl) {
+        statusEl.textContent = enabled ? 'Reviews are ON for customers' : 'Reviews are OFF — hidden on all products';
+        statusEl.style.color = enabled ? '#2ecc71' : 'var(--red)';
+    }
+
+    if (!forceReload && !changed) return;
+
+    if (typeof activeProductId !== 'undefined' && activeProductId) {
+        if (enabled && typeof loadProductComments === 'function') {
+            loadProductComments(activeProductId);
+        } else if (typeof stopProductCommentsListener === 'function') {
+            stopProductCommentsListener();
+            const section = document.getElementById('det-comments-section');
+            if (section) section.style.display = 'none';
+        }
+    }
+}
+window.refreshCommentsEnabledUI = refreshCommentsEnabledUI;
 
 function hasAdminCapability(capId) {
     if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) return true;
@@ -88,28 +116,17 @@ function updateCommentsAdminUIVisibility() {
     if (moderationBody) {
         moderationBody.style.display = hasAdminCapability('approveComments') ? 'flex' : 'none';
     }
+    if (!hasAdminCapability('approveComments') && typeof stopCommentsModerationListener === 'function') {
+        stopCommentsModerationListener();
+    }
 }
 window.updateCommentsAdminUIVisibility = updateCommentsAdminUIVisibility;
 
 window.initCommentsSettingsListener = function() {
     if (commentsSettingsUnsubscribe) return;
     commentsSettingsUnsubscribe = db.collection('settings').doc('comments').onSnapshot(doc => {
-        if (doc.exists) {
-            window.COMMENTS_SETTINGS = doc.data();
-        } else {
-            window.COMMENTS_SETTINGS = { enabled: true };
-            db.collection('settings').doc('comments').set({ enabled: true }).catch(() => {});
-        }
-        const toggle = document.getElementById('admin-comments-enabled');
-        if (toggle) toggle.checked = isProductCommentsEnabled();
-        const statusEl = document.getElementById('admin-comments-enabled-status');
-        if (statusEl) {
-            statusEl.textContent = isProductCommentsEnabled() ? 'Reviews are ON for customers' : 'Reviews are OFF — hidden on all products';
-            statusEl.style.color = isProductCommentsEnabled() ? '#2ecc71' : 'var(--red)';
-        }
-        if (typeof activeProductId !== 'undefined' && activeProductId && typeof loadProductComments === 'function') {
-            loadProductComments(activeProductId);
-        }
+        window.COMMENTS_SETTINGS = doc.exists ? doc.data() : { enabled: true };
+        refreshCommentsEnabledUI(true);
     }, err => console.error('Comments settings listener error:', err));
 };
 
@@ -125,6 +142,9 @@ window.saveCommentsSettings = async function() {
     try {
         await db.collection('settings').doc('comments').set({ enabled }, { merge: true });
         await db.collection('settings').doc('features_config').set({ productComments: enabled }, { merge: true });
+        window.COMMENTS_SETTINGS = { ...(window.COMMENTS_SETTINGS || {}), enabled };
+        if (window.APP_FEATURES) window.APP_FEATURES.productComments = enabled;
+        refreshCommentsEnabledUI(true);
         showToast(enabled ? '✅ Customer reviews enabled.' : 'Reviews disabled on all products.');
     } catch (e) {
         console.error('saveCommentsSettings error:', e);
@@ -204,6 +224,22 @@ function stopProductCommentsListener() {
 }
 window.stopProductCommentsListener = stopProductCommentsListener;
 
+function stopCommentsModerationListener() {
+    if (commentsModerationUnsubscribe) {
+        commentsModerationUnsubscribe();
+        commentsModerationUnsubscribe = null;
+    }
+    window.commentsModerationCache = [];
+}
+window.stopCommentsModerationListener = stopCommentsModerationListener;
+
+window.cleanupCommentsListeners = function() {
+    stopProductCommentsListener();
+    stopCommentsModerationListener();
+    window.currentAdminCapabilities = {};
+    lastCommentsEnabledState = null;
+};
+
 function renderProductCommentsSection() {
     const section = document.getElementById('det-comments-section');
     if (!section) return;
@@ -223,6 +259,9 @@ function renderProductCommentsSection() {
         : [];
     const myRejected = currentUser
         ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'rejected')
+        : [];
+    const myHidden = currentUser
+        ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'hidden')
         : [];
 
     const ratedApproved = approved.filter(c => c.rating);
@@ -260,6 +299,13 @@ function renderProductCommentsSection() {
            </div>`
         : '';
 
+    const hiddenNotice = myHidden.length
+        ? `<div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 12px; margin-bottom:12px;">
+            <p style="margin:0 0 8px 0; font-size:11px; color:#888; font-weight:700;"><i class="fa fa-eye-slash"></i> Your review was hidden by admin</p>
+            ${myHidden.map(c => commentCardHtml(c, false, false, false, true)).join('')}
+           </div>`
+        : '';
+
     const hasPendingForProduct = myPending.some(c => c.productId === productId);
 
     let formHtml = '';
@@ -290,19 +336,23 @@ function renderProductCommentsSection() {
             </div>
             ${pendingNotice}
             ${rejectedNotice}
+            ${hiddenNotice}
             ${formHtml}
         </div>`;
 }
 
-function commentCardHtml(c, isAdmin, isPending, isRejected) {
+function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden) {
+    const safeId = String(c.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const initials = (c.userName || c.userEmail || 'U').charAt(0).toUpperCase();
     const statusBadge = isPending
         ? `<span style="font-size:9px; color:var(--gold); background:rgba(255,215,0,0.1); padding:2px 6px; border-radius:4px; margin-left:6px;">PENDING</span>`
         : isRejected
             ? `<span style="font-size:9px; color:var(--red); background:rgba(255,71,87,0.1); padding:2px 6px; border-radius:4px; margin-left:6px;">NOT PUBLISHED</span>`
-            : (isAdmin && c.status === 'hidden')
+            : isHidden
                 ? `<span style="font-size:9px; color:#888; background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; margin-left:6px;">HIDDEN</span>`
-                : '';
+                : (isAdmin && c.status === 'hidden')
+                    ? `<span style="font-size:9px; color:#888; background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; margin-left:6px;">HIDDEN</span>`
+                    : '';
     const ratingHtml = c.rating ? renderStarRatingHtml(c.rating, false, '11px') : '';
     const productLine = isAdmin && c.productName
         ? `<p style="margin:0 0 4px 0; font-size:11px; color:var(--gold);"><i class="fa fa-box"></i> ${escapeHtml(c.productName)}</p>`
@@ -316,28 +366,28 @@ function commentCardHtml(c, isAdmin, isPending, isRejected) {
         if (c.status === 'pending') {
             actionsHtml = `
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71; border-color:#27ae60;" onclick="approveProductComment('${c.id}')"><i class="fa fa-check"></i> Approve</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c; border-color:#c0392b;" onclick="rejectProductComment('${c.id}')"><i class="fa fa-times"></i> Reject</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555;" onclick="hideProductComment('${c.id}')"><i class="fa fa-eye-slash"></i> Hide</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71; border-color:#27ae60;" onclick="approveProductComment('${safeId}')"><i class="fa fa-check"></i> Approve</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c; border-color:#c0392b;" onclick="rejectProductComment('${safeId}')"><i class="fa fa-times"></i> Reject</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555;" onclick="hideProductComment('${safeId}')"><i class="fa fa-eye-slash"></i> Hide</button>
                 </div>`;
         } else if (c.status === 'approved') {
             actionsHtml = `
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555; border-color:#666;" onclick="hideProductComment('${c.id}')"><i class="fa fa-eye-slash"></i> Hide</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c; border-color:#c0392b;" onclick="deleteProductComment('${c.id}')"><i class="fa fa-trash"></i> Delete</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555; border-color:#666;" onclick="hideProductComment('${safeId}')"><i class="fa fa-eye-slash"></i> Hide</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c; border-color:#c0392b;" onclick="deleteProductComment('${safeId}')"><i class="fa fa-trash"></i> Delete</button>
                 </div>`;
         } else if (c.status === 'hidden') {
             actionsHtml = `
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71;" onclick="approveProductComment('${c.id}')"><i class="fa fa-check"></i> Show / Approve</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c;" onclick="deleteProductComment('${c.id}')"><i class="fa fa-trash"></i> Delete</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71;" onclick="approveProductComment('${safeId}')"><i class="fa fa-check"></i> Show / Approve</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c;" onclick="deleteProductComment('${safeId}')"><i class="fa fa-trash"></i> Delete</button>
                 </div>`;
         } else {
             actionsHtml = `
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71;" onclick="approveProductComment('${c.id}')"><i class="fa fa-check"></i> Approve</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555;" onclick="hideProductComment('${c.id}')"><i class="fa fa-eye-slash"></i> Hide</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c;" onclick="deleteProductComment('${c.id}')"><i class="fa fa-trash"></i> Delete</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71;" onclick="approveProductComment('${safeId}')"><i class="fa fa-check"></i> Approve</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555;" onclick="hideProductComment('${safeId}')"><i class="fa fa-eye-slash"></i> Hide</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c;" onclick="deleteProductComment('${safeId}')"><i class="fa fa-trash"></i> Delete</button>
                 </div>`;
         }
     }
@@ -496,25 +546,41 @@ function renderCommentsModerationList() {
 
 window.loadCommentsModeration = function() {
     if (!hasAdminCapability('approveComments')) return;
-
     if (commentsModerationUnsubscribe) return;
+
+    const handleModerationSnapshot = (snap) => {
+        window.commentsModerationCache = [];
+        snap.forEach(doc => {
+            window.commentsModerationCache.push({ id: doc.id, ...doc.data() });
+        });
+        window.commentsModerationCache.sort((a, b) => {
+            const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+            const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+            return tb - ta;
+        });
+        renderCommentsModerationList();
+    };
+
+    const handleModerationError = (err) => {
+        console.error('Comments moderation listener error:', err);
+        if (commentsModerationUnsubscribe) {
+            commentsModerationUnsubscribe();
+            commentsModerationUnsubscribe = null;
+        }
+        commentsModerationUnsubscribe = db.collection('product_comments')
+            .limit(200)
+            .onSnapshot(handleModerationSnapshot, () => {
+                const container = document.getElementById('admin-comments-moderation-list');
+                if (container) {
+                    container.innerHTML = `<p style="text-align:center; color:#ff4444; font-size:12px;">Unable to load reviews right now.</p>`;
+                }
+            });
+    };
 
     commentsModerationUnsubscribe = db.collection('product_comments')
         .orderBy('createdAt', 'desc')
         .limit(200)
-        .onSnapshot(snap => {
-            window.commentsModerationCache = [];
-            snap.forEach(doc => {
-                window.commentsModerationCache.push({ id: doc.id, ...doc.data() });
-            });
-            renderCommentsModerationList();
-        }, err => {
-            console.error('Comments moderation listener error:', err);
-            const container = document.getElementById('admin-comments-moderation-list');
-            if (container) {
-                container.innerHTML = `<p style="text-align:center; color:#ff4444; font-size:12px;">Failed to load reviews. Ensure Firestore index exists for product_comments (createdAt).</p>`;
-            }
-        });
+        .onSnapshot(handleModerationSnapshot, handleModerationError);
 };
 
 async function updateCommentStatus(commentId, status) {
