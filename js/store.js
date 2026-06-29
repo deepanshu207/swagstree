@@ -515,10 +515,38 @@ function isProductOutOfStock(p) {
 window.isProductOutOfStock = isProductOutOfStock;
 
 function formatCatalogProductCount(visible, total) {
-    return typeof window.getI18nText === 'function'
-        ? window.getI18nText('showing_products', { visible, total })
+    const narrow = typeof window.innerWidth === 'number' && window.innerWidth < 380;
+    const chatBtn = document.getElementById('header-support-chat-btn');
+    const annBtn = document.getElementById('announcement-bell-btn');
+    const chatOn = !!(window.APP_FEATURES?.aiChatbot) && chatBtn && chatBtn.style.display !== 'none';
+    const annOn = window.APP_FEATURES?.announcementBell !== false && annBtn && annBtn.style.display !== 'none';
+    const useCompact = narrow && chatOn && annOn;
+    if (typeof window.getI18nText === 'function') {
+        return useCompact
+            ? window.getI18nText('showing_products_compact', { visible, total })
+            : window.getI18nText('showing_products', { visible, total });
+    }
+    return useCompact
+        ? `Showing ${visible} of ${total}`
         : `Showing ${visible} of ${total} Products`;
 }
+
+window.refreshCatalogCountLabels = function() {
+    const productCount = document.getElementById('product-count');
+    const wishCount = document.getElementById('wish-count');
+    if (productCount && productCount.style.display !== 'none' && productCount.dataset.visible != null) {
+        productCount.textContent = formatCatalogProductCount(
+            Number(productCount.dataset.visible),
+            Number(productCount.dataset.total)
+        );
+    }
+    if (wishCount && wishCount.style.display !== 'none' && wishCount.dataset.visible != null) {
+        wishCount.textContent = formatCatalogProductCount(
+            Number(wishCount.dataset.visible),
+            Number(wishCount.dataset.total)
+        );
+    }
+};
 
 function renderProducts(items, targetId) {
     const container = document.getElementById(targetId);
@@ -578,6 +606,8 @@ function renderProducts(items, targetId) {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
                 countContainer.textContent = formatCatalogProductCount(0, 0);
+                countContainer.dataset.visible = '0';
+                countContainer.dataset.total = '0';
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -601,6 +631,8 @@ function renderProducts(items, targetId) {
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
             countContainer.textContent = formatCatalogProductCount(visible, items.length);
+            countContainer.dataset.visible = String(visible);
+            countContainer.dataset.total = String(items.length);
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {
@@ -686,6 +718,8 @@ function renderProducts(items, targetId) {
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
                 countContainer.textContent = formatCatalogProductCount(0, 0);
+                countContainer.dataset.visible = '0';
+                countContainer.dataset.total = '0';
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -709,6 +743,8 @@ function renderProducts(items, targetId) {
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
             countContainer.textContent = formatCatalogProductCount(visible, items.length);
+            countContainer.dataset.visible = String(visible);
+            countContainer.dataset.total = String(items.length);
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {
@@ -725,6 +761,10 @@ function renderProducts(items, targetId) {
     }
 
     setupInfiniteScrollObserver();
+
+    if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof updateCatalogControlsRowLayout === 'function') {
+        updateCatalogControlsRowLayout();
+    }
 }
 
 // 3. PRODUCT DETAILS

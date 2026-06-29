@@ -1246,16 +1246,44 @@ function updateSupportChatVisibility() {
 window.updateSupportChatVisibility = updateSupportChatVisibility;
 
 window.updateCatalogControlsRowLayout = function() {
-    const row = document.querySelector('#home-view .catalog-controls-row');
-    if (!row) return;
     const chatBtn = document.getElementById('header-support-chat-btn');
     const annBtn = document.getElementById('announcement-bell-btn');
-    const chatVisible = chatBtn && chatBtn.style.display !== 'none';
-    const annVisible = annBtn && annBtn.style.display !== 'none';
-    row.classList.toggle('catalog-row-no-chat', !chatVisible);
-    row.classList.toggle('catalog-row-no-announcement', !annVisible);
-    row.classList.toggle('catalog-row-icons-minimal', !chatVisible && !annVisible);
+    const chatVisible = !!(window.APP_FEATURES?.aiChatbot) && chatBtn && chatBtn.style.display !== 'none';
+    const annVisible = window.APP_FEATURES?.announcementBell !== false && annBtn && annBtn.style.display !== 'none';
+    const isMobile = window.innerWidth < 480;
+    const isTablet = window.innerWidth >= 480 && window.innerWidth < 1024;
+
+    document.querySelectorAll('.catalog-controls-row').forEach(row => {
+        const isWish = row.classList.contains('catalog-row-wishlist') || !!row.closest('#wish-view');
+
+        if (isWish) {
+            row.classList.add('catalog-row-wishlist');
+            row.classList.remove('catalog-row-no-chat', 'catalog-row-no-announcement', 'catalog-row-icons-minimal');
+            const sortWidth = isMobile ? 98 : (isTablet ? 112 : 124);
+            row.style.setProperty('--catalog-actions-width', `${sortWidth}px`);
+            return;
+        }
+
+        row.classList.toggle('catalog-row-no-chat', !chatVisible);
+        row.classList.toggle('catalog-row-no-announcement', !annVisible);
+        row.classList.toggle('catalog-row-icons-minimal', !chatVisible && !annVisible);
+
+        let actionsWidth = isMobile ? 94 : (isTablet ? 108 : 120);
+        if (chatVisible) actionsWidth += isMobile ? 34 : 38;
+        if (annVisible) actionsWidth += isMobile ? 34 : 38;
+        row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
+    });
+
+    if (typeof refreshCatalogCountLabels === 'function') refreshCatalogCountLabels();
 };
+
+let catalogLayoutResizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(catalogLayoutResizeTimer);
+    catalogLayoutResizeTimer = setTimeout(() => {
+        if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+    }, 120);
+});
 
 window.cleanupSupportChatListeners = function() {
     stopCustomerMessagesListener();
