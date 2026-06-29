@@ -292,6 +292,8 @@ function updateDetailURL() {
 
 // 1. DATA LOADING
 function loadData() {
+    if (typeof startFeaturesConfigListener === 'function') startFeaturesConfigListener();
+
     db.collection("products").onSnapshot(snap => {
         products = snap.docs.map(doc => {
             const p = { ...doc.data(), id: doc.id };
@@ -345,7 +347,6 @@ function loadData() {
     });
 
     db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(snap => {
-        const bell = document.getElementById('announcement-bell-btn');
         window.activeAnnouncements = [];
         snap.forEach(doc => {
             window.activeAnnouncements.push({
@@ -353,12 +354,7 @@ function loadData() {
                 ...doc.data()
             });
         });
-        const isAnnBellEnabled = !window.APP_FEATURES || window.APP_FEATURES.announcementBell !== false;
-        if (bell) {
-            bell.style.display = isAnnBellEnabled ? 'flex' : 'none';
-            bell.classList.toggle('catalog-action-hidden', !isAnnBellEnabled);
-        }
-        if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+        if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
         updateAnnouncementBellUI();
     }, error => {
         console.error("Firestore announcements list load error:", error);

@@ -412,21 +412,7 @@ window.onload = () => {
     }
 
     // Real-time Sync of App Features Configuration
-    if (typeof db !== 'undefined') {
-        db.collection("settings").doc("features_config").onSnapshot(doc => {
-            if (doc.exists) {
-                window.APP_FEATURES = doc.data();
-            } else {
-                db.collection("settings").doc("features_config").set(window.APP_FEATURES).catch(e => console.log(e));
-            }
-            if (typeof window.applyFeatureTogglesUI === 'function') {
-                window.applyFeatureTogglesUI();
-            }
-        }, err => {
-            console.log("Firestore features listener error, using local defaults:", err);
-            if (typeof window.applyFeatureTogglesUI === 'function') {
-                window.applyFeatureTogglesUI();
-            }
-        });
+    if (typeof startFeaturesConfigListener === 'function') {
+        startFeaturesConfigListener();
     }
 };

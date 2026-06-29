@@ -1741,6 +1741,9 @@ async function saveSuperadminFeatures() {
     
     try {
         await db.collection("settings").doc("features_config").set(updateObj, { merge: true });
+        window.APP_FEATURES = { ...window.APP_FEATURES, ...updateObj };
+        if (typeof cacheFeaturesConfig === 'function') cacheFeaturesConfig(window.APP_FEATURES);
+        if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
         await db.collection("settings").doc("comments").set({
             enabled: updateObj.productComments
         }, { merge: true });

@@ -1240,6 +1240,56 @@ function applyCustomHexColors(colors) {
 }
 window.applyCustomHexColors = applyCustomHexColors;
 
+const FEATURES_CONFIG_CACHE_KEY = 'swag_features_config';
+
+function cacheFeaturesConfig(config) {
+    try {
+        if (config && typeof config === 'object') {
+            localStorage.setItem(FEATURES_CONFIG_CACHE_KEY, JSON.stringify(config));
+        }
+    } catch (e) {}
+}
+window.cacheFeaturesConfig = cacheFeaturesConfig;
+
+function hydrateFeaturesFromCache() {
+    try {
+        const raw = localStorage.getItem(FEATURES_CONFIG_CACHE_KEY);
+        if (!raw) return false;
+        const cached = JSON.parse(raw);
+        if (cached && typeof cached === 'object') {
+            window.APP_FEATURES = { ...window.APP_FEATURES, ...cached };
+            return true;
+        }
+    } catch (e) {}
+    return false;
+}
+
+function applyFeaturesConfigFromFirestore(data) {
+    if (data && typeof data === 'object') {
+        window.APP_FEATURES = { ...window.APP_FEATURES, ...data };
+    }
+    cacheFeaturesConfig(window.APP_FEATURES);
+    applyFeatureTogglesUI();
+}
+
+function startFeaturesConfigListener() {
+    if (window._featuresConfigListenerStarted || typeof db === 'undefined') return;
+    window._featuresConfigListenerStarted = true;
+    db.collection('settings').doc('features_config').onSnapshot(doc => {
+        if (doc.exists) {
+            applyFeaturesConfigFromFirestore(doc.data());
+        } else {
+            db.collection('settings').doc('features_config').set(window.APP_FEATURES).catch(() => {});
+            cacheFeaturesConfig(window.APP_FEATURES);
+            applyFeatureTogglesUI();
+        }
+    }, err => {
+        console.log('Firestore features listener error, using local defaults:', err);
+        applyFeatureTogglesUI();
+    });
+}
+window.startFeaturesConfigListener = startFeaturesConfigListener;
+
 function applyFeatureTogglesUI() {
     const config = window.APP_FEATURES || {};
     
@@ -1256,7 +1306,10 @@ function applyFeatureTogglesUI() {
     const headerChatBtn = document.getElementById('header-support-chat-btn');
     const floatBtn = document.getElementById('ai-chat-trigger');
     const showChat = !!config.aiChatbot;
-    if (headerChatBtn) headerChatBtn.style.display = showChat ? 'flex' : 'none';
+    if (headerChatBtn) {
+        headerChatBtn.style.display = showChat ? 'flex' : 'none';
+        headerChatBtn.classList.toggle('catalog-action-hidden', !showChat);
+    }
     if (floatBtn) floatBtn.style.display = 'none';
     if (!showChat) {
         const box = document.getElementById('ai-chat-box');
@@ -1347,6 +1400,15 @@ function applyFeatureTogglesUI() {
     }
 }
 window.applyFeatureTogglesUI = applyFeatureTogglesUI;
+
+hydrateFeaturesFromCache();
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => applyFeatureTogglesUI(), { once: true });
+    } else {
+        applyFeatureTogglesUI();
+    }
+}
 
 function renderChatbotChips(chipsStr) {
     const container = document.getElementById('ai-chat-chips');
