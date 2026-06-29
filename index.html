@@ -1320,6 +1320,19 @@
 
             <div id="admin-comments-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
+                <div
+                    style="background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #333; display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:10px; font-size:12px; color:#fff; cursor:pointer; font-weight:700;">
+                            <input type="checkbox" id="admin-comments-enabled" checked
+                                style="margin:0; width:18px; height:18px; cursor:pointer;"
+                                onchange="saveCommentsSettings()">
+                            Enable customer reviews on product pages
+                        </label>
+                    </div>
+                    <p id="admin-comments-enabled-status" style="margin:0; font-size:11px; color:#2ecc71;">Reviews are ON for customers</p>
+                </div>
+                <div id="admin-comments-moderation-body" style="display:none; flex-direction:column; gap:12px;">
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                     <button id="admin-comments-filter-pending" class="btn-gold"
                         style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:var(--gold); color:#000; border-color:var(--gold);"
@@ -1327,12 +1340,16 @@
                     <button id="admin-comments-filter-approved" class="btn-gold"
                         style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:#222; color:#fff; border:1px solid #444;"
                         onclick="setCommentsModerationFilter('approved')">Approved</button>
+                    <button id="admin-comments-filter-hidden" class="btn-gold"
+                        style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:#222; color:#fff; border:1px solid #444;"
+                        onclick="setCommentsModerationFilter('hidden')">Hidden</button>
                     <button id="admin-comments-filter-rejected" class="btn-gold"
                         style="width:auto; padding:6px 14px; font-size:11px; margin:0; background:#222; color:#fff; border:1px solid #444;"
                         onclick="setCommentsModerationFilter('rejected')">Rejected</button>
                 </div>
                 <div id="admin-comments-moderation-list"
                     style="display:flex; flex-direction:column; gap:10px; max-height:450px; overflow-y:auto; padding-right:8px;">
+                </div>
                 </div>
             </div>
         </div>
@@ -1833,11 +1850,11 @@
             </div>
 
             <p style="font-size:11px; color:#666; margin-top:20px;">DESCRIPTION</p>
-            <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:30px"></p>
+            <p id="det-desc" style="color:#aaa; line-height:1.6; font-size:14px; margin-bottom:20px"></p>
 
-            <div id="det-comments-section" style="display:none; margin-bottom:25px;"></div>
+            <button class="btn-gold" id="det-btn" style="margin-bottom:25px;">ADD TO BAG</button>
 
-            <button class="btn-gold" id="det-btn">ADD TO BAG</button>
+            <div id="det-comments-section" style="display:none;"></div>
         </div>
     </div>
 
@@ -2283,13 +2300,13 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.27"></script>
-    <script src="js/app.js?v=9.27"></script>
-    <script src="js/store.js?v=9.27"></script>
-    <script src="js/checkout.js?v=9.27"></script>
-    <script src="js/auth.js?v=9.27"></script>
-    <script src="js/comments.js?v=9.27"></script>
-    <script src="js/admin.js?v=9.27"></script>
+    <script src="js/features.js?v=9.28"></script>
+    <script src="js/app.js?v=9.28"></script>
+    <script src="js/store.js?v=9.28"></script>
+    <script src="js/checkout.js?v=9.28"></script>
+    <script src="js/auth.js?v=9.28"></script>
+    <script src="js/comments.js?v=9.28"></script>
+    <script src="js/admin.js?v=9.28"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">
