@@ -12,7 +12,9 @@
     --bg: #000; 
     --card: #111; 
     --border: #222; 
-    --red: #ff4757; 
+    --red: #ff4757;
+    --storefront-header-h: 54px;
+    --storefront-bottom-nav-h: 58px;
 }
 
 /* 2. BASE STYLES */
@@ -224,16 +226,19 @@ body {
         padding-bottom: 60px !important;
     }
 
-    /* Auto / Inline: footer flows right after section content — never stretch the section */
+    /* Auto: short pages push footer to bottom; long pages scroll to footer at end */
     body.body-footer-pos-scroll #home-view.active,
     body.body-footer-pos-scroll #wish-view.active {
+        display: flex !important;
+        flex-direction: column !important;
         flex: none !important;
-        min-height: 0 !important;
+        min-height: calc(100dvh - var(--storefront-header-h, 54px) - var(--storefront-bottom-nav-h, 58px)) !important;
         height: auto !important;
     }
     body.body-footer-pos-scroll .storefront-footer-anchor {
         flex: none !important;
-        margin-top: 0 !important;
+        margin-top: auto !important;
+        width: 100%;
     }
     body.body-footer-pos-scroll #app-footer {
         position: relative !important;
@@ -258,7 +263,7 @@ body {
         gap: 6px !important;
         border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
         box-shadow: none !important;
-        margin-top: 6px;
+        margin-top: 0 !important;
         width: 100%;
         box-sizing: border-box;
     }
@@ -298,7 +303,7 @@ body {
         bottom: auto !important;
         left: auto !important;
         right: auto !important;
-        margin-top: 12px;
+        margin-top: 0 !important;
     }
 
     .whatsapp-float {
@@ -1038,7 +1043,11 @@ body.footer-hidden {
     }
     body.body-footer-pos-scroll .section.active {
         flex: none !important;
-        min-height: 0 !important;
+        min-height: calc(100vh - var(--storefront-header-h, 64px)) !important;
+    }
+    body.body-footer-pos-scroll #home-view.active,
+    body.body-footer-pos-scroll #wish-view.active {
+        min-height: calc(100vh - var(--storefront-header-h, 64px)) !important;
     }
     #app-footer {
         position: relative !important;
@@ -1782,9 +1791,19 @@ body.body-footer-pos-fixed #wish-view.active {
 }
 body.body-footer-pos-scroll #home-view.active,
 body.body-footer-pos-scroll #wish-view.active {
+    display: flex;
+    flex-direction: column;
     flex: none;
+    min-height: calc(100dvh - var(--storefront-header-h, 54px) - var(--storefront-bottom-nav-h, 58px));
+}
+body.body-footer-pos-scroll .storefront-footer-anchor {
+    margin-top: auto;
+}
+.storefront-footer-anchor:empty {
+    display: none;
     min-height: 0;
-    padding-bottom: 8px;
+    margin: 0;
+    padding: 0;
 }
 .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
 .thumb-wrap { position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
@@ -2410,6 +2429,21 @@ body {
 }
 .feedback-card:hover .feedback-img {
     transform: scale(1.05);
+}
+
+/* Customer Diaries — remove white/grey seam between media and caption */
+.feedback-card .feedback-media,
+.feedback-card .carousel-box.feedback-media {
+    border-bottom: none !important;
+}
+.feedback-card .feedback-media img,
+.feedback-card .carousel-box.feedback-media img {
+    display: block;
+    vertical-align: top;
+}
+.feedback-card .ig-embed-clip {
+    border-bottom: none;
+    line-height: 0;
 }
 
 /* Instagram embed — clip header (followers) and footer ("View more on Instagram") */

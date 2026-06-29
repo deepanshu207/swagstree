@@ -701,7 +701,7 @@ function renderProducts(items, targetId) {
             const sectionTitle = settings.sectionTitle || '✨ CUSTOMER DIARIES';
             const sectionSubtitle = settings.sectionSubtitle || 'See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured.';
             return `
-            <div class="feedback-section-container-in-grid" style="grid-column: 1 / -1; margin-top:20px; margin-bottom:20px; padding-top:20px; border-top:1px solid #222; border-bottom:1px solid #222; width: 100%;">
+            <div class="feedback-section-container-in-grid" style="grid-column: 1 / -1; margin-top:20px; margin-bottom:0; padding-top:20px; border-top:1px solid #222; width: 100%;">
                 <div style="padding:0 15px; margin-bottom:15px; text-align:center;">
                     <h3 style="margin:0; font-size:18px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; font-weight:900;">${sectionTitle}</h3>
                     <p style="margin:5px 0 0 0; font-size:12px; color:#777;">${sectionSubtitle}</p>
@@ -2194,7 +2194,7 @@ function getFeedbackCardsHtml() {
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="window.openFeedbackPost(this)" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222; cursor:pointer;">
+                <div onclick="window.openFeedbackPost(this)" class="feedback-media" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; cursor:pointer;">
                      <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
@@ -2214,7 +2214,7 @@ function getFeedbackCardsHtml() {
                 `).join('');
 
                 mediaHtml = `
-                <div class="carousel-box" style="border-radius:10px 10px 0 0; border-bottom: 1px solid #222; aspect-ratio: auto; height: 370px; position: relative;">
+                <div class="carousel-box feedback-media" style="border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; position: relative;">
                     <div class="carousel" onscroll="updateDots(this)">
                         ${slideImages}
                     </div>
