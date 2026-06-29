@@ -2325,7 +2325,10 @@ function renderFooter(explicitMountSection) {
     if (footerEl) {
         const currentSection = document.querySelector('.section.active');
         const currentId = currentSection ? currentSection.id.replace('-view', '') : 'home';
-        const hasVisibleContent = !!settings.showFooter || settings.showCopyright !== false;
+        const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
+            ? isFooterCopyrightEnabled(settings)
+            : settings.showCopyright === true;
+        const hasVisibleContent = !!settings.showFooter || copyrightOn;
         const shouldShow = hasVisibleContent && (currentId === 'home' || currentId === 'wish');
         const mountSection = (explicitMountSection === 'home' || explicitMountSection === 'wish')
             ? explicitMountSection
@@ -2368,13 +2371,17 @@ function renderFooter(explicitMountSection) {
 
     // Update Copyright Label
     const copyrightRow = document.getElementById('footer-copyright-row');
+    const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
+        ? isFooterCopyrightEnabled(settings)
+        : settings.showCopyright === true;
     if (copyrightRow) {
         const hideCopyrightForLuxury = templateId === 'luxury' && !!settings.showFooter;
-        copyrightRow.style.display = (settings.showCopyright !== false && !hideCopyrightForLuxury) ? 'flex' : 'none';
+        copyrightRow.style.display = (copyrightOn && !hideCopyrightForLuxury) ? 'flex' : 'none';
     }
     const copyrightTextEl = document.getElementById('footer-copyright-text');
     if (copyrightTextEl) {
         copyrightTextEl.innerText = settings.copyright || 'Swagstree';
+        copyrightTextEl.style.display = copyrightOn ? '' : 'none';
     }
     const luxuryBrand = document.getElementById('footer-luxury-brand-text');
     if (luxuryBrand) {

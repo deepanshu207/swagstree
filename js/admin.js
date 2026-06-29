@@ -2281,7 +2281,7 @@ async function loadAdminFooterSettings() {
         const privacyEl = document.getElementById('admin-footer-privacy-text');
         
         if (showFooterEl) showFooterEl.checked = !!settings.showFooter;
-        if (showCopyrightEl) showCopyrightEl.checked = settings.showCopyright !== false;
+        if (showCopyrightEl) showCopyrightEl.checked = settings.showCopyright === true;
         if (copyrightEl) copyrightEl.value = settings.copyright || '';
         
         if (aboutTextEl) {
@@ -2331,7 +2331,7 @@ async function saveAdminFooterSettings() {
     
     const settings = {
         showFooter: showFooterEl ? showFooterEl.checked : true,
-        showCopyright: showCopyrightEl ? showCopyrightEl.checked : true,
+        showCopyright: showCopyrightEl ? showCopyrightEl.checked : false,
         copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
         footerTemplate: templateEl ? templateEl.value : 'classic',
         footerLayout: layoutEl ? layoutEl.value : 'auto',

@@ -89,6 +89,14 @@ function normalizeFooterLayoutId(id) {
     return FOOTER_LAYOUTS[id] ? id : 'auto';
 }
 
+function isFooterCopyrightEnabled(settings) {
+    if (!settings) return false;
+    const v = settings.showCopyright;
+    if (v === true || v === 'true') return true;
+    if (v === false || v === 'false' || v === 0) return false;
+    return false;
+}
+
 /** auto + inline = scroll with page; fixed = pinned bar above bottom nav */
 function resolveFooterPositionMode(layoutId) {
     return normalizeFooterLayoutId(layoutId) === 'fixed' ? 'fixed' : 'scroll';
@@ -184,11 +192,13 @@ function buildFooterLinksHtml(templateId, settings) {
     }
 
     if (tpl === 'luxury') {
-        return `<div class="footer-luxury-brand"><span class="footer-luxury-mark"></span><span id="footer-luxury-brand-text">${settings?.copyright || 'Swag Stree'}</span></div>
-            <div class="footer-links-luxury">${items.map(item =>
-                renderFooterLinkItem(item, 'footer-luxury-link',
-                    `<i class="fa ${item.icon}"></i><span>${item.label}</span>`)
-            ).join('')}</div>`;
+        const brandHtml = isFooterCopyrightEnabled(settings)
+            ? `<div class="footer-luxury-brand"><span class="footer-luxury-mark"></span><span id="footer-luxury-brand-text">${settings?.copyright || 'Swag Stree'}</span></div>`
+            : '';
+        return `${brandHtml}<div class="footer-links-luxury">${items.map(item =>
+            renderFooterLinkItem(item, 'footer-luxury-link',
+                `<i class="fa ${item.icon}"></i><span>${item.label}</span>`)
+        ).join('')}</div>`;
     }
 
     // classic (default)
@@ -316,14 +326,16 @@ function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
     if (preview) {
         const mockSettings = {
             showFooter: true,
-            showCopyright: true,
+            showCopyright: document.getElementById('admin-footer-show-copyright')?.checked === true,
             copyright: document.getElementById('admin-footer-copyright')?.value?.trim() || 'Swag Stree',
             contactPhone: document.getElementById('admin-footer-phone')?.value?.trim() || '8800467686'
         };
         const currentTpl = document.querySelector('input[name="admin-footer-template"]:checked')?.value || tpl;
+        const previewCopy = mockSettings.showCopyright
+            ? `<div class="admin-footer-preview-copy"><i class="fa fa-copyright"></i> ${mockSettings.copyright}</div>`
+            : '';
         preview.innerHTML = `<div class="admin-footer-preview-shell footer-tpl-${normalizeFooterTemplateId(currentTpl)} footer-layout-${layout}">
-            <footer class="admin-footer-preview-inner">${buildFooterLinksHtml(currentTpl, mockSettings)}
-            <div class="admin-footer-preview-copy"><i class="fa fa-copyright"></i> ${mockSettings.copyright}</div></footer></div>`;
+            <footer class="admin-footer-preview-inner">${buildFooterLinksHtml(currentTpl, mockSettings)}${previewCopy}</footer></div>`;
     }
 }
 
@@ -348,6 +360,7 @@ window.resetStorefrontScroll = resetStorefrontScroll;
 window.syncStorefrontFooterMount = syncStorefrontFooterMount;
 window.resolveFooterPositionMode = resolveFooterPositionMode;
 window.isMobileFooterViewport = isMobileFooterViewport;
+window.isFooterCopyrightEnabled = isFooterCopyrightEnabled;
 window.normalizeFooterTemplateId = normalizeFooterTemplateId;
 window.normalizeFooterLayoutId = normalizeFooterLayoutId;
 window.renderAdminFooterTemplatePicker = renderAdminFooterTemplatePicker;

@@ -331,7 +331,9 @@ function navigateTo(id, el) {
         const appFooter = document.getElementById('app-footer');
         if (appFooter) {
             const isLinksEnabled = window.footerSettings && !!window.footerSettings.showFooter;
-            const isCopyrightEnabled = !window.footerSettings || window.footerSettings.showCopyright !== false;
+            const isCopyrightEnabled = window.footerSettings && typeof isFooterCopyrightEnabled === 'function'
+                ? isFooterCopyrightEnabled(window.footerSettings)
+                : window.footerSettings?.showCopyright === true;
             const hasVisibleContent = isLinksEnabled || isCopyrightEnabled;
             const shouldShow = hasVisibleContent && (id === 'home' || id === 'wish');
             
