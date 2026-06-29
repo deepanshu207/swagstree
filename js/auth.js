@@ -1727,6 +1727,9 @@ async function saveSuperadminFeatures() {
     
     try {
         await db.collection("settings").doc("features_config").set(updateObj, { merge: true });
+        await db.collection("settings").doc("comments").set({
+            enabled: updateObj.productComments
+        }, { merge: true });
         showToast("✅ Superadmin features and theme updated successfully!");
     } catch(e) {
         console.error("saveSuperadminFeatures error:", e);
