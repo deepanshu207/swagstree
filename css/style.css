@@ -1881,7 +1881,7 @@ body {
 
 /* Catalog Controls Row & Count Badge */
 .catalog-controls-row {
-    padding: 0 15px 10px 15px;
+    padding: 6px 15px 10px 15px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1889,7 +1889,7 @@ body {
     flex-wrap: nowrap;
     width: 100%;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .catalog-count-label {
@@ -1897,6 +1897,11 @@ body {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.catalog-count-label .count-short {
+    display: none;
 }
 
 .catalog-controls-actions {
@@ -1904,6 +1909,7 @@ body {
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+    overflow: visible;
 }
 
 .catalog-icon-btn {
@@ -1919,6 +1925,8 @@ body {
     border: 1px solid #222;
     transition: all 0.3s ease;
     flex-shrink: 0;
+    overflow: visible;
+    z-index: 1;
 }
 
 .catalog-icon-btn .fa-comments {
@@ -1932,34 +1940,34 @@ body {
     opacity: 0.6;
 }
 
-.catalog-icon-badge {
+.catalog-icon-badge,
+.catalog-announcement-badge,
+#announcement-badge {
     display: none;
     position: absolute;
-    top: -3px;
-    right: -3px;
-    min-width: 14px;
-    height: 14px;
+    top: -5px;
+    right: -5px;
+    min-width: 15px;
+    height: 15px;
     padding: 0 3px;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #ff4757;
     color: #fff;
     font-size: 8px;
-    font-weight: 700;
-    line-height: 14px;
+    font-weight: 800;
+    line-height: 15px;
     text-align: center;
     box-shadow: 0 0 6px #ff4757;
+    box-sizing: border-box;
+    z-index: 3;
+    pointer-events: none;
 }
 
-.catalog-announcement-badge {
-    display: none;
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #ff4757;
-    box-shadow: 0 0 6px #ff4757;
+.catalog-announcement-badge:not(:empty),
+#announcement-badge:not(:empty) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .catalog-sort-wrap {
@@ -2079,16 +2087,24 @@ body {
     .catalog-controls-row {
         gap: 4px;
         flex-wrap: nowrap;
+        padding-top: 8px;
     }
     .catalog-controls-row .count-badge,
     .catalog-count-label {
         font-size: 8px;
-        padding: 4px 8px;
-        letter-spacing: 0.4px;
-        max-width: 52vw;
+        padding: 4px 7px;
+        letter-spacing: 0.3px;
+        max-width: 38vw;
+    }
+    .catalog-count-label .count-full {
+        display: none;
+    }
+    .catalog-count-label .count-short {
+        display: inline;
     }
     .catalog-controls-actions {
         gap: 4px;
+        flex-shrink: 0;
     }
     .catalog-controls-row select,
     .catalog-sort-dropdown {

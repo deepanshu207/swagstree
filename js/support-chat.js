@@ -22,6 +22,10 @@ window.supportChatState = window.supportChatState || {
 let customerMessagesUnsub = null;
 let adminInboxUnsub = null;
 let adminThreadUnsub = null;
+let supportMetaUnsub = null;
+let supportAdminNotifyUnsub = null;
+let supportNotifyInitialized = false;
+const supportSeenAdminMsgIds = new Set();
 window.supportThreadsCache = window.supportThreadsCache || [];
 
 const SUPPORT_QUICK_CHIPS = [
@@ -121,6 +125,82 @@ async function persistSupportMessage(threadId, msg) {
     }
     await threadRef.set(update, { merge: true });
     return msgRef.id;
+}
+
+async function escalateSupportThread(threadId, reason) {
+    await db.collection('support_threads').doc(threadId).set({
+        mode: 'human',
+        status: 'waiting_admin',
+        escalateReason: reason || 'customer_request',
+        escalatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+}
+
+function isSupportChatOpen() {
+    const box = document.getElementById('ai-chat-box');
+    return !!(box && box.style.display === 'flex');
+}
+
+function applySupportUnreadBadge(count) {
+    const badge = document.getElementById('header-support-chat-badge');
+    if (!badge) return;
+    const n = Number(count) || 0;
+    badge.style.display = n > 0 ? 'flex' : 'none';
+    badge.textContent = n > 9 ? '9+' : String(n);
+}
+
+function stopSupportCustomerWatcher() {
+    if (supportMetaUnsub) {
+        supportMetaUnsub();
+        supportMetaUnsub = null;
+    }
+    if (supportAdminNotifyUnsub) {
+        supportAdminNotifyUnsub();
+        supportAdminNotifyUnsub = null;
+    }
+    supportNotifyInitialized = false;
+    supportSeenAdminMsgIds.clear();
+}
+
+function startSupportCustomerWatcher() {
+    if (!window.APP_FEATURES?.aiChatbot) return;
+    stopSupportCustomerWatcher();
+
+    const threadId = getCustomerThreadIdForUser(currentUser ? currentUser.uid : null);
+
+    supportMetaUnsub = db.collection('support_threads').doc(threadId).onSnapshot(doc => {
+        applySupportUnreadBadge(doc.exists ? (doc.data().unreadByCustomer || 0) : 0);
+    }, () => {});
+
+    supportAdminNotifyUnsub = db.collection('support_threads').doc(threadId)
+        .collection('messages').orderBy('createdAt', 'desc').limit(15)
+        .onSnapshot(snap => {
+            if (customerMessagesUnsub) return;
+
+            const adminMsgs = [];
+            snap.forEach(doc => {
+                if (doc.data().sender === 'admin') {
+                    adminMsgs.push({ id: doc.id, text: doc.data().text || '' });
+                }
+            });
+
+            if (!supportNotifyInitialized) {
+                adminMsgs.forEach(m => supportSeenAdminMsgIds.add(m.id));
+                supportNotifyInitialized = true;
+                return;
+            }
+
+            adminMsgs.forEach(m => {
+                if (supportSeenAdminMsgIds.has(m.id)) return;
+                supportSeenAdminMsgIds.add(m.id);
+                if (!isSupportChatOpen()) {
+                    const preview = (m.text || '').slice(0, 60);
+                    if (typeof showToast === 'function') {
+                        showToast(preview ? `Support: ${preview}` : 'New reply from support team');
+                    }
+                }
+            });
+        }, () => {});
 }
 
 function getContactInfo() {
@@ -339,25 +419,38 @@ function generateLocalFallbackReply(userText) {
 async function handleSupportCustomerMessage(text) {
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
+    const intent = detectSupportIntent(text);
+    const isEscalation = intent === 'complaint' || intent === 'human';
+
     await ensureSupportThread(threadId, profile);
 
     window.supportChatState.loaded = true;
     appendSupportBubble('customer', text);
+
+    const customerMsg = {
+        sender: 'customer',
+        text,
+        type: isEscalation ? (intent === 'complaint' ? 'complaint' : 'escalation') : 'text',
+        customerName: profile.name,
+        customerEmail: profile.email
+    };
     try {
-        await persistSupportMessage(threadId, {
-            sender: 'customer',
-            text,
-            type: 'text',
-            customerName: profile.name,
-            customerEmail: profile.email
-        });
+        await persistSupportMessage(threadId, customerMsg);
     } catch (e) {
         console.warn('Could not persist customer message:', e);
     }
 
+    if (isEscalation) {
+        try {
+            await escalateSupportThread(threadId, intent);
+        } catch (e) {
+            console.warn('Could not escalate support thread:', e);
+        }
+    }
+
     const threadSnap = await db.collection('support_threads').doc(threadId).get();
     const threadData = threadSnap.exists ? threadSnap.data() : {};
-    if (threadData.mode === 'human' && threadData.status === 'waiting_admin') {
+    if (threadData.mode === 'human' && threadData.status === 'waiting_admin' && !isEscalation) {
         updateSupportChatHeader('human', true);
         appendSupportBubble('bot', 'Your message was sent to our admin team. They will reply here soon.');
         return;
@@ -380,8 +473,18 @@ async function handleSupportCustomerMessage(text) {
 
         try {
             await persistSupportMessage(threadId, aiMsg);
+            if (reply.escalate) {
+                await escalateSupportThread(threadId, intent === 'complaint' ? 'complaint' : 'human');
+            }
         } catch (persistErr) {
             console.warn('Could not persist AI reply (shown locally):', persistErr);
+            if (reply.escalate) {
+                try {
+                    await escalateSupportThread(threadId, intent === 'complaint' ? 'complaint' : 'human');
+                } catch (e) {
+                    console.warn('Could not escalate after AI persist failure:', e);
+                }
+            }
         }
 
         if (reply.escalate) updateSupportChatHeader('human', true);
@@ -432,8 +535,12 @@ function subscribeCustomerThread(threadId) {
                 newAdminMsgs.forEach(m => {
                     appendSupportBubble('admin', m.text);
                     knownIds.add(m.id);
+                    supportSeenAdminMsgIds.add(m.id);
                 });
                 updateSupportChatHeader('human', false);
+                if (typeof showToast === 'function') {
+                    showToast('New reply from support team');
+                }
             }
 
             db.collection('support_threads').doc(threadId).set({ unreadByCustomer: 0 }, { merge: true }).catch(() => {});
@@ -471,7 +578,7 @@ window.openSupportChat = async function() {
     }
     renderSupportQuickChips();
     updateSupportChatHeader('ai', false);
-    updateSupportUnreadBadge();
+    applySupportUnreadBadge(0);
 };
 
 window.toggleAIChat = function() {
@@ -594,17 +701,24 @@ window.sendAdminCustomerChat = async function() {
     if (!threadId) return;
 
     input.value = '';
-    await persistSupportMessage(threadId, {
-        sender: 'admin',
-        text,
-        type: 'text',
-        senderEmail: currentUser?.email || '',
-        senderName: currentUser?.displayName || 'Admin'
-    });
-    await db.collection('support_threads').doc(threadId).set({
-        mode: 'human',
-        status: 'open'
-    }, { merge: true });
+    try {
+        await persistSupportMessage(threadId, {
+            sender: 'admin',
+            text,
+            type: 'text',
+            senderEmail: currentUser?.email || '',
+            senderName: currentUser?.displayName || 'Admin'
+        });
+        await db.collection('support_threads').doc(threadId).set({
+            mode: 'human',
+            status: 'open'
+        }, { merge: true });
+        if (typeof showToast === 'function') showToast('Message sent to customer');
+    } catch (e) {
+        console.error('Admin chat send failed:', e);
+        if (typeof showToast === 'function') showToast('Failed to send message. Please try again.');
+        input.value = text;
+    }
 };
 
 function renderAdminSupportInbox() {
@@ -617,6 +731,7 @@ function renderAdminSupportInbox() {
     }
     container.innerHTML = threads.map(t => {
         const unread = t.unreadByAdmin || 0;
+        const isWaiting = t.status === 'waiting_admin';
         const safeUid = (t.customerUid || '').replace(/'/g, "\\'");
         const safeEmail = (t.customerEmail || '').replace(/'/g, "\\'");
         const safeName = (t.customerName || 'Customer').replace(/'/g, "\\'");
@@ -631,6 +746,7 @@ function renderAdminSupportInbox() {
                     <strong style="font-size:13px;color:#eee;">${escHtml(t.customerName || 'Guest')}</strong>
                     ${!t.customerUid ? '<span style="font-size:9px;color:#666;">Guest</span>' : ''}
                     ${unread ? `<span style="font-size:9px;background:var(--red);color:#fff;padding:2px 6px;border-radius:8px;">${unread} new</span>` : ''}
+                    ${isWaiting ? `<span style="font-size:9px;background:rgba(255,215,0,0.15);color:var(--gold);padding:2px 6px;border-radius:8px;">Needs reply</span>` : ''}
                     <span style="font-size:9px;color:#666;text-transform:uppercase;">${escHtml(t.mode || 'ai')}</span>
                 </div>
                 <p style="margin:4px 0 0;font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.lastMessagePreview || 'No messages')}</p>
@@ -670,13 +786,10 @@ window.toggleAdminSupportAccordion = function() {
 };
 
 function updateSupportUnreadBadge() {
-    const badge = document.getElementById('header-support-chat-badge');
-    if (!badge || !currentUser) return;
-    const threadId = getCustomerThreadIdForUser(currentUser.uid);
+    if (!window.APP_FEATURES?.aiChatbot) return;
+    const threadId = getCustomerThreadIdForUser(currentUser ? currentUser.uid : null);
     db.collection('support_threads').doc(threadId).get().then(doc => {
-        const n = doc.exists ? (doc.data().unreadByCustomer || 0) : 0;
-        badge.style.display = n > 0 ? 'block' : 'none';
-        badge.textContent = n > 9 ? '9+' : String(n);
+        applySupportUnreadBadge(doc.exists ? (doc.data().unreadByCustomer || 0) : 0);
     }).catch(() => {});
 }
 
@@ -703,11 +816,14 @@ function updateSupportChatVisibility() {
     if (adminSection) {
         adminSection.style.display = (isAdmin && hasSupportChatCapability()) ? 'block' : 'none';
     }
+    if (enabled) startSupportCustomerWatcher();
+    else stopSupportCustomerWatcher();
 }
 window.updateSupportChatVisibility = updateSupportChatVisibility;
 
 window.cleanupSupportChatListeners = function() {
     stopCustomerMessagesListener();
+    stopSupportCustomerWatcher();
     if (adminInboxUnsub) {
         adminInboxUnsub();
         adminInboxUnsub = null;
@@ -728,5 +844,4 @@ window.cleanupSupportChatListeners = function() {
 
 document.addEventListener('DOMContentLoaded', () => {
     updateSupportChatVisibility();
-    if (currentUser) updateSupportUnreadBadge();
 });

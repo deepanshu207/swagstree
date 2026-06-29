@@ -595,9 +595,11 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
-            countContainer.innerHTML = typeof window.getI18nText === 'function'
+            const fullText = typeof window.getI18nText === 'function'
                 ? window.getI18nText('showing_products', { visible: visible, total: items.length })
                 : `Showing ${visible} of ${items.length} Products`;
+            const shortText = `${visible}/${items.length}`;
+            countContainer.innerHTML = `<span class="count-full">${fullText}</span><span class="count-short">${shortText}</span>`;
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {
@@ -2537,47 +2539,40 @@ function updateAnnouncementBellUI() {
     const bellIcon = document.querySelector('#announcement-bell-btn i');
     const badge = document.getElementById('announcement-badge');
     if (!bellIcon) return;
-    
+
     const list = window.activeAnnouncements || [];
     if (list.length === 0) {
-        bellIcon.style.color = '#ffd700'; // Keep yellow as default
+        bellIcon.style.color = '#ffd700';
         bellIcon.style.opacity = '1.0';
-        if (badge) badge.style.display = 'none';
+        if (badge) {
+            badge.style.display = 'none';
+            badge.textContent = '';
+        }
         return;
     }
-    
+
     let readIds = [];
     try {
         readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
-    } catch(e) {
+    } catch (e) {
         readIds = [];
     }
-    
+
     const unread = list.filter(ann => !readIds.includes(ann.id));
     if (unread.length > 0) {
-        bellIcon.style.color = '#ff4757'; // RED when there are unread announcements
+        bellIcon.style.color = '#ff4757';
         bellIcon.style.opacity = '1.0';
         if (badge) {
+            badge.textContent = unread.length > 9 ? '9+' : String(unread.length);
             badge.style.display = 'flex';
-            badge.textContent = unread.length;
-            badge.style.width = '14px';
-            badge.style.height = '14px';
-            badge.style.fontSize = '8px';
-            badge.style.fontWeight = '800';
-            badge.style.color = '#fff';
-            badge.style.background = '#ff4757';
-            badge.style.borderRadius = '50%';
-            badge.style.alignItems = 'center';
-            badge.style.justifyContent = 'center';
-            badge.style.position = 'absolute';
-            badge.style.top = '-4px';
-            badge.style.right = '-4px';
-            badge.style.boxShadow = '0 0 6px #ff4757';
         }
     } else {
-        bellIcon.style.color = '#ffd700'; // YELLOW default/read color
+        bellIcon.style.color = '#ffd700';
         bellIcon.style.opacity = '1.0';
-        if (badge) badge.style.display = 'none';
+        if (badge) {
+            badge.style.display = 'none';
+            badge.textContent = '';
+        }
     }
 }
 window.updateAnnouncementBellUI = updateAnnouncementBellUI;
