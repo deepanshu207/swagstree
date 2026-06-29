@@ -1887,6 +1887,20 @@ async function loadSuperadminFeatures() {
                 if (document.getElementById('toggle-newsletter')) document.getElementById('toggle-newsletter').checked = !!data.widgets.newsletterPopup;
             }
             if (document.getElementById('toggle-product-comments')) document.getElementById('toggle-product-comments').checked = data.productComments !== false;
+
+            if (typeof syncCatalogControlCheckboxes === 'function') {
+                syncCatalogControlCheckboxes(data);
+            } else if (data.catalogControls) {
+                const cc = data.catalogControls;
+                if (document.getElementById('toggle-home-search')) document.getElementById('toggle-home-search').checked = cc.home?.search !== false;
+                if (document.getElementById('toggle-home-sort')) document.getElementById('toggle-home-sort').checked = cc.home?.sort !== false;
+                if (document.getElementById('toggle-home-announcement')) document.getElementById('toggle-home-announcement').checked = cc.home?.announcement !== false;
+                if (document.getElementById('toggle-home-chat')) document.getElementById('toggle-home-chat').checked = cc.home?.chat !== false;
+                if (document.getElementById('toggle-wish-search')) document.getElementById('toggle-wish-search').checked = !!cc.wishlist?.search;
+                if (document.getElementById('toggle-wish-sort')) document.getElementById('toggle-wish-sort').checked = cc.wishlist?.sort !== false;
+                if (document.getElementById('toggle-wish-announcement')) document.getElementById('toggle-wish-announcement').checked = !!cc.wishlist?.announcement;
+                if (document.getElementById('toggle-wish-chat')) document.getElementById('toggle-wish-chat').checked = !!cc.wishlist?.chat;
+            }
             
             toggleCustomColorPickers(data.themePreset || 'outlaw');
         }
@@ -1926,6 +1940,20 @@ async function saveSuperadminFeatures() {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
             newsletterPopup: !!document.getElementById('toggle-newsletter')?.checked
+        },
+        catalogControls: {
+            home: {
+                search: !!document.getElementById('toggle-home-search')?.checked,
+                sort: !!document.getElementById('toggle-home-sort')?.checked,
+                announcement: !!document.getElementById('toggle-home-announcement')?.checked,
+                chat: !!document.getElementById('toggle-home-chat')?.checked
+            },
+            wishlist: {
+                search: !!document.getElementById('toggle-wish-search')?.checked,
+                sort: !!document.getElementById('toggle-wish-sort')?.checked,
+                announcement: !!document.getElementById('toggle-wish-announcement')?.checked,
+                chat: !!document.getElementById('toggle-wish-chat')?.checked
+            }
         }
     };
     

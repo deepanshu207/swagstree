@@ -1937,7 +1937,8 @@ body {
     --catalog-section-gap: 8px;
 }
 
-.home-search-wrap {
+.home-search-wrap,
+.wish-search-wrap {
     padding: 10px 15px var(--catalog-section-gap) 15px;
 }
 
@@ -2042,6 +2043,7 @@ body {
     }
 
     .home-search-wrap,
+    .wish-search-wrap,
     .wishlist-title {
         padding-left: 16px;
         padding-right: 16px;
@@ -2067,6 +2069,7 @@ body {
     }
 
     .home-search-wrap,
+    .wish-search-wrap,
     .wishlist-title {
         padding-left: 24px;
         padding-right: 24px;
@@ -2489,7 +2492,8 @@ body {
         padding: 0 12px;
         min-height: 34px;
     }
-    .home-search-wrap {
+    .home-search-wrap,
+    .wish-search-wrap {
         padding: 8px 12px var(--catalog-section-gap, 8px) 12px;
     }
     .wishlist-title {
@@ -2533,13 +2537,17 @@ body {
     }
     .catalog-icon-btn,
     .catalog-controls-row #header-support-chat-btn,
-    .catalog-controls-row #announcement-bell-btn {
+    .catalog-controls-row #announcement-bell-btn,
+    .catalog-controls-row #wish-header-support-chat-btn,
+    .catalog-controls-row #wish-announcement-bell-btn {
         width: 30px !important;
         height: 30px !important;
     }
     .catalog-icon-btn i,
     .catalog-controls-row #header-support-chat-btn i,
-    .catalog-controls-row #announcement-bell-btn i {
+    .catalog-controls-row #announcement-bell-btn i,
+    .catalog-controls-row #wish-header-support-chat-btn i,
+    .catalog-controls-row #wish-announcement-bell-btn i {
         font-size: 11px !important;
     }
 }

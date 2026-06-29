@@ -370,6 +370,12 @@ function renderStore() {
     const wishSortEl = document.getElementById('wish-sort-logic');
     const sort = wishSortEl ? wishSortEl.value : 'none';
     let wishProducts = products.filter(p => wishlist.includes(p.id));
+
+    const wishSearchEl = document.getElementById('wish_search');
+    const wishQ = wishSearchEl ? wishSearchEl.value.trim().toLowerCase() : '';
+    if (wishQ) {
+        wishProducts = wishProducts.filter(p => (p.name || '').toLowerCase().includes(wishQ));
+    }
     
     if (sort === 'low') wishProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
     if (sort === 'high') wishProducts.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
@@ -646,7 +652,10 @@ function renderProducts(items, targetId) {
             applyCatalogCountLabel(countContainer, visible, items.length);
         }
         if (sortLogicContainer) {
-            sortLogicContainer.style.display = 'flex';
+            const showSort = typeof isCatalogControlEnabled === 'function'
+                ? isCatalogControlEnabled('home', 'sort')
+                : true;
+            sortLogicContainer.style.display = showSort ? 'flex' : 'none';
         }
 
         const settings = window.diariesSettings || { placement: 'last', showSection: true };
@@ -752,7 +761,10 @@ function renderProducts(items, targetId) {
             applyCatalogCountLabel(countContainer, visible, items.length);
         }
         if (sortLogicContainer) {
-            sortLogicContainer.style.display = 'flex';
+            const showSort = typeof isCatalogControlEnabled === 'function'
+                ? isCatalogControlEnabled('wishlist', 'sort')
+                : true;
+            sortLogicContainer.style.display = showSort ? 'flex' : 'none';
         }
 
         container.innerHTML = itemsToRender.map(productCardHtml).join('');
@@ -1344,6 +1356,12 @@ function searchHandler() {
     const q = document.getElementById('app_search').value.toLowerCase();
     renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
 }
+
+function wishSearchHandler() {
+    displayedWishlistLimit = productsPageLimitSetting;
+    renderStore();
+}
+window.wishSearchHandler = wishSearchHandler;
 
 function updateDots(el) {
     const idx = Math.round(el.scrollLeft / el.offsetWidth);
@@ -2577,44 +2595,53 @@ function toggleAnnouncementReadState(id, event) {
 window.toggleAnnouncementReadState = toggleAnnouncementReadState;
 
 function updateAnnouncementBellUI() {
-    const bellIcon = document.querySelector('#announcement-bell-btn i');
-    const badge = document.getElementById('announcement-badge');
-    if (!bellIcon) return;
+    const bellConfigs = [
+        { btnId: 'announcement-bell-btn', badgeId: 'announcement-badge' },
+        { btnId: 'wish-announcement-bell-btn', badgeId: 'wish-announcement-badge' }
+    ];
 
     const list = window.activeAnnouncements || [];
-    if (list.length === 0) {
-        bellIcon.style.color = '#ffd700';
-        bellIcon.style.opacity = '1.0';
-        if (badge) {
-            badge.style.display = 'none';
-            badge.textContent = '';
-        }
-        return;
-    }
-
     let readIds = [];
     try {
         readIds = JSON.parse(localStorage.getItem('swagstree_read_announcements') || '[]');
     } catch (e) {
         readIds = [];
     }
-
     const unread = list.filter(ann => !readIds.includes(ann.id));
-    if (unread.length > 0) {
-        bellIcon.style.color = '#ff4757';
-        bellIcon.style.opacity = '1.0';
-        if (badge) {
-            badge.textContent = unread.length > 9 ? '9+' : String(unread.length);
-            badge.style.display = 'flex';
+
+    bellConfigs.forEach(({ btnId, badgeId }) => {
+        const btn = document.getElementById(btnId);
+        if (!btn || btn.style.display === 'none') return;
+        const bellIcon = btn.querySelector('i');
+        const badge = document.getElementById(badgeId);
+        if (!bellIcon) return;
+
+        if (list.length === 0) {
+            bellIcon.style.color = '#ffd700';
+            bellIcon.style.opacity = '1.0';
+            if (badge) {
+                badge.style.display = 'none';
+                badge.textContent = '';
+            }
+            return;
         }
-    } else {
-        bellIcon.style.color = '#ffd700';
-        bellIcon.style.opacity = '1.0';
-        if (badge) {
-            badge.style.display = 'none';
-            badge.textContent = '';
+
+        if (unread.length > 0) {
+            bellIcon.style.color = '#ff4757';
+            bellIcon.style.opacity = '1.0';
+            if (badge) {
+                badge.textContent = unread.length > 9 ? '9+' : String(unread.length);
+                badge.style.display = 'flex';
+            }
+        } else {
+            bellIcon.style.color = '#ffd700';
+            bellIcon.style.opacity = '1.0';
+            if (badge) {
+                badge.style.display = 'none';
+                badge.textContent = '';
+            }
         }
-    }
+    });
 }
 window.updateAnnouncementBellUI = updateAnnouncementBellUI;
 

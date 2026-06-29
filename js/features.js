@@ -23,6 +23,10 @@ window.APP_FEATURES = window.APP_FEATURES || {
         facebook: true,
         instagram: true,
         phone: true
+    },
+    catalogControls: {
+        home: { search: true, sort: true, announcement: true, chat: true },
+        wishlist: { search: false, sort: true, announcement: false, chat: false }
     }
 };
 
@@ -1276,6 +1280,113 @@ function normalizeSupportChatFeatures(config) {
     return c;
 }
 
+function isSupportChatGloballyEnabled(config) {
+    const c = normalizeSupportChatFeatures(config || window.APP_FEATURES || {});
+    return !!(c.aiChatbot || c.adminSupportChat);
+}
+
+function normalizeCatalogControls(config) {
+    const c = config && typeof config === 'object' ? config : {};
+    const chatGlobal = isSupportChatGloballyEnabled(c);
+    const annGlobal = c.announcementBell !== false;
+    const defaults = {
+        home: { search: true, sort: true, announcement: annGlobal, chat: chatGlobal },
+        wishlist: { search: false, sort: true, announcement: false, chat: false }
+    };
+    const saved = c.catalogControls || {};
+    return {
+        home: { ...defaults.home, ...(saved.home || {}) },
+        wishlist: { ...defaults.wishlist, ...(saved.wishlist || {}) }
+    };
+}
+window.normalizeCatalogControls = normalizeCatalogControls;
+
+function isCatalogControlEnabled(view, feature) {
+    const config = window.APP_FEATURES || {};
+    const cc = normalizeCatalogControls(config);
+    const viewKey = view === 'wishlist' ? 'wishlist' : 'home';
+    const enabled = !!cc[viewKey]?.[feature];
+    if (feature === 'chat') return isSupportChatGloballyEnabled(config) && enabled;
+    if (feature === 'announcement') return config.announcementBell !== false && enabled;
+    return enabled;
+}
+window.isCatalogControlEnabled = isCatalogControlEnabled;
+
+function syncCatalogControlCheckboxes(config) {
+    const cc = normalizeCatalogControls(config || window.APP_FEATURES || {});
+    const map = [
+        ['toggle-home-search', cc.home.search],
+        ['toggle-home-sort', cc.home.sort],
+        ['toggle-home-announcement', cc.home.announcement],
+        ['toggle-home-chat', cc.home.chat],
+        ['toggle-wish-search', cc.wishlist.search],
+        ['toggle-wish-sort', cc.wishlist.sort],
+        ['toggle-wish-announcement', cc.wishlist.announcement],
+        ['toggle-wish-chat', cc.wishlist.chat]
+    ];
+    map.forEach(([id, checked]) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!checked;
+    });
+}
+window.syncCatalogControlCheckboxes = syncCatalogControlCheckboxes;
+
+function applyCatalogControlsVisibility() {
+    const config = window.APP_FEATURES || {};
+    const cc = normalizeCatalogControls(config);
+    const chatGlobal = isSupportChatGloballyEnabled(config);
+    const annGlobal = config.announcementBell !== false;
+
+    const homeSearch = document.querySelector('#home-view .home-search-wrap');
+    if (homeSearch) homeSearch.style.display = cc.home.search ? '' : 'none';
+
+    const wishSearch = document.getElementById('wish-search-wrap');
+    if (wishSearch) wishSearch.style.display = cc.wishlist.search ? '' : 'none';
+
+    const homeChat = document.getElementById('header-support-chat-btn');
+    const wishChat = document.getElementById('wish-header-support-chat-btn');
+    const showHomeChat = chatGlobal && cc.home.chat;
+    const showWishChat = chatGlobal && cc.wishlist.chat;
+    if (homeChat) {
+        homeChat.style.display = showHomeChat ? 'flex' : 'none';
+        homeChat.classList.toggle('catalog-action-hidden', !showHomeChat);
+    }
+    if (wishChat) {
+        wishChat.style.display = showWishChat ? 'flex' : 'none';
+        wishChat.classList.toggle('catalog-action-hidden', !showWishChat);
+    }
+    if (!chatGlobal) {
+        const box = document.getElementById('ai-chat-box');
+        if (box) box.style.display = 'none';
+    }
+
+    const homeBell = document.getElementById('announcement-bell-btn');
+    const wishBell = document.getElementById('wish-announcement-bell-btn');
+    const showHomeAnn = annGlobal && cc.home.announcement;
+    const showWishAnn = annGlobal && cc.wishlist.announcement;
+    if (homeBell) {
+        homeBell.style.display = showHomeAnn ? 'flex' : 'none';
+        homeBell.classList.toggle('catalog-action-hidden', !showHomeAnn);
+    }
+    if (wishBell) {
+        wishBell.style.display = showWishAnn ? 'flex' : 'none';
+        wishBell.classList.toggle('catalog-action-hidden', !showWishAnn);
+    }
+
+    const homeSort = document.getElementById('sort-logic-container');
+    const wishSort = document.getElementById('wish-sort-logic-container');
+    if (homeSort && homeSort.style.display !== 'none' && !cc.home.sort) {
+        homeSort.style.display = 'none';
+    }
+    if (wishSort && wishSort.style.display !== 'none' && !cc.wishlist.sort) {
+        wishSort.style.display = 'none';
+    }
+
+    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+    if (typeof renderStore === 'function') renderStore();
+}
+window.applyCatalogControlsVisibility = applyCatalogControlsVisibility;
+
 function applyFeaturesConfigFromFirestore(data) {
     if (data && typeof data === 'object') {
         window.APP_FEATURES = { ...window.APP_FEATURES, ...normalizeSupportChatFeatures(data) };
@@ -1314,20 +1425,9 @@ function applyFeatureTogglesUI() {
         }
     }
     
-    // AI Support Chat (header icon on home — no duplicate floating bot)
-    const headerChatBtn = document.getElementById('header-support-chat-btn');
+    // AI Support Chat — per-tab visibility handled in applyCatalogControlsVisibility
     const floatBtn = document.getElementById('ai-chat-trigger');
-    const configNorm = normalizeSupportChatFeatures(config);
-    const showChat = !!(configNorm.aiChatbot || configNorm.adminSupportChat);
-    if (headerChatBtn) {
-        headerChatBtn.style.display = showChat ? 'flex' : 'none';
-        headerChatBtn.classList.toggle('catalog-action-hidden', !showChat);
-    }
     if (floatBtn) floatBtn.style.display = 'none';
-    if (!showChat) {
-        const box = document.getElementById('ai-chat-box');
-        if (box) box.style.display = 'none';
-    }
     if (typeof applySupportChatTabsVisibility === 'function') applySupportChatTabsVisibility();
     
     // Theme Customizer Drawer
@@ -1348,10 +1448,9 @@ function applyFeatureTogglesUI() {
         annBar.style.display = config.announcementBar !== false ? 'block' : 'none';
     }
     const bellBtn = document.getElementById('announcement-bell-btn');
-    if (bellBtn) {
-        const showBell = config.announcementBell !== false;
-        bellBtn.style.display = showBell ? 'flex' : 'none';
-        bellBtn.classList.toggle('catalog-action-hidden', !showBell);
+    if (bellBtn && config.announcementBell === false) {
+        bellBtn.style.display = 'none';
+        bellBtn.classList.add('catalog-action-hidden');
     }
     
     // Discount Wheel
@@ -1408,10 +1507,12 @@ function applyFeatureTogglesUI() {
         if (document.getElementById('toggle-product-comments')) {
             document.getElementById('toggle-product-comments').checked = config.productComments !== false;
         }
+        syncCatalogControlCheckboxes(config);
     }
 
+    applyCatalogControlsVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
-    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+    if (typeof updateAnnouncementBellUI === 'function') updateAnnouncementBellUI();
     if (typeof refreshCommentsEnabledUI === 'function') {
         refreshCommentsEnabledUI(false);
     }

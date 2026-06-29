@@ -237,11 +237,13 @@ function isSupportChatOpen() {
 }
 
 function applySupportUnreadBadge(count) {
-    const badge = document.getElementById('header-support-chat-badge');
-    if (!badge) return;
-    const n = Number(count) || 0;
-    badge.style.display = n > 0 ? 'flex' : 'none';
-    badge.textContent = n > 9 ? '9+' : String(n);
+    ['header-support-chat-badge', 'wish-header-support-chat-badge'].forEach(id => {
+        const badge = document.getElementById(id);
+        if (!badge) return;
+        const n = Number(count) || 0;
+        badge.style.display = n > 0 ? 'flex' : 'none';
+        badge.textContent = n > 9 ? '9+' : String(n);
+    });
 }
 
 function stopSupportCustomerWatcher() {
@@ -1380,56 +1382,53 @@ function updateAdminSupportBadge() {
 }
 
 function updateSupportChatVisibility() {
-    const enabled = isAnySupportChatEnabled();
-    const headerBtn = document.getElementById('header-support-chat-btn');
-    const floatBtn = document.getElementById('ai-chat-trigger');
-    if (headerBtn) {
-        headerBtn.style.display = enabled ? 'flex' : 'none';
-        headerBtn.classList.toggle('catalog-action-hidden', !enabled);
+    if (typeof applyCatalogControlsVisibility === 'function') {
+        applyCatalogControlsVisibility();
     }
-    if (floatBtn) floatBtn.style.display = 'none';
-    if (!enabled) {
-        const box = document.getElementById('ai-chat-box');
-        if (box) box.style.display = 'none';
-    }
-    applySupportChatTabsVisibility();
     const adminSection = document.getElementById('admin-support-inbox-section');
     if (adminSection) {
         const showInbox = isAdmin && hasSupportChatCapability() && isAdminSupportChatEnabled();
         adminSection.style.display = showInbox ? 'block' : 'none';
     }
-    if (enabled) startSupportCustomerWatcher();
+    if (isAnySupportChatEnabled()) startSupportCustomerWatcher();
     else stopSupportCustomerWatcher();
-    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
 }
 window.updateSupportChatVisibility = updateSupportChatVisibility;
 
 window.updateCatalogControlsRowLayout = function() {
-    const chatBtn = document.getElementById('header-support-chat-btn');
-    const annBtn = document.getElementById('announcement-bell-btn');
-    const chatVisible = isAnySupportChatEnabled() && chatBtn && chatBtn.style.display !== 'none';
-    const annVisible = window.APP_FEATURES?.announcementBell !== false && annBtn && annBtn.style.display !== 'none';
     const isMobile = window.innerWidth < 480;
     const isTablet = window.innerWidth >= 480 && window.innerWidth < 1024;
 
     document.querySelectorAll('.catalog-controls-row').forEach(row => {
         const isWish = row.classList.contains('catalog-row-wishlist') || !!row.closest('#wish-view');
+        const viewKey = isWish ? 'wishlist' : 'home';
+
+        const chatEnabled = typeof isCatalogControlEnabled === 'function'
+            ? isCatalogControlEnabled(viewKey, 'chat')
+            : isAnySupportChatEnabled();
+        const annEnabled = typeof isCatalogControlEnabled === 'function'
+            ? isCatalogControlEnabled(viewKey, 'announcement')
+            : window.APP_FEATURES?.announcementBell !== false;
+
+        row.classList.toggle('catalog-row-no-chat', !chatEnabled);
+        row.classList.toggle('catalog-row-no-announcement', !annEnabled);
+        row.classList.toggle('catalog-row-icons-minimal', !chatEnabled && !annEnabled);
+
+        let actionsWidth = isMobile ? 94 : (isTablet ? 108 : 120);
+        if (chatEnabled) actionsWidth += isMobile ? 34 : 38;
+        if (annEnabled) actionsWidth += isMobile ? 34 : 38;
 
         if (isWish) {
             row.classList.add('catalog-row-wishlist');
-            row.classList.remove('catalog-row-no-chat', 'catalog-row-no-announcement', 'catalog-row-icons-minimal');
-            const sortWidth = isMobile ? 98 : (isTablet ? 112 : 124);
-            row.style.setProperty('--catalog-actions-width', `${sortWidth}px`);
+            if (!chatEnabled && !annEnabled) {
+                const sortWidth = isMobile ? 98 : (isTablet ? 112 : 124);
+                row.style.setProperty('--catalog-actions-width', `${sortWidth}px`);
+            } else {
+                row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
+            }
             return;
         }
 
-        row.classList.toggle('catalog-row-no-chat', !chatVisible);
-        row.classList.toggle('catalog-row-no-announcement', !annVisible);
-        row.classList.toggle('catalog-row-icons-minimal', !chatVisible && !annVisible);
-
-        let actionsWidth = isMobile ? 94 : (isTablet ? 108 : 120);
-        if (chatVisible) actionsWidth += isMobile ? 34 : 38;
-        if (annVisible) actionsWidth += isMobile ? 34 : 38;
         row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
     });
 
@@ -1466,6 +1465,6 @@ window.cleanupSupportChatListeners = function() {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (typeof applyCatalogControlsVisibility === 'function') applyCatalogControlsVisibility();
     updateSupportChatVisibility();
-    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
 });
