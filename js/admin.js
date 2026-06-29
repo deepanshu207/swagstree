@@ -2302,6 +2302,10 @@ async function loadAdminFooterSettings() {
             if (privacyEl.tagName === 'DIV') privacyEl.innerHTML = settings.privacyText || '';
             else privacyEl.value = settings.privacyText || '';
         }
+
+        if (typeof renderAdminFooterTemplatePicker === 'function') {
+            renderAdminFooterTemplatePicker(settings.footerTemplate, settings.footerLayout);
+        }
     } catch (e) {
         console.error('loadAdminFooterSettings error:', e);
     }
@@ -2320,11 +2324,15 @@ async function saveAdminFooterSettings() {
     const gpsQueryEl = document.getElementById('admin-footer-gps-query');
     const phoneEl = document.getElementById('admin-footer-phone');
     const privacyEl = document.getElementById('admin-footer-privacy-text');
+    const templateEl = document.querySelector('input[name="admin-footer-template"]:checked');
+    const layoutEl = document.querySelector('input[name="admin-footer-layout"]:checked');
     
     const settings = {
         showFooter: showFooterEl ? showFooterEl.checked : true,
         showCopyright: showCopyrightEl ? showCopyrightEl.checked : true,
         copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
+        footerTemplate: templateEl ? templateEl.value : 'classic',
+        footerLayout: layoutEl ? layoutEl.value : 'auto',
         aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "",
         contactAddress: addressEl ? addressEl.value.trim() : "",
         showGps: showGpsEl ? showGpsEl.checked : false,

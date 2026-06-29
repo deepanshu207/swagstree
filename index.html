@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=6.0">
+    <link rel="stylesheet" href="css/style.css?v=6.1">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -320,7 +320,6 @@
 
     <!-- SECTION: Wishlist -->
     <div id="wish-view" class="section">
-        <h3 class="wishlist-title">Wishlist</h3>
         <div class="wish-search-wrap" id="wish-search-wrap">
             <input type="text" id="wish_search" class="home-search-input" placeholder="Search wishlist..."
                 oninput="wishSearchHandler()" autocomplete="off" data-i18n="search_placeholder">
@@ -1071,6 +1070,32 @@
 
             <!-- Accordion Container -->
             <div style="display:flex; flex-direction:column; gap:10px;">
+
+                <!-- Tab 0: Template & Layout -->
+                <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
+                    <div onclick="toggleFooterAccordion('footer-acc-template')"
+                        style="background:#1a1a1a; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:#fff;"><i class="fa fa-layer-group"
+                                style="color:var(--gold); margin-right:8px;"></i>Footer Template & Layout</span>
+                        <i class="fa fa-chevron-down" style="font-size:10px; color:#666;"></i>
+                    </div>
+                    <div id="footer-acc-template"
+                        style="display:none; padding:15px; background:#141414; border-top:1px solid #222; flex-direction:column; gap:14px;">
+                        <p style="margin:0; font-size:11px; color:#888; line-height:1.5;">Choose how the storefront footer looks and behaves. Classic Chips is the default template. More theme templates can be added here later.</p>
+                        <div>
+                            <span style="font-size:11px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Template</span>
+                            <div id="admin-footer-template-grid" class="footer-template-grid"></div>
+                        </div>
+                        <div>
+                            <span style="font-size:11px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Layout</span>
+                            <div id="admin-footer-layout-grid" class="footer-layout-grid"></div>
+                        </div>
+                        <div>
+                            <span style="font-size:11px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Live Preview</span>
+                            <div id="admin-footer-template-preview" class="admin-footer-template-preview"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Tab 1: General -->
                 <div style="border: 1px solid #222; border-radius: 12px; overflow: hidden;">
@@ -2637,27 +2662,21 @@
     </div>
 
     <!-- Persistent Bottom Footer -->
-    <footer id="app-footer" class="hidden">
+    <footer id="app-footer" class="hidden footer-tpl-classic footer-layout-auto">
         <div class="footer-container">
-            <!-- Links Layout -->
-            <div id="footer-links-row">
-                <!-- About Us -->
-                <div onclick="openFooterPage('about')" class="footer-chip">
-                    <i class="fa fa-circle-info"></i> About Us
-                </div>
-
-                <!-- Contact Us Call -->
-                <a id="footer-contact-link" href="tel:8800467686" class="footer-chip">
-                    <i class="fa fa-phone"></i> Call Us
-                </a>
-
-                <!-- Privacy Policy -->
-                <div onclick="openFooterPage('privacy')" class="footer-chip">
-                    <i class="fa fa-shield-halved"></i> Privacy Policy
+            <div id="footer-links-host">
+                <div id="footer-links-row">
+                    <div onclick="openFooterPage('about')" class="footer-chip">
+                        <i class="fa fa-circle-info"></i> About Us
+                    </div>
+                    <a id="footer-contact-link" href="tel:8800467686" class="footer-chip">
+                        <i class="fa fa-phone"></i> Call Us
+                    </a>
+                    <div onclick="openFooterPage('privacy')" class="footer-chip">
+                        <i class="fa fa-shield-halved"></i> Privacy Policy
+                    </div>
                 </div>
             </div>
-
-            <!-- Copyright Line -->
             <div id="footer-copyright-row">
                 <i class="fa fa-copyright"></i>
                 <span id="footer-copyright-text">Swagstree</span>
@@ -2773,17 +2792,18 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.67"></script>
-    <script src="js/app.js?v=9.67"></script>
-    <script src="js/store.js?v=9.67"></script>
-    <script src="js/checkout.js?v=9.67"></script>
-    <script src="js/auth.js?v=9.67"></script>
-    <script src="js/comments.js?v=9.67"></script>
-    <script src="js/support-chat.js?v=9.67"></script>
-    <script src="js/auto-retention.js?v=9.67"></script>
-    <script src="js/admin.js?v=9.67"></script>
-    <script src="js/cloudinary-admin.js?v=9.67"></script>
-    <script src="js/bind-globals.js?v=9.67"></script>
+    <script src="js/features.js?v=9.68"></script>
+    <script src="js/app.js?v=9.68"></script>
+    <script src="js/footer-templates.js?v=9.68"></script>
+    <script src="js/store.js?v=9.68"></script>
+    <script src="js/checkout.js?v=9.68"></script>
+    <script src="js/auth.js?v=9.68"></script>
+    <script src="js/comments.js?v=9.68"></script>
+    <script src="js/support-chat.js?v=9.68"></script>
+    <script src="js/auto-retention.js?v=9.68"></script>
+    <script src="js/admin.js?v=9.68"></script>
+    <script src="js/cloudinary-admin.js?v=9.68"></script>
+    <script src="js/bind-globals.js?v=9.68"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

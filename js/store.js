@@ -2286,6 +2286,8 @@ function renderFooter() {
     const settings = window.footerSettings || {
         showFooter: true,
         copyright: "Swagstree",
+        footerTemplate: 'classic',
+        footerLayout: 'auto',
         aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
         showGps: true,
         gpsLat: "28.6139",
@@ -2293,49 +2295,67 @@ function renderFooter() {
         contactPhone: "8800467686"
     };
 
+    const templateId = typeof normalizeFooterTemplateId === 'function'
+        ? normalizeFooterTemplateId(settings.footerTemplate)
+        : (settings.footerTemplate || 'classic');
+    const layoutId = typeof normalizeFooterLayoutId === 'function'
+        ? normalizeFooterLayoutId(settings.footerLayout)
+        : (settings.footerLayout || 'auto');
+
     const footerEl = document.getElementById('app-footer');
     if (footerEl) {
         const currentSection = document.querySelector('.section.active');
         const currentId = currentSection ? currentSection.id.replace('-view', '') : 'home';
         const hasVisibleContent = !!settings.showFooter || settings.showCopyright !== false;
         const shouldShow = hasVisibleContent && (currentId === 'home' || currentId === 'wish');
-        
+
         footerEl.classList.toggle('hidden', !shouldShow);
         document.body.classList.toggle('footer-hidden', !shouldShow);
 
-        // Dynamically adjust body padding to prevent grid clipping using compact heights (on mobile only)
-        if (shouldShow && window.innerWidth <= 1024) {
-            const hasCopyright = settings.showCopyright !== false;
-            const hasLinks = !!settings.showFooter;
-            
-            let bodyPadding = '75px';
-            if (hasLinks && hasCopyright) {
-                bodyPadding = '115px';
-            } else if (hasLinks || hasCopyright) {
-                bodyPadding = '95px';
-            }
+        if (typeof applyFooterShellClasses === 'function') {
+            applyFooterShellClasses(footerEl, templateId, layoutId);
+        }
+        footerEl.classList.toggle('hidden', !shouldShow);
+
+        if (shouldShow && window.innerWidth <= 1024 && layoutId !== 'inline') {
+            const bodyPadding = typeof estimateFooterBodyPadding === 'function'
+                ? estimateFooterBodyPadding(settings, templateId, layoutId)
+                : '115px';
             document.body.style.setProperty('padding-bottom', bodyPadding, 'important');
+        } else if (layoutId === 'inline') {
+            document.body.style.setProperty('padding-bottom', '60px', 'important');
         } else {
-            // On desktop or when footer is hidden, let CSS handle it (clear JS overrides)
             document.body.style.removeProperty('padding-bottom');
         }
+    }
+
+    const linksHost = document.getElementById('footer-links-host');
+    if (linksHost && !!settings.showFooter) {
+        linksHost.innerHTML = typeof buildFooterLinksHtml === 'function'
+            ? buildFooterLinksHtml(templateId, settings)
+            : linksHost.innerHTML;
+        linksHost.style.display = 'block';
+    } else if (linksHost) {
+        linksHost.style.display = 'none';
+        linksHost.innerHTML = '';
     }
 
     // Update Copyright Label
     const copyrightRow = document.getElementById('footer-copyright-row');
     if (copyrightRow) {
-        copyrightRow.style.display = settings.showCopyright !== false ? 'flex' : 'none';
+        const hideCopyrightForLuxury = templateId === 'luxury' && !!settings.showFooter;
+        copyrightRow.style.display = (settings.showCopyright !== false && !hideCopyrightForLuxury) ? 'flex' : 'none';
     }
     const copyrightTextEl = document.getElementById('footer-copyright-text');
     if (copyrightTextEl) {
         copyrightTextEl.innerText = settings.copyright || 'Swagstree';
     }
-
-    // Update Links visibility (About Us, Call Us, Privacy Policy) - hidden by default, visible when checked
-    const linksRow = document.getElementById('footer-links-row');
-    if (linksRow) {
-        linksRow.style.display = !!settings.showFooter ? 'flex' : 'none';
+    const luxuryBrand = document.getElementById('footer-luxury-brand-text');
+    if (luxuryBrand) {
+        luxuryBrand.textContent = settings.copyright || 'Swag Stree';
     }
+
+    // Legacy links row visibility handled via linksHost above
 
     // Auto-upgrade simple placeholders to premium templates
     const premiumAbout = `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`;
