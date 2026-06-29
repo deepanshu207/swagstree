@@ -261,6 +261,21 @@ body {
         bottom: var(--footer-stack-offset, 112px) !important;
     }
 
+    .storefront-footer-anchor,
+    .storefront-footer-dock {
+        width: 100%;
+    }
+    .storefront-footer-dock:not(:has(#app-footer)) {
+        display: none;
+    }
+    body.body-footer-pos-scroll .storefront-footer-anchor #app-footer {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        margin-top: 12px;
+    }
+
     .whatsapp-float {
         right: 16px !important;
         width: 44px !important;
@@ -2360,6 +2375,26 @@ body {
 }
 .feedback-card:hover .feedback-img {
     transform: scale(1.05);
+}
+
+/* Instagram embed — clip cross-origin header (profile + follower count) */
+.ig-embed-clip {
+    position: relative;
+    width: 100%;
+    height: 370px;
+    overflow: hidden;
+    background: #111;
+    flex-shrink: 0;
+}
+.ig-embed-clip .ig-embed-frame {
+    position: absolute;
+    top: calc(-1 * var(--ig-embed-header-offset, 56px));
+    left: 0;
+    width: 100%;
+    height: calc(100% + var(--ig-embed-header-offset, 56px));
+    min-height: 430px;
+    border: none;
+    background: #111;
 }
 
 /* WYSIWYG Editor Styles */

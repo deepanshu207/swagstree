@@ -1973,13 +1973,23 @@ function loadMoreWishlist() {
     renderStore();
 }
 
+window.loadMoreWishlist = loadMoreWishlist;
+
+function buildInstagramEmbedFrame(postId) {
+    const id = String(postId || '').trim();
+    if (!id) return '';
+    return `
+        <div class="ig-embed-clip">
+            <iframe class="ig-embed-frame" src="https://www.instagram.com/p/${id}/embed" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media" title="Instagram post"></iframe>
+        </div>
+    `;
+}
+
 window.handleFeedbackImageError = function (imgEl, postId) {
     if (!postId) return;
     const parent = imgEl.parentElement;
     if (parent) {
-        parent.innerHTML = `
-            <iframe src="https://www.instagram.com/p/${postId}/embed" style="position:absolute; top:0; left:0; width:100%; height:430px; border:none; background:#111;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
-        `;
+        parent.innerHTML = buildInstagramEmbedFrame(postId);
         parent.style.position = 'relative';
         parent.style.overflow = 'hidden';
         parent.style.background = '#111';
@@ -2147,9 +2157,7 @@ function getFeedbackCardsHtml() {
                             if (match && match[1]) {
                                 return `
                                 <div class="feedback-card" style="background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
-                                    <div style="position:relative; width:100%; height:370px; overflow:hidden; background:#111;">
-                                        <iframe src="https://www.instagram.com/p/${match[1]}/embed" style="position:absolute; top:0; left:0; width:100%; height:430px; border:none; background:#111;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
-                                    </div>
+                                    ${buildInstagramEmbedFrame(match[1])}
                                 </div>
                                 `;
                             }
@@ -2318,6 +2326,11 @@ function renderFooter() {
         if (typeof applyFooterShellClasses === 'function') {
             applyFooterShellClasses(footerEl, templateId, layoutId);
         }
+
+        if (typeof mountStorefrontFooter === 'function') {
+            mountStorefrontFooter(footerEl, layoutId, currentId);
+        }
+
         footerEl.classList.toggle('hidden', !shouldShow);
 
         const syncPadding = () => {

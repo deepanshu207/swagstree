@@ -233,6 +233,32 @@ function applyFooterBodyPadding(footerEl, layoutId) {
     }
 }
 
+function normalizeStorefrontFooterSection(sectionId) {
+    return sectionId === 'wish' ? 'wish' : 'home';
+}
+
+/** Move footer into the active section (scroll) or fixed dock above bottom nav */
+function mountStorefrontFooter(footerEl, layoutId, sectionId) {
+    if (!footerEl) return;
+
+    const posMode = resolveFooterPositionMode(layoutId);
+    const section = normalizeStorefrontFooterSection(sectionId);
+
+    if (posMode === 'fixed') {
+        const dock = document.getElementById('app-footer-dock');
+        if (dock && footerEl.parentElement !== dock) {
+            dock.appendChild(footerEl);
+        }
+        return;
+    }
+
+    const anchorId = section === 'wish' ? 'wish-footer-anchor' : 'home-footer-anchor';
+    const anchor = document.getElementById(anchorId);
+    if (anchor && footerEl.parentElement !== anchor) {
+        anchor.appendChild(footerEl);
+    }
+}
+
 function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
     const tplGrid = document.getElementById('admin-footer-template-grid');
     const layoutGrid = document.getElementById('admin-footer-layout-grid');
@@ -301,6 +327,7 @@ window.previewAdminFooterTemplate = function() {
 window.buildFooterLinksHtml = buildFooterLinksHtml;
 window.applyFooterShellClasses = applyFooterShellClasses;
 window.applyFooterBodyPadding = applyFooterBodyPadding;
+window.mountStorefrontFooter = mountStorefrontFooter;
 window.resolveFooterPositionMode = resolveFooterPositionMode;
 window.isMobileFooterViewport = isMobileFooterViewport;
 window.normalizeFooterTemplateId = normalizeFooterTemplateId;
