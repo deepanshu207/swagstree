@@ -1561,6 +1561,16 @@ async function clearCustomerOrderHistory(uid, email) {
 }
 
 // 3. Bulk & Destructive resets
+
+/** Settings docs intentionally preserved during factory reset (API keys, features, customers config). */
+const FACTORY_RESET_PRESERVED_SETTINGS = [
+    'email', 'telegram', 'session', 'pagination', 'features_config',
+    'features_content', 'footer', 'diaries', 'comments'
+];
+
+/** Commerce/catalog settings removed during factory reset. */
+const FACTORY_RESET_SETTINGS_TO_CLEAR = ['backup', 'cod', 'cart', 'promos'];
+
 async function batchDeleteCollection(collectionName) {
     const snap = await db.collection(collectionName).get();
     if (snap.empty) return 0;
@@ -1568,7 +1578,7 @@ async function batchDeleteCollection(collectionName) {
     let docs = snap.docs;
     let deletedCount = 0;
     
-    while(docs.length > 0) {
+    while (docs.length > 0) {
         const chunk = docs.splice(0, 400);
         const batch = db.batch();
         chunk.forEach(doc => {
@@ -1578,6 +1588,49 @@ async function batchDeleteCollection(collectionName) {
         await batch.commit();
     }
     return deletedCount;
+}
+
+async function batchDeleteSupportThreadsFully() {
+    const snap = await db.collection('support_threads').get();
+    if (snap.empty) return 0;
+
+    let threadCount = 0;
+    for (const doc of snap.docs) {
+        let msgDocs = (await doc.ref.collection('messages').get()).docs;
+        while (msgDocs.length > 0) {
+            const chunk = msgDocs.splice(0, 400);
+            const batch = db.batch();
+            chunk.forEach((m) => batch.delete(m.ref));
+            await batch.commit();
+        }
+        await doc.ref.delete();
+        threadCount++;
+    }
+    return threadCount;
+}
+
+async function batchDeleteMailBackups() {
+    const snapshot = await db.collection('mail').where('to', '==', 'backup@swagstree.com').get();
+    if (snapshot.empty) return 0;
+
+    let docs = snapshot.docs;
+    let deletedCount = 0;
+    while (docs.length > 0) {
+        const chunk = docs.splice(0, 400);
+        const batch = db.batch();
+        chunk.forEach((doc) => {
+            batch.delete(doc.ref);
+            deletedCount++;
+        });
+        await batch.commit();
+    }
+    return deletedCount;
+}
+
+async function clearFactoryResetSettings() {
+    for (const docId of FACTORY_RESET_SETTINGS_TO_CLEAR) {
+        await db.collection('settings').doc(docId).delete().catch(() => {});
+    }
 }
 
 async function deleteAllProductsPrompt() {
@@ -1665,9 +1718,31 @@ window.deleteAllAiSupportChatsPrompt = deleteAllAiSupportChatsPrompt;
 
 async function cleanEverythingPrompt() {
     if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    
-    if (!confirm("🚨 WARNING: You are initiating a complete factory reset.\nThis will erase ALL products, orders, promos, settings, and assigned admin roles. Continue?")) return;
-    if (!confirm("Are you absolutely sure? Everything will be wiped out completely.")) return;
+
+    const preservedList = [
+        'All customer accounts (users), addresses & wishlists',
+        'Email, Telegram, session & pagination settings',
+        'Feature toggles, theme/content & footer config'
+    ].join('\n  • ');
+
+    const deletedList = [
+        'Products, orders, assigned admins',
+        'Feedbacks, announcements, product comments',
+        'All support chat threads & messages',
+        'Promos, cart/COD settings & backup logs'
+    ].join('\n  • ');
+
+    if (!confirm(
+        '🚨 FACTORY RESET WARNING\n\n' +
+        'WILL DELETE:\n  • ' + deletedList + '\n\n' +
+        'WILL KEEP SAFE:\n  • ' + preservedList + '\n\n' +
+        'Cloudinary images are NOT deleted automatically.\n' +
+        'Use "Delete All Cloudinary Media" separately if needed.\n\n' +
+        'Continue?'
+    )) return;
+
+    if (!confirm('Final warning: This cannot be undone. Proceed with factory reset?')) return;
+
     const confirmText = prompt("To confirm the FACTORY RESET, type 'RESET EVERYTHING':");
     if (confirmText !== "RESET EVERYTHING") {
         return showToast("Verification failed. Reset aborted.");
@@ -1675,29 +1750,31 @@ async function cleanEverythingPrompt() {
 
     try {
         showToast("Performing factory reset...");
-        
+
         const productsCount = await batchDeleteCollection("products");
         const ordersCount = await batchDeleteCollection("orders");
         const adminsCount = await batchDeleteCollection("admins");
+        const feedbacksCount = await batchDeleteCollection("feedbacks");
+        const announcementsCount = await batchDeleteCollection("announcements");
+        const commentsCount = await batchDeleteCollection("product_comments");
+        const supportThreadsCount = await batchDeleteSupportThreadsFully();
+        const backupMailCount = await batchDeleteMailBackups();
 
-        // Clear backup logs
-        const backupSnapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
-        const backupBatch = db.batch();
-        backupSnapshot.forEach(doc => {
-            backupBatch.delete(doc.ref);
-        });
-        await backupBatch.commit();
-        await db.collection("settings").doc("backup").delete();
+        await clearFactoryResetSettings();
 
-        await db.collection("settings").doc("cod").delete();
-        await db.collection("settings").doc("cart").delete();
-        await db.collection("settings").doc("promos").delete();
+        showToast(
+            `✅ Factory reset complete. Removed ${productsCount} products, ${ordersCount} orders, ` +
+            `${adminsCount} admins, ${feedbacksCount} feedbacks, ${announcementsCount} announcements, ` +
+            `${commentsCount} comments, ${supportThreadsCount} support threads, ${backupMailCount} backup logs. ` +
+            `Customer accounts preserved.`
+        );
 
-        showToast(`✅ Factory Reset Complete. Erased: ${productsCount} products, ${ordersCount} orders, and ${adminsCount} admins.`);
         if (typeof applySortAndFilter === 'function') applySortAndFilter();
+        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
     } catch (e) {
         console.error("Error in factory reset:", e);
-        showToast("Reset failed.");
+        showToast("Reset failed. Some data may have been partially deleted — check Firebase console.");
     }
 }
 
@@ -1707,20 +1784,14 @@ window.deleteFirebaseBackupsPrompt = async function() {
     
     try {
         showToast("Deleting backup email records...");
-        const snapshot = await db.collection("mail").where("to", "==", "backup@swagstree.com").get();
-        if (snapshot.empty) {
+        const deletedCount = await batchDeleteMailBackups();
+        if (!deletedCount) {
             showToast("No backup records found.");
             return;
         }
         
-        const batch = db.batch();
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-        
-        await db.collection("settings").doc("backup").delete();
-        showToast(`✅ Deleted ${snapshot.size} backup records.`);
+        await db.collection("settings").doc("backup").delete().catch(() => {});
+        showToast(`✅ Deleted ${deletedCount} backup records.`);
         
         const statusEl = document.getElementById('admin-backup-status-text');
         if (statusEl) statusEl.innerHTML = "Last Auto-Backup: Never";
