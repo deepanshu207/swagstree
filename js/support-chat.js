@@ -288,15 +288,44 @@ async function generateSmartSupportReply(userText) {
         };
     }
 
-    if (typeof window.getAIResponse === 'function') {
-        try {
-            const reply = await window.getAIResponse();
-            return { text: reply };
-        } catch (e) {
-            console.error('AI response failed:', e);
+    const engine = window.APP_FEATURES_CONTENT?.chatbotEngine || 'local';
+    if (engine === 'pollinations' || engine === 'gemini') {
+        if (typeof window.getAIResponse === 'function') {
+            try {
+                const reply = await window.getAIResponse();
+                return { text: reply };
+            } catch (e) {
+                console.error('Cloud AI response failed, using local fallback:', e);
+            }
         }
     }
-    return { text: "I'm here to help with products, orders, and styling. Try asking for suggestions, prices, or say **Talk to admin** for live support." };
+    return generateLocalFallbackReply(userText);
+}
+
+function generateLocalFallbackReply(userText) {
+    const q = (userText || '').toLowerCase();
+    const matched = searchProducts(userText.replace(/help|please|want|need|show|find/gi, ''), null);
+    if (matched.length) {
+        return {
+            text: `Here are **${matched.length} item${matched.length > 1 ? 's' : ''}** from our catalog that may match:`,
+            products: matched
+        };
+    }
+    if (/hello|hi|hey|namaste/.test(q)) {
+        return { text: "Hello! Welcome to **Swag Stree**. Ask for outfit suggestions, prices, order help, or say **Talk to admin** for live support." };
+    }
+    if (/size|fit|measurement/.test(q)) {
+        return { text: "Check the **Size Guide** on any product page. For fit advice, tell me the product name or say **Talk to admin**." };
+    }
+    if (/discount|coupon|offer|code|wheel/.test(q)) {
+        return { text: "Try code **WELCOME10** for 10% off, or spin the **Discount Wheel** on the homepage for more savings." };
+    }
+    if (/delivery|shipping|dispatch/.test(q)) {
+        return { text: "Delivery timelines vary by location. For a specific order update, sign in and open **Profile → My Orders**, or say **Track my order**." };
+    }
+    return {
+        text: "I'm here to help with **products**, **prices**, **orders**, and **styling** — all on-device, no paid API needed.\n\nTry: *Suggest outfits under ₹1000*, *Best sellers*, or **Talk to admin** for live help."
+    };
 }
 
 async function handleSupportCustomerMessage(text) {
@@ -456,9 +485,10 @@ function hasSupportChatCapability() {
     return typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat');
 }
 
-window.openAdminCustomerChat = async function(uid, email, name) {
+window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride) {
     if (!isAdmin || !hasSupportChatCapability()) return showToast('You do not have permission to manage support chats.');
-    const threadId = getCustomerThreadIdForUser(uid);
+    const threadId = threadIdOverride || getCustomerThreadIdForUser(uid);
+    if (!threadId) return showToast('Unable to create a console thread.');
     window.supportChatState.adminThreadId = threadId;
 
     document.getElementById('admin-customer-chat-name').textContent = name || 'Customer';
@@ -554,8 +584,7 @@ window.sendAdminCustomerChat = async function() {
     });
     await db.collection('support_threads').doc(threadId).set({
         mode: 'human',
-        status: 'open',
-        unreadByCustomer: firebase.firestore.FieldValue.increment(1)
+        status: 'open'
     }, { merge: true });
 };
 
@@ -572,17 +601,22 @@ function renderAdminSupportInbox() {
         const safeUid = (t.customerUid || '').replace(/'/g, "\\'");
         const safeEmail = (t.customerEmail || '').replace(/'/g, "\\'");
         const safeName = (t.customerName || 'Customer').replace(/'/g, "\\'");
+        const safeThreadId = (t.id || '').replace(/'/g, "\\'");
+        const openArgs = t.customerUid
+            ? `'${safeUid}','${safeEmail}','${safeName}'`
+            : `'','${safeEmail}','${safeName}','${safeThreadId}'`;
         return `
         <div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <strong style="font-size:13px;color:#eee;">${escHtml(t.customerName || 'Guest')}</strong>
+                    ${!t.customerUid ? '<span style="font-size:9px;color:#666;">Guest</span>' : ''}
                     ${unread ? `<span style="font-size:9px;background:var(--red);color:#fff;padding:2px 6px;border-radius:8px;">${unread} new</span>` : ''}
                     <span style="font-size:9px;color:#666;text-transform:uppercase;">${escHtml(t.mode || 'ai')}</span>
                 </div>
                 <p style="margin:4px 0 0;font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.lastMessagePreview || 'No messages')}</p>
             </div>
-            ${t.customerUid ? `<button class="btn-gold" style="width:auto;padding:8px 12px;font-size:11px;margin:0;" onclick="openAdminCustomerChat('${safeUid}','${safeEmail}','${safeName}')"><i class="fa fa-comments"></i> Open Chat</button>` : '<span style="font-size:10px;color:#555;">Guest thread</span>'}
+            <button class="btn-gold" style="width:auto;padding:8px 12px;font-size:11px;margin:0;" onclick="openAdminCustomerChat(${openArgs})"><i class="fa fa-comments"></i> Open Chat</button>
         </div>`;
     }).join('');
 }
@@ -651,6 +685,26 @@ function updateSupportChatVisibility() {
     }
 }
 window.updateSupportChatVisibility = updateSupportChatVisibility;
+
+window.cleanupSupportChatListeners = function() {
+    stopCustomerMessagesListener();
+    if (adminInboxUnsub) {
+        adminInboxUnsub();
+        adminInboxUnsub = null;
+    }
+    if (adminThreadUnsub) {
+        adminThreadUnsub();
+        adminThreadUnsub = null;
+    }
+    window.supportThreadsCache = [];
+    window.supportChatState.activeThreadId = null;
+    window.supportChatState.adminThreadId = null;
+    window.supportChatState.loaded = false;
+    const box = document.getElementById('ai-chat-box');
+    if (box) box.style.display = 'none';
+    const adminModal = document.getElementById('admin-customer-chat-modal');
+    if (adminModal) adminModal.style.display = 'none';
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     updateSupportChatVisibility();

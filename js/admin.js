@@ -2515,7 +2515,7 @@ async function triggerManualBackupEmail() {
 }
 
 async function runBackup(isAuto = false, forceEmail = false) {
-    const collections = ['products', 'orders', 'feedbacks', 'product_comments', 'support_threads', 'admins', 'settings'];
+    const collections = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
     const backupData = {};
     
     // Fetch regular collections
@@ -2527,6 +2527,18 @@ async function runBackup(isAuto = false, forceEmail = false) {
         });
         backupData[col] = docs;
     }
+
+    const supportSnap = await db.collection('support_threads').get();
+    const supportThreadsList = [];
+    for (const doc of supportSnap.docs) {
+        const msgSnap = await db.collection('support_threads').doc(doc.id).collection('messages').get();
+        const messages = [];
+        msgSnap.forEach(mDoc => {
+            messages.push({ id: mDoc.id, data: mDoc.data() });
+        });
+        supportThreadsList.push({ id: doc.id, data: doc.data(), messages });
+    }
+    backupData['support_threads'] = supportThreadsList;
     
     // Fetch users collection with subcollection addresses
     const usersSnap = await db.collection('users').get();
@@ -2637,11 +2649,25 @@ async function restoreBackupFromFile(input) {
             const batcher = new FirestoreBatcher();
             
             // Restore regular collections
-            const cols = ['products', 'orders', 'feedbacks', 'product_comments', 'support_threads', 'admins', 'settings'];
+            const cols = ['products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings'];
             for (const col of cols) {
                 if (data[col] && Array.isArray(data[col])) {
                     for (const doc of data[col]) {
                         await batcher.set(db.collection(col).doc(doc.id), doc.data);
+                    }
+                }
+            }
+
+            if (data.support_threads && Array.isArray(data.support_threads)) {
+                for (const thread of data.support_threads) {
+                    await batcher.set(db.collection('support_threads').doc(thread.id), thread.data);
+                    if (thread.messages && Array.isArray(thread.messages)) {
+                        for (const msg of thread.messages) {
+                            await batcher.set(
+                                db.collection('support_threads').doc(thread.id).collection('messages').doc(msg.id),
+                                msg.data
+                            );
+                        }
                     }
                 }
             }

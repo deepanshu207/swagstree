@@ -296,8 +296,13 @@ IMPORTANT GUIDELINES:
 
 async function getAIResponse() {
     const contentSettings = window.APP_FEATURES_CONTENT || {};
+    const engine = contentSettings.chatbotEngine || 'local';
 
-    if (contentSettings.chatbotEngine === 'gemini' && contentSettings.geminiApiKey) {
+    if (engine === 'local') {
+        throw new Error('Local engine does not use cloud AI');
+    }
+
+    if (engine === 'gemini' && contentSettings.geminiApiKey) {
         const systemPrompt = generateSystemPrompt(false);
         const recentHistory = window.chatHistory.slice(-10);
         const apiKey = contentSettings.geminiApiKey.trim();
@@ -333,7 +338,9 @@ async function getAIResponse() {
             throw new Error('Invalid or empty response structure from Gemini API');
         }
         return replyText.trim();
-    } else {
+    }
+
+    if (engine === 'pollinations') {
         const systemPrompt = generateSystemPrompt(true);
         const recentHistory = window.chatHistory.slice(-6); // Keep history slightly shorter for GET requests
         let promptWithHistory = "";
@@ -355,6 +362,8 @@ async function getAIResponse() {
         const text = await response.text();
         return text.trim();
     }
+
+    throw new Error(`Unsupported chatbot engine: ${engine}`);
 }
 
 function appendTypingIndicator() {
@@ -1166,6 +1175,7 @@ window.APP_FEATURES_CONTENT = window.APP_FEATURES_CONTENT || {
     announcementText: "✨ EXTRA 10% OFF ON PRE-PAID ORDERS! CODE: PREPAID10 ✨",
     chatbotWelcome: "Hi! How can I help you style your day today?",
     chatbotChips: "Sizes, Price, Track Order, Discount Code",
+    chatbotEngine: 'local',
     newsletterDelay: 5,
     wheelJackpotCode: "WIN50"
 };

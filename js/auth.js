@@ -318,6 +318,9 @@ auth.onAuthStateChanged(user => {
         if (typeof cleanupCommentsListeners === 'function') {
             cleanupCommentsListeners();
         }
+        if (typeof cleanupSupportChatListeners === 'function') {
+            cleanupSupportChatListeners();
+        }
     }
 
     updateAdminPrivilegesUI();
@@ -1769,7 +1772,7 @@ async function loadAdminFeatureContent() {
             if (document.getElementById('admin-newsletter-delay')) document.getElementById('admin-newsletter-delay').value = data.newsletterDelay || 5;
             if (document.getElementById('admin-wheel-jackpot')) document.getElementById('admin-wheel-jackpot').value = data.wheelJackpotCode || '';
             
-            const engine = data.chatbotEngine || 'pollinations';
+            const engine = data.chatbotEngine || 'local';
             if (document.getElementById('admin-chatbot-engine')) {
                 document.getElementById('admin-chatbot-engine').value = engine;
             }
@@ -1791,7 +1794,7 @@ async function saveAdminFeatureContent() {
         chatbotChips: document.getElementById('admin-bot-chips')?.value || '',
         newsletterDelay: parseInt(document.getElementById('admin-newsletter-delay')?.value || '5', 10),
         wheelJackpotCode: document.getElementById('admin-wheel-jackpot')?.value || '',
-        chatbotEngine: document.getElementById('admin-chatbot-engine')?.value || 'pollinations',
+        chatbotEngine: document.getElementById('admin-chatbot-engine')?.value || 'local',
         geminiApiKey: document.getElementById('admin-gemini-key')?.value || ''
     };
     
