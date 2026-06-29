@@ -221,17 +221,29 @@ function searchProducts(query, maxPrice) {
     }).slice(0, 4);
 }
 
+function getBestSellerProducts(limit = 4) {
+    const list = (window.products || []).slice();
+    list.sort((a, b) => {
+        const salesA = a.salesCount || (a.popularity || 0);
+        const salesB = b.salesCount || (b.popularity || 0);
+        return salesB - salesA;
+    });
+    return list.slice(0, limit);
+}
+
 function detectSupportIntent(text) {
-    const q = text.toLowerCase();
-    if (/talk to admin|human|agent|real person|speak to support|connect.*admin/.test(q)) return 'human';
-    if (/complaint|issue|problem|defect|damaged|wrong item|return|refund/.test(q)) return 'complaint';
-    if (/track|order status|where is my order|my order/.test(q)) return 'order';
-    if (/contact|email|phone|call|whatsapp|support mail/.test(q)) return 'contact';
-    if (/under ₹?\s*(\d+)|below ₹?\s*(\d+)|budget|cheap|affordable|price filter/.test(q)) {
+    const q = text.toLowerCase().trim();
+    if (/^(hi|hello|hey|namaste|good morning|good evening)\b/.test(q)) return 'greeting';
+    if (/talk to admin|human|agent|real person|speak to support|connect.*admin|live support/.test(q)) return 'human';
+    if (/complaint|issue|problem|defect|damaged|wrong item|return|refund|complain/.test(q)) return 'complaint';
+    if (/track|order status|where is my order|my order|track my order/.test(q)) return 'order';
+    if (/contact|email|phone|call|whatsapp|support mail|contact support/.test(q)) return 'contact';
+    if (/best seller|best sellers|best selling|top selling|popular picks|most popular/.test(q)) return 'best_sellers';
+    if (/under ₹?\s*(\d+)|below ₹?\s*(\d+)|budget|cheap|affordable|price filter|outfits under/.test(q)) {
         const m = q.match(/(\d{3,5})/);
         return { type: 'price_filter', max: m ? parseInt(m[1], 10) : 1000 };
     }
-    if (/suggest|recommend|show me|best seller|popular|outfit|dress|kurta|saree|product/.test(q)) return 'suggest';
+    if (/suggest|recommend|show me|outfit|dress|kurta|saree|product|styles under/.test(q)) return 'suggest';
     if (/price|cost|how much|₹/.test(q)) return 'price';
     return 'ai';
 }
@@ -327,6 +339,11 @@ async function generateSmartSupportReply(userText) {
     const intent = detectSupportIntent(userText);
     const contact = getContactInfo();
 
+    if (intent === 'greeting') {
+        return {
+            text: "Hello! Welcome to **Swag Stree**. I can help with outfit suggestions, prices, orders, or connect you with our team. What are you looking for today?"
+        };
+    }
     if (intent === 'human' || intent === 'complaint') {
         return {
             text: intent === 'complaint'
@@ -356,6 +373,15 @@ async function generateSmartSupportReply(userText) {
                 <a href="mailto:${contact.email}" style="font-size:10px;color:var(--gold);">Email</a>
                 <a href="https://wa.me/${contact.wa}" target="_blank" style="font-size:10px;color:var(--gold);">WhatsApp</a>
             </div>`
+        };
+    }
+    if (intent === 'best_sellers') {
+        const matched = getBestSellerProducts();
+        return {
+            text: matched.length
+                ? 'Here are our **best-selling picks** right now:'
+                : 'Browse our catalog on Home — new styles are added regularly.',
+            products: matched
         };
     }
     if (intent === 'suggest' || intent === 'price') {
@@ -392,15 +418,15 @@ async function generateSmartSupportReply(userText) {
 
 function generateLocalFallbackReply(userText) {
     const q = (userText || '').toLowerCase();
+    if (/^(hi|hello|hey|namaste)\b/.test(q.trim())) {
+        return { text: "Hello! Welcome to **Swag Stree**. Ask for outfit suggestions, prices, order help, or say **Talk to admin** for live support." };
+    }
     const matched = searchProducts(userText.replace(/help|please|want|need|show|find/gi, ''), null);
     if (matched.length) {
         return {
             text: `Here are **${matched.length} item${matched.length > 1 ? 's' : ''}** from our catalog that may match:`,
             products: matched
         };
-    }
-    if (/hello|hi|hey|namaste/.test(q)) {
-        return { text: "Hello! Welcome to **Swag Stree**. Ask for outfit suggestions, prices, order help, or say **Talk to admin** for live support." };
     }
     if (/size|fit|measurement/.test(q)) {
         return { text: "Check the **Size Guide** on any product page. For fit advice, tell me the product name or say **Talk to admin**." };
@@ -412,8 +438,26 @@ function generateLocalFallbackReply(userText) {
         return { text: "Delivery timelines vary by location. For a specific order update, sign in and open **Profile → My Orders**, or say **Track my order**." };
     }
     return {
-        text: "I'm here to help with **products**, **prices**, **orders**, and **styling** — all on-device, no paid API needed.\n\nTry: *Suggest outfits under ₹1000*, *Best sellers*, or **Talk to admin** for live help."
+        text: "I'm here to help with **products**, **prices**, **orders**, and **styling**.\n\nTry: *Best sellers*, *Suggest outfits under ₹1000*, *Track my order*, or **Talk to admin**."
     };
+}
+
+async function syncSupportChatHeaderFromThread(threadId) {
+    try {
+        const snap = await db.collection('support_threads').doc(threadId).get();
+        if (!snap.exists) {
+            updateSupportChatHeader('ai', false);
+            return;
+        }
+        const data = snap.data();
+        if (data.mode === 'human') {
+            updateSupportChatHeader('human', data.status === 'waiting_admin');
+        } else {
+            updateSupportChatHeader('ai', false);
+        }
+    } catch (e) {
+        updateSupportChatHeader('ai', false);
+    }
 }
 
 async function handleSupportCustomerMessage(text) {
@@ -450,9 +494,9 @@ async function handleSupportCustomerMessage(text) {
 
     const threadSnap = await db.collection('support_threads').doc(threadId).get();
     const threadData = threadSnap.exists ? threadSnap.data() : {};
-    if (threadData.mode === 'human' && threadData.status === 'waiting_admin' && !isEscalation) {
-        updateSupportChatHeader('human', true);
-        appendSupportBubble('bot', 'Your message was sent to our admin team. They will reply here soon.');
+    if (threadData.mode === 'human' && !isEscalation) {
+        updateSupportChatHeader('human', threadData.status === 'waiting_admin');
+        appendSupportBubble('bot', 'Your message was sent to our support team. They will reply here soon.');
         return;
     }
 
@@ -544,7 +588,7 @@ function subscribeCustomerThread(threadId) {
             }
 
             db.collection('support_threads').doc(threadId).set({ unreadByCustomer: 0 }, { merge: true }).catch(() => {});
-            updateSupportUnreadBadge();
+            applySupportUnreadBadge(0);
         }, () => {
             db.collection('support_threads').doc(threadId).collection('messages').limit(100)
                 .onSnapshot(snap => {
@@ -577,7 +621,7 @@ window.openSupportChat = async function() {
         appendSupportBubble('bot', welcome);
     }
     renderSupportQuickChips();
-    updateSupportChatHeader('ai', false);
+    await syncSupportChatHeaderFromThread(threadId);
     applySupportUnreadBadge(0);
 };
 

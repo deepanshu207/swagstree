@@ -513,6 +513,16 @@ function isProductOutOfStock(p) {
 }
 window.isProductOutOfStock = isProductOutOfStock;
 
+function formatCatalogProductCount(visible, total) {
+    const fullText = typeof window.getI18nText === 'function'
+        ? window.getI18nText('showing_products', { visible, total })
+        : `Showing ${visible} of ${total} Products`;
+    const compactText = typeof window.getI18nText === 'function'
+        ? window.getI18nText('showing_products_compact', { visible, total })
+        : `Showing ${visible} of ${total}`;
+    return `<span class="count-full">${fullText}</span><span class="count-compact">${compactText}</span>`;
+}
+
 function renderProducts(items, targetId) {
     const container = document.getElementById(targetId);
     if (!container) return;
@@ -570,9 +580,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = typeof window.getI18nText === 'function'
-                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
-                    : '0 Products';
+                countContainer.innerHTML = formatCatalogProductCount(0, 0);
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -595,11 +603,7 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
-            const fullText = typeof window.getI18nText === 'function'
-                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
-                : `Showing ${visible} of ${items.length} Products`;
-            const shortText = `${visible}/${items.length}`;
-            countContainer.innerHTML = `<span class="count-full">${fullText}</span><span class="count-short">${shortText}</span>`;
+            countContainer.innerHTML = formatCatalogProductCount(visible, items.length);
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {
@@ -684,9 +688,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.innerHTML = typeof window.getI18nText === 'function'
-                    ? window.getI18nText('showing_products', { visible: 0, total: 0 })
-                    : '0 Products';
+                countContainer.innerHTML = formatCatalogProductCount(0, 0);
                 countContainer.style.display = 'inline-flex';
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
@@ -709,9 +711,7 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
-            countContainer.innerHTML = typeof window.getI18nText === 'function'
-                ? window.getI18nText('showing_products', { visible: visible, total: items.length })
-                : `Showing ${visible} of ${items.length} Products`;
+            countContainer.innerHTML = formatCatalogProductCount(visible, items.length);
             countContainer.style.display = 'inline-flex';
         }
         if (sortLogicContainer) {

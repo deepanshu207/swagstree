@@ -30,6 +30,7 @@ const I18N_DICTIONARY = {
     en: {
         search_placeholder: "Search products...",
         showing_products: "Showing {visible} of {total} Products",
+        showing_products_compact: "Showing {visible} of {total}",
         wishlist_title: "My Wishlist",
         cart_title: "Shopping Cart",
         checkout: "Checkout Now",
@@ -55,6 +56,7 @@ const I18N_DICTIONARY = {
     hi: {
         search_placeholder: "उत्पाद खोजें...",
         showing_products: "{total} में से {visible} उत्पाद दिख रहे हैं",
+        showing_products_compact: "{total} में से {visible} दिख रहे हैं",
         wishlist_title: "मेरी विशलिस्ट",
         cart_title: "शॉपिंग कार्ट",
         checkout: "चेकआउट करें",
@@ -80,6 +82,7 @@ const I18N_DICTIONARY = {
     es: {
         search_placeholder: "Buscar productos...",
         showing_products: "Mostrando {visible} de {total} Productos",
+        showing_products_compact: "Mostrando {visible} de {total}",
         wishlist_title: "Mi Lista",
         cart_title: "Carrito de Compras",
         checkout: "Pagar Ahora",

@@ -1900,7 +1900,7 @@ body {
     white-space: nowrap;
 }
 
-.catalog-count-label .count-short {
+.catalog-count-label .count-compact {
     display: none;
 }
 
@@ -2085,25 +2085,27 @@ body {
         right: -4px !important;
     } */
     .catalog-controls-row {
-        gap: 4px;
+        gap: 5px;
         flex-wrap: nowrap;
         padding-top: 8px;
     }
     .catalog-controls-row .count-badge,
     .catalog-count-label {
-        font-size: 8px;
-        padding: 4px 7px;
-        letter-spacing: 0.3px;
-        max-width: 38vw;
+        font-size: 9px;
+        padding: 5px 9px;
+        letter-spacing: 0.4px;
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: none;
     }
     .catalog-count-label .count-full {
         display: none;
     }
-    .catalog-count-label .count-short {
+    .catalog-count-label .count-compact {
         display: inline;
     }
     .catalog-controls-actions {
-        gap: 4px;
+        gap: 5px;
         flex-shrink: 0;
     }
     .catalog-controls-row select,
@@ -2113,7 +2115,10 @@ body {
         padding: 2px 4px 2px 20px !important;
     }
     .catalog-sort-select {
-        min-width: 82px !important;
+        min-width: 76px !important;
+    }
+    .catalog-sort-dropdown {
+        max-width: 88px;
     }
     .catalog-icon-btn,
     .catalog-controls-row #header-support-chat-btn,
