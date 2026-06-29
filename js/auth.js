@@ -774,95 +774,150 @@ async function loadAllCustomers() {
     if (!isAdmin) return;
     const container = document.getElementById('all-customers-list');
     if (!container) return;
-    
+
+    const searchInput = document.getElementById('admin-customer-search');
+    if (searchInput) searchInput.value = '';
+
     container.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
             <div class="premium-loader"></div>
             <p style="color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0; font-weight:700;">Loading customers</p>
         </div>
     `;
-    
+
     try {
         const snap = await db.collection("users").get();
         if (snap.empty) {
+            allCustomersCache = [];
             container.innerHTML = `<p style="text-align:center; color:#555;">No customers found.</p>`;
             return;
         }
-        
-        let allUsers = [];
-        snap.forEach(doc => allUsers.push({ uid: doc.id, ...doc.data() }));
-        
-        allUsers.sort((a, b) => {
+
+        allCustomersCache = [];
+        snap.forEach(doc => allCustomersCache.push({ uid: doc.id, ...doc.data() }));
+
+        allCustomersCache.sort((a, b) => {
             const tA = a.createdAt ? a.createdAt.toMillis() : 0;
             const tB = b.createdAt ? b.createdAt.toMillis() : 0;
-            return tB - tA; // descending
+            return tB - tA;
         });
-        
-        let html = '';
-        allUsers.forEach(data => {
-            const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
-            
-            // Determine sign-in provider label
-            let methodLabel = "Email/Password"; // Default fallback
-            let badgeIcon = "fa-envelope";
-            let badgeColor = "var(--gold)";
-            if (data.providers && Array.isArray(data.providers)) {
-                const hasGoogle = data.providers.includes('google.com');
-                const hasPassword = data.providers.includes('password');
-                if (hasGoogle && hasPassword) {
-                    methodLabel = "Google & Email/Password";
-                    badgeIcon = "fa-link";
-                    badgeColor = "#25D366";
-                } else if (hasGoogle) {
-                    methodLabel = "Google";
-                    badgeIcon = "fab fa-google";
-                    badgeColor = "#db4437";
-                } else if (hasPassword) {
-                    methodLabel = "Email/Password";
-                    badgeIcon = "fa-envelope";
-                    badgeColor = "var(--gold)";
-                }
-            } else if (data.email) {
-                methodLabel = "Email/Password";
-                badgeIcon = "fa-envelope";
-                badgeColor = "var(--gold)";
-            } else {
-                methodLabel = "Guest Checkout";
-                badgeIcon = "fa-user-secret";
-                badgeColor = "#888";
-            }
 
-            const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
-            const safeEmail = (data.email || '').replace(/'/g, "\\'");
-            const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
-                ? `<button class="btn-gold" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" style="width:auto; padding:8px 12px; font-size:11px; margin:0; flex-shrink:0;" title="Chat with customer"><i class="fa fa-comments"></i></button>`
-                : '';
-
-            html += `
-                <div style="background:#111; padding:15px; border-radius:8px; border:1px solid #333; margin-top:10px; display:flex; align-items:center; gap:15px;">
-                    <div style="width:40px; height:40px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#FFD700;">
-                        ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
-                    </div>
-                    <div style="flex:1;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                            <div style="font-weight:bold; font-size:15px;">${data.displayName || 'Unnamed User'}</div>
-                            <span style="font-size:10px; padding:3px 8px; border-radius:20px; background:rgba(0,0,0,0.4); border:1px solid #333; color:${badgeColor}; font-weight:600; display:flex; align-items:center; gap:5px;">
-                                <i class="${badgeIcon}"></i> ${methodLabel}
-                            </span>
-                        </div>
-                        <div style="color:#aaa; font-size:13px; margin-top:4px;">${data.email || 'No email'} ${data.phone ? '• ' + data.phone : ''}</div>
-                        <div style="color:#666; font-size:11px; margin-top:4px;">Joined: ${date}</div>
-                    </div>
-                    ${chatBtn}
-                </div>
-            `;
-        });
-        container.innerHTML = html;
+        renderAllCustomersList(allCustomersCache);
     } catch (e) {
         console.error("Error loading customers:", e);
         container.innerHTML = `<p style="text-align:center; color:#ff4444;">Failed to load customers.</p>`;
     }
 }
+
+function normalizePhoneDigits(phone) {
+    return (phone || '').replace(/\D/g, '');
+}
+
+function matchCustomerSearch(customer, query) {
+    const q = (query || '').toLowerCase().trim();
+    if (!q) return true;
+
+    const qDigits = q.replace(/\D/g, '');
+    const name = (customer.displayName || '').toLowerCase();
+    const email = (customer.email || '').toLowerCase();
+    const phone = (customer.phone || '').toLowerCase();
+    const phoneDigits = normalizePhoneDigits(customer.phone);
+    const uid = (customer.uid || '').toLowerCase();
+    const address = (customer.address || customer.shippingAddress || '').toLowerCase();
+
+    if (name.includes(q) || email.includes(q) || phone.includes(q) || uid.includes(q) || address.includes(q)) {
+        return true;
+    }
+    if (qDigits.length >= 3 && phoneDigits.includes(qDigits)) return true;
+    if (q.includes('@') && email.includes(q)) return true;
+    return false;
+}
+
+function getCustomerAuthBadge(data) {
+    let methodLabel = "Email/Password";
+    let badgeIcon = "fa-envelope";
+    let badgeColor = "var(--gold)";
+
+    if (data.providers && Array.isArray(data.providers)) {
+        const hasGoogle = data.providers.includes('google.com');
+        const hasPassword = data.providers.includes('password');
+        if (hasGoogle && hasPassword) {
+            methodLabel = "Google & Email/Password";
+            badgeIcon = "fa-link";
+            badgeColor = "#25D366";
+        } else if (hasGoogle) {
+            methodLabel = "Google";
+            badgeIcon = "fab fa-google";
+            badgeColor = "#db4437";
+        } else if (hasPassword) {
+            methodLabel = "Email/Password";
+            badgeIcon = "fa-envelope";
+            badgeColor = "var(--gold)";
+        }
+    } else if (data.email) {
+        methodLabel = "Email/Password";
+        badgeIcon = "fa-envelope";
+        badgeColor = "var(--gold)";
+    } else {
+        methodLabel = "Guest Checkout";
+        badgeIcon = "fa-user-secret";
+        badgeColor = "#888";
+    }
+
+    return { methodLabel, badgeIcon, badgeColor };
+}
+
+function renderAllCustomersList(list) {
+    const container = document.getElementById('all-customers-list');
+    if (!container) return;
+
+    if (!list.length) {
+        container.innerHTML = `<p style="text-align:center; color:#555;">No matching customers found.</p>`;
+        return;
+    }
+
+    let html = '';
+    list.forEach(data => {
+        const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
+        const { methodLabel, badgeIcon, badgeColor } = getCustomerAuthBadge(data);
+        const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
+        const safeEmail = (data.email || '').replace(/'/g, "\\'");
+        const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
+            ? `<button class="btn-gold admin-customer-card__chat" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" title="Chat with customer"><i class="fa fa-comments"></i></button>`
+            : '';
+
+        html += `
+            <div class="admin-customer-card">
+                <div class="admin-customer-card__avatar">
+                    ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div class="admin-customer-card__body">
+                    <div class="admin-customer-card__header">
+                        <div class="admin-customer-card__name">${data.displayName || 'Unnamed User'}</div>
+                        <span class="admin-customer-card__badge" style="color:${badgeColor};">
+                            <i class="${badgeIcon}"></i> ${methodLabel}
+                        </span>
+                    </div>
+                    <div class="admin-customer-card__meta">${data.email || 'No email'}${data.phone ? ' • ' + data.phone : ''}</div>
+                    <div class="admin-customer-card__joined">Joined: ${date}</div>
+                </div>
+                ${chatBtn}
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function filterAllCustomers() {
+    const q = document.getElementById('admin-customer-search')?.value || '';
+    if (!q.trim()) {
+        renderAllCustomersList(allCustomersCache);
+        return;
+    }
+    const filtered = allCustomersCache.filter(c => matchCustomerSearch(c, q));
+    renderAllCustomersList(filtered);
+}
+window.filterAllCustomers = filterAllCustomers;
 
 // ── SUPERADMIN CAPABILITIES ──────────────────────────────────────────────────
 
@@ -1065,6 +1120,7 @@ async function toggleAdminStatus(email, currentStatus) {
 
 // 2. Manage Customers
 let superCustomersCache = [];
+let allCustomersCache = [];
 let displayedSuperCustomersLimit = 20;
 
 async function loadSuperCustomers() {
@@ -1177,18 +1233,13 @@ function renderSuperCustomersList(list) {
 }
 
 function filterSuperCustomers() {
-    const q = document.getElementById('super-customer-search').value.toLowerCase().trim();
-    if (!q) {
+    const q = document.getElementById('super-customer-search')?.value || '';
+    if (!q.trim()) {
         renderSuperCustomersList(superCustomersCache);
         return;
     }
 
-    const filtered = superCustomersCache.filter(c => {
-        const name = (c.displayName || '').toLowerCase();
-        const email = (c.email || '').toLowerCase();
-        const phone = (c.phone || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || phone.includes(q);
-    });
+    const filtered = superCustomersCache.filter(c => matchCustomerSearch(c, q));
     renderSuperCustomersList(filtered);
 }
 
@@ -1699,6 +1750,12 @@ async function loadSuperadminFeatures() {
             
             // Set checkboxes
             if (document.getElementById('toggle-ai-chat')) document.getElementById('toggle-ai-chat').checked = !!data.aiChatbot;
+            if (document.getElementById('toggle-admin-support-chat')) {
+                const normalized = typeof normalizeSupportChatFeatures === 'function'
+                    ? normalizeSupportChatFeatures(data)
+                    : { adminSupportChat: !!data.adminSupportChat || !!data.aiChatbot };
+                document.getElementById('toggle-admin-support-chat').checked = !!normalized.adminSupportChat;
+            }
             if (document.getElementById('toggle-360-viewer')) document.getElementById('toggle-360-viewer').checked = !!data.threeSixtyViewer;
             if (document.getElementById('toggle-theme-picker')) document.getElementById('toggle-theme-picker').checked = !!data.themeSwitcher;
             if (document.getElementById('toggle-language')) document.getElementById('toggle-language').checked = !!data.multiLanguage;
@@ -1739,6 +1796,7 @@ async function saveSuperadminFeatures() {
         themePreset: preset,
         customColors: customColors,
         aiChatbot: !!document.getElementById('toggle-ai-chat')?.checked,
+        adminSupportChat: !!document.getElementById('toggle-admin-support-chat')?.checked,
         threeSixtyViewer: !!document.getElementById('toggle-360-viewer')?.checked,
         themeSwitcher: !!document.getElementById('toggle-theme-picker')?.checked,
         multiLanguage: !!document.getElementById('toggle-language')?.checked,

@@ -6,6 +6,7 @@
 window.APP_FEATURES = window.APP_FEATURES || {
     threeSixtyViewer: false,
     aiChatbot: false,
+    adminSupportChat: false,
     themeSwitcher: false,
     multiLanguage: false,
     announcementBar: false,
@@ -1260,16 +1261,24 @@ function hydrateFeaturesFromCache() {
         if (!raw) return false;
         const cached = JSON.parse(raw);
         if (cached && typeof cached === 'object') {
-            window.APP_FEATURES = { ...window.APP_FEATURES, ...cached };
+            window.APP_FEATURES = { ...window.APP_FEATURES, ...normalizeSupportChatFeatures(cached) };
             return true;
         }
     } catch (e) {}
     return false;
 }
 
+function normalizeSupportChatFeatures(config) {
+    const c = config && typeof config === 'object' ? { ...config } : {};
+    if (c.adminSupportChat === undefined && c.aiChatbot !== undefined) {
+        c.adminSupportChat = !!c.aiChatbot;
+    }
+    return c;
+}
+
 function applyFeaturesConfigFromFirestore(data) {
     if (data && typeof data === 'object') {
-        window.APP_FEATURES = { ...window.APP_FEATURES, ...data };
+        window.APP_FEATURES = { ...window.APP_FEATURES, ...normalizeSupportChatFeatures(data) };
     }
     cacheFeaturesConfig(window.APP_FEATURES);
     applyFeatureTogglesUI();
@@ -1308,7 +1317,8 @@ function applyFeatureTogglesUI() {
     // AI Support Chat (header icon on home — no duplicate floating bot)
     const headerChatBtn = document.getElementById('header-support-chat-btn');
     const floatBtn = document.getElementById('ai-chat-trigger');
-    const showChat = !!config.aiChatbot;
+    const configNorm = normalizeSupportChatFeatures(config);
+    const showChat = !!(configNorm.aiChatbot || configNorm.adminSupportChat);
     if (headerChatBtn) {
         headerChatBtn.style.display = showChat ? 'flex' : 'none';
         headerChatBtn.classList.toggle('catalog-action-hidden', !showChat);
@@ -1318,6 +1328,7 @@ function applyFeatureTogglesUI() {
         const box = document.getElementById('ai-chat-box');
         if (box) box.style.display = 'none';
     }
+    if (typeof applySupportChatTabsVisibility === 'function') applySupportChatTabsVisibility();
     
     // Theme Customizer Drawer
     const themeBtn = document.getElementById('theme-trigger-btn');
@@ -1381,6 +1392,9 @@ function applyFeatureTogglesUI() {
             if (document.getElementById('picker-text')) document.getElementById('picker-text').value = config.customColors.text || '#ffffff';
         }
         if (document.getElementById('toggle-ai-chat')) document.getElementById('toggle-ai-chat').checked = !!config.aiChatbot;
+        if (document.getElementById('toggle-admin-support-chat')) {
+            document.getElementById('toggle-admin-support-chat').checked = !!normalizeSupportChatFeatures(config).adminSupportChat;
+        }
         if (document.getElementById('toggle-360-viewer')) document.getElementById('toggle-360-viewer').checked = !!config.threeSixtyViewer;
         if (document.getElementById('toggle-theme-picker')) document.getElementById('toggle-theme-picker').checked = !!config.themeSwitcher;
         if (document.getElementById('toggle-language')) document.getElementById('toggle-language').checked = !!config.multiLanguage;

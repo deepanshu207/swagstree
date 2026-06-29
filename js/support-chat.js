@@ -43,6 +43,51 @@ const ADMIN_SUPPORT_CHIPS = [
     'Payment issue'
 ];
 
+function normalizeSupportChatFeatures(config) {
+    const c = config && typeof config === 'object' ? { ...config } : {};
+    if (c.adminSupportChat === undefined && c.aiChatbot !== undefined) {
+        c.adminSupportChat = !!c.aiChatbot;
+    }
+    return c;
+}
+
+function isAiChatEnabled() {
+    return !!(window.APP_FEATURES && window.APP_FEATURES.aiChatbot);
+}
+
+function isAdminSupportChatEnabled() {
+    const f = normalizeSupportChatFeatures(window.APP_FEATURES || {});
+    return !!f.adminSupportChat;
+}
+
+function isAnySupportChatEnabled() {
+    return isAiChatEnabled() || isAdminSupportChatEnabled();
+}
+
+function getDefaultSupportChatTab() {
+    if (isAiChatEnabled()) return 'ai';
+    if (isAdminSupportChatEnabled()) return 'admin';
+    return 'ai';
+}
+
+function applySupportChatTabsVisibility() {
+    const aiEnabled = isAiChatEnabled();
+    const adminEnabled = isAdminSupportChatEnabled();
+    const tabsEl = document.getElementById('ai-chat-tabs');
+    const aiTab = document.getElementById('ai-chat-tab-ai');
+    const adminTab = document.getElementById('ai-chat-tab-admin');
+
+    if (aiTab) aiTab.style.display = aiEnabled ? '' : 'none';
+    if (adminTab) adminTab.style.display = adminEnabled ? '' : 'none';
+    if (tabsEl) tabsEl.style.display = (aiEnabled && adminEnabled) ? 'flex' : 'none';
+
+    const active = window.supportChatState.activeTab;
+    if ((active === 'ai' && !aiEnabled) || (active === 'admin' && !adminEnabled)) {
+        updateSupportChatTabUI(getDefaultSupportChatTab());
+    }
+}
+window.applySupportChatTabsVisibility = applySupportChatTabsVisibility;
+
 const CHAT_PRODUCT_DISPLAY_LIMIT = 10;
 const SUPPORT_CHANNEL = 'support';
 const AI_CHANNEL = 'ai';
@@ -213,7 +258,7 @@ function stopSupportCustomerWatcher() {
 }
 
 function startSupportCustomerWatcher() {
-    if (!window.APP_FEATURES?.aiChatbot) return;
+    if (!isAnySupportChatEnabled()) return;
     stopSupportCustomerWatcher();
 
     const threadId = getCustomerThreadIdForUser(currentUser ? currentUser.uid : null);
@@ -396,8 +441,11 @@ function buildProductCardsHtml(products) {
 function renderSupportQuickChips(tab) {
     const container = document.getElementById('ai-chat-chips');
     if (!container) return;
-    const chips = tab === 'admin' ? ADMIN_SUPPORT_CHIPS : AI_SUPPORT_CHIPS;
-    container.style.display = 'flex';
+    let chips = tab === 'admin' ? ADMIN_SUPPORT_CHIPS.slice() : AI_SUPPORT_CHIPS.slice();
+    if (tab === 'ai' && !isAdminSupportChatEnabled()) {
+        chips = chips.filter(chip => chip !== 'Contact support');
+    }
+    container.style.display = chips.length ? 'flex' : 'none';
     container.innerHTML = chips.map(chip =>
         `<div class="ai-chat-chip" onclick="sendChatMessageWithText('${chip.replace(/'/g, "\\'")}')">${escHtml(chip)}</div>`
     ).join('');
@@ -426,6 +474,8 @@ function updateSupportChatTabUI(tab) {
 
 window.switchSupportChatTab = function(tab) {
     if (tab !== 'ai' && tab !== 'admin') return;
+    if (tab === 'ai' && !isAiChatEnabled()) return;
+    if (tab === 'admin' && !isAdminSupportChatEnabled()) return;
     updateSupportChatTabUI(tab);
     showChatBodyForTab(tab);
     if (tab === 'admin') {
@@ -512,9 +562,19 @@ async function generateSmartSupportReply(userText) {
         };
     }
     if (intent === 'human' || intent === 'complaint') {
+        if (isAdminSupportChatEnabled()) {
+            return {
+                text: "For **live help from our team**, please open the **Live Support** tab above.",
+                extraHtml: `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="switchSupportChatTab('admin')">Open Live Support</button>`
+            };
+        }
         return {
-            text: "For **live help from our team**, please open the **Live Support** tab above.",
-            extraHtml: `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="switchSupportChatTab('admin')">Open Live Support</button>`
+            text: `**Reach Swag Stree Support:**\n- Phone: +91 ${contact.phone}\n- Email: ${contact.email}\n- WhatsApp: wa.me/${contact.wa}`,
+            extraHtml: `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                <a href="tel:${contact.phone}" style="font-size:10px;color:var(--gold);">Call</a>
+                <a href="mailto:${contact.email}" style="font-size:10px;color:var(--gold);">Email</a>
+                <a href="https://wa.me/${contact.wa}" target="_blank" style="font-size:10px;color:var(--gold);">WhatsApp</a>
+            </div>`
         };
     }
     if (intent === 'order') {
@@ -910,13 +970,13 @@ async function handleAiSupportMessage(text) {
     } catch (e) {
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
         console.error('Support chat reply failed:', e);
-        appendSupportBubble('bot', 'Something went wrong. Please try again or switch to **Live Support**.', '', AI_CHANNEL);
+        appendSupportBubble('bot', 'Something went wrong. Please try again' + (isAdminSupportChatEnabled() ? ' or switch to **Live Support**.' : '.'), '', AI_CHANNEL);
     }
 }
 
 async function handleSupportCustomerMessage(text) {
     const q = (text || '').trim().toLowerCase();
-    if (window.supportChatState.activeTab === 'ai' && /contact support|talk to admin|live support|speak to support/.test(q)) {
+    if (window.supportChatState.activeTab === 'ai' && isAdminSupportChatEnabled() && /contact support|talk to admin|live support|speak to support/.test(q)) {
         switchSupportChatTab('admin');
         return;
     }
@@ -951,11 +1011,14 @@ function subscribeCustomerThread(threadId) {
             if (!window.supportChatState.loaded) {
                 renderChannelMessages(split.ai, AI_CHANNEL);
                 renderChannelMessages(split.support, SUPPORT_CHANNEL);
-                if (!split.ai.length) {
-                    const welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, or orders. Need a person? Open the **Live Support** tab.";
+                if (isAiChatEnabled() && !split.ai.length) {
+                    let welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, or orders.";
+                    if (isAdminSupportChatEnabled()) {
+                        welcome += ' Need a person? Open the **Live Support** tab.';
+                    }
                     appendSupportBubble('bot', welcome, '', AI_CHANNEL);
                 }
-                if (!split.support.length) {
+                if (isAdminSupportChatEnabled() && !split.support.length) {
                     const hint = getChatBody(SUPPORT_CHANNEL);
                     if (hint && !hint.querySelector('[data-admin-tab-hint]')) {
                         appendSupportBubble('bot', 'Welcome to **Live Support**. Describe your issue and our team will reply here.', '', SUPPORT_CHANNEL);
@@ -969,7 +1032,7 @@ function subscribeCustomerThread(threadId) {
                 syncSupportChatHeaderFromThread(threadId);
             } else {
                 const newSupportAdmin = split.support.filter(m => m.sender === 'admin' && !supportKnownMsgIds.support.has(m.id));
-                if (newSupportAdmin.length) {
+                if (newSupportAdmin.length && isAdminSupportChatEnabled()) {
                     if (typeof switchSupportChatTab === 'function') switchSupportChatTab('admin');
                     newSupportAdmin.forEach(m => {
                         appendSupportBubble('admin', m.text, '', SUPPORT_CHANNEL);
@@ -1002,14 +1065,15 @@ function subscribeCustomerThread(threadId) {
 }
 
 window.openSupportChat = async function() {
-    if (!window.APP_FEATURES?.aiChatbot) return showToast('Support chat is currently disabled.');
+    if (!isAnySupportChatEnabled()) return showToast('Support chat is currently disabled.');
     const box = document.getElementById('ai-chat-box');
     if (!box) return;
     box.style.display = 'flex';
     window.supportChatState.adminThreadId = null;
     window.supportChatState.loaded = false;
 
-    updateSupportChatTabUI('ai');
+    applySupportChatTabsVisibility();
+    updateSupportChatTabUI(getDefaultSupportChatTab());
 
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
@@ -1205,7 +1269,7 @@ window.toggleAdminSupportAccordion = function() {
 };
 
 function updateSupportUnreadBadge() {
-    if (!window.APP_FEATURES?.aiChatbot) return;
+    if (!isAnySupportChatEnabled()) return;
     const threadId = getCustomerThreadIdForUser(currentUser ? currentUser.uid : null);
     db.collection('support_threads').doc(threadId).get().then(doc => {
         applySupportUnreadBadge(doc.exists ? (doc.data().unreadByCustomer || 0) : 0);
@@ -1223,7 +1287,7 @@ function updateAdminSupportBadge() {
 }
 
 function updateSupportChatVisibility() {
-    const enabled = !!(window.APP_FEATURES && window.APP_FEATURES.aiChatbot);
+    const enabled = isAnySupportChatEnabled();
     const headerBtn = document.getElementById('header-support-chat-btn');
     const floatBtn = document.getElementById('ai-chat-trigger');
     if (headerBtn) {
@@ -1235,9 +1299,11 @@ function updateSupportChatVisibility() {
         const box = document.getElementById('ai-chat-box');
         if (box) box.style.display = 'none';
     }
+    applySupportChatTabsVisibility();
     const adminSection = document.getElementById('admin-support-inbox-section');
     if (adminSection) {
-        adminSection.style.display = (isAdmin && hasSupportChatCapability()) ? 'block' : 'none';
+        const showInbox = isAdmin && hasSupportChatCapability() && isAdminSupportChatEnabled();
+        adminSection.style.display = showInbox ? 'block' : 'none';
     }
     if (enabled) startSupportCustomerWatcher();
     else stopSupportCustomerWatcher();
@@ -1248,7 +1314,7 @@ window.updateSupportChatVisibility = updateSupportChatVisibility;
 window.updateCatalogControlsRowLayout = function() {
     const chatBtn = document.getElementById('header-support-chat-btn');
     const annBtn = document.getElementById('announcement-bell-btn');
-    const chatVisible = !!(window.APP_FEATURES?.aiChatbot) && chatBtn && chatBtn.style.display !== 'none';
+    const chatVisible = isAnySupportChatEnabled() && chatBtn && chatBtn.style.display !== 'none';
     const annVisible = window.APP_FEATURES?.announcementBell !== false && annBtn && annBtn.style.display !== 'none';
     const isMobile = window.innerWidth < 480;
     const isTablet = window.innerWidth >= 480 && window.innerWidth < 1024;
