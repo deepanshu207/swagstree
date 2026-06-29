@@ -982,6 +982,10 @@ input[type="checkbox"], input[type="radio"] {
     align-items: flex-end;
     padding: 0;
     padding-bottom: 0;
+    z-index: 5500;
+}
+#cart-modal.modal {
+    z-index: 5000;
 }
 .promo-modal-box {
     width: 100%;

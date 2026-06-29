@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=5.8">
+    <link rel="stylesheet" href="css/style.css?v=5.9">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -2388,26 +2388,6 @@
         </div>
     </div>
 
-    <!-- MODAL: Apply Promo (Blinkit-style coupon sheet) -->
-    <div id="promo-modal" class="modal" style="display:none; align-items:flex-end; justify-content:center;">
-        <div class="modal-box promo-modal-box">
-            <div class="promo-modal-header">
-                <h3 style="margin:0; font-size:15px; color:#fff;">Apply Promo</h3>
-                <button type="button" class="promo-modal-close" onclick="closePromoModal()" aria-label="Close">&times;</button>
-            </div>
-            <div class="promo-modal-manual">
-                <input id="promo-code" type="text" placeholder="Enter promo code" style="margin:0; text-transform:uppercase;">
-                <button type="button" class="btn-gold promo-modal-apply-btn" onclick="applyPromoFromModal()">Apply</button>
-            </div>
-            <div class="promo-modal-divider">
-                <span>Available offers</span>
-            </div>
-            <div id="promo-modal-list" class="promo-modal-list">
-                <!-- Populated dynamically -->
-            </div>
-        </div>
-    </div>
-
     <!-- MODAL: Cart & Checkout -->
     <div id="cart-modal" class="modal">
         <div class="modal-box" style="padding-top: 15px;">
@@ -2416,7 +2396,7 @@
 
                 <!-- Apply Promo (Blinkit-style row — opens promo modal) -->
                 <div id="checkout-promo-row-wrap" style="display:none; margin-bottom:12px;">
-                    <button type="button" id="checkout-promo-row" class="checkout-promo-row" onclick="openPromoModal()">
+                    <div id="checkout-promo-row" class="checkout-promo-row" role="button" tabindex="0" data-open-promo-modal aria-label="Apply Promo">
                         <span class="checkout-promo-row-left">
                             <i class="fa fa-ticket-alt checkout-promo-row-icon"></i>
                             <span id="checkout-promo-row-text">Apply Promo</span>
@@ -2425,7 +2405,7 @@
                             <span id="checkout-promo-row-action" style="display:none;"></span>
                             <i class="fa fa-chevron-right checkout-promo-row-chevron"></i>
                         </span>
-                    </button>
+                    </div>
                 </div>
 
             <div style="border-top: 1px solid #333; padding-top: 10px; margin-bottom: 20px; font-size: 14px;">
@@ -2494,6 +2474,26 @@
             <button class="btn-gold" id="btn-checkout" onclick="placeOrder()">Place Order</button>
             <button onclick="closeModal('cart-modal')"
                 style="width:100%; margin-top:10px; background:none; color:#555; border:none; cursor:pointer;">Back</button>
+        </div>
+    </div>
+
+    <!-- MODAL: Apply Promo (Blinkit-style coupon sheet — above checkout) -->
+    <div id="promo-modal" class="modal" style="display:none; align-items:flex-end; justify-content:center;" aria-hidden="true">
+        <div class="modal-box promo-modal-box">
+            <div class="promo-modal-header">
+                <h3 style="margin:0; font-size:15px; color:#fff;">Apply Promo</h3>
+                <button type="button" class="promo-modal-close" onclick="closePromoModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="promo-modal-manual">
+                <input id="promo-code" type="text" placeholder="Enter promo code" style="margin:0; text-transform:uppercase;">
+                <button type="button" class="btn-gold promo-modal-apply-btn" onclick="applyPromoFromModal()">Apply</button>
+            </div>
+            <div class="promo-modal-divider">
+                <span>Available offers</span>
+            </div>
+            <div id="promo-modal-list" class="promo-modal-list">
+                <!-- Populated dynamically -->
+            </div>
         </div>
     </div>
 
@@ -2773,17 +2773,17 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.65"></script>
-    <script src="js/app.js?v=9.65"></script>
-    <script src="js/store.js?v=9.65"></script>
-    <script src="js/checkout.js?v=9.65"></script>
-    <script src="js/auth.js?v=9.65"></script>
-    <script src="js/comments.js?v=9.65"></script>
-    <script src="js/support-chat.js?v=9.65"></script>
-    <script src="js/auto-retention.js?v=9.65"></script>
-    <script src="js/admin.js?v=9.65"></script>
-    <script src="js/cloudinary-admin.js?v=9.65"></script>
-    <script src="js/bind-globals.js?v=9.65"></script>
+    <script src="js/features.js?v=9.66"></script>
+    <script src="js/app.js?v=9.66"></script>
+    <script src="js/store.js?v=9.66"></script>
+    <script src="js/checkout.js?v=9.66"></script>
+    <script src="js/auth.js?v=9.66"></script>
+    <script src="js/comments.js?v=9.66"></script>
+    <script src="js/support-chat.js?v=9.66"></script>
+    <script src="js/auto-retention.js?v=9.66"></script>
+    <script src="js/admin.js?v=9.66"></script>
+    <script src="js/cloudinary-admin.js?v=9.66"></script>
+    <script src="js/bind-globals.js?v=9.66"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

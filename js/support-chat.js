@@ -1125,6 +1125,9 @@ function hasSupportChatCapability() {
 
 window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride) {
     if (!isAdmin || !hasSupportChatCapability()) return showToast('You do not have permission to manage support chats.');
+    if (typeof isGuestCustomerRecord === 'function' && isGuestCustomerRecord({ uid, email })) {
+        return showToast('Guest checkout has no profile chat — use Support Inbox for anonymous visitors.');
+    }
     const threadId = threadIdOverride || getCustomerThreadIdForUser(uid);
     if (!threadId) return showToast('Unable to create a console thread.');
     window.supportChatState.adminThreadId = threadId;

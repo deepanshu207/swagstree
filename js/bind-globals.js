@@ -16,8 +16,44 @@
         });
     }
 
+    function bindPromoRow() {
+        const row = document.getElementById('checkout-promo-row');
+        if (!row || row.dataset.promoBound === '1') return;
+        row.dataset.promoBound = '1';
+        const open = () => {
+            if (typeof window.openPromoModal === 'function') window.openPromoModal();
+        };
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('.checkout-promo-row-remove')) return;
+            open();
+        });
+        row.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                open();
+            }
+        });
+    }
+
+    function bindPromoModalBackdrop() {
+        const modal = document.getElementById('promo-modal');
+        if (!modal || modal.dataset.backdropBound === '1') return;
+        modal.dataset.backdropBound = '1';
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal && typeof window.closePromoModal === 'function') {
+                window.closePromoModal();
+            }
+        });
+    }
+
     bindNavItems();
-    document.addEventListener('DOMContentLoaded', bindNavItems);
+    bindPromoRow();
+    bindPromoModalBackdrop();
+    document.addEventListener('DOMContentLoaded', () => {
+        bindNavItems();
+        bindPromoRow();
+        bindPromoModalBackdrop();
+    });
 
     const critical = [
         'navigateTo', 'showToast', 'closeModal', 'openCart', 'applyPromo', 'applyPromoFromModal',

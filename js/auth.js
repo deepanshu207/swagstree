@@ -910,6 +910,19 @@ function getCustomersPageLimit() {
     return val > 0 ? val : 10;
 }
 
+function isGuestCustomerRecord(customer) {
+    if (!customer) return true;
+    const uid = (customer.uid || '').toLowerCase();
+    if (uid.startsWith('guest_')) return true;
+    if (customer.isGuest === true) return true;
+    const email = (customer.email || '').trim();
+    const providers = customer.providers || [];
+    const hasAuthProvider = Array.isArray(providers)
+        && providers.some(p => p === 'google.com' || p === 'password');
+    return !email && !hasAuthProvider;
+}
+window.isGuestCustomerRecord = isGuestCustomerRecord;
+
 function getCustomerAuthBadge(data) {
     let methodLabel = "Email/Password";
     let badgeIcon = "fa-envelope";
@@ -976,7 +989,10 @@ function renderAllCustomersList(list) {
         const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
         const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
         const safeEmail = (data.email || '').replace(/'/g, "\\'");
-        const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
+        const canChat = !isGuestCustomerRecord(data)
+            && typeof hasAdminCapability === 'function'
+            && hasAdminCapability('manageSupportChat');
+        const chatBtn = canChat
             ? `<button class="btn-gold admin-customer-card__chat" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" title="Chat with customer"><i class="fa fa-comments"></i></button>`
             : '';
         const mergedNote = data._mergedAccountCount > 1
@@ -1315,13 +1331,21 @@ function renderSuperCustomersList(list) {
         const safeName = (c.displayName || 'Customer').replace(/'/g, "\\'");
         const mergedUidsParam = (c._mergedUids || [c.uid]).join(',');
 
+        const isGuestRecord = isGuestCustomerRecord(c);
+        const canManageChat = !isGuestRecord
+            && typeof hasAdminCapability === 'function'
+            && hasAdminCapability('manageSupportChat');
+        const guestChatHint = isGuestRecord
+            ? `<span style="font-size:10px; color:#666; font-style:italic;">Guest checkout — use Support Inbox for anonymous chats</span>`
+            : '';
         const actionButtons = isSelfOrSystem ? `
             <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
         ` : `
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
-            ${(typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat')) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>
+            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>` : ''}
+            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>` : ''}
+            ${guestChatHint}
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>

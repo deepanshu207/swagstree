@@ -633,19 +633,29 @@ async function renderPromoModalList() {
 window.renderPromoModalList = renderPromoModalList;
 
 async function openPromoModal() {
-    if (!window.checkoutPromoPickerEnabled) return;
+    await refreshPromosForCheckout();
+    if (!window.checkoutPromoPickerEnabled) {
+        showToast('Promo codes are not available right now');
+        return;
+    }
     const modal = document.getElementById('promo-modal');
     if (!modal) return;
     const promoInput = document.getElementById('promo-code');
     if (promoInput && !activePromo) promoInput.value = '';
     await renderPromoModalList();
     modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('promo-modal-open');
 }
 window.openPromoModal = openPromoModal;
 
 function closePromoModal() {
     const modal = document.getElementById('promo-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('promo-modal-open');
 }
 window.closePromoModal = closePromoModal;
 
