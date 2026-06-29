@@ -2449,7 +2449,7 @@ window.renderFooter = renderFooter;
 function openFooterPage(pageId) {
     // Save previous active section to return back to it
     const activeSection = document.querySelector('.section.active');
-    if (activeSection && activeSection.id !== 'about-view' && activeSection.id !== 'privacy-view') {
+    if (activeSection && activeSection.id !== 'about-view' && activeSection.id !== 'privacy-view' && activeSection.id !== 'promo-view') {
         footerPreviousSectionId = activeSection.id.replace('-view', '');
     }
 

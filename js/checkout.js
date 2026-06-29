@@ -490,7 +490,7 @@ async function applyPromo(forcedCode, options = {}) {
                     if (!usedSnap.empty) {
                         activePromo = null;
                         if (!silent) showToast("You have already used this promo code");
-                        if (closeModalAfter) closePromoModal();
+                        if (closeModalAfter) await closePromoView(false);
                         openCart();
                         return false;
                     }
@@ -507,7 +507,7 @@ async function applyPromo(forcedCode, options = {}) {
         if (!silent) showToast("Invalid or Expired Promo Code");
     }
 
-    if (closeModalAfter && applied) closePromoModal();
+    if (closeModalAfter && applied) await closePromoView(false);
     openCart();
     return applied;
 }
@@ -529,7 +529,7 @@ async function clearCheckoutPromo(event) {
     const promoInput = document.getElementById('promo-code');
     if (promoInput) promoInput.value = '';
     showToast('Promo removed');
-    closePromoModal();
+    await closePromoView(false);
     openCart();
 }
 window.clearCheckoutPromo = clearCheckoutPromo;
@@ -572,8 +572,14 @@ async function renderCheckoutPromoRow() {
 }
 window.renderCheckoutPromoRow = renderCheckoutPromoRow;
 
-async function renderPromoModalList() {
-    const listEl = document.getElementById('promo-modal-list');
+function buildGuestCustomerDocId(email) {
+    const normalized = (email || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return 'guest_' + normalized.replace(/[@.]/g, '_');
+}
+
+async function renderPromoViewList() {
+    const listEl = document.getElementById('promo-view-list');
     if (!listEl) return;
 
     await refreshPromosForCheckout();
@@ -581,7 +587,7 @@ async function renderPromoModalList() {
 
     if (!visiblePromos.length) {
         listEl.innerHTML = `
-            <div class="promo-modal-empty">
+            <div class="promo-view-empty">
                 <i class="fa fa-ticket-alt"></i>
                 No promo codes at the moment
             </div>`;
@@ -599,7 +605,7 @@ async function renderPromoModalList() {
                     .get();
                 if (!usedSnap.empty) usedCodes.add(promo.code);
             } catch (err) {
-                console.error('Error checking promo usage for modal:', err);
+                console.error('Error checking promo usage for list:', err);
             }
         }
     }
@@ -612,52 +618,79 @@ async function renderPromoModalList() {
             : 'Limited time offer';
         if (alreadyUsed) {
             return `
-                <button type="button" class="promo-modal-item" disabled>
+                <button type="button" class="promo-view-item" disabled>
                     <div>
-                        <div class="promo-modal-item-code">${promo.code}</div>
-                        <div class="promo-modal-item-desc">Already used · ${endHint}</div>
+                        <div class="promo-view-item-code">${promo.code}</div>
+                        <div class="promo-view-item-desc">Already used · ${endHint}</div>
                     </div>
-                    <span class="promo-modal-item-badge">${promo.discount}% OFF</span>
+                    <span class="promo-view-item-badge">${promo.discount}% OFF</span>
                 </button>`;
         }
         return `
-            <button type="button" class="promo-modal-item${isActive ? ' active' : ''}" onclick="selectCheckoutPromo('${promo.code}')">
+            <button type="button" class="promo-view-item${isActive ? ' active' : ''}" onclick="selectCheckoutPromo('${promo.code}')">
                 <div>
-                    <div class="promo-modal-item-code">${promo.code}</div>
-                    <div class="promo-modal-item-desc">${endHint}</div>
+                    <div class="promo-view-item-code">${promo.code}</div>
+                    <div class="promo-view-item-desc">${endHint}</div>
                 </div>
-                <span class="promo-modal-item-badge">${promo.discount}% OFF</span>
+                <span class="promo-view-item-badge">${promo.discount}% OFF</span>
             </button>`;
     }).join('');
 }
-window.renderPromoModalList = renderPromoModalList;
+window.renderPromoViewList = renderPromoViewList;
+window.renderPromoModalList = renderPromoViewList;
 
-async function openPromoModal() {
+let promoPreviousSectionId = 'home';
+let promoReturnToCart = false;
+
+async function openPromoView() {
     await refreshPromosForCheckout();
     if (!window.checkoutPromoPickerEnabled) {
         showToast('Promo codes are not available right now');
         return;
     }
-    const modal = document.getElementById('promo-modal');
-    if (!modal) return;
+
+    const activeSection = document.querySelector('.section.active');
+    if (activeSection && activeSection.id !== 'promo-view') {
+        promoPreviousSectionId = activeSection.id.replace('-view', '') || 'home';
+    }
+
+    const cartModal = document.getElementById('cart-modal');
+    promoReturnToCart = cartModal && cartModal.style.display === 'flex';
+    if (promoReturnToCart) closeModal('cart-modal');
+
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    const promoView = document.getElementById('promo-view');
+    if (!promoView) return;
+
     const promoInput = document.getElementById('promo-code');
     if (promoInput && !activePromo) promoInput.value = '';
-    await renderPromoModalList();
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('promo-modal-open');
-}
-window.openPromoModal = openPromoModal;
+    await renderPromoViewList();
+    promoView.classList.add('active');
+    window.scrollTo(0, 0);
 
-function closePromoModal() {
-    const modal = document.getElementById('promo-modal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.setAttribute('aria-hidden', 'true');
-    }
-    document.body.classList.remove('promo-modal-open');
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
-window.closePromoModal = closePromoModal;
+window.openPromoView = openPromoView;
+window.openPromoModal = openPromoView;
+
+async function closePromoView(reopenCartOverride) {
+    const shouldReopenCart = reopenCartOverride !== undefined ? reopenCartOverride : promoReturnToCart;
+    promoReturnToCart = false;
+
+    document.getElementById('promo-view')?.classList.remove('active');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    const prevView = document.getElementById(`${promoPreviousSectionId}-view`);
+    if (prevView) prevView.classList.add('active');
+    window.scrollTo(0, 0);
+
+    if (shouldReopenCart && typeof openCart === 'function') {
+        await openCart();
+    }
+
+    if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+}
+window.closePromoView = closePromoView;
+window.closePromoModal = closePromoView;
 
 function selectPayment(method) {
     document.querySelectorAll('.payment-chip').forEach(c => c.classList.remove('active'));
@@ -1435,6 +1468,24 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         } else {
             const newOrderRef = await db.collection('orders').add(orderDoc);
             docId = newOrderRef.id;
+        }
+
+        if (isGuest && emailVal) {
+            const guestDocId = buildGuestCustomerDocId(emailVal) || effectiveUid;
+            try {
+                await db.collection('users').doc(guestDocId).set({
+                    email: emailVal.trim().toLowerCase(),
+                    displayName: (n || '').trim() || emailVal.split('@')[0],
+                    phone: (p || '').trim(),
+                    isGuest: true,
+                    guestCheckout: true,
+                    lastOrderId: orderId,
+                    lastOrderUid: effectiveUid,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            } catch (guestProfileErr) {
+                console.error('Guest customer profile save failed:', guestProfileErr);
+            }
         }
         
         // --- STOCK DEDUCTION LOGIC ---

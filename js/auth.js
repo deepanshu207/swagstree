@@ -799,6 +799,7 @@ async function loadAllCustomers() {
         const rawCustomers = [];
         snap.forEach(doc => rawCustomers.push({ uid: doc.id, ...doc.data() }));
         allCustomersCache = deduplicateCustomersByEmail(rawCustomers);
+        allCustomersCache = await mergeGuestCheckoutCustomersFromOrders(allCustomersCache);
 
         allCustomersCache.sort((a, b) => {
             const tA = a.createdAt ? a.createdAt.toMillis() : 0;
@@ -912,9 +913,9 @@ function getCustomersPageLimit() {
 
 function isGuestCustomerRecord(customer) {
     if (!customer) return true;
+    if (customer.guestCheckout === true || customer.isGuest === true) return true;
     const uid = (customer.uid || '').toLowerCase();
     if (uid.startsWith('guest_')) return true;
-    if (customer.isGuest === true) return true;
     const email = (customer.email || '').trim();
     const providers = customer.providers || [];
     const hasAuthProvider = Array.isArray(providers)
@@ -923,7 +924,120 @@ function isGuestCustomerRecord(customer) {
 }
 window.isGuestCustomerRecord = isGuestCustomerRecord;
 
+function buildGuestCustomerDocId(email) {
+    const normalized = (email || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return 'guest_' + normalized.replace(/[@.]/g, '_');
+}
+
+function getCustomerDisplayName(customer) {
+    const name = (customer?.displayName || '').trim();
+    if (name) return name;
+    const email = (customer?.email || '').trim();
+    if (email) return email.split('@')[0];
+    const phone = (customer?.phone || '').trim();
+    if (phone) return `Guest • ${phone}`;
+    return isGuestCustomerRecord(customer) ? 'Guest Customer' : 'Unnamed User';
+}
+
+function getCustomerDisplayEmail(customer) {
+    return (customer?.email || '').trim();
+}
+
+async function mergeGuestCheckoutCustomersFromOrders(customers) {
+    try {
+        const snap = await db.collection('orders').orderBy('timestamp', 'desc').limit(400).get();
+        const byEmail = new Map();
+        const byUid = new Map();
+
+        (customers || []).forEach(c => {
+            const email = getCustomerDisplayEmail(c).toLowerCase();
+            if (email) byEmail.set(email, c);
+            if (c.uid) byUid.set(c.uid, c);
+        });
+
+        snap.forEach(doc => {
+            const o = doc.data();
+            if (!o.isGuest) return;
+            const email = (o.email || '').trim().toLowerCase();
+            const patch = {
+                email,
+                displayName: (o.recipient || '').trim(),
+                phone: (o.phone || '').trim(),
+                timestamp: o.timestamp
+            };
+
+            if (o.uid && byUid.has(o.uid) && !getCustomerDisplayEmail(byUid.get(o.uid))) {
+                const existing = byUid.get(o.uid);
+                existing.email = patch.email || existing.email;
+                existing.displayName = existing.displayName || patch.displayName;
+                existing.phone = existing.phone || patch.phone;
+                existing.guestCheckout = true;
+                existing.isGuest = true;
+                if (email) byEmail.set(email, existing);
+                return;
+            }
+
+            if (!email) return;
+            if (byEmail.has(email)) {
+                const existing = byEmail.get(email);
+                existing.displayName = existing.displayName || patch.displayName || email.split('@')[0];
+                existing.phone = existing.phone || patch.phone;
+                existing.guestCheckout = true;
+                existing.isGuest = true;
+                return;
+            }
+
+            const guestId = buildGuestCustomerDocId(email) || o.uid || `guest_${doc.id}`;
+            if (byUid.has(guestId)) return;
+
+            const guestCustomer = {
+                uid: guestId,
+                email,
+                displayName: patch.displayName || email.split('@')[0],
+                phone: patch.phone || '',
+                isGuest: true,
+                guestCheckout: true,
+                createdAt: patch.timestamp || null,
+                _fromGuestOrder: true
+            };
+            customers.push(guestCustomer);
+            byEmail.set(email, guestCustomer);
+            byUid.set(guestId, guestCustomer);
+        });
+
+        return customers.map(c => {
+            if (getCustomerDisplayEmail(c)) {
+                return {
+                    ...c,
+                    displayName: getCustomerDisplayName(c)
+                };
+            }
+            const fromUid = byUid.get(c.uid);
+            if (fromUid && getCustomerDisplayEmail(fromUid)) {
+                return {
+                    ...c,
+                    email: fromUid.email,
+                    displayName: getCustomerDisplayName({ ...c, email: fromUid.email }),
+                    phone: c.phone || fromUid.phone || '',
+                    guestCheckout: true,
+                    isGuest: true
+                };
+            }
+            return c;
+        });
+    } catch (e) {
+        console.warn('mergeGuestCheckoutCustomersFromOrders failed:', e);
+        return customers;
+    }
+}
+window.mergeGuestCheckoutCustomersFromOrders = mergeGuestCheckoutCustomersFromOrders;
+
 function getCustomerAuthBadge(data) {
+    if (data?.guestCheckout === true || (data?.isGuest === true && !((data.providers || []).some(p => p === 'google.com' || p === 'password')))) {
+        return { methodLabel: "Guest Checkout", badgeIcon: "fa-user-secret", badgeColor: "#888" };
+    }
+
     let methodLabel = "Email/Password";
     let badgeIcon = "fa-envelope";
     let badgeColor = "var(--gold)";
@@ -987,8 +1101,9 @@ function renderAllCustomersList(list) {
     let html = '';
     itemsToRender.forEach(data => {
         const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
-        const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
-        const safeEmail = (data.email || '').replace(/'/g, "\\'");
+        const safeName = getCustomerDisplayName(data).replace(/'/g, "\\'");
+        const safeEmail = getCustomerDisplayEmail(data).replace(/'/g, "\\'");
+        const displayEmail = getCustomerDisplayEmail(data) || (isGuestCustomerRecord(data) ? 'No email on file' : 'No email');
         const canChat = !isGuestCustomerRecord(data)
             && typeof hasAdminCapability === 'function'
             && hasAdminCapability('manageSupportChat');
@@ -1003,14 +1118,14 @@ function renderAllCustomersList(list) {
         html += `
             <div class="admin-customer-card">
                 <div class="admin-customer-card__avatar">
-                    ${(data.displayName || data.email || 'U').charAt(0).toUpperCase()}
+                    ${getCustomerDisplayName(data).charAt(0).toUpperCase()}
                 </div>
                 <div class="admin-customer-card__body">
                     <div class="admin-customer-card__header">
-                        <div class="admin-customer-card__name">${data.displayName || 'Unnamed User'}</div>
+                        <div class="admin-customer-card__name">${getCustomerDisplayName(data)}</div>
                         ${authBadge}
                     </div>
-                    <div class="admin-customer-card__meta">${data.email || 'No email'}${data.phone ? ' • ' + data.phone : ''}</div>
+                    <div class="admin-customer-card__meta">${displayEmail}${data.phone ? ' • ' + data.phone : ''}</div>
                     <div class="admin-customer-card__joined">Joined: ${date}</div>
                     ${mergedNote}
                 </div>
@@ -1277,6 +1392,7 @@ async function loadSuperCustomers() {
             });
         });
         superCustomersCache = deduplicateCustomersByEmail(rawCustomers);
+        superCustomersCache = await mergeGuestCheckoutCustomersFromOrders(superCustomersCache);
 
         superCustomersCache.sort((a, b) => {
             const nameA = (a.displayName || a.email || '').toLowerCase();
@@ -1328,10 +1444,11 @@ function renderSuperCustomersList(list) {
             ? `<div style="font-size:10px; color:#888; margin-top:4px;">Merged ${c._mergedAccountCount} duplicate logins (Google / Email)</div>`
             : '';
         const authBadge = buildCustomerAuthBadgeHtml(c);
-        const safeName = (c.displayName || 'Customer').replace(/'/g, "\\'");
-        const mergedUidsParam = (c._mergedUids || [c.uid]).join(',');
-
         const isGuestRecord = isGuestCustomerRecord(c);
+        const safeName = getCustomerDisplayName(c).replace(/'/g, "\\'");
+        const mergedUidsParam = (c._mergedUids || [c.uid]).join(',');
+        const displayEmail = getCustomerDisplayEmail(c) || (isGuestRecord ? 'No email on file' : 'No email');
+
         const canManageChat = !isGuestRecord
             && typeof hasAdminCapability === 'function'
             && hasAdminCapability('manageSupportChat');
@@ -1356,14 +1473,14 @@ function renderSuperCustomersList(list) {
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 8px;">
                     <div style="display:flex; align-items:flex-start; gap:10px; flex-shrink: 1; min-width: 0;">
                         <div style="width:35px; height:35px; border-radius:50%; background:#333; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--gold); font-size:14px; flex-shrink: 0;">
-                            ${(c.displayName || c.email || 'U').charAt(0).toUpperCase()}
+                            ${getCustomerDisplayName(c).charAt(0).toUpperCase()}
                         </div>
                         <div style="flex-shrink: 1; min-width: 0;">
                             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0;">
-                                <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width:100%;">${c.displayName || 'Unnamed User'}</div>
+                                <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width:100%;">${getCustomerDisplayName(c)}</div>
                                 ${authBadge}
                             </div>
-                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'}${c.phone ? ' • ' + c.phone : ''}</div>
+                            <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayEmail}${c.phone ? ' • ' + c.phone : ''}</div>
                             ${mergedNote}
                         </div>
                     </div>
