@@ -180,6 +180,13 @@ const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
             // Profile & Orders page limit
             ordersPageLimitSetting = typeof data.ordersLimit === 'number' ? data.ordersLimit : 20;
             displayedOrdersLimit = ordersPageLimitSetting;
+
+            // Customers page limit (Manage Customers / All Customers)
+            customersPageLimitSetting = typeof data.customersLimit === 'number' ? data.customersLimit : 10;
+            displayedAllCustomersLimit = customersPageLimitSetting;
+            if (typeof displayedSuperCustomersLimit !== 'undefined') {
+                displayedSuperCustomersLimit = customersPageLimitSetting;
+            }
             
             if (typeof renderStore === 'function') renderStore();
         }

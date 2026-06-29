@@ -1164,6 +1164,16 @@ window.loadPaginationSettings = async function() {
                 if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = val;
                 if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = val;
             }
+
+            // Customers limit
+            if (typeof data.customersLimit !== 'undefined') {
+                const val = data.customersLimit;
+                const inp = document.getElementById('admin-customers-page-limit');
+                if (inp) inp.value = val;
+                if (typeof customersPageLimitSetting !== 'undefined') customersPageLimitSetting = val;
+                if (typeof displayedAllCustomersLimit !== 'undefined') displayedAllCustomersLimit = val;
+                if (typeof displayedSuperCustomersLimit !== 'undefined') displayedSuperCustomersLimit = val;
+            }
         }
         if (typeof window.loadAdminFeatureContent === 'function') {
             window.loadAdminFeatureContent();
@@ -1176,6 +1186,7 @@ window.loadPaginationSettings = async function() {
 window.savePaginationSettings = async function() {
     const inp = document.getElementById('admin-products-page-limit');
     const inpOrders = document.getElementById('admin-orders-page-limit');
+    const inpCustomers = document.getElementById('admin-customers-page-limit');
     
     let val = 20;
     if (inp) {
@@ -1190,9 +1201,16 @@ window.savePaginationSettings = async function() {
         if (isNaN(valOrders) || valOrders < 1) valOrders = 20;
         inpOrders.value = valOrders;
     }
+
+    let valCustomers = 10;
+    if (inpCustomers) {
+        valCustomers = parseInt(inpCustomers.value, 10);
+        if (isNaN(valCustomers) || valCustomers < 1) valCustomers = 10;
+        inpCustomers.value = valCustomers;
+    }
     
     try {
-        const payload = { limit: val, ordersLimit: valOrders };
+        const payload = { limit: val, ordersLimit: valOrders, customersLimit: valCustomers };
         await db.collection('settings').doc('pagination').set(payload, { merge: true });
         
         if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
@@ -1201,10 +1219,16 @@ window.savePaginationSettings = async function() {
         
         if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = valOrders;
         if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = valOrders;
+
+        if (typeof customersPageLimitSetting !== 'undefined') customersPageLimitSetting = valCustomers;
+        if (typeof displayedAllCustomersLimit !== 'undefined') displayedAllCustomersLimit = valCustomers;
+        if (typeof displayedSuperCustomersLimit !== 'undefined') displayedSuperCustomersLimit = valCustomers;
         
         showToast('✅ Pagination settings saved successfully!');
         if (typeof renderStore === 'function') renderStore();
         if (typeof loadOrders === 'function') loadOrders();
+        if (typeof filterSuperCustomers === 'function') filterSuperCustomers();
+        if (typeof filterAllCustomers === 'function') filterAllCustomers();
     } catch(e) {
         console.error('savePaginationSettings error:', e);
         showToast('Failed to save pagination settings');

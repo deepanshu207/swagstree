@@ -777,6 +777,7 @@ async function loadAllCustomers() {
 
     const searchInput = document.getElementById('admin-customer-search');
     if (searchInput) searchInput.value = '';
+    displayedAllCustomersLimit = getCustomersPageLimit();
 
     container.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
@@ -793,8 +794,9 @@ async function loadAllCustomers() {
             return;
         }
 
-        allCustomersCache = [];
-        snap.forEach(doc => allCustomersCache.push({ uid: doc.id, ...doc.data() }));
+        const rawCustomers = [];
+        snap.forEach(doc => rawCustomers.push({ uid: doc.id, ...doc.data() }));
+        allCustomersCache = deduplicateCustomersByEmail(rawCustomers);
 
         allCustomersCache.sort((a, b) => {
             const tA = a.createdAt ? a.createdAt.toMillis() : 0;
@@ -831,6 +833,65 @@ function matchCustomerSearch(customer, query) {
     if (qDigits.length >= 3 && phoneDigits.includes(qDigits)) return true;
     if (q.includes('@') && email.includes(q)) return true;
     return false;
+}
+
+function getCustomerDedupeScore(customer) {
+    let score = 0;
+    const providers = customer.providers || [];
+    const hasGoogle = providers.includes('google.com');
+    const hasPassword = providers.includes('password');
+    if (hasGoogle && hasPassword) score += 1000;
+    else if (hasGoogle || hasPassword) score += 500;
+    if (customer.displayName) score += 50;
+    if (customer.phone) score += 30;
+    if (customer.status !== 'deactivated') score += 100;
+    score += (customer.createdAt?.toMillis?.() || 0) / 1e15;
+    return score;
+}
+
+function deduplicateCustomersByEmail(customers) {
+    const byEmail = new Map();
+    const withoutEmail = [];
+
+    customers.forEach(customer => {
+        const email = (customer.email || '').trim().toLowerCase();
+        if (!email) {
+            withoutEmail.push(customer);
+            return;
+        }
+
+        const existing = byEmail.get(email);
+        if (!existing) {
+            byEmail.set(email, {
+                primary: customer,
+                mergedCount: 1,
+                mergedUids: [customer.uid]
+            });
+            return;
+        }
+
+        existing.mergedCount += 1;
+        existing.mergedUids.push(customer.uid);
+        if (getCustomerDedupeScore(customer) > getCustomerDedupeScore(existing.primary)) {
+            existing.primary = customer;
+        }
+    });
+
+    const deduped = [];
+    byEmail.forEach(({ primary, mergedCount, mergedUids }) => {
+        deduped.push({
+            ...primary,
+            _mergedAccountCount: mergedCount > 1 ? mergedCount : undefined,
+            _mergedUids: mergedCount > 1 ? mergedUids : undefined
+        });
+    });
+
+    return deduped.concat(withoutEmail);
+}
+
+function getCustomersPageLimit() {
+    const val = typeof customersPageLimitSetting !== 'undefined' ? customersPageLimitSetting : 10;
+    return val > 0 ? val : 10;
 }
 
 function getCustomerAuthBadge(data) {
@@ -871,19 +932,35 @@ function renderAllCustomersList(list) {
     const container = document.getElementById('all-customers-list');
     if (!container) return;
 
+    const lmContainer = document.getElementById('all-customers-load-more-container');
+
     if (!list.length) {
         container.innerHTML = `<p style="text-align:center; color:#555;">No matching customers found.</p>`;
+        if (lmContainer) lmContainer.innerHTML = '';
         return;
     }
 
+    let itemsToRender = list;
+    if (list.length > displayedAllCustomersLimit) {
+        itemsToRender = list.slice(0, displayedAllCustomersLimit);
+        if (lmContainer) {
+            lmContainer.innerHTML = `<button class="btn-gold" style="width:auto; padding:8px 16px; font-size:11px;" onclick="loadMoreAllCustomers()"><i class="fa fa-chevron-down"></i> Load More</button>`;
+        }
+    } else if (lmContainer) {
+        lmContainer.innerHTML = '';
+    }
+
     let html = '';
-    list.forEach(data => {
+    itemsToRender.forEach(data => {
         const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : 'Unknown';
         const { methodLabel, badgeIcon, badgeColor } = getCustomerAuthBadge(data);
         const safeName = (data.displayName || 'Unnamed User').replace(/'/g, "\\'");
         const safeEmail = (data.email || '').replace(/'/g, "\\'");
         const chatBtn = (typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat'))
             ? `<button class="btn-gold admin-customer-card__chat" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" title="Chat with customer"><i class="fa fa-comments"></i></button>`
+            : '';
+        const mergedNote = data._mergedAccountCount > 1
+            ? `<div class="admin-customer-card__merged">Merged ${data._mergedAccountCount} duplicate logins (Google / Email)</div>`
             : '';
 
         html += `
@@ -900,6 +977,7 @@ function renderAllCustomersList(list) {
                     </div>
                     <div class="admin-customer-card__meta">${data.email || 'No email'}${data.phone ? ' • ' + data.phone : ''}</div>
                     <div class="admin-customer-card__joined">Joined: ${date}</div>
+                    ${mergedNote}
                 </div>
                 ${chatBtn}
             </div>
@@ -917,7 +995,19 @@ function filterAllCustomers() {
     const filtered = allCustomersCache.filter(c => matchCustomerSearch(c, q));
     renderAllCustomersList(filtered);
 }
+
+function resetAllCustomerLimitAndFilter() {
+    displayedAllCustomersLimit = getCustomersPageLimit();
+    filterAllCustomers();
+}
+
+function loadMoreAllCustomers() {
+    displayedAllCustomersLimit += getCustomersPageLimit();
+    filterAllCustomers();
+}
 window.filterAllCustomers = filterAllCustomers;
+window.resetAllCustomerLimitAndFilter = resetAllCustomerLimitAndFilter;
+window.loadMoreAllCustomers = loadMoreAllCustomers;
 
 // ── SUPERADMIN CAPABILITIES ──────────────────────────────────────────────────
 
@@ -1121,14 +1211,14 @@ async function toggleAdminStatus(email, currentStatus) {
 // 2. Manage Customers
 let superCustomersCache = [];
 let allCustomersCache = [];
-let displayedSuperCustomersLimit = 20;
+let displayedSuperCustomersLimit = 10;
 
 async function loadSuperCustomers() {
     if (!isSuperAdmin) return;
     const container = document.getElementById('super-customer-list');
     if (!container) return;
 
-    displayedSuperCustomersLimit = 20;
+    displayedSuperCustomersLimit = getCustomersPageLimit();
     container.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 0; gap:12px; width:100%;">
             <div class="premium-loader"></div>
@@ -1144,13 +1234,14 @@ async function loadSuperCustomers() {
             return;
         }
 
-        superCustomersCache = [];
+        const rawCustomers = [];
         snap.forEach(doc => {
-            superCustomersCache.push({
+            rawCustomers.push({
                 uid: doc.id,
                 ...doc.data()
             });
         });
+        superCustomersCache = deduplicateCustomersByEmail(rawCustomers);
 
         superCustomersCache.sort((a, b) => {
             const nameA = (a.displayName || a.email || '').toLowerCase();
@@ -1198,6 +1289,9 @@ function renderSuperCustomersList(list) {
         
         const emailLower = (c.email || '').toLowerCase();
         const isSelfOrSystem = emailLower === SUPER_ADMIN_EMAIL.toLowerCase() || emailLower === ADMIN_EMAIL.toLowerCase();
+        const mergedNote = c._mergedAccountCount > 1
+            ? `<div style="font-size:10px; color:#888; margin-top:4px;">Merged ${c._mergedAccountCount} duplicate logins (Google / Email)</div>`
+            : '';
 
         const actionButtons = isSelfOrSystem ? `
             <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
@@ -1219,6 +1313,7 @@ function renderSuperCustomersList(list) {
                         <div style="flex-shrink: 1; min-width: 0;">
                             <div style="font-weight:700; font-size:13px; color:#eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.displayName || 'Unnamed User'}</div>
                             <div style="color:#888; font-size:11px; margin-top:2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.email || 'No email'} ${c.phone ? ' • ' + c.phone : ''}</div>
+                            ${mergedNote}
                         </div>
                     </div>
                     <span style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; color:${statusColor}; background:${statusBg}; border:1px solid ${statusColor}33; text-transform:uppercase; letter-spacing:0.5px; flex-shrink: 0;">${statusText}</span>
@@ -1244,12 +1339,12 @@ function filterSuperCustomers() {
 }
 
 function resetSuperCustomerLimitAndFilter() {
-    displayedSuperCustomersLimit = 20;
+    displayedSuperCustomersLimit = getCustomersPageLimit();
     filterSuperCustomers();
 }
 
 function loadMoreSuperCustomers() {
-    displayedSuperCustomersLimit += 20;
+    displayedSuperCustomersLimit += getCustomersPageLimit();
     filterSuperCustomers();
 }
 

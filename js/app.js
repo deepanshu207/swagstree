@@ -25,6 +25,7 @@ var isSuperAdmin = false;
 var assignedAdmins = [];
 var productsPageLimitSetting = 20;
 var ordersPageLimitSetting = 20;
+var customersPageLimitSetting = 10;
 var editingId = null;
 
 // UI State
@@ -45,6 +46,7 @@ var confirmationResult = null; // Used for SMS OTP fallback
 var displayedProductsLimit = 20;
 var displayedWishlistLimit = 20;
 var displayedOrdersLimit = 20;
+var displayedAllCustomersLimit = 10;
 var ordersUnsubscribe = null;
 
 // 3. UTILITIES

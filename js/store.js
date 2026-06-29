@@ -18,9 +18,11 @@ if (typeof window.productsLoaded === 'undefined') window.productsLoaded = false;
 
 if (typeof window.productsPageLimitSetting === 'undefined') window.productsPageLimitSetting = 20;
 if (typeof window.ordersPageLimitSetting === 'undefined') window.ordersPageLimitSetting = 20;
+if (typeof window.customersPageLimitSetting === 'undefined') window.customersPageLimitSetting = 10;
 if (typeof window.displayedProductsLimit === 'undefined') window.displayedProductsLimit = window.productsPageLimitSetting;
 if (typeof window.displayedWishlistLimit === 'undefined') window.displayedWishlistLimit = window.productsPageLimitSetting;
 if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLimit = window.ordersPageLimitSetting;
+if (typeof window.displayedAllCustomersLimit === 'undefined') window.displayedAllCustomersLimit = window.customersPageLimitSetting;
 if (typeof window.ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
 if (typeof window.deepLinkHandled === 'undefined') window.deepLinkHandled = false;
 
