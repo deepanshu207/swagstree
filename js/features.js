@@ -1249,12 +1249,12 @@ function applyFeatureTogglesUI() {
         }
     }
     
-    // AI Support Chat (floating + home header icon)
-    const aiChatBtn = document.getElementById('ai-chat-trigger');
+    // AI Support Chat (header icon on home — no duplicate floating bot)
     const headerChatBtn = document.getElementById('header-support-chat-btn');
+    const floatBtn = document.getElementById('ai-chat-trigger');
     const showChat = !!config.aiChatbot;
-    if (aiChatBtn) aiChatBtn.style.display = showChat ? 'grid' : 'none';
     if (headerChatBtn) headerChatBtn.style.display = showChat ? 'flex' : 'none';
+    if (floatBtn) floatBtn.style.display = 'none';
     if (!showChat) {
         const box = document.getElementById('ai-chat-box');
         if (box) box.style.display = 'none';

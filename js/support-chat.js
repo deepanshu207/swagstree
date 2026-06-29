@@ -100,8 +100,8 @@ async function persistSupportMessage(threadId, msg) {
     const payload = stripUndefinedFields({
         ...msg,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        readByCustomer: msg.sender === 'customer' || msg.sender === 'ai',
-        readByAdmin: msg.sender === 'admin' || msg.sender === 'ai'
+        readByCustomer: msg.sender === 'customer' || msg.sender === 'bot' || msg.sender === 'ai',
+        readByAdmin: msg.sender === 'admin' || msg.sender === 'bot' || msg.sender === 'ai'
     });
     await msgRef.set(payload);
     const unreadByAdmin = msg.sender === 'customer' ? firebase.firestore.FieldValue.increment(1) : 0;
@@ -343,13 +343,17 @@ async function handleSupportCustomerMessage(text) {
 
     window.supportChatState.loaded = true;
     appendSupportBubble('customer', text);
-    await persistSupportMessage(threadId, {
-        sender: 'customer',
-        text,
-        type: 'text',
-        customerName: profile.name,
-        customerEmail: profile.email
-    });
+    try {
+        await persistSupportMessage(threadId, {
+            sender: 'customer',
+            text,
+            type: 'text',
+            customerName: profile.name,
+            customerEmail: profile.email
+        });
+    } catch (e) {
+        console.warn('Could not persist customer message:', e);
+    }
 
     const threadSnap = await db.collection('support_threads').doc(threadId).get();
     const threadData = threadSnap.exists ? threadSnap.data() : {};
@@ -367,16 +371,23 @@ async function handleSupportCustomerMessage(text) {
         appendSupportBubble('bot', reply.text, reply.extraHtml || '');
         if (reply.products && reply.products.length) appendSupportProductCards(reply.products);
 
-        await persistSupportMessage(threadId, {
-            sender: 'ai',
+        const aiMsg = {
+            sender: 'bot',
             text: reply.text,
-            type: reply.products ? 'product_suggest' : 'text',
-            escalated: !!reply.escalate
-        });
+            type: reply.products ? 'product_suggest' : 'text'
+        };
+        if (reply.escalate) aiMsg.escalated = true;
+
+        try {
+            await persistSupportMessage(threadId, aiMsg);
+        } catch (persistErr) {
+            console.warn('Could not persist AI reply (shown locally):', persistErr);
+        }
 
         if (reply.escalate) updateSupportChatHeader('human', true);
     } catch (e) {
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
+        console.error('Support chat reply failed:', e);
         appendSupportBubble('bot', 'Something went wrong. Please try again or tap **Talk to admin**.');
     }
 }
@@ -682,7 +693,8 @@ function updateSupportChatVisibility() {
     const headerBtn = document.getElementById('header-support-chat-btn');
     const floatBtn = document.getElementById('ai-chat-trigger');
     if (headerBtn) headerBtn.style.display = enabled ? 'flex' : 'none';
-    if (floatBtn) floatBtn.style.display = enabled ? 'grid' : 'none';
+    // Use header icon on home; hide duplicate floating bot when enabled
+    if (floatBtn) floatBtn.style.display = 'none';
     if (!enabled) {
         const box = document.getElementById('ai-chat-box');
         if (box) box.style.display = 'none';

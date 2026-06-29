@@ -227,31 +227,25 @@
                 data-i18n="search_placeholder">
         </div>
         <div class="catalog-controls-row">
-            <span id="product-count" class="count-badge" style="display:none;"></span>
+            <span id="product-count" class="count-badge catalog-count-label" style="display:none;"></span>
 
-            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <div class="catalog-controls-actions">
                 <!-- Support Chat Button -->
-                <div id="header-support-chat-btn" onclick="openSupportChat()"
-                    style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
-                    <i class="fa fa-comments" style="color:var(--gold); font-size:12px;"></i>
-                    <span id="header-support-chat-badge"
-                        style="display:none; position:absolute; top:-3px; right:-3px; min-width:14px; height:14px; padding:0 3px; border-radius:8px; background:#ff4757; color:#fff; font-size:8px; font-weight:700; line-height:14px; text-align:center; box-shadow:0 0 6px #ff4757;"></span>
+                <div id="header-support-chat-btn" onclick="openSupportChat()" class="catalog-icon-btn" style="display:none;">
+                    <i class="fa fa-comments"></i>
+                    <span id="header-support-chat-badge" class="catalog-icon-badge"></span>
                 </div>
                 <!-- Announcement Megaphone Button -->
-                <div id="announcement-bell-btn" onclick="openAnnouncementModal()"
-                    style="display:none; position:relative; cursor:pointer; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#111; border:1px solid #222; transition:all 0.3s ease; flex-shrink:0;">
-                    <i class="fa fa-bullhorn" style="color:#777; font-size:12px; opacity:0.6;"></i>
-                    <span id="announcement-badge"
-                        style="display:none; position:absolute; top:-2px; right:-2px; width:7px; height:7px; border-radius:50%; background:#ff4757; box-shadow:0 0 6px #ff4757;"></span>
+                <div id="announcement-bell-btn" onclick="openAnnouncementModal()" class="catalog-icon-btn" style="display:none;">
+                    <i class="fa fa-bullhorn"></i>
+                    <span id="announcement-badge" class="catalog-announcement-badge"></span>
                 </div>
 
                 <!-- Sort Container -->
-                <div id="sort-logic-container" style="display:none; align-items:center; flex-shrink:0;">
-                    <div class="select-wrapper" style="margin: 0; min-width: 120px; position:relative;">
-                        <i class="fa fa-sort"
-                            style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#ffd700; font-size:10px; pointer-events:none; z-index:10;"></i>
-                        <select id="sort-logic" class="premium-select"
-                            style="padding: 4px 8px 4px 22px; font-size: 10px; height: 30px; margin-bottom: 0; border: 1px solid #222; background-color: #111; color: #fff; border-radius: 8px; cursor:pointer;"
+                <div id="sort-logic-container" class="catalog-sort-wrap" style="display:none;">
+                    <div class="select-wrapper catalog-sort-select">
+                        <i class="fa fa-sort catalog-sort-icon"></i>
+                        <select id="sort-logic" class="premium-select catalog-sort-dropdown"
                             onchange="changeSortLogic(this.value, 'main')">
                             <option value="none" data-i18n="default_sorting">Default Sort</option>
                             <option value="low" data-i18n="low_high">Price: Low to High</option>
@@ -2365,14 +2359,14 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.33"></script>
-    <script src="js/app.js?v=9.33"></script>
-    <script src="js/store.js?v=9.33"></script>
-    <script src="js/checkout.js?v=9.33"></script>
-    <script src="js/auth.js?v=9.33"></script>
-    <script src="js/comments.js?v=9.33"></script>
-    <script src="js/support-chat.js?v=9.33"></script>
-    <script src="js/admin.js?v=9.33"></script>
+    <script src="js/features.js?v=9.34"></script>
+    <script src="js/app.js?v=9.34"></script>
+    <script src="js/store.js?v=9.34"></script>
+    <script src="js/checkout.js?v=9.34"></script>
+    <script src="js/auth.js?v=9.34"></script>
+    <script src="js/comments.js?v=9.34"></script>
+    <script src="js/support-chat.js?v=9.34"></script>
+    <script src="js/admin.js?v=9.34"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">
