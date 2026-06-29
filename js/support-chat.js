@@ -38,6 +38,14 @@ function escHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function stripUndefinedFields(obj) {
+    const clean = {};
+    Object.keys(obj).forEach(key => {
+        if (obj[key] !== undefined) clean[key] = obj[key];
+    });
+    return clean;
+}
+
 function getGuestSessionId() {
     let id = localStorage.getItem('swag_support_guest_id');
     if (!id) {
@@ -89,22 +97,22 @@ async function ensureSupportThread(threadId, profile) {
 async function persistSupportMessage(threadId, msg) {
     const threadRef = db.collection('support_threads').doc(threadId);
     const msgRef = threadRef.collection('messages').doc();
-    const payload = {
+    const payload = stripUndefinedFields({
         ...msg,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         readByCustomer: msg.sender === 'customer' || msg.sender === 'ai',
         readByAdmin: msg.sender === 'admin' || msg.sender === 'ai'
-    };
+    });
     await msgRef.set(payload);
     const unreadByAdmin = msg.sender === 'customer' ? firebase.firestore.FieldValue.increment(1) : 0;
     const unreadByCustomer = msg.sender === 'admin' ? firebase.firestore.FieldValue.increment(1) : 0;
     const update = {
         lastMessageAt: firebase.firestore.FieldValue.serverTimestamp(),
         lastMessagePreview: (msg.text || '').slice(0, 120),
-        lastMessageSender: msg.sender,
-        customerName: msg.customerName || undefined,
-        customerEmail: msg.customerEmail || undefined
+        lastMessageSender: msg.sender
     };
+    if (msg.customerName) update.customerName = msg.customerName;
+    if (msg.customerEmail) update.customerEmail = msg.customerEmail;
     if (msg.sender === 'customer') update.unreadByAdmin = unreadByAdmin;
     if (msg.sender === 'admin') update.unreadByCustomer = unreadByCustomer;
     if (msg.escalated) {
