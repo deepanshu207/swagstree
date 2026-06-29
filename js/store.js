@@ -514,34 +514,48 @@ function isProductOutOfStock(p) {
 }
 window.isProductOutOfStock = isProductOutOfStock;
 
-function formatCatalogProductCount(visible, total) {
-    const narrow = typeof window.innerWidth === 'number' && window.innerWidth < 380;
-    const chatBtn = document.getElementById('header-support-chat-btn');
-    const annBtn = document.getElementById('announcement-bell-btn');
-    const chatOn = !!(window.APP_FEATURES?.aiChatbot) && chatBtn && chatBtn.style.display !== 'none';
-    const annOn = window.APP_FEATURES?.announcementBell !== false && annBtn && annBtn.style.display !== 'none';
-    const useCompact = narrow && chatOn && annOn;
+function formatCatalogProductCount(visible, total, variant) {
+    const v = Number(visible) || 0;
+    const t = Number(total) || 0;
+    const useShort = variant === 'short';
     if (typeof window.getI18nText === 'function') {
-        return useCompact
-            ? window.getI18nText('showing_products_compact', { visible, total })
-            : window.getI18nText('showing_products', { visible, total });
+        return useShort
+            ? window.getI18nText('showing_products_short', { visible: v, total: t })
+            : window.getI18nText('showing_products', { visible: v, total: t });
     }
-    return useCompact
-        ? `Showing ${visible} of ${total}`
-        : `Showing ${visible} of ${total} Products`;
+    return useShort
+        ? `Showing ${v} of ${t} Pro...`
+        : `Showing ${v} of ${t} Products`;
+}
+
+function applyCatalogCountLabel(el, visible, total) {
+    if (!el) return;
+    el.dataset.visible = String(visible);
+    el.dataset.total = String(total);
+    el.textContent = formatCatalogProductCount(visible, total, 'full');
+    el.style.display = 'inline-flex';
+
+    requestAnimationFrame(() => {
+        if (!el.isConnected) return;
+        if (el.scrollWidth > el.clientWidth + 2) {
+            el.textContent = formatCatalogProductCount(visible, total, 'short');
+        }
+    });
 }
 
 window.refreshCatalogCountLabels = function() {
     const productCount = document.getElementById('product-count');
     const wishCount = document.getElementById('wish-count');
     if (productCount && productCount.style.display !== 'none' && productCount.dataset.visible != null) {
-        productCount.textContent = formatCatalogProductCount(
+        applyCatalogCountLabel(
+            productCount,
             Number(productCount.dataset.visible),
             Number(productCount.dataset.total)
         );
     }
     if (wishCount && wishCount.style.display !== 'none' && wishCount.dataset.visible != null) {
-        wishCount.textContent = formatCatalogProductCount(
+        applyCatalogCountLabel(
+            wishCount,
             Number(wishCount.dataset.visible),
             Number(wishCount.dataset.total)
         );
@@ -605,10 +619,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.textContent = formatCatalogProductCount(0, 0);
-                countContainer.dataset.visible = '0';
-                countContainer.dataset.total = '0';
-                countContainer.style.display = 'inline-flex';
+                applyCatalogCountLabel(countContainer, 0, 0);
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
@@ -630,10 +641,7 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedProductsLimit);
-            countContainer.textContent = formatCatalogProductCount(visible, items.length);
-            countContainer.dataset.visible = String(visible);
-            countContainer.dataset.total = String(items.length);
-            countContainer.style.display = 'inline-flex';
+            applyCatalogCountLabel(countContainer, visible, items.length);
         }
         if (sortLogicContainer) {
             sortLogicContainer.style.display = 'flex';
@@ -717,10 +725,7 @@ function renderProducts(items, targetId) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products in wishlist yet.</p>`;
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
-                countContainer.textContent = formatCatalogProductCount(0, 0);
-                countContainer.dataset.visible = '0';
-                countContainer.dataset.total = '0';
-                countContainer.style.display = 'inline-flex';
+                applyCatalogCountLabel(countContainer, 0, 0);
             }
             if (sortLogicContainer) sortLogicContainer.style.display = 'none';
             return;
@@ -742,10 +747,7 @@ function renderProducts(items, targetId) {
 
         if (countContainer) {
             const visible = Math.min(items.length, displayedWishlistLimit);
-            countContainer.textContent = formatCatalogProductCount(visible, items.length);
-            countContainer.dataset.visible = String(visible);
-            countContainer.dataset.total = String(items.length);
-            countContainer.style.display = 'inline-flex';
+            applyCatalogCountLabel(countContainer, visible, items.length);
         }
         if (sortLogicContainer) {
             sortLogicContainer.style.display = 'flex';
