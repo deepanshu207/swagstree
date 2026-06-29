@@ -127,6 +127,24 @@ function resolveCssColor(colorVal) {
     return cleanColor;
 }
 
+function buildEmailProductThumbnail(imageUrl, size = 54) {
+    const inner = size - 8;
+    const safeUrl = imageUrl || '';
+    return `
+    <table width="${size}" height="${size}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; background:#f7f7f7; border:1px solid #eee; border-radius:8px;">
+      <tr>
+        <td width="${size}" height="${size}" align="center" valign="middle" style="padding:4px; line-height:0; text-align:center;">
+          <img src="${safeUrl}" alt="product" width="${inner}" style="display:block; margin:0 auto; max-width:${inner}px; max-height:${inner}px; width:auto; height:auto; border:0; outline:none; text-decoration:none;" />
+        </td>
+      </tr>
+    </table>`;
+}
+
+function buildEmailSwatchThumbnail(imageUrl, size = 22) {
+    const inner = size - 4;
+    return `<img src="${imageUrl}" width="${inner}" height="${inner}" style="border-radius:4px; border:1px solid #ddd; display:inline-block; vertical-align:middle; margin-right:6px; max-width:${inner}px; max-height:${inner}px; width:auto; height:auto; object-fit:contain; background:#f7f7f7;" alt="swatch">`;
+}
+
 // ── UPI Configuration ──────────────────────────────────────────────────────
 const UPI_ID   = '7683020636@pthdfc';
 const UPI_NAME = 'Swag+Stree'; // merchant name (URL-encoded spaces)
@@ -990,7 +1008,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
             const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
 
             const patternImgHtml = hasSwatch
-                ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
+                ? buildEmailSwatchThumbnail(it.variantPatternImage)
                 : '';
 
             const colorCircleHtml = it.variantColor ? `
@@ -1025,8 +1043,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         return `
         <tr>
           <td style="padding:14px 0; border-bottom:1px solid #f3f3f3; vertical-align:top; width:54px;">
-            <img src="${g.image}" width="54" height="54"
-                 style="border-radius:8px; object-fit:cover; display:block; border:1px solid #eee;" alt="product">
+            ${buildEmailProductThumbnail(g.image)}
           </td>
           <td style="padding:14px 0 14px 12px; border-bottom:1px solid #f3f3f3; vertical-align:top;">
             <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:8px; line-height:1.35;">${g.name}</div>
@@ -2756,7 +2773,7 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
                 const showPatternText = it.variantPattern && !it.variantPattern.startsWith('Design-') && !hasSwatch;
 
                 const patternImgHtml = hasSwatch
-                    ? `<img src="${it.variantPatternImage}" width="22" height="22" style="border-radius:4px; border:1px solid #ddd; object-fit:cover; display:inline-block; vertical-align:middle; margin-right:6px;" alt="swatch">`
+                    ? buildEmailSwatchThumbnail(it.variantPatternImage)
                     : '';
 
                 const colorCircleHtml = it.variantColor ? `
@@ -2800,8 +2817,7 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
             return `
             <tr>
               <td style="padding:14px 0; border-bottom:1px solid #f3f3f3; vertical-align:top; width:54px;">
-                <img src="${g.image}" width="54" height="54"
-                     style="border-radius:8px; object-fit:cover; display:block; border:1px solid #eee;" alt="product">
+                ${buildEmailProductThumbnail(g.image)}
               </td>
               <td style="padding:14px 0 14px 12px; border-bottom:1px solid #f3f3f3; vertical-align:top;">
                 <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:8px; line-height:1.35;">${g.name}</div>
