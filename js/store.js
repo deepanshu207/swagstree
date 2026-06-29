@@ -357,10 +357,14 @@ function loadData() {
                 ...doc.data()
             });
         });
-        if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
-        updateAnnouncementBellUI();
+        window._announcementsHydrated = true;
+        if (typeof syncCatalogControlsReady === 'function') syncCatalogControlsReady();
+        if (typeof updateAnnouncementBellUI === 'function') updateAnnouncementBellUI();
     }, error => {
         console.error("Firestore announcements list load error:", error);
+        window.activeAnnouncements = window.activeAnnouncements || [];
+        window._announcementsHydrated = true;
+        if (typeof syncCatalogControlsReady === 'function') syncCatalogControlsReady();
     });
 }
 
@@ -780,6 +784,9 @@ function renderProducts(items, targetId) {
 
     if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof updateCatalogControlsRowLayout === 'function') {
         updateCatalogControlsRowLayout();
+    }
+    if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof syncCatalogControlsReady === 'function') {
+        syncCatalogControlsReady();
     }
 }
 

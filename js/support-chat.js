@@ -1163,7 +1163,8 @@ window.closeAdminCustomerChat = function() {
     window.supportChatState.adminThreadId = null;
 };
 
-async function deleteAdminSupportMessagesFromThread(threadId) {
+async function deleteSupportMessagesFromThreadByChannel(threadId, channel) {
+    const targetChannel = channel === SUPPORT_CHANNEL ? SUPPORT_CHANNEL : AI_CHANNEL;
     const threadRef = db.collection('support_threads').doc(threadId);
     const snap = await threadRef.collection('messages').get();
     const toDelete = [];
@@ -1171,7 +1172,7 @@ async function deleteAdminSupportMessagesFromThread(threadId) {
 
     snap.forEach(doc => {
         const data = doc.data();
-        if (getMessageChannel(data) === SUPPORT_CHANNEL) {
+        if (getMessageChannel(data) === targetChannel) {
             toDelete.push(doc.ref);
         } else {
             remaining.push({ id: doc.id, ...data });
@@ -1190,15 +1191,25 @@ async function deleteAdminSupportMessagesFromThread(threadId) {
 
     remaining.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
     const last = remaining[remaining.length - 1];
+    const hasSupportRemaining = remaining.some(m => getMessageChannel(m) === SUPPORT_CHANNEL);
     const update = {
         unreadByAdmin: 0,
-        unreadByCustomer: 0,
-        mode: 'ai',
-        status: 'open',
-        escalateReason: firebase.firestore.FieldValue.delete(),
-        escalatedAt: firebase.firestore.FieldValue.delete(),
-        lastSupportMessageAt: firebase.firestore.FieldValue.delete()
+        unreadByCustomer: 0
     };
+
+    if (targetChannel === SUPPORT_CHANNEL) {
+        update.mode = 'ai';
+        update.status = 'open';
+        update.escalateReason = firebase.firestore.FieldValue.delete();
+        update.escalatedAt = firebase.firestore.FieldValue.delete();
+        update.lastSupportMessageAt = firebase.firestore.FieldValue.delete();
+    } else if (!hasSupportRemaining) {
+        update.mode = 'ai';
+        update.status = 'open';
+        update.escalateReason = firebase.firestore.FieldValue.delete();
+        update.escalatedAt = firebase.firestore.FieldValue.delete();
+        update.lastSupportMessageAt = firebase.firestore.FieldValue.delete();
+    }
 
     if (last) {
         update.lastMessageAt = last.createdAt || firebase.firestore.FieldValue.serverTimestamp();
@@ -1207,6 +1218,8 @@ async function deleteAdminSupportMessagesFromThread(threadId) {
     } else {
         update.lastMessagePreview = '';
         update.lastMessageSender = 'system';
+        update.mode = 'ai';
+        update.status = 'open';
     }
 
     const threadSnap = await threadRef.get();
@@ -1217,16 +1230,27 @@ async function deleteAdminSupportMessagesFromThread(threadId) {
     return toDelete.length;
 }
 
-window.deleteCustomerAdminSupportChats = async function(uid, email, name, mergedUidsParam) {
-    if (!isSuperAdmin) return showToast('Only superadmin can delete admin support chats.');
+async function deleteAdminSupportMessagesFromThread(threadId) {
+    return deleteSupportMessagesFromThreadByChannel(threadId, SUPPORT_CHANNEL);
+}
 
+async function deleteAiSupportMessagesFromThread(threadId) {
+    return deleteSupportMessagesFromThreadByChannel(threadId, AI_CHANNEL);
+}
+
+function getCustomerUidsFromParams(uid, mergedUidsParam) {
     let uids = [uid];
     if (mergedUidsParam) {
         uids = String(mergedUidsParam).split(',').map(id => id.trim()).filter(Boolean);
     }
     if (!uids.includes(uid)) uids.unshift(uid);
-    uids = [...new Set(uids)];
+    return [...new Set(uids)];
+}
 
+window.deleteCustomerAdminSupportChats = async function(uid, email, name, mergedUidsParam) {
+    if (!isSuperAdmin) return showToast('Only superadmin can delete admin support chats.');
+
+    const uids = getCustomerUidsFromParams(uid, mergedUidsParam);
     const label = name || email || uid;
     if (!confirm(`Delete all Live Support (admin) chat messages for ${label}?\n\nAI Help messages are kept. This cannot be undone.`)) {
         return;
@@ -1235,8 +1259,7 @@ window.deleteCustomerAdminSupportChats = async function(uid, email, name, merged
     let totalDeleted = 0;
     try {
         for (const id of uids) {
-            const threadId = getCustomerThreadIdForUser(id);
-            totalDeleted += await deleteAdminSupportMessagesFromThread(threadId);
+            totalDeleted += await deleteAdminSupportMessagesFromThread(getCustomerThreadIdForUser(id));
         }
 
         const activeThreadId = window.supportChatState.adminThreadId;
@@ -1254,6 +1277,54 @@ window.deleteCustomerAdminSupportChats = async function(uid, email, name, merged
         console.error('deleteCustomerAdminSupportChats failed:', e);
         showToast('Failed to delete admin support chats. Please try again.');
     }
+};
+
+window.deleteCustomerAiSupportChats = async function(uid, email, name, mergedUidsParam) {
+    if (!isSuperAdmin) return showToast('Only superadmin can delete AI help chats.');
+
+    const uids = getCustomerUidsFromParams(uid, mergedUidsParam);
+    const label = name || email || uid;
+    if (!confirm(`Delete all AI Help chat messages for ${label}?\n\nLive Support messages are kept. This cannot be undone.`)) {
+        return;
+    }
+
+    let totalDeleted = 0;
+    try {
+        for (const id of uids) {
+            totalDeleted += await deleteAiSupportMessagesFromThread(getCustomerThreadIdForUser(id));
+        }
+
+        const activeThreadId = window.supportChatState.activeThreadId;
+        if (activeThreadId && uids.some(id => getCustomerThreadIdForUser(id) === activeThreadId)) {
+            window.supportChatState.loaded = false;
+            const aiBody = document.getElementById('ai-chat-body-ai');
+            if (aiBody) aiBody.innerHTML = '';
+            if (window.supportChatState.activeTab === 'ai' && typeof switchSupportChatTab === 'function') {
+                switchSupportChatTab('ai');
+            }
+        }
+
+        showToast(totalDeleted
+            ? `Deleted ${totalDeleted} AI Help message${totalDeleted === 1 ? '' : 's'}. Live Support history kept.`
+            : 'No AI Help messages found for this customer.');
+    } catch (e) {
+        console.error('deleteCustomerAiSupportChats failed:', e);
+        showToast('Failed to delete AI help chats. Please try again.');
+    }
+};
+
+window.deleteAllSupportChatsByChannel = async function(channel) {
+    if (!isSuperAdmin) return 0;
+    const deleteFn = channel === SUPPORT_CHANNEL
+        ? deleteAdminSupportMessagesFromThread
+        : deleteAiSupportMessagesFromThread;
+
+    const snap = await db.collection('support_threads').get();
+    let totalDeleted = 0;
+    for (const doc of snap.docs) {
+        totalDeleted += await deleteFn(doc.id);
+    }
+    return totalDeleted;
 };
 
 window.sendAdminCustomerChat = async function() {

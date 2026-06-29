@@ -1937,6 +1937,13 @@ body {
     --catalog-section-gap: 8px;
 }
 
+body.catalog-controls-pending #home-view .home-search-wrap,
+body.catalog-controls-pending #home-view .catalog-controls-row,
+body.catalog-controls-pending #wish-view .wish-search-wrap,
+body.catalog-controls-pending #wish-view .catalog-controls-row {
+    visibility: hidden;
+}
+
 .home-search-wrap,
 .wish-search-wrap {
     padding: 10px 15px var(--catalog-section-gap) 15px;

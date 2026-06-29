@@ -1266,6 +1266,7 @@ function hydrateFeaturesFromCache() {
         const cached = JSON.parse(raw);
         if (cached && typeof cached === 'object') {
             window.APP_FEATURES = { ...window.APP_FEATURES, ...normalizeSupportChatFeatures(cached) };
+            window._featuresUiApplied = true;
             return true;
         }
     } catch (e) {}
@@ -1331,6 +1332,17 @@ function syncCatalogControlCheckboxes(config) {
 }
 window.syncCatalogControlCheckboxes = syncCatalogControlCheckboxes;
 
+function syncCatalogControlsReady() {
+    if (!document.body) return;
+    if (!window._featuresUiApplied) return;
+    if (!window.productsLoaded) return;
+    if (window._announcementsHydrated !== true) return;
+    document.body.classList.remove('catalog-controls-pending');
+    if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+    if (typeof updateAnnouncementBellUI === 'function') updateAnnouncementBellUI();
+}
+window.syncCatalogControlsReady = syncCatalogControlsReady;
+
 function applyCatalogControlsVisibility() {
     const config = window.APP_FEATURES || {};
     const cc = normalizeCatalogControls(config);
@@ -1382,8 +1394,9 @@ function applyCatalogControlsVisibility() {
         wishSort.style.display = 'none';
     }
 
+    window._featuresUiApplied = true;
     if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
-    if (typeof renderStore === 'function') renderStore();
+    syncCatalogControlsReady();
 }
 window.applyCatalogControlsVisibility = applyCatalogControlsVisibility;
 

@@ -60,10 +60,10 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=4.8">
+    <link rel="stylesheet" href="css/style.css?v=4.9">
 </head>
 
-<body class="footer-hidden">
+<body class="footer-hidden catalog-controls-pending">
 
     <!-- Announcement Bar -->
     <div id="announcement-bar" style="display:none;">
@@ -1823,6 +1823,32 @@
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Admin
+                            Support Chats</span>
+                        <span style="font-size:10px; color:#666;">Remove every Live Support message across all customer
+                            threads (AI Help kept)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAdminSupportChatsPrompt()">Delete All Admin Chats</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All AI Help
+                            Chats</span>
+                        <span style="font-size:10px; color:#666;">Remove every AI Help message across all customer threads
+                            (Live Support kept)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAiSupportChatsPrompt()">Delete All AI Chats</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
                         <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
                             Products</span>
                         <span style="font-size:10px; color:#666;">Permanently delete all product catalogs and
@@ -2450,14 +2476,14 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.52"></script>
-    <script src="js/app.js?v=9.52"></script>
-    <script src="js/store.js?v=9.52"></script>
-    <script src="js/checkout.js?v=9.52"></script>
-    <script src="js/auth.js?v=9.52"></script>
-    <script src="js/comments.js?v=9.52"></script>
-    <script src="js/support-chat.js?v=9.52"></script>
-    <script src="js/admin.js?v=9.52"></script>
+    <script src="js/features.js?v=9.53"></script>
+    <script src="js/app.js?v=9.53"></script>
+    <script src="js/store.js?v=9.53"></script>
+    <script src="js/checkout.js?v=9.53"></script>
+    <script src="js/auth.js?v=9.53"></script>
+    <script src="js/comments.js?v=9.53"></script>
+    <script src="js/support-chat.js?v=9.53"></script>
+    <script src="js/admin.js?v=9.53"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

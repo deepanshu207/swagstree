@@ -1318,6 +1318,7 @@ function renderSuperCustomersList(list) {
         ` : `
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
             ${(typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat')) ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
             <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
@@ -1617,6 +1618,50 @@ async function deleteAllOrdersPrompt() {
         showToast("Failed to delete orders.");
     }
 }
+
+async function deleteAllAdminSupportChatsPrompt() {
+    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!confirm("⚠️ DANGER: Delete ALL Live Support (admin) chat messages for every customer thread?\n\nAI Help history will be kept. This cannot be undone.")) return;
+    const confirmText = prompt("To verify, type 'DELETE ALL ADMIN CHATS':");
+    if (confirmText !== "DELETE ALL ADMIN CHATS") {
+        return showToast("Verification failed. Deletion aborted.");
+    }
+
+    try {
+        showToast("Deleting all admin support chats...");
+        const count = typeof deleteAllSupportChatsByChannel === 'function'
+            ? await deleteAllSupportChatsByChannel('support')
+            : 0;
+        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+        showToast(count ? `🗑️ Deleted ${count} Live Support message${count === 1 ? '' : 's'}.` : 'No Live Support messages found.');
+    } catch (e) {
+        console.error("Error deleting all admin support chats:", e);
+        showToast("Failed to delete admin support chats.");
+    }
+}
+window.deleteAllAdminSupportChatsPrompt = deleteAllAdminSupportChatsPrompt;
+
+async function deleteAllAiSupportChatsPrompt() {
+    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!confirm("⚠️ DANGER: Delete ALL AI Help chat messages for every customer thread?\n\nLive Support history will be kept. This cannot be undone.")) return;
+    const confirmText = prompt("To verify, type 'DELETE ALL AI CHATS':");
+    if (confirmText !== "DELETE ALL AI CHATS") {
+        return showToast("Verification failed. Deletion aborted.");
+    }
+
+    try {
+        showToast("Deleting all AI help chats...");
+        const count = typeof deleteAllSupportChatsByChannel === 'function'
+            ? await deleteAllSupportChatsByChannel('ai')
+            : 0;
+        showToast(count ? `🗑️ Deleted ${count} AI Help message${count === 1 ? '' : 's'}.` : 'No AI Help messages found.');
+    } catch (e) {
+        console.error("Error deleting all AI help chats:", e);
+        showToast("Failed to delete AI help chats.");
+    }
+}
+window.deleteAllAiSupportChatsPrompt = deleteAllAiSupportChatsPrompt;
 
 async function cleanEverythingPrompt() {
     if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
