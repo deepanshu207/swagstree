@@ -67,17 +67,17 @@ window.FOOTER_LAYOUTS = {
     auto: {
         id: 'auto',
         name: 'Auto',
-        description: 'Fixed bar on phone, inline at page bottom on desktop.'
+        description: 'Footer scrolls with page content — recommended default. Never pinned.'
     },
     fixed: {
         id: 'fixed',
         name: 'Fixed Bar',
-        description: 'Always pinned above bottom navigation.'
+        description: 'Pinned above bottom navigation — always visible while browsing.'
     },
     inline: {
         id: 'inline',
         name: 'Inline Scroll',
-        description: 'Footer scrolls with the page — nothing clipped or hidden.'
+        description: 'Same as Auto — footer at the bottom of the page, scrolls naturally.'
     }
 };
 
@@ -87,6 +87,15 @@ function normalizeFooterTemplateId(id) {
 
 function normalizeFooterLayoutId(id) {
     return FOOTER_LAYOUTS[id] ? id : 'auto';
+}
+
+/** auto + inline = scroll with page; fixed = pinned bar above bottom nav */
+function resolveFooterPositionMode(layoutId) {
+    return normalizeFooterLayoutId(layoutId) === 'fixed' ? 'fixed' : 'scroll';
+}
+
+function isMobileFooterViewport() {
+    return window.innerWidth <= 1024 || window.matchMedia('(pointer: coarse)').matches;
 }
 
 function getFooterLinkItems(settings) {
@@ -192,36 +201,36 @@ function applyFooterShellClasses(footerEl, templateId, layoutId) {
     if (!footerEl) return;
     const tpl = normalizeFooterTemplateId(templateId);
     const layout = normalizeFooterLayoutId(layoutId);
+    const posMode = resolveFooterPositionMode(layoutId);
     const wasHidden = footerEl.classList.contains('hidden');
-    footerEl.className = `footer-tpl-${tpl} footer-layout-${layout}${wasHidden ? ' hidden' : ''}`;
-    document.body.classList.remove('footer-layout-auto', 'footer-layout-fixed', 'footer-layout-inline');
-    document.body.classList.add(`body-footer-layout-${layout}`);
+    footerEl.className = `footer-tpl-${tpl} footer-layout-${layout} footer-pos-${posMode}${wasHidden ? ' hidden' : ''}`;
+    document.body.classList.remove(
+        'body-footer-layout-auto', 'body-footer-layout-fixed', 'body-footer-layout-inline',
+        'body-footer-pos-fixed', 'body-footer-pos-scroll'
+    );
+    document.body.classList.add(`body-footer-layout-${layout}`, `body-footer-pos-${posMode}`);
 }
 
-function estimateFooterBodyPadding(settings, templateId, layoutId) {
-    if (normalizeFooterLayoutId(layoutId) === 'inline') return '60px';
-    const hasCopyright = settings.showCopyright !== false;
-    const hasLinks = !!settings.showFooter;
-    const tpl = normalizeFooterTemplateId(templateId);
-
-    if (!hasLinks && !hasCopyright) return '75px';
-
-    const tallTemplates = { stacked: [175, 155], split: [165, 145], grid: [145, 125], dock: [140, 120], iconbar: [135, 115] };
-    if (tallTemplates[tpl]) {
-        const [both, linksOnly] = tallTemplates[tpl];
-        if (hasLinks && hasCopyright) return `${both}px`;
-        return hasLinks ? `${linksOnly}px` : '95px';
+function applyFooterBodyPadding(footerEl, layoutId) {
+    if (!footerEl || footerEl.classList.contains('hidden')) {
+        document.body.style.setProperty('padding-bottom', '60px', 'important');
+        return;
     }
-    if (tpl === 'luxury') {
-        if (hasLinks && hasCopyright) return '130px';
-        return hasLinks ? '110px' : '95px';
+    const posMode = resolveFooterPositionMode(layoutId);
+    const mobile = isMobileFooterViewport();
+    if (posMode === 'fixed' && mobile) {
+        const navH = 58;
+        const footerH = footerEl.offsetHeight || 52;
+        const waGap = 8;
+        document.body.style.setProperty('padding-bottom', `${navH + footerH + waGap}px`, 'important');
+        document.documentElement.style.setProperty('--footer-stack-offset', `${navH + footerH + 16}px`);
+    } else if (mobile) {
+        document.body.style.setProperty('padding-bottom', '60px', 'important');
+        document.documentElement.style.removeProperty('--footer-stack-offset');
+    } else {
+        document.body.style.removeProperty('padding-bottom');
+        document.documentElement.style.removeProperty('--footer-stack-offset');
     }
-    if (tpl === 'capsule') {
-        if (hasLinks && hasCopyright) return '120px';
-        return hasLinks ? '100px' : '95px';
-    }
-    if (hasLinks && hasCopyright) return '115px';
-    return hasLinks || hasCopyright ? '95px' : '75px';
 }
 
 function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
@@ -291,7 +300,9 @@ window.previewAdminFooterTemplate = function() {
 
 window.buildFooterLinksHtml = buildFooterLinksHtml;
 window.applyFooterShellClasses = applyFooterShellClasses;
-window.estimateFooterBodyPadding = estimateFooterBodyPadding;
+window.applyFooterBodyPadding = applyFooterBodyPadding;
+window.resolveFooterPositionMode = resolveFooterPositionMode;
+window.isMobileFooterViewport = isMobileFooterViewport;
 window.normalizeFooterTemplateId = normalizeFooterTemplateId;
 window.normalizeFooterLayoutId = normalizeFooterLayoutId;
 window.renderAdminFooterTemplatePicker = renderAdminFooterTemplatePicker;

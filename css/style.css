@@ -219,33 +219,55 @@ body {
 @media (max-width: 1024px), (pointer: coarse) {
     .desktop-nav { display: none !important; }
     .bottom-nav { display: flex !important; }
-    body { padding-bottom: 110px !important; } /* Fallback body padding */
+
+    body.body-footer-pos-scroll:not(.footer-hidden) {
+        padding-bottom: 60px !important;
+    }
+
     #app-footer {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        z-index: 10 !important;
+        background: rgba(10, 10, 10, 0.98) !important;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        padding: 12px 14px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+        box-shadow: none !important;
+        margin-top: 6px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    body.body-footer-pos-fixed:not(.footer-hidden) #app-footer {
         position: fixed !important;
-        bottom: 58px !important; /* height of bottom nav item is ~56px */
+        bottom: 58px !important;
         left: 0 !important;
         right: 0 !important;
         z-index: 1999 !important;
-        background: rgba(10, 10, 10, 0.94) !important;
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
-        padding: 8px 12px !important; /* Minimal height bar with equal left/right padding */
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 4px !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+        margin-top: 0 !important;
+        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.45) !important;
     }
-    
-    /* WhatsApp Floating Button on mobile - sits perfectly above the fixed footer bar */
+
+    body.body-footer-pos-scroll .whatsapp-float {
+        bottom: 72px !important;
+    }
+    body.body-footer-pos-fixed .whatsapp-float {
+        bottom: var(--footer-stack-offset, 112px) !important;
+    }
+
     .whatsapp-float {
-        bottom: 112px !important; /* Resting elegantly above the fixed footer bar (58px + ~45px = 103px) */
-        right: 16px !important;  /* Spacing from right edge */
+        right: 16px !important;
         width: 44px !important;
         height: 44px !important;
         display: flex !important;
         z-index: 2147483647 !important;
-        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) !important; /* Removed box-shadow to prevent black rectangle box rendering */
+        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) !important;
     }
 }
 
@@ -377,22 +399,6 @@ body.footer-hidden {
     padding-bottom: 60px !important;
 }
 
-/* Footer layout modes */
-@media (max-width: 1024px), (pointer: coarse) {
-    body.body-footer-layout-inline #app-footer {
-        position: relative !important;
-        bottom: auto !important;
-        left: auto !important;
-        right: auto !important;
-        margin-top: 8px;
-        box-shadow: none !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-    }
-    body.body-footer-layout-fixed #app-footer {
-        position: fixed !important;
-    }
-}
-
 #footer-links-host {
     width: 100%;
 }
@@ -405,6 +411,9 @@ body.footer-hidden {
     justify-content: center !important;
     flex-wrap: wrap;
     gap: 8px !important;
+}
+.footer-links-classic .footer-chip {
+    max-width: 100%;
 }
 
 /* ── Template: Minimal strip ── */
@@ -567,23 +576,25 @@ body.footer-hidden {
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 6px 10px;
+    gap: 6px 8px;
     width: 100%;
-    padding: 4px 0;
+    padding: 6px 4px;
+    row-gap: 8px;
 }
 .footer-underline-link {
     background: none;
     border: none;
     color: #aaa;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.7px;
+    letter-spacing: 0.5px;
     cursor: pointer;
     text-decoration: none;
     padding: 2px 0;
     border-bottom: 1px solid transparent;
     transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
 }
 .footer-underline-link:hover {
     color: var(--gold);
@@ -794,12 +805,16 @@ body.footer-hidden {
     cursor: pointer;
     text-decoration: none;
     transition: background 0.2s, transform 0.2s;
+    box-sizing: border-box;
 }
-.footer-split-call i.fa-phone { font-size: 14px; }
+.footer-split-call span {
+    flex: 0 1 auto;
+}
 .footer-split-call-arrow {
     font-size: 10px;
     opacity: 0.7;
     margin-left: auto;
+    flex-shrink: 0;
 }
 .footer-split-call:hover {
     background: linear-gradient(135deg, rgba(255, 215, 0, 0.18), rgba(255, 215, 0, 0.08));
@@ -1712,12 +1727,14 @@ input[type="checkbox"], input[type="radio"] {
 .section { display: none; }
 .section.active { display: block; }
 
-/* Ensure home and wishlist sections fill the viewport so footer stays at bottom */
-/* On mobile: footer is position:fixed, no issue */
-/* On desktop: use flex-grow to push footer to bottom */
+/* Ensure home and wishlist sections fill the viewport so footer stays at bottom on desktop */
 #home-view.active,
 #wish-view.active {
     flex: 1;
+}
+body.body-footer-pos-scroll #home-view.active,
+body.body-footer-pos-scroll #wish-view.active {
+    padding-bottom: 8px;
 }
 .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
 .thumb-wrap { position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
