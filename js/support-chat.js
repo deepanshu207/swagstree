@@ -537,13 +537,15 @@ async function generateSmartSupportReply(userText) {
     }
     if (intent === 'best_sellers') {
         const matched = getBestSellerProducts();
+        const catalogTotal = (window.products || []).length;
         return {
             text: matched.length
-                ? `Here are our **${matched.length} best-selling picks** right now:`
-                : 'Browse our catalog on Home — new styles are added regularly.',
+                ? `Here are our **${matched.length} best-selling pick${matched.length > 1 ? 's' : ''}** right now:`
+                : 'Products are still loading — try again in a moment, or browse Home.',
             products: matched,
-            extraHtml: matched.length >= CHAT_PRODUCT_DISPLAY_LIMIT
-                ? buildExploreMoreHtml((window.products || []).length, matched.length, null)
+            totalCount: catalogTotal,
+            extraHtml: matched.length >= CHAT_PRODUCT_DISPLAY_LIMIT && catalogTotal > matched.length
+                ? buildExploreMoreHtml(catalogTotal, matched.length, null)
                 : ''
         };
     }
@@ -558,6 +560,8 @@ async function generateSmartSupportReply(userText) {
                     ? `No products under **₹${max}** right now. Try a higher budget or browse Home.`
                     : "I couldn't find an exact match. Try a product name, color, or budget (e.g. under ₹800).",
             products: items,
+            totalCount: total,
+            filterMaxPrice: max,
             extraHtml: buildExploreMoreHtml(total, items.length, max)
         };
     }
@@ -569,6 +573,8 @@ async function generateSmartSupportReply(userText) {
                 ? `Showing **${items.length} of ${total}** styles under **₹${intent.max}**:`
                 : `No products under **₹${intent.max}** right now. Try a higher budget or browse our full catalog.`,
             products: items,
+            totalCount: total,
+            filterMaxPrice: intent.max,
             extraHtml: buildExploreMoreHtml(total, items.length, intent.max)
         };
     }
@@ -599,6 +605,8 @@ function generateLocalFallbackReply(userText) {
         return {
             text: `Here are **${items.length}${total > items.length ? ` of ${total}` : ''} item${total !== 1 ? 's' : ''}** that may match${max != null ? ` under ₹${max}` : ''}:`,
             products: items,
+            totalCount: total,
+            filterMaxPrice: max,
             extraHtml: buildExploreMoreHtml(total, items.length, max)
         };
     }
@@ -630,20 +638,87 @@ function splitMessagesByChannel(messages) {
     return { ai, support };
 }
 
+function getProductsByIds(ids) {
+    if (!ids || !ids.length) return [];
+    const list = window.products || [];
+    return ids.map(id => list.find(p => p.id === id)).filter(Boolean);
+}
+
+function rebuildAiReplyProducts(customerText, msg) {
+    if (msg.productIds && msg.productIds.length) {
+        const resolved = getProductsByIds(msg.productIds);
+        if (resolved.length) return resolved;
+    }
+    if (msg.type !== 'product_suggest' || !customerText) return [];
+    const intent = detectSupportIntent(customerText);
+    if (intent === 'best_sellers') return getBestSellerProducts();
+    if (typeof intent === 'object' && intent.type === 'price_filter') {
+        return searchProducts('', intent.max).items;
+    }
+    if (intent === 'suggest' || intent === 'price') {
+        const max = extractMaxPrice(customerText);
+        return searchProducts(customerText, max).items;
+    }
+    return searchProducts(customerText.replace(/help|please|want|need|show|find/gi, ''), extractMaxPrice(customerText)).items;
+}
+
+function buildStoredExploreHtml(msg) {
+    if (!msg.totalProductCount || !msg.productIds || msg.totalProductCount <= msg.productIds.length) return '';
+    return buildExploreMoreHtml(msg.totalProductCount, msg.productIds.length, msg.filterMaxPrice ?? null);
+}
+
+function buildAiPersistMeta(reply) {
+    if (!reply.products || !reply.products.length) {
+        return { type: 'text' };
+    }
+    return stripUndefinedFields({
+        type: 'product_suggest',
+        productIds: reply.products.map(p => p.id),
+        totalProductCount: reply.totalCount ?? reply.products.length,
+        filterMaxPrice: reply.filterMaxPrice ?? null
+    });
+}
+
 function renderChannelMessages(messages, channel) {
     const body = getChatBody(channel);
     if (!body) return;
     body.innerHTML = '';
     if (channel === AI_CHANNEL && typeof window.chatHistory !== 'undefined') window.chatHistory = [];
 
-    messages.forEach(msg => {
-        if (msg.sender === 'customer') appendSupportBubble('customer', msg.text, '', channel);
-        else if (msg.sender === 'admin') appendSupportBubble('admin', msg.text, '', channel);
-        else {
-            appendSupportBubble('bot', msg.text, '', channel);
+    const seen = new Set();
+    let lastCustomerText = '';
+    (messages || []).forEach(msg => {
+        if (msg.id && seen.has(msg.id)) return;
+        if (msg.id) seen.add(msg.id);
+
+        if (msg.sender === 'customer') {
+            lastCustomerText = msg.text || '';
+            appendSupportBubble('customer', msg.text, '', channel);
+        } else if (msg.sender === 'admin') {
+            appendSupportBubble('admin', msg.text, '', channel);
+        } else {
+            appendSupportBubble('bot', msg.text, buildStoredExploreHtml(msg), channel);
+            if (channel === AI_CHANNEL) {
+                const products = rebuildAiReplyProducts(lastCustomerText, msg);
+                if (products.length) {
+                    appendSupportProductCards(products, channel);
+                } else if (msg.type === 'product_suggest' && !(window.products || []).length) {
+                    const hint = document.createElement('p');
+                    hint.style.cssText = 'margin:4px 0 8px;font-size:11px;color:#888;';
+                    hint.textContent = 'Product picks appear once the catalog finishes loading.';
+                    body.appendChild(hint);
+                }
+            }
         }
     });
 }
+
+window.refreshAiChatProductCards = function() {
+    if (!isSupportChatOpen()) return;
+    const msgs = window.supportMessagesCache?.ai || [];
+    if (!msgs.length) return;
+    renderChannelMessages(msgs, AI_CHANNEL);
+};
 
 async function syncSupportChatHeaderFromThread(threadId) {
     try {
@@ -781,6 +856,15 @@ function renderAdminChatMessages(messages, customerName) {
     body.scrollTop = body.scrollHeight;
 }
 
+async function ensureProductsForChat() {
+    if ((window.products || []).length) return true;
+    for (let i = 0; i < 24; i++) {
+        await new Promise(resolve => setTimeout(resolve, 125));
+        if ((window.products || []).length) return true;
+    }
+    return false;
+}
+
 async function handleAiSupportMessage(text) {
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
@@ -803,6 +887,9 @@ async function handleAiSupportMessage(text) {
 
     const typing = typeof appendTypingIndicator === 'function' ? appendTypingIndicator() : null;
     try {
+        if (/best seller|suggest|recommend|outfit|under|styles|show me|price filter/i.test(text)) {
+            await ensureProductsForChat();
+        }
         const reply = await generateSmartSupportReply(text);
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
 
@@ -812,7 +899,7 @@ async function handleAiSupportMessage(text) {
         const aiMsg = {
             sender: 'bot',
             text: reply.text,
-            type: reply.products ? 'product_suggest' : 'text'
+            ...buildAiPersistMeta(reply)
         };
 
         try {
@@ -922,19 +1009,13 @@ window.openSupportChat = async function() {
     window.supportChatState.adminThreadId = null;
     window.supportChatState.loaded = false;
 
+    updateSupportChatTabUI('ai');
+
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
     await ensureSupportThread(threadId, profile);
     subscribeCustomerThread(threadId);
 
-    const threadSnap = await db.collection('support_threads').doc(threadId).get();
-    const threadData = threadSnap.exists ? threadSnap.data() : {};
-    const hasSupportCase = threadData.status === 'waiting_admin'
-        || (threadData.unreadByCustomer || 0) > 0
-        || threadData.mode === 'human';
-    const defaultTab = hasSupportCase ? 'admin' : 'ai';
-
-    updateSupportChatTabUI(defaultTab);
     await syncSupportChatHeaderFromThread(threadId);
     applySupportUnreadBadge(0);
 };
@@ -959,8 +1040,13 @@ window.sendChatMessage = async function() {
 };
 
 window.sendChatMessageWithText = async function(text) {
-    if (!text) return;
-    await handleSupportCustomerMessage(text);
+    if (!text || window.supportChatState?.sendLock) return;
+    window.supportChatState.sendLock = true;
+    try {
+        await handleSupportCustomerMessage(text);
+    } finally {
+        setTimeout(() => { window.supportChatState.sendLock = false; }, 500);
+    }
 };
 
 // ── Admin support chat ─────────────────────────────────────────────────────

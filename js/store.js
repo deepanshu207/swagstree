@@ -303,6 +303,7 @@ function loadData() {
         window.productsLoaded = true;
         renderStore();
         renderFilters();
+        if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
         if (typeof renderAdmin === "function") renderAdmin();
         checkDeepLink(); // open shared product link if present
         

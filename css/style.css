@@ -1933,7 +1933,7 @@ body {
 
 /* Catalog Controls Row & Count Badge */
 .home-search-wrap {
-    padding: 12px 15px 4px 15px;
+    padding: 10px 15px 0 15px;
 }
 
 .home-search-input {
@@ -1941,19 +1941,20 @@ body {
 }
 
 .wishlist-title {
-    padding: 12px 15px 4px 15px;
+    padding: 10px 15px 0 15px;
     margin: 0;
 }
 
 .catalog-controls-row {
-    padding: 4px 15px 10px 15px;
+    padding: 6px 15px 8px 15px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
     box-sizing: border-box;
     overflow: visible;
+    min-height: 32px;
 }
 
 .catalog-count-label {
@@ -1963,6 +1964,8 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
     justify-self: start;
+    line-height: 1.2;
+    margin: 0;
 }
 
 .catalog-controls-row.catalog-row-icons-minimal .catalog-count-label {
@@ -1981,10 +1984,18 @@ body {
 .catalog-controls-actions {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     flex-shrink: 0;
     justify-self: end;
     overflow: visible;
+}
+
+.catalog-controls-row .count-badge,
+.catalog-controls-row .catalog-count-label {
+    font-size: 9px;
+    padding: 4px 8px;
+    letter-spacing: 0.2px;
+    text-transform: none;
 }
 
 @media (min-width: 600px) {
@@ -2279,20 +2290,21 @@ body {
         right: -4px !important;
     } */
     .catalog-controls-row {
-        gap: 6px;
-        padding: 2px 15px 8px 15px;
+        gap: 4px;
+        padding: 4px 12px 6px 12px;
+        min-height: 30px;
     }
     .home-search-wrap {
-        padding: 10px 15px 2px 15px;
+        padding: 8px 12px 0 12px;
     }
     .wishlist-title {
-        padding: 10px 15px 2px 15px;
+        padding: 8px 12px 0 12px;
     }
     .catalog-controls-row .count-badge,
     .catalog-count-label {
-        font-size: 8px;
-        padding: 4px 8px;
-        letter-spacing: 0.3px;
+        font-size: 7px;
+        padding: 3px 6px;
+        letter-spacing: 0.2px;
     }
     .catalog-controls-actions {
         gap: 4px;
