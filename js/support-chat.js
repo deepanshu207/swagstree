@@ -43,6 +43,34 @@ const ADMIN_SUPPORT_CHIPS = [
     'Payment issue'
 ];
 
+const CHAT_PRODUCT_DISPLAY_LIMIT = 10;
+const SUPPORT_CHANNEL = 'support';
+const AI_CHANNEL = 'ai';
+
+window.supportMessagesCache = window.supportMessagesCache || { ai: [], support: [] };
+const supportKnownMsgIds = { ai: new Set(), support: new Set() };
+
+function getMessageChannel(msg) {
+    if (!msg) return AI_CHANNEL;
+    if (msg.channel === SUPPORT_CHANNEL || msg.channel === AI_CHANNEL) return msg.channel;
+    if (msg.sender === 'admin') return SUPPORT_CHANNEL;
+    if (msg.type === 'complaint') return SUPPORT_CHANNEL;
+    if (msg.escalated) return SUPPORT_CHANNEL;
+    return AI_CHANNEL;
+}
+
+function getChatBody(channel) {
+    const ch = channel || (window.supportChatState.activeTab === 'admin' ? SUPPORT_CHANNEL : AI_CHANNEL);
+    return document.getElementById(ch === SUPPORT_CHANNEL ? 'ai-chat-body-support' : 'ai-chat-body-ai');
+}
+
+function showChatBodyForTab(tab) {
+    const aiWrap = document.getElementById('ai-chat-body-ai-wrap');
+    const supportWrap = document.getElementById('ai-chat-body-support-wrap');
+    if (aiWrap) aiWrap.style.display = tab === 'ai' ? 'flex' : 'none';
+    if (supportWrap) supportWrap.style.display = tab === 'admin' ? 'flex' : 'none';
+}
+
 function escHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -104,20 +132,36 @@ async function ensureSupportThread(threadId, profile) {
     return data;
 }
 
+async function persistAiChatMessage(threadId, msg) {
+    const threadRef = db.collection('support_threads').doc(threadId);
+    const msgRef = threadRef.collection('messages').doc();
+    const payload = stripUndefinedFields({
+        ...msg,
+        channel: AI_CHANNEL,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        readByCustomer: true,
+        readByAdmin: true
+    });
+    await msgRef.set(payload);
+    return msgRef.id;
+}
+
 async function persistSupportMessage(threadId, msg) {
     const threadRef = db.collection('support_threads').doc(threadId);
     const msgRef = threadRef.collection('messages').doc();
     const payload = stripUndefinedFields({
         ...msg,
+        channel: SUPPORT_CHANNEL,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        readByCustomer: msg.sender === 'customer' || msg.sender === 'bot' || msg.sender === 'ai',
-        readByAdmin: msg.sender === 'admin' || msg.sender === 'bot' || msg.sender === 'ai'
+        readByCustomer: msg.sender === 'customer' || msg.sender === 'admin',
+        readByAdmin: msg.sender === 'admin' || msg.sender === 'customer'
     });
     await msgRef.set(payload);
     const unreadByAdmin = msg.sender === 'customer' ? firebase.firestore.FieldValue.increment(1) : 0;
     const unreadByCustomer = msg.sender === 'admin' ? firebase.firestore.FieldValue.increment(1) : 0;
     const update = {
         lastMessageAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastSupportMessageAt: firebase.firestore.FieldValue.serverTimestamp(),
         lastMessagePreview: (msg.text || '').slice(0, 120),
         lastMessageSender: msg.sender
     };
@@ -185,8 +229,9 @@ function startSupportCustomerWatcher() {
 
             const adminMsgs = [];
             snap.forEach(doc => {
-                if (doc.data().sender === 'admin') {
-                    adminMsgs.push({ id: doc.id, text: doc.data().text || '' });
+                const data = doc.data();
+                if (doc.data().sender === 'admin' && getMessageChannel(data) === SUPPORT_CHANNEL) {
+                    adminMsgs.push({ id: doc.id, text: data.text || '' });
                 }
             });
 
@@ -216,18 +261,96 @@ function getContactInfo() {
     return { phone, email, wa: '918800467686' };
 }
 
-function searchProducts(query, maxPrice) {
+function extractMaxPrice(text) {
+    if (!text) return null;
+    const q = String(text).toLowerCase().replace(/₹/g, ' ').replace(/,/g, '');
+    const patterns = [
+        /(?:under|below|upto|up to|max|maximum|within|less than|cheaper than|<=?)\s*(\d{2,6})/,
+        /(?:more\s+)?under\s*(\d{2,6})/,
+        /(\d{2,6})\s*(?:or less|max|budget|only)/,
+        /(?:rs\.?|inr)\s*(\d{2,6})/
+    ];
+    for (const re of patterns) {
+        const m = q.match(re);
+        if (m) {
+            const n = parseInt(m[1], 10);
+            if (n >= 50 && n <= 100000) return n;
+        }
+    }
+    if (/suggest|recommend|show|outfit|styles|more|another|other|budget|affordable|cheap/.test(q)) {
+        const m = q.match(/\b(\d{2,5})\b/);
+        if (m) {
+            const n = parseInt(m[1], 10);
+            if (n >= 50 && n <= 100000) return n;
+        }
+    }
+    return null;
+}
+
+function cleanProductSearchQuery(query) {
+    return (query || '')
+        .replace(/suggest|recommend|show|more|under|below|outfits?|styles?|rs\.?|₹|please|help|want|need|find|another|other/gi, ' ')
+        .replace(/\d+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function searchProducts(query, maxPrice, displayLimit = CHAT_PRODUCT_DISPLAY_LIMIT) {
     const list = window.products || [];
-    const q = (query || '').toLowerCase();
-    return list.filter(p => {
-        if (maxPrice && Number(p.price) > maxPrice) return false;
+    const q = cleanProductSearchQuery(query);
+    let filtered = list.filter(p => {
+        const price = Number(p.price) || 0;
+        if (maxPrice != null && price > maxPrice) return false;
         if (!q) return true;
         const hay = `${p.name} ${p.description || ''}`.toLowerCase();
         return hay.includes(q) || q.split(/\s+/).some(w => w.length > 2 && hay.includes(w));
-    }).slice(0, 4);
+    });
+    if (maxPrice != null) {
+        filtered = filtered.slice().sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    }
+    return {
+        items: filtered.slice(0, displayLimit),
+        total: filtered.length
+    };
 }
 
-function getBestSellerProducts(limit = 4) {
+function buildExploreMoreHtml(total, shown, maxPrice) {
+    if (total <= shown) return '';
+    const more = total - shown;
+    const filterBtn = maxPrice != null
+        ? `<button type="button" class="btn-gold ai-chat-filter-btn" onclick="applyChatPriceFilter(${maxPrice})">Apply under ₹${maxPrice} filter</button>`
+        : '';
+    return `<div class="ai-chat-explore-hint" style="margin-top:8px;font-size:11px;color:#aaa;line-height:1.5;">
+        <strong style="color:var(--gold);">${more} more</strong> style${more > 1 ? 's' : ''} match — explore the full catalog or let me filter Home for you.
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+            ${filterBtn}
+            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="nav('home'); toggleAIChat();">Browse Home</button>
+        </div>
+    </div>`;
+}
+
+window.applyChatPriceFilter = function(maxPrice) {
+    const max = Number(maxPrice);
+    if (!max || max <= 0) return;
+    if (typeof nav === 'function') nav('home');
+    window.filterMinPrice = window.priceAbsoluteMin || 0;
+    window.filterMaxPrice = max;
+    const minRange = document.getElementById('price-min-range');
+    const maxRange = document.getElementById('price-max-range');
+    const minInput = document.getElementById('price-min-input');
+    const maxInput = document.getElementById('price-max-input');
+    if (minRange) minRange.value = window.filterMinPrice;
+    if (maxRange) maxRange.value = max;
+    if (minInput) minInput.value = Math.round(window.filterMinPrice);
+    if (maxInput) maxInput.value = Math.round(max);
+    if (typeof updatePriceSliderUI === 'function') updatePriceSliderUI();
+    if (typeof applySortAndFilter === 'function') applySortAndFilter();
+    if (typeof toggleAIChat === 'function') toggleAIChat();
+    if (typeof showToast === 'function') showToast(`Showing products under ₹${max}`);
+};
+
+function getBestSellerProducts(limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
     const list = (window.products || []).slice();
     list.sort((a, b) => {
         const salesA = a.salesCount || (a.popularity || 0);
@@ -239,24 +362,22 @@ function getBestSellerProducts(limit = 4) {
 
 function detectSupportIntent(text) {
     const q = text.toLowerCase().trim();
+    const maxPrice = extractMaxPrice(text);
     if (/^(hi|hello|hey|namaste|good morning|good evening)\b/.test(q)) return 'greeting';
     if (/talk to admin|human|agent|real person|speak to support|connect.*admin|live support/.test(q)) return 'human';
     if (/complaint|issue|problem|defect|damaged|wrong item|return|refund|complain/.test(q)) return 'complaint';
     if (/track|order status|where is my order|my order|track my order/.test(q)) return 'order';
     if (/contact|email|phone|call|whatsapp|support mail|contact support/.test(q)) return 'contact';
     if (/best seller|best sellers|best selling|top selling|popular picks|most popular/.test(q)) return 'best_sellers';
-    if (/under ₹?\s*(\d+)|below ₹?\s*(\d+)|budget|cheap|affordable|price filter|outfits under/.test(q)) {
-        const m = q.match(/(\d{3,5})/);
-        return { type: 'price_filter', max: m ? parseInt(m[1], 10) : 1000 };
-    }
-    if (/suggest|recommend|show me|outfit|dress|kurta|saree|product|styles under/.test(q)) return 'suggest';
-    if (/price|cost|how much|₹/.test(q)) return 'price';
+    if (maxPrice != null) return { type: 'price_filter', max: maxPrice };
+    if (/suggest|recommend|show me|outfit|dress|kurta|saree|product|styles/.test(q)) return 'suggest';
+    if (/price|cost|how much|₹|budget|cheap|affordable/.test(q)) return 'price';
     return 'ai';
 }
 
 function buildProductCardsHtml(products) {
     if (!products.length) return '<p style="margin:0;font-size:12px;color:#888;">No matching products found right now.</p>';
-    return products.map(p => {
+    const cards = products.map(p => {
         const img = (p.images && p.images[0]) || (p.variants && p.variants[0]?.images?.[0]) || '';
         return `
         <div class="ai-chat-product-card" onclick="showDetail('${p.id}'); toggleAIChat();">
@@ -268,6 +389,8 @@ function buildProductCardsHtml(products) {
             </div>
         </div>`;
     }).join('');
+    const scrollClass = products.length > 4 ? ' ai-chat-product-scroll' : '';
+    return `<div class="${scrollClass.trim()}">${cards}</div>`;
 }
 
 function renderSupportQuickChips(tab) {
@@ -293,6 +416,7 @@ function updateSupportChatTabUI(tab) {
             : 'Ask about products, prices, or orders...';
     }
     renderSupportQuickChips(tab);
+    showChatBodyForTab(tab);
     if (tab === 'admin') {
         updateSupportChatHeader('human', true);
     } else {
@@ -303,11 +427,12 @@ function updateSupportChatTabUI(tab) {
 window.switchSupportChatTab = function(tab) {
     if (tab !== 'ai' && tab !== 'admin') return;
     updateSupportChatTabUI(tab);
+    showChatBodyForTab(tab);
     if (tab === 'admin') {
-        const body = document.getElementById('ai-chat-body');
+        const body = getChatBody(SUPPORT_CHANNEL);
         const hasAdminHint = body && body.querySelector('[data-admin-tab-hint]');
         if (body && !hasAdminHint && body.childElementCount === 0) {
-            appendSupportBubble('bot', 'You are now in **Live Support**. Tell us your issue and a real admin will reply in this chat.');
+            appendSupportBubble('bot', 'You are now in **Live Support**. Tell us your issue and a real admin will reply in this chat.', '', SUPPORT_CHANNEL);
             const last = body.lastElementChild;
             if (last) last.setAttribute('data-admin-tab-hint', '1');
         }
@@ -329,8 +454,8 @@ function updateSupportChatHeader(mode, waitingHuman) {
     }
 }
 
-function appendSupportBubble(sender, text, htmlExtra) {
-    const body = document.getElementById('ai-chat-body');
+function appendSupportBubble(sender, text, htmlExtra, channel) {
+    const body = getChatBody(channel);
     if (!body) return;
     const div = document.createElement('div');
     div.className = `support-msg support-msg-${sender}`;
@@ -360,13 +485,14 @@ function appendSupportBubble(sender, text, htmlExtra) {
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
 
-    if (typeof window.chatHistory !== 'undefined' && Array.isArray(window.chatHistory)) {
+    const ch = channel || (window.supportChatState.activeTab === 'admin' ? SUPPORT_CHANNEL : AI_CHANNEL);
+    if (ch === AI_CHANNEL && typeof window.chatHistory !== 'undefined' && Array.isArray(window.chatHistory)) {
         window.chatHistory.push({ sender: sender === 'customer' ? 'user' : 'bot', text });
     }
 }
 
-function appendSupportProductCards(products) {
-    const body = document.getElementById('ai-chat-body');
+function appendSupportProductCards(products, channel) {
+    const body = getChatBody(channel || AI_CHANNEL);
     if (!body) return;
     const wrap = document.createElement('div');
     wrap.style.margin = '4px 0 8px 0';
@@ -413,26 +539,37 @@ async function generateSmartSupportReply(userText) {
         const matched = getBestSellerProducts();
         return {
             text: matched.length
-                ? 'Here are our **best-selling picks** right now:'
+                ? `Here are our **${matched.length} best-selling picks** right now:`
                 : 'Browse our catalog on Home — new styles are added regularly.',
-            products: matched
+            products: matched,
+            extraHtml: matched.length >= CHAT_PRODUCT_DISPLAY_LIMIT
+                ? buildExploreMoreHtml((window.products || []).length, matched.length, null)
+                : ''
         };
     }
     if (intent === 'suggest' || intent === 'price') {
-        const max = typeof intent === 'object' ? intent.max : null;
-        const matched = searchProducts(userText.replace(/suggest|recommend|show|price|cost|under|below/gi, ''), max);
+        const max = extractMaxPrice(userText);
+        const result = searchProducts(userText, max);
+        const { items, total } = result;
         return {
-            text: matched.length
-                ? `Here are **${matched.length} pick${matched.length > 1 ? 's' : ''}** from our catalog${max ? ` under ₹${max}` : ''}:`
-                : "I couldn't find an exact match. Try a product name, color, or budget (e.g. under ₹800).",
-            products: matched
+            text: items.length
+                ? `Showing **${items.length}${total > items.length ? ` of ${total}` : ''}** style${total !== 1 ? 's' : ''}${max != null ? ` under **₹${max}**` : ''}:`
+                : max != null
+                    ? `No products under **₹${max}** right now. Try a higher budget or browse Home.`
+                    : "I couldn't find an exact match. Try a product name, color, or budget (e.g. under ₹800).",
+            products: items,
+            extraHtml: buildExploreMoreHtml(total, items.length, max)
         };
     }
     if (typeof intent === 'object' && intent.type === 'price_filter') {
-        const matched = searchProducts('', intent.max);
+        const result = searchProducts('', intent.max);
+        const { items, total } = result;
         return {
-            text: `Showing styles **under ₹${intent.max}**:`,
-            products: matched
+            text: items.length
+                ? `Showing **${items.length} of ${total}** styles under **₹${intent.max}**:`
+                : `No products under **₹${intent.max}** right now. Try a higher budget or browse our full catalog.`,
+            products: items,
+            extraHtml: buildExploreMoreHtml(total, items.length, intent.max)
         };
     }
 
@@ -455,11 +592,14 @@ function generateLocalFallbackReply(userText) {
     if (/^(hi|hello|hey|namaste)\b/.test(q.trim())) {
         return { text: "Hello! Welcome to **Swag Stree**. Ask for outfit suggestions, prices, order help, or say **Talk to admin** for live support." };
     }
-    const matched = searchProducts(userText.replace(/help|please|want|need|show|find/gi, ''), null);
-    if (matched.length) {
+    const max = extractMaxPrice(userText);
+    const result = searchProducts(userText.replace(/help|please|want|need|show|find/gi, ''), max);
+    const { items, total } = result;
+    if (items.length) {
         return {
-            text: `Here are **${matched.length} item${matched.length > 1 ? 's' : ''}** from our catalog that may match:`,
-            products: matched
+            text: `Here are **${items.length}${total > items.length ? ` of ${total}` : ''} item${total !== 1 ? 's' : ''}** that may match${max != null ? ` under ₹${max}` : ''}:`,
+            products: items,
+            extraHtml: buildExploreMoreHtml(total, items.length, max)
         };
     }
     if (/size|fit|measurement/.test(q)) {
@@ -477,8 +617,32 @@ function generateLocalFallbackReply(userText) {
 }
 
 function canAnswerWhileAdminIsPending(intent) {
-    if (typeof intent === 'object') return true;
-    return ['greeting', 'order', 'contact', 'best_sellers', 'suggest', 'price'].includes(intent);
+    return true;
+}
+
+function splitMessagesByChannel(messages) {
+    const ai = [];
+    const support = [];
+    (messages || []).forEach(msg => {
+        if (getMessageChannel(msg) === SUPPORT_CHANNEL) support.push(msg);
+        else ai.push(msg);
+    });
+    return { ai, support };
+}
+
+function renderChannelMessages(messages, channel) {
+    const body = getChatBody(channel);
+    if (!body) return;
+    body.innerHTML = '';
+    if (channel === AI_CHANNEL && typeof window.chatHistory !== 'undefined') window.chatHistory = [];
+
+    messages.forEach(msg => {
+        if (msg.sender === 'customer') appendSupportBubble('customer', msg.text, '', channel);
+        else if (msg.sender === 'admin') appendSupportBubble('admin', msg.text, '', channel);
+        else {
+            appendSupportBubble('bot', msg.text, '', channel);
+        }
+    });
 }
 
 async function syncSupportChatHeaderFromThread(threadId) {
@@ -505,14 +669,15 @@ async function handleAdminSupportMessage(text) {
     await ensureSupportThread(threadId, profile);
 
     window.supportChatState.loaded = true;
-    appendSupportBubble('customer', text);
+    appendSupportBubble('customer', text, '', SUPPORT_CHANNEL);
 
     const customerMsg = {
         sender: 'customer',
         text,
         type: 'complaint',
         customerName: profile.name,
-        customerEmail: profile.email
+        customerEmail: profile.email,
+        escalated: true
     };
     try {
         await persistSupportMessage(threadId, customerMsg);
@@ -522,7 +687,7 @@ async function handleAdminSupportMessage(text) {
     }
 
     updateSupportChatHeader('human', true);
-    appendSupportBubble('bot', "Thanks — your message was sent to our **support team**. We'll reply here as soon as possible.\n\nYou can also reach us on WhatsApp while you wait.", getContactInfoHtml());
+    appendSupportBubble('bot', "Thanks — your message was sent to our **support team**. We'll reply here as soon as possible.\n\nYou can also reach us on WhatsApp while you wait.", getContactInfoHtml(), SUPPORT_CHANNEL);
 }
 
 function getContactInfoHtml() {
@@ -597,7 +762,12 @@ function renderAdminChatMessages(messages, customerName) {
     if (!body) return;
     body.innerHTML = '';
     let lastDay = '';
-    messages.forEach(msg => {
+    const supportMsgs = (messages || []).filter(m => getMessageChannel(m) === SUPPORT_CHANNEL);
+    if (!supportMsgs.length) {
+        body.innerHTML = '<p style="color:#666;font-size:12px;text-align:center;padding:20px 0;">No live support messages yet. AI shopping chat is kept private to the customer.</p>';
+        return;
+    }
+    supportMsgs.forEach(msg => {
         const day = formatSupportDayLabel(msg.createdAt);
         if (day !== lastDay) {
             const divider = document.createElement('div');
@@ -614,32 +784,21 @@ function renderAdminChatMessages(messages, customerName) {
 async function handleAiSupportMessage(text) {
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
-    const intent = detectSupportIntent(text);
 
     await ensureSupportThread(threadId, profile);
 
     window.supportChatState.loaded = true;
-    appendSupportBubble('customer', text);
+    appendSupportBubble('customer', text, '', AI_CHANNEL);
 
     const customerMsg = {
         sender: 'customer',
         text,
-        type: 'text',
-        customerName: profile.name,
-        customerEmail: profile.email
+        type: 'text'
     };
     try {
-        await persistSupportMessage(threadId, customerMsg);
+        await persistAiChatMessage(threadId, customerMsg);
     } catch (e) {
-        console.warn('Could not persist customer message:', e);
-    }
-
-    const threadSnap = await db.collection('support_threads').doc(threadId).get();
-    const threadData = threadSnap.exists ? threadSnap.data() : {};
-    if (threadData.mode === 'human' && !canAnswerWhileAdminIsPending(intent)) {
-        updateSupportChatHeader('human', threadData.status === 'waiting_admin');
-        appendSupportBubble('bot', 'This looks like a support follow-up. Please use the **Live Support** tab so our team can help you.', `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="switchSupportChatTab('admin')">Open Live Support</button>`);
-        return;
+        console.warn('Could not persist AI chat message:', e);
     }
 
     const typing = typeof appendTypingIndicator === 'function' ? appendTypingIndicator() : null;
@@ -647,8 +806,8 @@ async function handleAiSupportMessage(text) {
         const reply = await generateSmartSupportReply(text);
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
 
-        appendSupportBubble('bot', reply.text, reply.extraHtml || '');
-        if (reply.products && reply.products.length) appendSupportProductCards(reply.products);
+        appendSupportBubble('bot', reply.text, reply.extraHtml || '', AI_CHANNEL);
+        if (reply.products && reply.products.length) appendSupportProductCards(reply.products, AI_CHANNEL);
 
         const aiMsg = {
             sender: 'bot',
@@ -657,18 +816,23 @@ async function handleAiSupportMessage(text) {
         };
 
         try {
-            await persistSupportMessage(threadId, aiMsg);
+            await persistAiChatMessage(threadId, aiMsg);
         } catch (persistErr) {
             console.warn('Could not persist AI reply (shown locally):', persistErr);
         }
     } catch (e) {
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
         console.error('Support chat reply failed:', e);
-        appendSupportBubble('bot', 'Something went wrong. Please try again or switch to **Live Support**.');
+        appendSupportBubble('bot', 'Something went wrong. Please try again or switch to **Live Support**.', '', AI_CHANNEL);
     }
 }
 
 async function handleSupportCustomerMessage(text) {
+    const q = (text || '').trim().toLowerCase();
+    if (window.supportChatState.activeTab === 'ai' && /contact support|talk to admin|live support|speak to support/.test(q)) {
+        switchSupportChatTab('admin');
+        return;
+    }
     if (window.supportChatState.activeTab === 'admin') {
         return handleAdminSupportMessage(text);
     }
@@ -682,58 +846,69 @@ function stopCustomerMessagesListener() {
     }
 }
 
-function renderThreadMessages(messages, isAdminView) {
-    const body = document.getElementById(isAdminView ? 'admin-customer-chat-body' : 'ai-chat-body');
-    if (!body) return;
-    body.innerHTML = '';
-    if (typeof window.chatHistory !== 'undefined') window.chatHistory = [];
-
-    messages.forEach(msg => {
-        if (msg.sender === 'customer') appendSupportBubble('customer', msg.text);
-        else if (msg.sender === 'admin') appendSupportBubble('admin', msg.text);
-        else appendSupportBubble('bot', msg.text);
-    });
-}
-
 function subscribeCustomerThread(threadId) {
     stopCustomerMessagesListener();
     window.supportChatState.activeThreadId = threadId;
-    let knownIds = new Set();
+    supportKnownMsgIds.ai.clear();
+    supportKnownMsgIds.support.clear();
 
     customerMessagesUnsub = db.collection('support_threads').doc(threadId)
-        .collection('messages').orderBy('createdAt', 'asc').limit(100)
+        .collection('messages').orderBy('createdAt', 'asc').limit(150)
         .onSnapshot(snap => {
             const msgs = [];
             snap.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+            const split = splitMessagesByChannel(msgs);
+            window.supportMessagesCache.ai = split.ai;
+            window.supportMessagesCache.support = split.support;
 
-            const newAdminMsgs = msgs.filter(m => m.sender === 'admin' && !knownIds.has(m.id));
             if (!window.supportChatState.loaded) {
-                renderThreadMessages(msgs, false);
-                msgs.forEach(m => knownIds.add(m.id));
+                renderChannelMessages(split.ai, AI_CHANNEL);
+                renderChannelMessages(split.support, SUPPORT_CHANNEL);
+                if (!split.ai.length) {
+                    const welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, or orders. Need a person? Open the **Live Support** tab.";
+                    appendSupportBubble('bot', welcome, '', AI_CHANNEL);
+                }
+                if (!split.support.length) {
+                    const hint = getChatBody(SUPPORT_CHANNEL);
+                    if (hint && !hint.querySelector('[data-admin-tab-hint]')) {
+                        appendSupportBubble('bot', 'Welcome to **Live Support**. Describe your issue and our team will reply here.', '', SUPPORT_CHANNEL);
+                        const last = hint.lastElementChild;
+                        if (last) last.setAttribute('data-admin-tab-hint', '1');
+                    }
+                }
+                split.ai.forEach(m => supportKnownMsgIds.ai.add(m.id));
+                split.support.forEach(m => supportKnownMsgIds.support.add(m.id));
                 window.supportChatState.loaded = true;
                 syncSupportChatHeaderFromThread(threadId);
-            } else if (newAdminMsgs.length) {
-                if (typeof switchSupportChatTab === 'function') switchSupportChatTab('admin');
-                newAdminMsgs.forEach(m => {
-                    appendSupportBubble('admin', m.text);
-                    knownIds.add(m.id);
-                    supportSeenAdminMsgIds.add(m.id);
-                });
-                updateSupportChatHeader('human', false);
-                if (typeof showToast === 'function') {
-                    showToast('New reply from support team');
+            } else {
+                const newSupportAdmin = split.support.filter(m => m.sender === 'admin' && !supportKnownMsgIds.support.has(m.id));
+                if (newSupportAdmin.length) {
+                    if (typeof switchSupportChatTab === 'function') switchSupportChatTab('admin');
+                    newSupportAdmin.forEach(m => {
+                        appendSupportBubble('admin', m.text, '', SUPPORT_CHANNEL);
+                        supportKnownMsgIds.support.add(m.id);
+                        supportSeenAdminMsgIds.add(m.id);
+                    });
+                    updateSupportChatHeader('human', false);
+                    if (typeof showToast === 'function') showToast('New reply from support team');
                 }
+                split.support.forEach(m => supportKnownMsgIds.support.add(m.id));
+                split.ai.forEach(m => supportKnownMsgIds.ai.add(m.id));
             }
 
             db.collection('support_threads').doc(threadId).set({ unreadByCustomer: 0 }, { merge: true }).catch(() => {});
             applySupportUnreadBadge(0);
         }, () => {
-            db.collection('support_threads').doc(threadId).collection('messages').limit(100)
+            db.collection('support_threads').doc(threadId).collection('messages').limit(150)
                 .onSnapshot(snap => {
                     const msgs = [];
                     snap.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
                     msgs.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
-                    renderThreadMessages(msgs, false);
+                    const split = splitMessagesByChannel(msgs);
+                    window.supportMessagesCache.ai = split.ai;
+                    window.supportMessagesCache.support = split.support;
+                    renderChannelMessages(split.ai, AI_CHANNEL);
+                    renderChannelMessages(split.support, SUPPORT_CHANNEL);
                     window.supportChatState.loaded = true;
                 });
         });
@@ -754,20 +929,10 @@ window.openSupportChat = async function() {
 
     const threadSnap = await db.collection('support_threads').doc(threadId).get();
     const threadData = threadSnap.exists ? threadSnap.data() : {};
-    const defaultTab = threadData.mode === 'human' ? 'admin' : 'ai';
-
-    const msgSnap = await db.collection('support_threads').doc(threadId).collection('messages').limit(1).get();
-    const body = document.getElementById('ai-chat-body');
-    if (body && msgSnap.empty && body.childElementCount === 0) {
-        if (defaultTab === 'admin') {
-            appendSupportBubble('bot', 'Welcome to **Live Support**. Describe your issue and our team will reply here.');
-            const last = body.lastElementChild;
-            if (last) last.setAttribute('data-admin-tab-hint', '1');
-        } else {
-            const welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, or orders. Need a person? Open the **Live Support** tab.";
-            appendSupportBubble('bot', welcome);
-        }
-    }
+    const hasSupportCase = threadData.status === 'waiting_admin'
+        || (threadData.unreadByCustomer || 0) > 0
+        || threadData.mode === 'human';
+    const defaultTab = hasSupportCase ? 'admin' : 'ai';
 
     updateSupportChatTabUI(defaultTab);
     await syncSupportChatHeaderFromThread(threadId);
@@ -875,10 +1040,20 @@ window.sendAdminCustomerChat = async function() {
     }
 };
 
+function threadHasSupportActivity(t) {
+    if (!t) return false;
+    if ((t.unreadByAdmin || 0) > 0) return true;
+    if (t.status === 'waiting_admin') return true;
+    if (t.mode === 'human') return true;
+    if (t.lastMessageSender === 'admin') return true;
+    if (t.lastMessageSender === 'customer' && (t.status === 'waiting_admin' || t.escalateReason)) return true;
+    return false;
+}
+
 function renderAdminSupportInbox() {
     const container = document.getElementById('admin-support-inbox-list');
     if (!container) return;
-    const threads = window.supportThreadsCache || [];
+    const threads = (window.supportThreadsCache || []).filter(threadHasSupportActivity);
     if (!threads.length) {
         container.innerHTML = '<p style="text-align:center;color:#555;font-size:12px;padding:20px 0;">No support conversations yet.</p>';
         return;
@@ -954,7 +1129,9 @@ function updateSupportUnreadBadge() {
 function updateAdminSupportBadge() {
     const badge = document.getElementById('admin-support-pending-badge');
     if (!badge) return;
-    const total = (window.supportThreadsCache || []).reduce((s, t) => s + (t.unreadByAdmin || 0), 0);
+    const total = (window.supportThreadsCache || [])
+        .filter(threadHasSupportActivity)
+        .reduce((s, t) => s + (t.unreadByAdmin || 0), 0);
     badge.textContent = total;
     badge.style.display = total > 0 ? 'inline-block' : 'none';
 }

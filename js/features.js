@@ -370,7 +370,7 @@ async function getAIResponse() {
 }
 
 function appendTypingIndicator() {
-    const body = document.getElementById('ai-chat-body');
+    const body = document.getElementById('ai-chat-body-ai') || document.getElementById('ai-chat-body');
     if (!body) return null;
     
     const div = document.createElement('div');
@@ -419,7 +419,7 @@ window.toggleAIChat = toggleAIChat;
 window.getAIResponse = getAIResponse;
 
 function appendChatMessage(sender, text) {
-    const body = document.getElementById('ai-chat-body');
+    const body = document.getElementById('ai-chat-body-ai') || document.getElementById('ai-chat-body');
     if (!body) return;
     
     const div = document.createElement('div');
