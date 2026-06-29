@@ -442,6 +442,11 @@ function generateLocalFallbackReply(userText) {
     };
 }
 
+function canAnswerWhileAdminIsPending(intent) {
+    if (typeof intent === 'object') return true;
+    return ['greeting', 'order', 'contact', 'best_sellers', 'suggest', 'price'].includes(intent);
+}
+
 async function syncSupportChatHeaderFromThread(threadId) {
     try {
         const snap = await db.collection('support_threads').doc(threadId).get();
@@ -494,9 +499,9 @@ async function handleSupportCustomerMessage(text) {
 
     const threadSnap = await db.collection('support_threads').doc(threadId).get();
     const threadData = threadSnap.exists ? threadSnap.data() : {};
-    if (threadData.mode === 'human' && !isEscalation) {
+    if (threadData.mode === 'human' && !isEscalation && !canAnswerWhileAdminIsPending(intent)) {
         updateSupportChatHeader('human', threadData.status === 'waiting_admin');
-        appendSupportBubble('bot', 'Your message was sent to our support team. They will reply here soon.');
+        appendSupportBubble('bot', 'I have added this to your support conversation. Our team will reply here soon.');
         return;
     }
 
@@ -575,6 +580,7 @@ function subscribeCustomerThread(threadId) {
                 renderThreadMessages(msgs, false);
                 msgs.forEach(m => knownIds.add(m.id));
                 window.supportChatState.loaded = true;
+                syncSupportChatHeaderFromThread(threadId);
             } else if (newAdminMsgs.length) {
                 newAdminMsgs.forEach(m => {
                     appendSupportBubble('admin', m.text);
