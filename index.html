@@ -1858,6 +1858,19 @@
                 <div
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Support
+                            Threads</span>
+                        <span style="font-size:10px; color:#666;">Remove every support thread and all messages (Live
+                            Support + AI Help)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllSupportThreadsPrompt()">Delete All Threads</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
                         <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
                             Products</span>
                         <span style="font-size:10px; color:#666;">Permanently delete all product catalogs and
@@ -1879,6 +1892,57 @@
                     <button class="btn-gold"
                         style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
                         onclick="deleteAllOrdersPrompt()">Delete All Orders</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
+                            Feedbacks</span>
+                        <span style="font-size:10px; color:#666;">Remove all testimonials, diary entries, and feedback
+                            posts</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllFeedbacksPrompt()">Delete All Feedbacks</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
+                            Announcements</span>
+                        <span style="font-size:10px; color:#666;">Clear every global storefront announcement</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAnnouncementsPrompt()">Delete Announcements</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Product
+                            Comments</span>
+                        <span style="font-size:10px; color:#666;">Remove all customer product comments (pending,
+                            approved, rejected)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllProductCommentsPrompt()">Delete All Comments</button>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All Assigned
+                            Admins</span>
+                        <span style="font-size:10px; color:#666;">Remove custom admin roles (superadmin login is not
+                            affected)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllAssignedAdminsPrompt()">Delete All Admins</button>
                 </div>
 
                 <div
@@ -2498,15 +2562,15 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.57"></script>
-    <script src="js/app.js?v=9.57"></script>
-    <script src="js/store.js?v=9.57"></script>
-    <script src="js/checkout.js?v=9.57"></script>
-    <script src="js/auth.js?v=9.57"></script>
-    <script src="js/comments.js?v=9.57"></script>
-    <script src="js/support-chat.js?v=9.57"></script>
-    <script src="js/admin.js?v=9.57"></script>
-    <script src="js/cloudinary-admin.js?v=9.57"></script>
+    <script src="js/features.js?v=9.58"></script>
+    <script src="js/app.js?v=9.58"></script>
+    <script src="js/store.js?v=9.58"></script>
+    <script src="js/checkout.js?v=9.58"></script>
+    <script src="js/auth.js?v=9.58"></script>
+    <script src="js/comments.js?v=9.58"></script>
+    <script src="js/support-chat.js?v=9.58"></script>
+    <script src="js/admin.js?v=9.58"></script>
+    <script src="js/cloudinary-admin.js?v=9.58"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

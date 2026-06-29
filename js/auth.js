@@ -1571,6 +1571,50 @@ const FACTORY_RESET_PRESERVED_SETTINGS = [
 /** Commerce/catalog settings removed during factory reset. */
 const FACTORY_RESET_SETTINGS_TO_CLEAR = ['backup', 'cod', 'cart', 'promos'];
 
+function assertSuperAdminDestructive() {
+    if (!isSuperAdmin) {
+        showToast('Only superadmin can perform this action.');
+        return false;
+    }
+    return true;
+}
+
+async function confirmSuperAdminDestructive(warning, verifyPhrase) {
+    if (!assertSuperAdminDestructive()) return false;
+    if (!confirm(warning)) return false;
+    const typed = prompt(`To verify, type '${verifyPhrase}':`);
+    if (typed !== verifyPhrase) {
+        showToast('Verification failed. Deletion aborted.');
+        return false;
+    }
+    return true;
+}
+
+function afterDestructiveRefresh(scope) {
+    if (scope === 'products' || scope === 'factory') {
+        if (typeof applySortAndFilter === 'function') applySortAndFilter();
+        if (typeof renderAdmin === 'function') renderAdmin();
+    }
+    if (scope === 'feedbacks' || scope === 'factory') {
+        if (typeof renderFeedbacks === 'function') renderFeedbacks();
+        if (typeof renderAdminFeedbackList === 'function') renderAdminFeedbackList();
+    }
+    if (scope === 'announcements' || scope === 'factory') {
+        if (typeof loadAnnouncementSettingsAdmin === 'function') loadAnnouncementSettingsAdmin();
+    }
+    if (scope === 'comments' || scope === 'factory') {
+        if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
+    }
+    if (scope === 'support' || scope === 'factory') {
+        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+    }
+    if (scope === 'admins' || scope === 'factory') {
+        if (typeof loadAssignedAdmins === 'function') loadAssignedAdmins();
+        updateAdminPrivilegesUI();
+    }
+}
+
 async function batchDeleteCollection(collectionName) {
     const snap = await db.collection(collectionName).get();
     if (snap.empty) return 0;
@@ -1633,96 +1677,150 @@ async function clearFactoryResetSettings() {
     }
 }
 
-async function deleteAllProductsPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    
-    if (!confirm("⚠️ DANGER: You are about to delete ALL products in the catalog.\nThis will wipe all variants and inventory. Continue?")) return;
-    const confirmText = prompt("To verify, please type 'DELETE ALL PRODUCTS' in the box below:");
-    if (confirmText !== "DELETE ALL PRODUCTS") {
-        return showToast("Verification failed. Deletion aborted.");
-    }
+async function runCollectionDeletePrompt({
+    warning,
+    verifyPhrase,
+    collectionName,
+    successLabel,
+    refreshScope,
+    toastPrefix = '🗑️ Erased'
+}) {
+    if (!await confirmSuperAdminDestructive(warning, verifyPhrase)) return;
 
     try {
-        showToast("Processing bulk deletion...");
-        const count = await batchDeleteCollection("products");
-        showToast(`🗑️ Erased ${count} products.`);
-        if (typeof applySortAndFilter === 'function') applySortAndFilter();
+        showToast('Processing bulk deletion...');
+        const count = await batchDeleteCollection(collectionName);
+        showToast(`${toastPrefix} ${count} ${successLabel}.`);
+        afterDestructiveRefresh(refreshScope);
     } catch (e) {
-        console.error("Error deleting products:", e);
-        showToast("Failed to delete products.");
+        console.error(`Error deleting ${collectionName}:`, e);
+        showToast(`Failed to delete ${successLabel.toLowerCase()}.`);
     }
+}
+
+async function deleteAllProductsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: You are about to delete ALL products in the catalog.\nThis will wipe all variants and inventory. Continue?",
+        verifyPhrase: 'DELETE ALL PRODUCTS',
+        collectionName: 'products',
+        successLabel: 'products',
+        refreshScope: 'products'
+    });
 }
 
 async function deleteAllOrdersPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    
-    if (!confirm("⚠️ DANGER: You are about to delete ALL orders in the database.\nThis will wipe out all customer order logs. Continue?")) return;
-    const confirmText = prompt("To verify, please type 'DELETE ALL ORDERS' in the box below:");
-    if (confirmText !== "DELETE ALL ORDERS") {
-        return showToast("Verification failed. Deletion aborted.");
-    }
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: You are about to delete ALL orders in the database.\nThis will wipe out all customer order logs. Continue?",
+        verifyPhrase: 'DELETE ALL ORDERS',
+        collectionName: 'orders',
+        successLabel: 'orders',
+        refreshScope: 'orders'
+    });
+}
 
-    try {
-        showToast("Processing bulk deletion...");
-        const count = await batchDeleteCollection("orders");
-        showToast(`🗑️ Erased ${count} orders.`);
-    } catch (e) {
-        console.error("Error deleting orders:", e);
-        showToast("Failed to delete orders.");
-    }
+async function deleteAllFeedbacksPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Delete ALL testimonials, feedback posts, and diary entries?\nThis cannot be undone.",
+        verifyPhrase: 'DELETE ALL FEEDBACKS',
+        collectionName: 'feedbacks',
+        successLabel: 'feedbacks',
+        refreshScope: 'feedbacks'
+    });
+}
+
+async function deleteAllAnnouncementsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Delete ALL global announcements?\nStorefront announcement banners will be cleared. Continue?",
+        verifyPhrase: 'DELETE ALL ANNOUNCEMENTS',
+        collectionName: 'announcements',
+        successLabel: 'announcements',
+        refreshScope: 'announcements'
+    });
+}
+
+async function deleteAllProductCommentsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Delete ALL product comments (pending, approved, and rejected)?\nThis cannot be undone.",
+        verifyPhrase: 'DELETE ALL COMMENTS',
+        collectionName: 'product_comments',
+        successLabel: 'comments',
+        refreshScope: 'comments'
+    });
+}
+
+async function deleteAllAssignedAdminsPrompt() {
+    await runCollectionDeletePrompt({
+        warning: "⚠️ DANGER: Remove ALL assigned admin roles?\nCustom admins will lose access. Superadmin login is not affected.",
+        verifyPhrase: 'DELETE ALL ADMINS',
+        collectionName: 'admins',
+        successLabel: 'assigned admins',
+        refreshScope: 'admins'
+    });
 }
 
 async function deleteAllAdminSupportChatsPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    if (!confirm("⚠️ DANGER: Delete ALL Live Support (admin) chat messages for every customer thread?\n\nAI Help history will be kept. This cannot be undone.")) return;
-    const confirmText = prompt("To verify, type 'DELETE ALL ADMIN CHATS':");
-    if (confirmText !== "DELETE ALL ADMIN CHATS") {
-        return showToast("Verification failed. Deletion aborted.");
-    }
+    if (!await confirmSuperAdminDestructive(
+        "⚠️ DANGER: Delete ALL Live Support (admin) chat messages for every customer thread?\n\nAI Help history will be kept. This cannot be undone.",
+        'DELETE ALL ADMIN CHATS'
+    )) return;
 
     try {
         showToast("Deleting all admin support chats...");
         const count = typeof deleteAllSupportChatsByChannel === 'function'
             ? await deleteAllSupportChatsByChannel('support')
             : 0;
-        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
-        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+        afterDestructiveRefresh('support');
         showToast(count ? `🗑️ Deleted ${count} Live Support message${count === 1 ? '' : 's'}.` : 'No Live Support messages found.');
     } catch (e) {
         console.error("Error deleting all admin support chats:", e);
         showToast("Failed to delete admin support chats.");
     }
 }
-window.deleteAllAdminSupportChatsPrompt = deleteAllAdminSupportChatsPrompt;
 
 async function deleteAllAiSupportChatsPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
-    if (!confirm("⚠️ DANGER: Delete ALL AI Help chat messages for every customer thread?\n\nLive Support history will be kept. This cannot be undone.")) return;
-    const confirmText = prompt("To verify, type 'DELETE ALL AI CHATS':");
-    if (confirmText !== "DELETE ALL AI CHATS") {
-        return showToast("Verification failed. Deletion aborted.");
-    }
+    if (!await confirmSuperAdminDestructive(
+        "⚠️ DANGER: Delete ALL AI Help chat messages for every customer thread?\n\nLive Support history will be kept. This cannot be undone.",
+        'DELETE ALL AI CHATS'
+    )) return;
 
     try {
         showToast("Deleting all AI help chats...");
         const count = typeof deleteAllSupportChatsByChannel === 'function'
             ? await deleteAllSupportChatsByChannel('ai')
             : 0;
+        afterDestructiveRefresh('support');
         showToast(count ? `🗑️ Deleted ${count} AI Help message${count === 1 ? '' : 's'}.` : 'No AI Help messages found.');
     } catch (e) {
         console.error("Error deleting all AI help chats:", e);
         showToast("Failed to delete AI help chats.");
     }
 }
-window.deleteAllAiSupportChatsPrompt = deleteAllAiSupportChatsPrompt;
+
+async function deleteAllSupportThreadsPrompt() {
+    if (!await confirmSuperAdminDestructive(
+        "⚠️ DANGER: Delete ALL support threads and every message (Live Support + AI Help)?\n\nThis removes entire conversation records. This cannot be undone.",
+        'DELETE ALL SUPPORT THREADS'
+    )) return;
+
+    try {
+        showToast('Deleting all support threads...');
+        const count = await batchDeleteSupportThreadsFully();
+        afterDestructiveRefresh('support');
+        showToast(count ? `🗑️ Deleted ${count} support thread${count === 1 ? '' : 's'} and all messages.` : 'No support threads found.');
+    } catch (e) {
+        console.error('Error deleting all support threads:', e);
+        showToast('Failed to delete support threads.');
+    }
+}
 
 async function cleanEverythingPrompt() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!assertSuperAdminDestructive()) return;
 
+    const preservedSettingsNote = FACTORY_RESET_PRESERVED_SETTINGS.join(', ');
     const preservedList = [
         'All customer accounts (users), addresses & wishlists',
         'Email, Telegram, session & pagination settings',
-        'Feature toggles, theme/content & footer config'
+        `Feature toggles & content settings (${preservedSettingsNote})`
     ].join('\n  • ');
 
     const deletedList = [
@@ -1769,17 +1867,26 @@ async function cleanEverythingPrompt() {
             `Customer accounts preserved.`
         );
 
-        if (typeof applySortAndFilter === 'function') applySortAndFilter();
-        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
-        if (typeof updateAdminSupportBadge === 'function') updateAdminSupportBadge();
+        afterDestructiveRefresh('factory');
     } catch (e) {
         console.error("Error in factory reset:", e);
         showToast("Reset failed. Some data may have been partially deleted — check Firebase console.");
     }
 }
 
+window.deleteAllProductsPrompt = deleteAllProductsPrompt;
+window.deleteAllOrdersPrompt = deleteAllOrdersPrompt;
+window.deleteAllFeedbacksPrompt = deleteAllFeedbacksPrompt;
+window.deleteAllAnnouncementsPrompt = deleteAllAnnouncementsPrompt;
+window.deleteAllProductCommentsPrompt = deleteAllProductCommentsPrompt;
+window.deleteAllAssignedAdminsPrompt = deleteAllAssignedAdminsPrompt;
+window.deleteAllAdminSupportChatsPrompt = deleteAllAdminSupportChatsPrompt;
+window.deleteAllAiSupportChatsPrompt = deleteAllAiSupportChatsPrompt;
+window.deleteAllSupportThreadsPrompt = deleteAllSupportThreadsPrompt;
+window.cleanEverythingPrompt = cleanEverythingPrompt;
+
 window.deleteFirebaseBackupsPrompt = async function() {
-    if (!isSuperAdmin) return showToast("Only superadmin can perform this action.");
+    if (!assertSuperAdminDestructive()) return;
     if (!confirm("🚨 WARNING: This will permanently delete all backup email records for backup@swagstree.com and reset your backup timestamp. Continue?")) return;
     
     try {
