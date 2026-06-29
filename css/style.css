@@ -1946,37 +1946,33 @@ body {
 }
 
 .catalog-controls-row {
-    padding: 6px 15px 8px 15px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 8px 12px 10px 12px;
+    display: flex;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 6px;
+    justify-content: space-between;
+    gap: 8px;
     width: 100%;
     box-sizing: border-box;
     overflow: visible;
-    min-height: 32px;
+    min-height: 36px;
 }
 
 .catalog-count-label {
+    flex: 1 1 auto;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    justify-self: start;
-    line-height: 1.2;
+    line-height: 1.25;
     margin: 0;
+    align-self: center;
 }
 
-.catalog-controls-row.catalog-row-icons-minimal .catalog-count-label {
-    max-width: 100%;
-}
-
+.catalog-controls-row.catalog-row-icons-minimal .catalog-count-label,
 .catalog-controls-row.catalog-row-no-chat .catalog-count-label,
-.catalog-controls-row.catalog-row-no-announcement .catalog-count-label {
-    max-width: 100%;
-}
-
+.catalog-controls-row.catalog-row-no-announcement .catalog-count-label,
 .catalog-controls-row.catalog-row-no-chat.catalog-row-no-announcement .catalog-count-label {
     max-width: 100%;
 }
@@ -1984,27 +1980,35 @@ body {
 .catalog-controls-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    flex: 0 0 auto;
     flex-shrink: 0;
-    justify-self: end;
     overflow: visible;
 }
 
 .catalog-controls-row .count-badge,
 .catalog-controls-row .catalog-count-label {
-    font-size: 9px;
-    padding: 4px 8px;
-    letter-spacing: 0.2px;
+    font-size: clamp(10px, 2.85vw, 12px);
+    font-weight: 700;
+    padding: 6px 10px;
+    letter-spacing: 0.3px;
     text-transform: none;
+    height: 32px;
+    box-sizing: border-box;
+    align-items: center;
 }
 
 @media (min-width: 600px) {
     .catalog-controls-row {
         gap: 10px;
-        padding: 4px 20px 10px 20px;
+        padding: 8px 16px 10px 16px;
+        min-height: 38px;
     }
-    .catalog-count-label {
-        font-size: 10px;
+    .catalog-controls-row .count-badge,
+    .catalog-controls-row .catalog-count-label {
+        font-size: 11px;
+        padding: 7px 12px;
+        height: 34px;
     }
 }
 
@@ -2013,12 +2017,14 @@ body {
         gap: 12px;
         max-width: 1200px;
         margin: 0 auto;
-        padding-left: 24px;
-        padding-right: 24px;
+        padding: 8px 24px 12px 24px;
+        min-height: 40px;
     }
-    .catalog-count-label {
-        font-size: 11px;
-        letter-spacing: 0.5px;
+    .catalog-controls-row .count-badge,
+    .catalog-controls-row .catalog-count-label {
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        height: 36px;
     }
 }
 
@@ -2028,8 +2034,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: #111;
     border: 1px solid #222;
@@ -2083,13 +2089,24 @@ body {
 .catalog-sort-wrap {
     display: none;
     align-items: center;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 42vw;
 }
 
 .catalog-sort-select {
     margin: 0;
-    min-width: 100px;
+    min-width: 0;
+    width: 100%;
+    max-width: 120px;
     position: relative;
+}
+
+.catalog-sort-dropdown {
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: clamp(9px, 2.5vw, 11px) !important;
+    line-height: 1.2 !important;
 }
 
 .catalog-sort-icon {
@@ -2290,9 +2307,9 @@ body {
         right: -4px !important;
     } */
     .catalog-controls-row {
-        gap: 4px;
-        padding: 4px 12px 6px 12px;
-        min-height: 30px;
+        gap: 6px;
+        padding: 6px 12px 8px 12px;
+        min-height: 34px;
     }
     .home-search-wrap {
         padding: 8px 12px 0 12px;
@@ -2302,30 +2319,31 @@ body {
     }
     .catalog-controls-row .count-badge,
     .catalog-count-label {
-        font-size: 7px;
-        padding: 3px 6px;
-        letter-spacing: 0.2px;
+        font-size: clamp(10px, 3vw, 11px);
+        padding: 5px 8px;
+        height: 30px;
     }
     .catalog-controls-actions {
-        gap: 4px;
+        gap: 5px;
+    }
+    .catalog-sort-wrap {
+        max-width: 38vw;
+    }
+    .catalog-sort-select {
+        max-width: 96px;
     }
     .catalog-controls-row select,
     .catalog-sort-dropdown {
-        font-size: 9px !important;
-        height: 28px !important;
-        padding: 2px 4px 2px 20px !important;
-    }
-    .catalog-sort-select {
-        min-width: 76px !important;
-    }
-    .catalog-sort-dropdown {
-        max-width: 88px;
+        font-size: clamp(9px, 2.6vw, 10px) !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 2px 4px 2px 18px !important;
     }
     .catalog-icon-btn,
     .catalog-controls-row #header-support-chat-btn,
     .catalog-controls-row #announcement-bell-btn {
-        width: 28px !important;
-        height: 28px !important;
+        width: 30px !important;
+        height: 30px !important;
     }
     .catalog-icon-btn i,
     .catalog-controls-row #header-support-chat-btn i,
