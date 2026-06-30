@@ -2203,8 +2203,8 @@ function getFeedbackCardsHtml() {
                     const postId = match ? match[1] : '';
                     const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                     return `
-                    <div onclick="window.openFeedbackPost(this)" style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center; cursor:pointer;">
-                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; pointer-events:none;">
+                    <div onclick="window.openFeedbackPost(this)" class="feedback-diaries-slide">
+                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
                     </div>
                     `;
                 }).join('');
@@ -2214,9 +2214,11 @@ function getFeedbackCardsHtml() {
                 `).join('');
 
                 mediaHtml = `
-                <div class="carousel-box feedback-media feedback-diaries-carousel">
-                    <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
-                        ${slideImages}
+                <div class="feedback-diaries-carousel">
+                    <div class="feedback-diaries-media">
+                        <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
+                            ${slideImages}
+                        </div>
                     </div>
                     <div class="feedback-carousel-nav">
                         <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">

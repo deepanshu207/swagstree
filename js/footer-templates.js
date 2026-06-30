@@ -107,7 +107,7 @@ function isLuxuryBrandEnabled(settings) {
 }
 
 function getLuxuryBrandText(settings) {
-    return (settings?.copyright || '').trim();
+    return (settings?.luxuryBrandText || settings?.copyright || '').trim();
 }
 
 /** auto + inline = scroll with page; fixed = pinned bar above bottom nav */
@@ -307,13 +307,13 @@ function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
     const tpl = normalizeFooterTemplateId(selectedTemplate);
     const layout = normalizeFooterLayoutId(selectedLayout);
     const isLuxury = tpl === 'luxury';
-    const luxuryRow = document.getElementById('admin-footer-luxury-brand-row');
+    const luxuryRow = document.getElementById('admin-footer-luxury-options');
+    const copyrightRow = document.getElementById('admin-footer-copyright-row-wrap');
     const copyrightHint = document.getElementById('admin-footer-copyright-hint');
     if (luxuryRow) luxuryRow.style.display = isLuxury ? 'flex' : 'none';
-    if (copyrightHint) {
-        copyrightHint.textContent = isLuxury
-            ? 'Brand name shown above Luxury footer links when enabled'
-            : 'Copyright text displayed under footer';
+    if (copyrightRow) copyrightRow.style.display = isLuxury ? 'none' : 'flex';
+    if (copyrightHint && !isLuxury) {
+        copyrightHint.textContent = 'Copyright text displayed under footer';
     }
 
     if (tplGrid) {
@@ -352,6 +352,7 @@ function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
             showFooter: true,
             showCopyright: document.getElementById('admin-footer-show-copyright')?.checked === true,
             showLuxuryBrand: document.getElementById('admin-footer-show-luxury-brand')?.checked === true,
+            luxuryBrandText: document.getElementById('admin-footer-luxury-brand-text')?.value?.trim() || '',
             copyright: document.getElementById('admin-footer-copyright')?.value?.trim() || '',
             contactPhone: document.getElementById('admin-footer-phone')?.value?.trim() || '8800467686',
             footerTemplate: currentTpl

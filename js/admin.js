@@ -2272,6 +2272,7 @@ async function loadAdminFooterSettings() {
         const showFooterEl = document.getElementById('admin-footer-show-footer');
         const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
         const showLuxuryBrandEl = document.getElementById('admin-footer-show-luxury-brand');
+        const luxuryBrandTextEl = document.getElementById('admin-footer-luxury-brand-text');
         const copyrightEl = document.getElementById('admin-footer-copyright');
         const aboutTextEl = document.getElementById('admin-footer-about-text');
         const addressEl = document.getElementById('admin-footer-address');
@@ -2285,6 +2286,7 @@ async function loadAdminFooterSettings() {
         if (showFooterEl) showFooterEl.checked = !!settings.showFooter;
         if (showCopyrightEl) showCopyrightEl.checked = settings.showCopyright === true;
         if (showLuxuryBrandEl) showLuxuryBrandEl.checked = settings.showLuxuryBrand === true;
+        if (luxuryBrandTextEl) luxuryBrandTextEl.value = settings.luxuryBrandText || settings.copyright || '';
         if (copyrightEl) copyrightEl.value = settings.copyright || '';
         
         if (aboutTextEl) {
@@ -2321,6 +2323,7 @@ async function saveAdminFooterSettings() {
     const showFooterEl = document.getElementById('admin-footer-show-footer');
     const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
     const showLuxuryBrandEl = document.getElementById('admin-footer-show-luxury-brand');
+    const luxuryBrandTextEl = document.getElementById('admin-footer-luxury-brand-text');
     const copyrightEl = document.getElementById('admin-footer-copyright');
     const aboutTextEl = document.getElementById('admin-footer-about-text');
     const addressEl = document.getElementById('admin-footer-address');
@@ -2333,12 +2336,16 @@ async function saveAdminFooterSettings() {
     const templateEl = document.querySelector('input[name="admin-footer-template"]:checked');
     const layoutEl = document.querySelector('input[name="admin-footer-layout"]:checked');
     
+    const templateId = templateEl ? templateEl.value : 'classic';
+    const isLuxuryTemplate = templateId === 'luxury';
+
     const settings = {
         showFooter: showFooterEl ? showFooterEl.checked : true,
         showCopyright: showCopyrightEl ? showCopyrightEl.checked : false,
-        showLuxuryBrand: showLuxuryBrandEl ? showLuxuryBrandEl.checked : false,
+        showLuxuryBrand: isLuxuryTemplate && showLuxuryBrandEl ? showLuxuryBrandEl.checked : false,
+        luxuryBrandText: isLuxuryTemplate && luxuryBrandTextEl ? luxuryBrandTextEl.value.trim() : '',
         copyright: copyrightEl ? copyrightEl.value.trim() : "",
-        footerTemplate: templateEl ? templateEl.value : 'classic',
+        footerTemplate: templateId,
         footerLayout: layoutEl ? layoutEl.value : 'auto',
         aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "",
         contactAddress: addressEl ? addressEl.value.trim() : "",
