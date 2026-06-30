@@ -2488,6 +2488,18 @@ body.body-footer-pos-scroll.has-customer-diaries .storefront-footer-anchor {
 }
 .feedback-card .feedback-diaries-single {
     cursor: pointer;
+    isolation: isolate;
+}
+.feedback-card .feedback-diaries-single::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 6px;
+    background: #000;
+    z-index: 4;
+    pointer-events: none;
 }
 .feedback-card .feedback-diaries-slides {
     position: absolute;
