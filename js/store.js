@@ -1424,6 +1424,11 @@ function updateDots(el) {
     const dotRoot = diariesRoot || el.parentElement;
     const dots = dotRoot.querySelectorAll('.dot');
     dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    if (el.classList.contains('feedback-diaries-slides')) {
+        el.querySelectorAll('.feedback-diaries-slide').forEach((slide, i) => {
+            slide.classList.toggle('is-active', i === idx);
+        });
+    }
 
     // For product detail gallery: Automatically switch active variant selections on scroll
     if (el.id === 'det-gallery') {
@@ -2006,8 +2011,29 @@ window.handleFeedbackImageError = function (imgEl, postId) {
     }
 };
 
+function normalizeInstagramWebUrl(url) {
+    if (!url) return '';
+    const m = String(url).match(/instagram\.com\/(?:[^/]+\/)?(p|reel|tv)\/([^/?#&\s]+)/i);
+    if (!m) return String(url).trim();
+    return `https://www.instagram.com/${m[1].toLowerCase()}/${m[2]}/`;
+}
+
 function getActiveFeedbackLink(card) {
     if (!card) return null;
+
+    const carousel = card.querySelector('.feedback-diaries-slides, .carousel');
+    if (carousel) {
+        const offsetWidth = carousel.offsetWidth || 1;
+        const activeIdx = Math.max(0, Math.round(carousel.scrollLeft / offsetWidth));
+        const slides = carousel.querySelectorAll('.feedback-diaries-slide[data-link]');
+        if (slides.length > 0) {
+            const slide = slides[Math.min(activeIdx, slides.length - 1)];
+            if (slide && slide.dataset.link) return slide.dataset.link;
+        }
+    }
+
+    if (card.dataset.link) return card.dataset.link;
+
     let allLinks = [];
     try {
         allLinks = JSON.parse(card.dataset.links || '[]');
@@ -2017,24 +2043,29 @@ function getActiveFeedbackLink(card) {
     if (!allLinks.length) return null;
 
     let activeIdx = 0;
-    const carousel = card.querySelector('.feedback-diaries-slides, .carousel');
     if (carousel) {
         const offsetWidth = carousel.offsetWidth || 1;
         activeIdx = Math.round(carousel.scrollLeft / offsetWidth);
         if (activeIdx >= allLinks.length) activeIdx = 0;
     }
-    return allLinks[activeIdx] || allLinks[0];
+    return normalizeInstagramWebUrl(allLinks[activeIdx] || allLinks[0]);
 }
 
 function resolveNativeAppUrl(webUrl) {
-    if (!webUrl) return null;
-    const igMatch = webUrl.match(/instagram\.com\/(?:[^/]+\/)?(p|reel|tv)\/([^/?#&\s]+)/i);
+    const normalized = normalizeInstagramWebUrl(webUrl);
+    if (!normalized) return null;
+
+    const igMatch = normalized.match(/instagram\.com\/(p|reel|tv)\/([^/?#&\s]+)/i);
     if (igMatch) {
         const kind = igMatch[1].toLowerCase();
         const code = igMatch[2];
-        if (kind === 'reel') return 'instagram://reel/' + code;
-        if (kind === 'tv') return 'instagram://tv/' + code;
-        return 'instagram://p/' + code + '/';
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        if (isAndroid) {
+            return `intent://www.instagram.com/${kind}/${code}/#Intent;package=com.instagram.android;scheme=https;end`;
+        }
+        if (kind === 'reel') return `instagram://reel/${code}`;
+        if (kind === 'tv') return `instagram://tv/${code}`;
+        return `instagram://p/${code}/`;
     }
     if (webUrl.includes('facebook.com')) {
         return 'fb://facewebmodal/f?href=' + encodeURIComponent(webUrl);
@@ -2043,12 +2074,14 @@ function resolveNativeAppUrl(webUrl) {
 }
 
 function openNativeOrWebUrl(webUrl) {
-    if (!webUrl) return;
+    const normalized = normalizeInstagramWebUrl(webUrl) || webUrl;
+    if (!normalized) return;
+
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const appUrl = isMobile ? resolveNativeAppUrl(webUrl) : null;
+    const appUrl = isMobile ? resolveNativeAppUrl(normalized) : null;
 
     if (!isMobile || !appUrl) {
-        window.open(webUrl, '_blank', 'noopener,noreferrer');
+        window.open(normalized, '_blank', 'noopener,noreferrer');
         return;
     }
 
@@ -2060,28 +2093,15 @@ function openNativeOrWebUrl(webUrl) {
     window.addEventListener('pagehide', markLeft, { once: true });
     document.addEventListener('visibilitychange', onVis);
 
-    // Anchor click keeps iOS user-gesture chain for custom scheme links
-    const linkEl = document.createElement('a');
-    linkEl.href = appUrl;
-    linkEl.style.display = 'none';
-    linkEl.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(linkEl);
-    linkEl.click();
-    document.body.removeChild(linkEl);
-    window.location.assign(appUrl);
+    // Same pattern as header social buttons — location.href in the user tap handler
+    window.location.href = appUrl;
 
     setTimeout(() => {
         document.removeEventListener('visibilitychange', onVis);
         if (!leftPage) {
-            const webAnchor = document.createElement('a');
-            webAnchor.href = webUrl;
-            webAnchor.style.display = 'none';
-            webAnchor.setAttribute('aria-hidden', 'true');
-            document.body.appendChild(webAnchor);
-            webAnchor.click();
-            document.body.removeChild(webAnchor);
+            window.location.href = normalized;
         }
-    }, 1500);
+    }, 1200);
 }
 
 window.openFeedbackPost = function (el, evt) {
@@ -2090,11 +2110,14 @@ window.openFeedbackPost = function (el, evt) {
         evt.stopPropagation();
     }
     const card = el.closest('.feedback-card');
-    const targetLink = getActiveFeedbackLink(card);
+    const targetLink = (el.dataset && el.dataset.link) || getActiveFeedbackLink(card);
     if (!targetLink) return false;
     openNativeOrWebUrl(targetLink);
     return false;
 };
+
+window.openNativeOrWebUrl = openNativeOrWebUrl;
+window.normalizeInstagramWebUrl = normalizeInstagramWebUrl;
 
 function getFeedbackCardsHtml() {
     if (!window.feedbacks || window.feedbacks.length === 0) {
@@ -2217,27 +2240,39 @@ function getFeedbackCardsHtml() {
             const allLinksForCard = f.showMultiple
                 ? [link]
                 : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
-            // Escape for HTML attribute (used in data-links)
             const dataLinksAttr = JSON.stringify(allLinksForCard).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+            const escAttr = (v) => String(v || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            const linkForImage = (imgUrl, idx) => {
+                if (imgUrl && imgUrl.includes('instagram.com')) {
+                    const fromImg = normalizeInstagramWebUrl(imgUrl);
+                    if (fromImg) return fromImg;
+                }
+                if (allLinksForCard[idx]) return normalizeInstagramWebUrl(allLinksForCard[idx]);
+                return allLinksForCard[0] ? normalizeInstagramWebUrl(allLinksForCard[0]) : '';
+            };
+            const primaryWebLink = allLinksForCard[0] ? normalizeInstagramWebUrl(allLinksForCard[0]) : '';
 
             let mediaHtml = '';
             if (images.length === 1) {
+                const slideLink = linkForImage(images[0], 0);
                 const match = images[0].match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="return window.openFeedbackPost(this, event)" class="feedback-media feedback-diaries-single" style="cursor:pointer;">
+                <a href="${escAttr(slideLink || '#')}" data-link="${escAttr(slideLink)}" onclick="return window.openFeedbackPost(this, event)" class="feedback-media feedback-diaries-single feedback-diaries-open">
                      <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
-                </div>`;
+                </a>`;
             } else if (images.length > 1) {
-                const slideImages = images.map(url => {
+                const slideImages = images.map((url, idx) => {
+                    const slideLink = linkForImage(url, idx);
                     const match = url.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
                     const postId = match ? match[1] : '';
                     const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
+                    const activeClass = idx === 0 ? ' is-active' : '';
                     return `
-                    <div onclick="return window.openFeedbackPost(this, event)" class="feedback-diaries-slide">
+                    <a href="${escAttr(slideLink || '#')}" data-link="${escAttr(slideLink)}" onclick="return window.openFeedbackPost(this, event)" class="feedback-diaries-slide feedback-diaries-open${activeClass}">
                         <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
-                    </div>
+                    </a>
                     `;
                 }).join('');
 
@@ -2269,16 +2304,18 @@ function getFeedbackCardsHtml() {
             const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s;`;
 
             let platformIcon = '';
-            if (f.platform === 'instagram') {
-                platformIcon = `<button type="button" class="feedback-post-open-btn feedback-ig-btn" aria-label="Open on Instagram" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-instagram"></i></button>`;
-            } else if (f.platform === 'facebook') {
-                platformIcon = `<button type="button" class="feedback-post-open-btn feedback-fb-btn" aria-label="Open on Facebook" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-facebook"></i></button>`;
+            if (f.platform === 'instagram' && primaryWebLink) {
+                platformIcon = `<a href="${escAttr(primaryWebLink)}" data-link="${escAttr(primaryWebLink)}" class="feedback-post-open-btn feedback-ig-btn feedback-diaries-open" aria-label="Open on Instagram" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-instagram"></i></a>`;
+            } else if (f.platform === 'facebook' && primaryWebLink) {
+                platformIcon = `<a href="${escAttr(primaryWebLink)}" data-link="${escAttr(primaryWebLink)}" class="feedback-post-open-btn feedback-fb-btn feedback-diaries-open" aria-label="Open on Facebook" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-facebook"></i></a>`;
+            } else if (f.platform === 'instagram' || f.platform === 'facebook') {
+                platformIcon = `<button type="button" class="feedback-post-open-btn feedback-ig-btn" aria-label="Open post" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-${f.platform === 'facebook' ? 'facebook' : 'instagram'}"></i></button>`;
             } else {
                 platformIcon = `<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>`;
             }
 
             return `
-            <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
+            <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" data-link="${escAttr(primaryWebLink)}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
                 <div class="feedback-caption">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -2288,7 +2325,7 @@ function getFeedbackCardsHtml() {
                         ${platformIcon}
                     </div>
                     <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
-                    ${allLinksForCard.length > 0 ? `<button type="button" class="feedback-post-open-btn feedback-view-post-btn" onclick="return window.openFeedbackPost(this, event)">View Post <i class="fa fa-arrow-right" aria-hidden="true"></i></button>` : ''}
+                    ${primaryWebLink ? `<a href="${escAttr(primaryWebLink)}" data-link="${escAttr(primaryWebLink)}" class="feedback-post-open-btn feedback-view-post-btn feedback-diaries-open" onclick="return window.openFeedbackPost(this, event)">View Post <i class="fa fa-arrow-right" aria-hidden="true"></i></a>` : ''}
                 </div>
             </div>
             `;
