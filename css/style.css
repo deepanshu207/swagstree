@@ -2431,69 +2431,49 @@ body {
     }
 }
 .feedback-card:hover .feedback-img {
-    transform: scale(1.05);
+    transform: scale(1.06);
+    transform-origin: top center;
 }
 
-/* Customer Diaries — remove white/grey seam between slider and caption */
+/* Customer Diaries — tight 370px frame, nav overlaid, no seam */
 .feedback-card {
     background: #111 !important;
     gap: 0 !important;
 }
 .feedback-card .feedback-media,
-.feedback-card .feedback-diaries-single {
-    aspect-ratio: unset !important;
-    border: none !important;
-    background: #111 !important;
-    line-height: 0;
-    font-size: 0;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    flex-shrink: 0;
-    position: relative;
-    height: 370px;
-    border-radius: 10px 10px 0 0;
-}
+.feedback-card .feedback-diaries-single,
 .feedback-card .feedback-diaries-carousel {
     aspect-ratio: unset !important;
     border: none !important;
-    background: #111 !important;
+    background: #000 !important;
+    line-height: 0;
+    font-size: 0;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
     flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    height: auto !important;
-    min-height: 0;
-    border-radius: 10px 10px 0 0;
-}
-.feedback-card .feedback-diaries-media {
     position: relative;
     width: 100%;
     height: 370px;
-    flex-shrink: 0;
-    overflow: hidden;
-    background: #111;
-    line-height: 0;
-    font-size: 0;
-    margin: 0;
-    padding: 0;
+    max-height: 370px;
+    border-radius: 10px 10px 0 0;
 }
 .feedback-card .feedback-diaries-single {
     cursor: pointer;
 }
-.feedback-card .feedback-diaries-carousel .feedback-diaries-slides,
-.feedback-card .feedback-diaries-media .feedback-diaries-slides {
+.feedback-card .feedback-diaries-slides {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
     height: 100% !important;
     min-height: 100%;
     margin: 0;
     padding: 0;
-    background: #111;
+    background: #000;
 }
 .feedback-card .feedback-diaries-slide {
     width: 100%;
+    min-width: 100%;
     height: 100%;
     flex-shrink: 0;
     position: relative;
@@ -2501,11 +2481,11 @@ body {
     cursor: pointer;
     margin: 0;
     padding: 0;
-    background: #111;
+    background: #000;
+    overflow: hidden;
     line-height: 0;
 }
 .feedback-card .feedback-media img,
-.feedback-card .feedback-diaries-carousel img,
 .feedback-card .feedback-diaries-single img,
 .feedback-card .feedback-diaries-slide img {
     display: block;
@@ -2515,10 +2495,12 @@ body {
     padding: 0;
     border: none;
     object-fit: cover;
-    object-position: center center;
+    object-position: top center;
     vertical-align: top;
     pointer-events: none;
     transition: transform 0.3s;
+    transform: scale(1.04);
+    transform-origin: top center;
 }
 .feedback-card .feedback-caption {
     border-top: none !important;
@@ -2532,21 +2514,20 @@ body {
     line-height: normal;
     font-size: initial;
 }
-.feedback-card .feedback-media + .feedback-caption,
 .feedback-card .feedback-diaries-carousel + .feedback-caption,
-.feedback-card .feedback-diaries-single + .feedback-caption {
+.feedback-card .feedback-diaries-single + .feedback-caption,
+.feedback-card .feedback-media + .feedback-caption {
     margin-top: 0 !important;
-    padding-top: 15px;
 }
 .feedback-card .feedback-carousel-nav {
-    position: relative;
-    bottom: auto;
-    left: auto;
-    transform: none;
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 6;
     display: flex;
     align-items: center;
     justify-content: center;
-    align-self: center;
     width: auto;
     box-sizing: border-box;
     background: rgba(0, 0, 0, 0.85);
@@ -2554,14 +2535,15 @@ body {
     border-radius: 20px;
     padding: 4px 12px;
     gap: 10px;
-    margin: 10px auto;
+    margin: 0;
     line-height: normal;
     font-size: initial;
-    flex-shrink: 0;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
 }
-.feedback-card .feedback-carousel-nav > div:first-child,
-.feedback-card .feedback-carousel-nav > div:last-child {
+.feedback-card .feedback-carousel-btn {
+    background: none;
+    border: none;
     color: var(--gold);
     width: 20px;
     height: 20px;
@@ -2570,17 +2552,18 @@ body {
     justify-content: center;
     cursor: pointer;
     font-size: 10px;
+    padding: 0;
 }
 .feedback-card .feedback-carousel-dots {
-    position: static;
-    transform: none;
+    position: static !important;
+    transform: none !important;
     display: flex;
     gap: 6px;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    padding: 0;
-    box-shadow: none;
+    pointer-events: auto;
+}
+.feedback-card .feedback-carousel-dots .dot {
+    cursor: pointer;
+    pointer-events: auto;
 }
 .feedback-card .ig-embed-clip {
     border: none !important;

@@ -1420,7 +1420,9 @@ window.wishSearchHandler = wishSearchHandler;
 
 function updateDots(el) {
     const idx = Math.round(el.scrollLeft / el.offsetWidth);
-    const dots = el.parentElement.querySelectorAll('.dot');
+    const diariesRoot = el.closest('.feedback-diaries-carousel');
+    const dotRoot = diariesRoot || el.parentElement;
+    const dots = dotRoot.querySelectorAll('.dot');
     dots.forEach((d, i) => d.classList.toggle('active', i === idx));
 
     // For product detail gallery: Automatically switch active variant selections on scroll
@@ -2210,26 +2212,24 @@ function getFeedbackCardsHtml() {
                 }).join('');
 
                 const dotHtml = images.map((_, i) => `
-                    <div class="dot ${i === 0 ? 'active' : ''}" style="cursor:pointer; pointer-events:auto;" onclick="event.stopPropagation(); const c = this.parentElement.previousElementSibling; c.scrollTo({left: ${i} * c.offsetWidth, behavior: 'smooth'});"></div>
+                    <div class="dot ${i === 0 ? 'active' : ''}" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.feedback-diaries-slides'); c.scrollTo({left: ${i} * c.offsetWidth, behavior: 'smooth'});"></div>
                 `).join('');
 
                 mediaHtml = `
                 <div class="feedback-diaries-carousel">
-                    <div class="feedback-diaries-media">
-                        <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
-                            ${slideImages}
-                        </div>
+                    <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
+                        ${slideImages}
                     </div>
                     <div class="feedback-carousel-nav">
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
+                        <button type="button" class="feedback-carousel-btn" aria-label="Previous" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.feedback-diaries-slides'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-left"></i>
-                        </div>
-                        <div class="indicators feedback-carousel-dots" style="position:static; transform:none; display:flex; gap:6px;">
+                        </button>
+                        <div class="feedback-carousel-dots">
                             ${dotHtml}
                         </div>
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
+                        <button type="button" class="feedback-carousel-btn" aria-label="Next" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.feedback-diaries-slides'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-right"></i>
-                        </div>
+                        </button>
                     </div>
                 </div>`;
             } else {
