@@ -2194,8 +2194,8 @@ function getFeedbackCardsHtml() {
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="window.openFeedbackPost(this)" class="feedback-media" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; cursor:pointer;">
-                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
+                <div onclick="window.openFeedbackPost(this)" class="feedback-media feedback-diaries-single" style="cursor:pointer;">
+                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
                 const slideImages = images.map(url => {
@@ -2214,11 +2214,11 @@ function getFeedbackCardsHtml() {
                 `).join('');
 
                 mediaHtml = `
-                <div class="carousel-box feedback-media feedback-diaries-carousel" style="border-radius:10px 10px 0 0; height: 370px; position: relative;">
+                <div class="carousel-box feedback-media feedback-diaries-carousel">
                     <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
                         ${slideImages}
                     </div>
-                    <div class="feedback-carousel-nav" style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(0,0,0,0.85); border:1px solid var(--gold); border-radius:20px; padding:4px 12px; gap:10px; z-index:5; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                    <div class="feedback-carousel-nav">
                         <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-left"></i>
                         </div>
@@ -2248,7 +2248,7 @@ function getFeedbackCardsHtml() {
             return `
             <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
-                <div class="feedback-caption" style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
+                <div class="feedback-caption">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <div style="display:flex; flex-direction:column;">
                             <span style="font-size:13px; font-weight:700; color:var(--gold); font-family:'Outfit', sans-serif; letter-spacing:0.3px;">${f.username ? ((f.platform === 'instagram' || f.platform === 'facebook') && !f.username.startsWith('@') ? '@' + f.username : f.username) : 'Customer'}</span>
@@ -2323,6 +2323,13 @@ function renderFooter(explicitMountSection) {
     const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
         ? isFooterCopyrightEnabled(settings)
         : settings.showCopyright === true;
+    const luxuryBrandOn = typeof isLuxuryBrandEnabled === 'function'
+        ? isLuxuryBrandEnabled(settings)
+        : settings.showLuxuryBrand === true;
+    const luxuryBrandText = typeof getLuxuryBrandText === 'function'
+        ? getLuxuryBrandText(settings)
+        : (settings.copyright || '').trim();
+    const showLuxuryBrandStrip = templateId === 'luxury' && luxuryBrandOn && !!luxuryBrandText;
 
     const footerEl = document.getElementById('app-footer');
     if (footerEl) {
@@ -2344,6 +2351,8 @@ function renderFooter(explicitMountSection) {
         }
         footerEl.classList.toggle('footer-copyright-on', copyrightOn);
         footerEl.classList.toggle('footer-copyright-off', !copyrightOn);
+        footerEl.classList.toggle('footer-luxury-brand-on', showLuxuryBrandStrip);
+        footerEl.classList.toggle('footer-luxury-brand-off', !showLuxuryBrandStrip);
 
         if (typeof mountStorefrontFooter === 'function') {
             mountStorefrontFooter(footerEl, layoutId, mountSection);
@@ -2386,10 +2395,10 @@ function renderFooter(explicitMountSection) {
     }
     const luxuryBrand = document.getElementById('footer-luxury-brand-text');
     if (luxuryBrand) {
-        luxuryBrand.textContent = settings.copyright || 'Swag Stree';
+        luxuryBrand.textContent = luxuryBrandText;
         const luxuryBrandWrap = luxuryBrand.closest('.footer-luxury-brand');
         if (luxuryBrandWrap) {
-            luxuryBrandWrap.style.display = copyrightOn ? '' : 'none';
+            luxuryBrandWrap.style.display = showLuxuryBrandStrip ? '' : 'none';
         }
     }
 

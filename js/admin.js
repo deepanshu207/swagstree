@@ -2243,7 +2243,8 @@ async function loadAdminFooterSettings() {
         const snap = await db.collection('settings').doc('footer').get();
         const settings = snap.exists ? snap.data() : {
             showFooter: false,
-            showCopyright: true,
+            showCopyright: false,
+            showLuxuryBrand: false,
             footerTemplate: 'classic',
             footerLayout: 'auto',
             copyright: "Swagstree",
@@ -2270,6 +2271,7 @@ async function loadAdminFooterSettings() {
         
         const showFooterEl = document.getElementById('admin-footer-show-footer');
         const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
+        const showLuxuryBrandEl = document.getElementById('admin-footer-show-luxury-brand');
         const copyrightEl = document.getElementById('admin-footer-copyright');
         const aboutTextEl = document.getElementById('admin-footer-about-text');
         const addressEl = document.getElementById('admin-footer-address');
@@ -2282,6 +2284,7 @@ async function loadAdminFooterSettings() {
         
         if (showFooterEl) showFooterEl.checked = !!settings.showFooter;
         if (showCopyrightEl) showCopyrightEl.checked = settings.showCopyright === true;
+        if (showLuxuryBrandEl) showLuxuryBrandEl.checked = settings.showLuxuryBrand === true;
         if (copyrightEl) copyrightEl.value = settings.copyright || '';
         
         if (aboutTextEl) {
@@ -2317,6 +2320,7 @@ window.loadAdminFooterSettings = loadAdminFooterSettings;
 async function saveAdminFooterSettings() {
     const showFooterEl = document.getElementById('admin-footer-show-footer');
     const showCopyrightEl = document.getElementById('admin-footer-show-copyright');
+    const showLuxuryBrandEl = document.getElementById('admin-footer-show-luxury-brand');
     const copyrightEl = document.getElementById('admin-footer-copyright');
     const aboutTextEl = document.getElementById('admin-footer-about-text');
     const addressEl = document.getElementById('admin-footer-address');
@@ -2332,7 +2336,8 @@ async function saveAdminFooterSettings() {
     const settings = {
         showFooter: showFooterEl ? showFooterEl.checked : true,
         showCopyright: showCopyrightEl ? showCopyrightEl.checked : false,
-        copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
+        showLuxuryBrand: showLuxuryBrandEl ? showLuxuryBrandEl.checked : false,
+        copyright: copyrightEl ? copyrightEl.value.trim() : "",
         footerTemplate: templateEl ? templateEl.value : 'classic',
         footerLayout: layoutEl ? layoutEl.value : 'auto',
         aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "",

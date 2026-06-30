@@ -97,6 +97,19 @@ function isFooterCopyrightEnabled(settings) {
     return false;
 }
 
+/** Luxury template brand strip — opt-in only; separate from classic copyright row */
+function isLuxuryBrandEnabled(settings) {
+    if (!settings) return false;
+    const v = settings.showLuxuryBrand;
+    if (v === true || v === 'true') return true;
+    if (v === false || v === 'false' || v === 0) return false;
+    return false;
+}
+
+function getLuxuryBrandText(settings) {
+    return (settings?.copyright || '').trim();
+}
+
 /** auto + inline = scroll with page; fixed = pinned bar above bottom nav */
 function resolveFooterPositionMode(layoutId) {
     return normalizeFooterLayoutId(layoutId) === 'fixed' ? 'fixed' : 'scroll';
@@ -192,8 +205,9 @@ function buildFooterLinksHtml(templateId, settings) {
     }
 
     if (tpl === 'luxury') {
-        const brandHtml = isFooterCopyrightEnabled(settings)
-            ? `<div class="footer-luxury-brand"><span class="footer-luxury-mark"></span><span id="footer-luxury-brand-text">${settings?.copyright || 'Swag Stree'}</span></div>`
+        const brandText = getLuxuryBrandText(settings);
+        const brandHtml = isLuxuryBrandEnabled(settings) && brandText
+            ? `<div class="footer-luxury-brand"><span class="footer-luxury-mark"></span><span id="footer-luxury-brand-text">${brandText}</span></div>`
             : '';
         return `${brandHtml}<div class="footer-links-luxury">${items.map(item =>
             renderFooterLinkItem(item, 'footer-luxury-link',
@@ -292,6 +306,15 @@ function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
 
     const tpl = normalizeFooterTemplateId(selectedTemplate);
     const layout = normalizeFooterLayoutId(selectedLayout);
+    const isLuxury = tpl === 'luxury';
+    const luxuryRow = document.getElementById('admin-footer-luxury-brand-row');
+    const copyrightHint = document.getElementById('admin-footer-copyright-hint');
+    if (luxuryRow) luxuryRow.style.display = isLuxury ? 'flex' : 'none';
+    if (copyrightHint) {
+        copyrightHint.textContent = isLuxury
+            ? 'Brand name shown above Luxury footer links when enabled'
+            : 'Copyright text displayed under footer';
+    }
 
     if (tplGrid) {
         const groups = {};
@@ -324,15 +347,17 @@ function renderAdminFooterTemplatePicker(selectedTemplate, selectedLayout) {
     }
 
     if (preview) {
+        const currentTpl = document.querySelector('input[name="admin-footer-template"]:checked')?.value || tpl;
         const mockSettings = {
             showFooter: true,
             showCopyright: document.getElementById('admin-footer-show-copyright')?.checked === true,
-            copyright: document.getElementById('admin-footer-copyright')?.value?.trim() || 'Swag Stree',
-            contactPhone: document.getElementById('admin-footer-phone')?.value?.trim() || '8800467686'
+            showLuxuryBrand: document.getElementById('admin-footer-show-luxury-brand')?.checked === true,
+            copyright: document.getElementById('admin-footer-copyright')?.value?.trim() || '',
+            contactPhone: document.getElementById('admin-footer-phone')?.value?.trim() || '8800467686',
+            footerTemplate: currentTpl
         };
-        const currentTpl = document.querySelector('input[name="admin-footer-template"]:checked')?.value || tpl;
-        const previewCopy = mockSettings.showCopyright
-            ? `<div class="admin-footer-preview-copy"><i class="fa fa-copyright"></i> ${mockSettings.copyright}</div>`
+        const previewCopy = mockSettings.showCopyright && currentTpl !== 'luxury'
+            ? `<div class="admin-footer-preview-copy"><i class="fa fa-copyright"></i> ${mockSettings.copyright || 'Swag Stree'}</div>`
             : '';
         preview.innerHTML = `<div class="admin-footer-preview-shell footer-tpl-${normalizeFooterTemplateId(currentTpl)} footer-layout-${layout}">
             <footer class="admin-footer-preview-inner">${buildFooterLinksHtml(currentTpl, mockSettings)}${previewCopy}</footer></div>`;
@@ -361,6 +386,8 @@ window.syncStorefrontFooterMount = syncStorefrontFooterMount;
 window.resolveFooterPositionMode = resolveFooterPositionMode;
 window.isMobileFooterViewport = isMobileFooterViewport;
 window.isFooterCopyrightEnabled = isFooterCopyrightEnabled;
+window.isLuxuryBrandEnabled = isLuxuryBrandEnabled;
+window.getLuxuryBrandText = getLuxuryBrandText;
 window.normalizeFooterTemplateId = normalizeFooterTemplateId;
 window.normalizeFooterLayoutId = normalizeFooterLayoutId;
 window.renderAdminFooterTemplatePicker = renderAdminFooterTemplatePicker;
