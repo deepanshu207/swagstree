@@ -2214,18 +2214,18 @@ function getFeedbackCardsHtml() {
                 `).join('');
 
                 mediaHtml = `
-                <div class="carousel-box feedback-media" style="border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; position: relative;">
-                    <div class="carousel" onscroll="updateDots(this)">
+                <div class="carousel-box feedback-media feedback-diaries-carousel" style="border-radius:10px 10px 0 0; height: 370px; position: relative;">
+                    <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
                         ${slideImages}
                     </div>
-                    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(0,0,0,0.85); border:1px solid var(--gold); border-radius:20px; padding:4px 12px; gap:10px; z-index:5; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.carousel-box').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
+                    <div class="feedback-carousel-nav" style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(0,0,0,0.85); border:1px solid var(--gold); border-radius:20px; padding:4px 12px; gap:10px; z-index:5; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-left"></i>
                         </div>
-                        <div class="indicators" style="position:static; transform:none; display:flex; gap:6px;">
+                        <div class="indicators feedback-carousel-dots" style="position:static; transform:none; display:flex; gap:6px;">
                             ${dotHtml}
                         </div>
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.carousel-box').querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
+                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-right"></i>
                         </div>
                     </div>
@@ -2248,7 +2248,7 @@ function getFeedbackCardsHtml() {
             return `
             <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
-                <div style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
+                <div class="feedback-caption" style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <div style="display:flex; flex-direction:column;">
                             <span style="font-size:13px; font-weight:700; color:var(--gold); font-family:'Outfit', sans-serif; letter-spacing:0.3px;">${f.username ? ((f.platform === 'instagram' || f.platform === 'facebook') && !f.username.startsWith('@') ? '@' + f.username : f.username) : 'Customer'}</span>
@@ -2320,14 +2320,14 @@ function renderFooter(explicitMountSection) {
     const layoutId = typeof normalizeFooterLayoutId === 'function'
         ? normalizeFooterLayoutId(settings.footerLayout)
         : (settings.footerLayout || 'auto');
+    const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
+        ? isFooterCopyrightEnabled(settings)
+        : settings.showCopyright === true;
 
     const footerEl = document.getElementById('app-footer');
     if (footerEl) {
         const currentSection = document.querySelector('.section.active');
         const currentId = currentSection ? currentSection.id.replace('-view', '') : 'home';
-        const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
-            ? isFooterCopyrightEnabled(settings)
-            : settings.showCopyright === true;
         const hasVisibleContent = !!settings.showFooter || copyrightOn;
         const shouldShow = hasVisibleContent && (currentId === 'home' || currentId === 'wish');
         const mountSection = (explicitMountSection === 'home' || explicitMountSection === 'wish')
@@ -2342,6 +2342,8 @@ function renderFooter(explicitMountSection) {
         if (typeof applyFooterShellClasses === 'function') {
             applyFooterShellClasses(footerEl, templateId, layoutId);
         }
+        footerEl.classList.toggle('footer-copyright-on', copyrightOn);
+        footerEl.classList.toggle('footer-copyright-off', !copyrightOn);
 
         if (typeof mountStorefrontFooter === 'function') {
             mountStorefrontFooter(footerEl, layoutId, mountSection);
@@ -2359,24 +2361,23 @@ function renderFooter(explicitMountSection) {
     }
 
     const linksHost = document.getElementById('footer-links-host');
-    if (linksHost && !!settings.showFooter) {
-        linksHost.innerHTML = typeof buildFooterLinksHtml === 'function'
-            ? buildFooterLinksHtml(templateId, settings)
-            : linksHost.innerHTML;
-        linksHost.style.display = 'block';
-    } else if (linksHost) {
-        linksHost.style.display = 'none';
-        linksHost.innerHTML = '';
+    if (linksHost) {
+        if (!!settings.showFooter) {
+            linksHost.innerHTML = typeof buildFooterLinksHtml === 'function'
+                ? buildFooterLinksHtml(templateId, settings)
+                : linksHost.innerHTML;
+            linksHost.style.display = 'block';
+        } else {
+            linksHost.innerHTML = '';
+            linksHost.style.display = 'none';
+        }
     }
 
     // Update Copyright Label
     const copyrightRow = document.getElementById('footer-copyright-row');
-    const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
-        ? isFooterCopyrightEnabled(settings)
-        : settings.showCopyright === true;
     if (copyrightRow) {
-        const hideCopyrightForLuxury = templateId === 'luxury' && !!settings.showFooter;
-        copyrightRow.style.display = (copyrightOn && !hideCopyrightForLuxury) ? 'flex' : 'none';
+        const hideCopyrightRowForLuxury = templateId === 'luxury';
+        copyrightRow.style.display = (copyrightOn && !hideCopyrightRowForLuxury) ? 'flex' : 'none';
     }
     const copyrightTextEl = document.getElementById('footer-copyright-text');
     if (copyrightTextEl) {
@@ -2386,6 +2387,10 @@ function renderFooter(explicitMountSection) {
     const luxuryBrand = document.getElementById('footer-luxury-brand-text');
     if (luxuryBrand) {
         luxuryBrand.textContent = settings.copyright || 'Swag Stree';
+        const luxuryBrandWrap = luxuryBrand.closest('.footer-luxury-brand');
+        if (luxuryBrandWrap) {
+            luxuryBrandWrap.style.display = copyrightOn ? '' : 'none';
+        }
     }
 
     // Legacy links row visibility handled via linksHost above

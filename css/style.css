@@ -2434,19 +2434,59 @@ body {
     transform: scale(1.05);
 }
 
-/* Customer Diaries — remove white/grey seam between media and caption */
+/* Customer Diaries — remove white/grey seam between slider and caption */
 .feedback-card .feedback-media,
-.feedback-card .carousel-box.feedback-media {
+.feedback-card .carousel-box.feedback-media,
+.feedback-card .feedback-diaries-carousel {
+    aspect-ratio: unset !important;
     border-bottom: none !important;
+    background: #111 !important;
+    line-height: 0;
+    font-size: 0;
+    margin-bottom: 0 !important;
+}
+.feedback-card .feedback-diaries-carousel .feedback-diaries-slides,
+.feedback-card .feedback-diaries-carousel .feedback-diaries-slides > div {
+    height: 100% !important;
+    min-height: 100%;
+    background: #111;
 }
 .feedback-card .feedback-media img,
-.feedback-card .carousel-box.feedback-media img {
+.feedback-card .carousel-box.feedback-media img,
+.feedback-card .feedback-diaries-carousel img {
     display: block;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100%;
+    object-fit: cover;
+    object-position: center center;
     vertical-align: top;
+}
+.feedback-card .feedback-caption {
+    border-top: none !important;
+    margin-top: 0 !important;
+    padding-top: 15px;
+    background: #111;
+    line-height: normal;
+    font-size: initial;
+}
+.feedback-card .feedback-media + .feedback-caption,
+.feedback-card .feedback-diaries-carousel + .feedback-caption {
+    margin-top: -1px;
+}
+.feedback-card .feedback-carousel-nav {
+    line-height: normal;
+    font-size: initial;
 }
 .feedback-card .ig-embed-clip {
     border-bottom: none;
     line-height: 0;
+}
+
+/* Luxury footer — brand/copyright only when toggle is on */
+#app-footer.footer-copyright-off .footer-luxury-brand,
+#app-footer.footer-copyright-off #footer-copyright-row {
+    display: none !important;
 }
 
 /* Instagram embed — clip header (followers) and footer ("View more on Instagram") */
