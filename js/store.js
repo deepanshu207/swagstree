@@ -2006,64 +2006,94 @@ window.handleFeedbackImageError = function (imgEl, postId) {
     }
 };
 
-window.openFeedbackPost = function (el) {
-    // Read links from the nearest feedback-card's data attribute
-    const card = el.closest('.feedback-card');
-    if (!card) return;
-
+function getActiveFeedbackLink(card) {
+    if (!card) return null;
     let allLinks = [];
     try {
         allLinks = JSON.parse(card.dataset.links || '[]');
     } catch (e) {
         allLinks = [];
     }
-    if (!allLinks || allLinks.length === 0) return;
+    if (!allLinks.length) return null;
 
     let activeIdx = 0;
-    const carousel = card.querySelector('.carousel');
+    const carousel = card.querySelector('.feedback-diaries-slides, .carousel');
     if (carousel) {
-        const scrollLeft = carousel.scrollLeft;
         const offsetWidth = carousel.offsetWidth || 1;
-        activeIdx = Math.round(scrollLeft / offsetWidth);
-        // Clamp index to links array bounds
+        activeIdx = Math.round(carousel.scrollLeft / offsetWidth);
         if (activeIdx >= allLinks.length) activeIdx = 0;
     }
+    return allLinks[activeIdx] || allLinks[0];
+}
 
-    const targetLink = allLinks[activeIdx] || allLinks[0];
-    if (targetLink) {
-        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        if (isMobile) {
-            var appUrl = null;
-            // Match /p/, /reel/, /tv/ Instagram URLs
-            var igMatch = targetLink.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&\s]+)/i);
-            if (igMatch && igMatch[1]) {
-                appUrl = 'instagram://p/' + igMatch[1] + '/';
-            } else if (targetLink.includes('facebook.com')) {
-                appUrl = 'fb://facewebmodal/f?href=' + encodeURIComponent(targetLink);
-            }
-
-            if (appUrl) {
-                var start = Date.now();
-                var blurred = false;
-                function onBlur() {
-                    blurred = true;
-                    window.removeEventListener('blur', onBlur);
-                }
-                window.addEventListener('blur', onBlur);
-
-                window.location.href = appUrl;
-
-                setTimeout(function() {
-                    window.removeEventListener('blur', onBlur);
-                    if (!blurred && (Date.now() - start < 2000)) {
-                        window.open(targetLink, '_blank');
-                    }
-                }, 1200);
-                return;
-            }
-        }
-        window.open(targetLink, '_blank');
+function resolveNativeAppUrl(webUrl) {
+    if (!webUrl) return null;
+    const igMatch = webUrl.match(/instagram\.com\/(?:[^/]+\/)?(p|reel|tv)\/([^/?#&\s]+)/i);
+    if (igMatch) {
+        const kind = igMatch[1].toLowerCase();
+        const code = igMatch[2];
+        if (kind === 'reel') return 'instagram://reel/' + code;
+        if (kind === 'tv') return 'instagram://tv/' + code;
+        return 'instagram://p/' + code + '/';
     }
+    if (webUrl.includes('facebook.com')) {
+        return 'fb://facewebmodal/f?href=' + encodeURIComponent(webUrl);
+    }
+    return null;
+}
+
+function openNativeOrWebUrl(webUrl) {
+    if (!webUrl) return;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const appUrl = isMobile ? resolveNativeAppUrl(webUrl) : null;
+
+    if (!isMobile || !appUrl) {
+        window.open(webUrl, '_blank', 'noopener,noreferrer');
+        return;
+    }
+
+    let leftPage = false;
+    const markLeft = () => { leftPage = true; };
+    const onVis = () => { if (document.hidden) markLeft(); };
+
+    window.addEventListener('blur', markLeft, { once: true });
+    window.addEventListener('pagehide', markLeft, { once: true });
+    document.addEventListener('visibilitychange', onVis);
+
+    // Anchor click keeps iOS user-gesture chain for custom scheme links
+    const linkEl = document.createElement('a');
+    linkEl.href = appUrl;
+    linkEl.style.display = 'none';
+    linkEl.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(linkEl);
+    linkEl.click();
+    document.body.removeChild(linkEl);
+    window.location.assign(appUrl);
+
+    setTimeout(() => {
+        document.removeEventListener('visibilitychange', onVis);
+        if (!leftPage) {
+            const webAnchor = document.createElement('a');
+            webAnchor.href = webUrl;
+            webAnchor.style.display = 'none';
+            webAnchor.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(webAnchor);
+            webAnchor.click();
+            document.body.removeChild(webAnchor);
+        }
+    }, 1500);
+}
+
+window.openFeedbackPost = function (el, evt) {
+    if (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+    }
+    const card = el.closest('.feedback-card');
+    const targetLink = getActiveFeedbackLink(card);
+    if (!targetLink) return false;
+    openNativeOrWebUrl(targetLink);
+    return false;
 };
 
 function getFeedbackCardsHtml() {
@@ -2196,7 +2226,7 @@ function getFeedbackCardsHtml() {
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="window.openFeedbackPost(this)" class="feedback-media feedback-diaries-single" style="cursor:pointer;">
+                <div onclick="return window.openFeedbackPost(this, event)" class="feedback-media feedback-diaries-single" style="cursor:pointer;">
                      <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
@@ -2205,7 +2235,7 @@ function getFeedbackCardsHtml() {
                     const postId = match ? match[1] : '';
                     const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                     return `
-                    <div onclick="window.openFeedbackPost(this)" class="feedback-diaries-slide">
+                    <div onclick="return window.openFeedbackPost(this, event)" class="feedback-diaries-slide">
                         <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
                     </div>
                     `;
@@ -2240,9 +2270,9 @@ function getFeedbackCardsHtml() {
 
             let platformIcon = '';
             if (f.platform === 'instagram') {
-                platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
+                platformIcon = `<button type="button" class="feedback-post-open-btn feedback-ig-btn" aria-label="Open on Instagram" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-instagram"></i></button>`;
             } else if (f.platform === 'facebook') {
-                platformIcon = `<i class="fab fa-facebook" style="color:#1877F2; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
+                platformIcon = `<button type="button" class="feedback-post-open-btn feedback-fb-btn" aria-label="Open on Facebook" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-facebook"></i></button>`;
             } else {
                 platformIcon = `<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>`;
             }
@@ -2258,7 +2288,7 @@ function getFeedbackCardsHtml() {
                         ${platformIcon}
                     </div>
                     <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
-                    ${allLinksForCard.length > 0 ? `<div onclick="event.stopPropagation(); window.openFeedbackPost(this)" style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif; cursor:pointer;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
+                    ${allLinksForCard.length > 0 ? `<button type="button" class="feedback-post-open-btn feedback-view-post-btn" onclick="return window.openFeedbackPost(this, event)">View Post <i class="fa fa-arrow-right" aria-hidden="true"></i></button>` : ''}
                 </div>
             </div>
             `;

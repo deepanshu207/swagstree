@@ -2343,7 +2343,7 @@ async function saveAdminFooterSettings() {
         showFooter: showFooterEl ? showFooterEl.checked : true,
         showCopyright: showCopyrightEl ? showCopyrightEl.checked : false,
         showLuxuryBrand: isLuxuryTemplate && showLuxuryBrandEl ? showLuxuryBrandEl.checked : false,
-        luxuryBrandText: isLuxuryTemplate && luxuryBrandTextEl ? luxuryBrandTextEl.value.trim() : '',
+        luxuryBrandText: luxuryBrandTextEl ? luxuryBrandTextEl.value.trim() : '',
         copyright: copyrightEl ? copyrightEl.value.trim() : "",
         footerTemplate: templateId,
         footerLayout: layoutEl ? layoutEl.value : 'auto',
