@@ -2110,7 +2110,12 @@ window.openFeedbackPost = function (el, evt) {
         evt.stopPropagation();
     }
     const card = el.closest('.feedback-card');
-    const targetLink = (el.dataset && el.dataset.link) || getActiveFeedbackLink(card);
+    let targetLink = null;
+    if (el.dataset && el.dataset.link && el.classList.contains('feedback-diaries-slide')) {
+        targetLink = el.dataset.link;
+    } else {
+        targetLink = getActiveFeedbackLink(card) || (el.dataset && el.dataset.link);
+    }
     if (!targetLink) return false;
     openNativeOrWebUrl(targetLink);
     return false;
@@ -2324,7 +2329,7 @@ function getFeedbackCardsHtml() {
                         </div>
                         ${platformIcon}
                     </div>
-                    <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
+                    ${f.text ? `<p style="font-size:12px; color: #ccc; line-height:1.6; margin:4px 0 0 0; white-space:pre-wrap; font-family:'Outfit', sans-serif; font-weight:300;">${f.text}</p>` : ''}
                     ${primaryWebLink ? `<a href="${escAttr(primaryWebLink)}" data-link="${escAttr(primaryWebLink)}" class="feedback-post-open-btn feedback-view-post-btn feedback-diaries-open" onclick="return window.openFeedbackPost(this, event)">View Post <i class="fa fa-arrow-right" aria-hidden="true"></i></a>` : ''}
                 </div>
             </div>
@@ -2340,10 +2345,12 @@ function renderFeedbacks() {
     const settings = window.diariesSettings || { placement: 'none' };
     if (!window.feedbacks || window.feedbacks.length === 0 || settings.placement !== 'none') {
         container.style.display = 'none';
+        document.body.classList.remove('has-customer-diaries');
         return;
     }
 
     container.style.display = 'block';
+    document.body.classList.add('has-customer-diaries');
     const grid = document.getElementById('feedback-grid');
     if (!grid) return;
 

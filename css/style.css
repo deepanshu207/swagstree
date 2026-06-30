@@ -2431,8 +2431,24 @@ body {
     }
 }
 .feedback-card:hover .feedback-img {
-    transform: scale(1.06);
+    transform: scale(1.03);
     transform-origin: top center;
+}
+
+/* Customer Diaries section — compact spacing, no footer push gap */
+#feedback-section-container {
+    margin-top: 28px !important;
+    padding-top: 16px !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    border-top: 1px solid #222;
+}
+body.body-footer-pos-scroll.has-customer-diaries #home-view.active,
+body.body-footer-pos-scroll.has-customer-diaries #wish-view.active {
+    min-height: auto !important;
+}
+body.body-footer-pos-scroll.has-customer-diaries .storefront-footer-anchor {
+    margin-top: 12px !important;
 }
 
 /* Customer Diaries — tight 370px frame, nav overlaid, no seam */
@@ -2457,6 +2473,18 @@ body {
     height: 370px;
     max-height: 370px;
     border-radius: 10px 10px 0 0;
+    isolation: isolate;
+}
+.feedback-card .feedback-diaries-carousel::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 6px;
+    background: #000;
+    z-index: 4;
+    pointer-events: none;
 }
 .feedback-card .feedback-diaries-single {
     cursor: pointer;
@@ -2490,8 +2518,8 @@ body {
 .feedback-card .feedback-diaries-slide img {
     display: block;
     width: 100% !important;
-    height: 100% !important;
-    margin: 0;
+    height: 106% !important;
+    margin: 0 0 -6% 0;
     padding: 0;
     border: none;
     object-fit: cover;
@@ -2499,17 +2527,20 @@ body {
     vertical-align: top;
     pointer-events: none;
     transition: transform 0.3s;
-    transform: scale(1.04);
+    transform: none;
+}
+.feedback-card:hover .feedback-img {
+    transform: scale(1.03);
     transform-origin: top center;
 }
 .feedback-card .feedback-caption {
     border-top: none !important;
     margin: 0 !important;
-    padding: 15px;
+    padding: 12px 15px 14px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    flex: 1;
+    gap: 6px;
+    flex: 0 0 auto;
     background: #111;
     line-height: normal;
     font-size: initial;
@@ -2617,17 +2648,25 @@ a.feedback-diaries-slide {
 }
 .feedback-view-post-btn {
     font-size: 10px;
-    color: var(--gold);
+    color: var(--gold) !important;
     display: inline-flex;
     align-items: center;
     gap: 4px;
     font-weight: bold;
-    margin-top: 5px;
+    margin-top: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-family: 'Outfit', sans-serif;
-    min-height: 32px;
-    padding: 4px 0;
+    min-height: 28px;
+    padding: 2px 0;
+    align-self: flex-start;
+}
+a.feedback-view-post-btn,
+a.feedback-view-post-btn:visited,
+a.feedback-view-post-btn:hover,
+a.feedback-view-post-btn:active {
+    color: var(--gold) !important;
+    text-decoration: none;
 }
 .feedback-view-post-btn i {
     font-size: 8px;
