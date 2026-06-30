@@ -1420,8 +1420,15 @@ window.wishSearchHandler = wishSearchHandler;
 
 function updateDots(el) {
     const idx = Math.round(el.scrollLeft / el.offsetWidth);
-    const dots = el.parentElement.querySelectorAll('.dot');
+    const diariesRoot = el.closest('.feedback-diaries-carousel');
+    const dotRoot = diariesRoot || el.parentElement;
+    const dots = dotRoot.querySelectorAll('.dot');
     dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    if (el.classList.contains('feedback-diaries-slides')) {
+        el.querySelectorAll('.feedback-diaries-slide').forEach((slide, i) => {
+            slide.classList.toggle('is-active', i === idx);
+        });
+    }
 
     // For product detail gallery: Automatically switch active variant selections on scroll
     if (el.id === 'det-gallery') {
@@ -2004,10 +2011,28 @@ window.handleFeedbackImageError = function (imgEl, postId) {
     }
 };
 
-window.openFeedbackPost = function (el) {
-    // Read links from the nearest feedback-card's data attribute
-    const card = el.closest('.feedback-card');
-    if (!card) return;
+function normalizeInstagramWebUrl(url) {
+    if (!url) return '';
+    const m = String(url).match(/instagram\.com\/(?:[^/]+\/)?(p|reel|tv)\/([^/?#&\s]+)/i);
+    if (!m) return String(url).trim();
+    return `https://www.instagram.com/${m[1].toLowerCase()}/${m[2]}/`;
+}
+
+function getActiveFeedbackLink(card) {
+    if (!card) return null;
+
+    const carousel = card.querySelector('.feedback-diaries-slides, .carousel');
+    if (carousel) {
+        const offsetWidth = carousel.offsetWidth || 1;
+        const activeIdx = Math.max(0, Math.round(carousel.scrollLeft / offsetWidth));
+        const slides = carousel.querySelectorAll('.feedback-diaries-slide[data-link]');
+        if (slides.length > 0) {
+            const slide = slides[Math.min(activeIdx, slides.length - 1)];
+            if (slide && slide.dataset.link) return slide.dataset.link;
+        }
+    }
+
+    if (card.dataset.link) return card.dataset.link;
 
     let allLinks = [];
     try {
@@ -2015,54 +2040,89 @@ window.openFeedbackPost = function (el) {
     } catch (e) {
         allLinks = [];
     }
-    if (!allLinks || allLinks.length === 0) return;
+    if (!allLinks.length) return null;
 
     let activeIdx = 0;
-    const carousel = card.querySelector('.carousel');
     if (carousel) {
-        const scrollLeft = carousel.scrollLeft;
         const offsetWidth = carousel.offsetWidth || 1;
-        activeIdx = Math.round(scrollLeft / offsetWidth);
-        // Clamp index to links array bounds
+        activeIdx = Math.round(carousel.scrollLeft / offsetWidth);
         if (activeIdx >= allLinks.length) activeIdx = 0;
     }
+    return normalizeInstagramWebUrl(allLinks[activeIdx] || allLinks[0]);
+}
 
-    const targetLink = allLinks[activeIdx] || allLinks[0];
-    if (targetLink) {
-        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        if (isMobile) {
-            var appUrl = null;
-            // Match /p/, /reel/, /tv/ Instagram URLs
-            var igMatch = targetLink.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|tv)\/([^/?#&\s]+)/i);
-            if (igMatch && igMatch[1]) {
-                appUrl = 'instagram://p/' + igMatch[1] + '/';
-            } else if (targetLink.includes('facebook.com')) {
-                appUrl = 'fb://facewebmodal/f?href=' + encodeURIComponent(targetLink);
-            }
+function resolveNativeAppUrl(webUrl) {
+    const normalized = normalizeInstagramWebUrl(webUrl);
+    if (!normalized) return null;
 
-            if (appUrl) {
-                var start = Date.now();
-                var blurred = false;
-                function onBlur() {
-                    blurred = true;
-                    window.removeEventListener('blur', onBlur);
-                }
-                window.addEventListener('blur', onBlur);
-
-                window.location.href = appUrl;
-
-                setTimeout(function() {
-                    window.removeEventListener('blur', onBlur);
-                    if (!blurred && (Date.now() - start < 2000)) {
-                        window.open(targetLink, '_blank');
-                    }
-                }, 1200);
-                return;
-            }
+    const igMatch = normalized.match(/instagram\.com\/(p|reel|tv)\/([^/?#&\s]+)/i);
+    if (igMatch) {
+        const kind = igMatch[1].toLowerCase();
+        const code = igMatch[2];
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        if (isAndroid) {
+            return `intent://www.instagram.com/${kind}/${code}/#Intent;package=com.instagram.android;scheme=https;end`;
         }
-        window.open(targetLink, '_blank');
+        if (kind === 'reel') return `instagram://reel/${code}`;
+        if (kind === 'tv') return `instagram://tv/${code}`;
+        return `instagram://p/${code}/`;
     }
+    if (webUrl.includes('facebook.com')) {
+        return 'fb://facewebmodal/f?href=' + encodeURIComponent(webUrl);
+    }
+    return null;
+}
+
+function openNativeOrWebUrl(webUrl) {
+    const normalized = normalizeInstagramWebUrl(webUrl) || webUrl;
+    if (!normalized) return;
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const appUrl = isMobile ? resolveNativeAppUrl(normalized) : null;
+
+    if (!isMobile || !appUrl) {
+        window.open(normalized, '_blank', 'noopener,noreferrer');
+        return;
+    }
+
+    let leftPage = false;
+    const markLeft = () => { leftPage = true; };
+    const onVis = () => { if (document.hidden) markLeft(); };
+
+    window.addEventListener('blur', markLeft, { once: true });
+    window.addEventListener('pagehide', markLeft, { once: true });
+    document.addEventListener('visibilitychange', onVis);
+
+    // Same pattern as header social buttons — location.href in the user tap handler
+    window.location.href = appUrl;
+
+    setTimeout(() => {
+        document.removeEventListener('visibilitychange', onVis);
+        if (!leftPage) {
+            window.location.href = normalized;
+        }
+    }, 1200);
+}
+
+window.openFeedbackPost = function (el, evt) {
+    if (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+    }
+    const card = el.closest('.feedback-card');
+    let targetLink = null;
+    if (el.dataset && el.dataset.link && el.classList.contains('feedback-diaries-slide')) {
+        targetLink = el.dataset.link;
+    } else {
+        targetLink = getActiveFeedbackLink(card) || (el.dataset && el.dataset.link);
+    }
+    if (!targetLink) return false;
+    openNativeOrWebUrl(targetLink);
+    return false;
 };
+
+window.openNativeOrWebUrl = openNativeOrWebUrl;
+window.normalizeInstagramWebUrl = normalizeInstagramWebUrl;
 
 function getFeedbackCardsHtml() {
     if (!window.feedbacks || window.feedbacks.length === 0) {
@@ -2185,49 +2245,61 @@ function getFeedbackCardsHtml() {
             const allLinksForCard = f.showMultiple
                 ? [link]
                 : (f.link ? f.link.split(',').map(url => url.trim()).filter(url => url) : []);
-            // Escape for HTML attribute (used in data-links)
             const dataLinksAttr = JSON.stringify(allLinksForCard).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+            const escAttr = (v) => String(v || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            const linkForImage = (imgUrl, idx) => {
+                if (imgUrl && imgUrl.includes('instagram.com')) {
+                    const fromImg = normalizeInstagramWebUrl(imgUrl);
+                    if (fromImg) return fromImg;
+                }
+                if (allLinksForCard[idx]) return normalizeInstagramWebUrl(allLinksForCard[idx]);
+                return allLinksForCard[0] ? normalizeInstagramWebUrl(allLinksForCard[0]) : '';
+            };
+            const primaryWebLink = allLinksForCard[0] ? normalizeInstagramWebUrl(allLinksForCard[0]) : '';
 
             let mediaHtml = '';
             if (images.length === 1) {
+                const slideLink = linkForImage(images[0], 0);
                 const match = images[0].match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="window.openFeedbackPost(this)" class="feedback-media" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; cursor:pointer;">
-                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
-                </div>`;
+                <a href="${escAttr(slideLink || '#')}" data-link="${escAttr(slideLink)}" onclick="return window.openFeedbackPost(this, event)" class="feedback-media feedback-diaries-single feedback-diaries-open">
+                     <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
+                </a>`;
             } else if (images.length > 1) {
-                const slideImages = images.map(url => {
+                const slideImages = images.map((url, idx) => {
+                    const slideLink = linkForImage(url, idx);
                     const match = url.match(/(?:instagram\.com)\/(?:p|reel|tv)\/([^/?#&]+)/i);
                     const postId = match ? match[1] : '';
                     const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
+                    const activeClass = idx === 0 ? ' is-active' : '';
                     return `
-                    <div onclick="window.openFeedbackPost(this)" style="width:100%; height:100%; flex-shrink:0; position:relative; scroll-snap-align:center; cursor:pointer;">
-                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; pointer-events:none;">
-                    </div>
+                    <a href="${escAttr(slideLink || '#')}" data-link="${escAttr(slideLink)}" onclick="return window.openFeedbackPost(this, event)" class="feedback-diaries-slide feedback-diaries-open${activeClass}">
+                        <img src="${url}" referrerpolicy="no-referrer" ${onerrorAttr} class="feedback-img">
+                    </a>
                     `;
                 }).join('');
 
                 const dotHtml = images.map((_, i) => `
-                    <div class="dot ${i === 0 ? 'active' : ''}" style="cursor:pointer; pointer-events:auto;" onclick="event.stopPropagation(); const c = this.parentElement.previousElementSibling; c.scrollTo({left: ${i} * c.offsetWidth, behavior: 'smooth'});"></div>
+                    <div class="dot ${i === 0 ? 'active' : ''}" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.feedback-diaries-slides'); c.scrollTo({left: ${i} * c.offsetWidth, behavior: 'smooth'});"></div>
                 `).join('');
 
                 mediaHtml = `
-                <div class="carousel-box feedback-media feedback-diaries-carousel" style="border-radius:10px 10px 0 0; height: 370px; position: relative;">
+                <div class="feedback-diaries-carousel">
                     <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
                         ${slideImages}
                     </div>
-                    <div class="feedback-carousel-nav" style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(0,0,0,0.85); border:1px solid var(--gold); border-radius:20px; padding:4px 12px; gap:10px; z-index:5; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
+                    <div class="feedback-carousel-nav">
+                        <button type="button" class="feedback-carousel-btn" aria-label="Previous" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.feedback-diaries-slides'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-left"></i>
-                        </div>
-                        <div class="indicators feedback-carousel-dots" style="position:static; transform:none; display:flex; gap:6px;">
+                        </button>
+                        <div class="feedback-carousel-dots">
                             ${dotHtml}
                         </div>
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
+                        <button type="button" class="feedback-carousel-btn" aria-label="Next" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.feedback-diaries-slides'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-right"></i>
-                        </div>
+                        </button>
                     </div>
                 </div>`;
             } else {
@@ -2237,26 +2309,28 @@ function getFeedbackCardsHtml() {
             const cardStyle = `background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2); transition:transform 0.3s, border-color 0.3s;`;
 
             let platformIcon = '';
-            if (f.platform === 'instagram') {
-                platformIcon = `<i class="fab fa-instagram" style="color:#E1306C; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
-            } else if (f.platform === 'facebook') {
-                platformIcon = `<i class="fab fa-facebook" style="color:#1877F2; font-size:16px; cursor:pointer;" onclick="event.stopPropagation(); window.openFeedbackPost(this)"></i>`;
+            if (f.platform === 'instagram' && primaryWebLink) {
+                platformIcon = `<a href="${escAttr(primaryWebLink)}" data-link="${escAttr(primaryWebLink)}" class="feedback-post-open-btn feedback-ig-btn feedback-diaries-open" aria-label="Open on Instagram" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-instagram"></i></a>`;
+            } else if (f.platform === 'facebook' && primaryWebLink) {
+                platformIcon = `<a href="${escAttr(primaryWebLink)}" data-link="${escAttr(primaryWebLink)}" class="feedback-post-open-btn feedback-fb-btn feedback-diaries-open" aria-label="Open on Facebook" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-facebook"></i></a>`;
+            } else if (f.platform === 'instagram' || f.platform === 'facebook') {
+                platformIcon = `<button type="button" class="feedback-post-open-btn feedback-ig-btn" aria-label="Open post" onclick="return window.openFeedbackPost(this, event)"><i class="fab fa-${f.platform === 'facebook' ? 'facebook' : 'instagram'}"></i></button>`;
             } else {
                 platformIcon = `<i class="fa fa-star" style="color:var(--gold); font-size:14px;"></i>`;
             }
 
             return `
-            <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
+            <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" data-link="${escAttr(primaryWebLink)}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
-                <div class="feedback-caption" style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
+                <div class="feedback-caption">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <div style="display:flex; flex-direction:column;">
                             <span style="font-size:13px; font-weight:700; color:var(--gold); font-family:'Outfit', sans-serif; letter-spacing:0.3px;">${f.username ? ((f.platform === 'instagram' || f.platform === 'facebook') && !f.username.startsWith('@') ? '@' + f.username : f.username) : 'Customer'}</span>
                         </div>
                         ${platformIcon}
                     </div>
-                    <p style="font-size:12px; ${images.length === 0 ? 'font-style: italic; color: #eee;' : 'color: #ccc;'} line-height:1.6; margin:6px 0 0 0; white-space:pre-wrap; flex:1; font-family:'Outfit', sans-serif; font-weight:300;">${f.text || ''}</p>
-                    ${allLinksForCard.length > 0 ? `<div onclick="event.stopPropagation(); window.openFeedbackPost(this)" style="font-size:10px; color:var(--gold); display:flex; align-items:center; gap:4px; font-weight:bold; margin-top:5px; text-transform:uppercase; letter-spacing:0.5px; font-family:'Outfit', sans-serif; cursor:pointer;">View Post <i class="fa fa-arrow-right" style="font-size:8px;"></i></div>` : ''}
+                    ${f.text ? `<p style="font-size:12px; color: #ccc; line-height:1.6; margin:4px 0 0 0; white-space:pre-wrap; font-family:'Outfit', sans-serif; font-weight:300;">${f.text}</p>` : ''}
+                    ${primaryWebLink ? `<a href="${escAttr(primaryWebLink)}" data-link="${escAttr(primaryWebLink)}" class="feedback-post-open-btn feedback-view-post-btn feedback-diaries-open" onclick="return window.openFeedbackPost(this, event)">View Post <i class="fa fa-arrow-right" aria-hidden="true"></i></a>` : ''}
                 </div>
             </div>
             `;
@@ -2271,10 +2345,12 @@ function renderFeedbacks() {
     const settings = window.diariesSettings || { placement: 'none' };
     if (!window.feedbacks || window.feedbacks.length === 0 || settings.placement !== 'none') {
         container.style.display = 'none';
+        document.body.classList.remove('has-customer-diaries');
         return;
     }
 
     container.style.display = 'block';
+    document.body.classList.add('has-customer-diaries');
     const grid = document.getElementById('feedback-grid');
     if (!grid) return;
 
@@ -2323,6 +2399,13 @@ function renderFooter(explicitMountSection) {
     const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
         ? isFooterCopyrightEnabled(settings)
         : settings.showCopyright === true;
+    const luxuryBrandOn = typeof isLuxuryBrandEnabled === 'function'
+        ? isLuxuryBrandEnabled(settings)
+        : settings.showLuxuryBrand === true;
+    const luxuryBrandText = typeof getLuxuryBrandText === 'function'
+        ? getLuxuryBrandText(settings)
+        : (settings.copyright || '').trim();
+    const showLuxuryBrandStrip = templateId === 'luxury' && luxuryBrandOn && !!luxuryBrandText;
 
     const footerEl = document.getElementById('app-footer');
     if (footerEl) {
@@ -2344,6 +2427,8 @@ function renderFooter(explicitMountSection) {
         }
         footerEl.classList.toggle('footer-copyright-on', copyrightOn);
         footerEl.classList.toggle('footer-copyright-off', !copyrightOn);
+        footerEl.classList.toggle('footer-luxury-brand-on', showLuxuryBrandStrip);
+        footerEl.classList.toggle('footer-luxury-brand-off', !showLuxuryBrandStrip);
 
         if (typeof mountStorefrontFooter === 'function') {
             mountStorefrontFooter(footerEl, layoutId, mountSection);
@@ -2386,10 +2471,10 @@ function renderFooter(explicitMountSection) {
     }
     const luxuryBrand = document.getElementById('footer-luxury-brand-text');
     if (luxuryBrand) {
-        luxuryBrand.textContent = settings.copyright || 'Swag Stree';
+        luxuryBrand.textContent = luxuryBrandText;
         const luxuryBrandWrap = luxuryBrand.closest('.footer-luxury-brand');
         if (luxuryBrandWrap) {
-            luxuryBrandWrap.style.display = copyrightOn ? '' : 'none';
+            luxuryBrandWrap.style.display = showLuxuryBrandStrip ? '' : 'none';
         }
     }
 
