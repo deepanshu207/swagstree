@@ -339,6 +339,9 @@ function loadData() {
 
     db.collection("settings").doc("footer").onSnapshot(snap => {
         window.footerSettings = snap.exists ? snap.data() : {
+            showFooter: false,
+            footerTemplate: 'classic',
+            footerLayout: 'auto',
             copyright: "Swagstree",
             aboutText: `<h3>Who We Are</h3><p>Swag Stree is a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
@@ -698,7 +701,7 @@ function renderProducts(items, targetId) {
             const sectionTitle = settings.sectionTitle || '✨ CUSTOMER DIARIES';
             const sectionSubtitle = settings.sectionSubtitle || 'See how our Swag Fam is styling Swag Stree! Tag us on Instagram to get featured.';
             return `
-            <div class="feedback-section-container-in-grid" style="grid-column: 1 / -1; margin-top:20px; margin-bottom:20px; padding-top:20px; border-top:1px solid #222; border-bottom:1px solid #222; width: 100%;">
+            <div class="feedback-section-container-in-grid" style="grid-column: 1 / -1; margin-top:20px; margin-bottom:0; padding-top:20px; border-top:1px solid #222; width: 100%;">
                 <div style="padding:0 15px; margin-bottom:15px; text-align:center;">
                     <h3 style="margin:0; font-size:18px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; font-weight:900;">${sectionTitle}</h3>
                     <p style="margin:5px 0 0 0; font-size:12px; color:#777;">${sectionSubtitle}</p>
@@ -809,6 +812,14 @@ function renderProducts(items, targetId) {
     }
 
     setupInfiniteScrollObserver();
+
+    if (targetId === 'product-grid' || targetId === 'wish-grid') {
+        requestAnimationFrame(() => {
+            if (typeof syncStorefrontFooterMount === 'function') {
+                syncStorefrontFooterMount(targetId);
+            }
+        });
+    }
 
     if ((targetId === 'product-grid' || targetId === 'wish-grid') && typeof updateCatalogControlsRowLayout === 'function') {
         updateCatalogControlsRowLayout();
@@ -1970,13 +1981,23 @@ function loadMoreWishlist() {
     renderStore();
 }
 
+window.loadMoreWishlist = loadMoreWishlist;
+
+function buildInstagramEmbedFrame(postId) {
+    const id = String(postId || '').trim();
+    if (!id) return '';
+    return `
+        <div class="ig-embed-clip">
+            <iframe class="ig-embed-frame" src="https://www.instagram.com/p/${id}/embed" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media" title="Instagram post"></iframe>
+        </div>
+    `;
+}
+
 window.handleFeedbackImageError = function (imgEl, postId) {
     if (!postId) return;
     const parent = imgEl.parentElement;
     if (parent) {
-        parent.innerHTML = `
-            <iframe src="https://www.instagram.com/p/${postId}/embed" style="position:absolute; top:0; left:0; width:100%; height:430px; border:none; background:#111;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
-        `;
+        parent.innerHTML = buildInstagramEmbedFrame(postId);
         parent.style.position = 'relative';
         parent.style.overflow = 'hidden';
         parent.style.background = '#111';
@@ -2144,9 +2165,7 @@ function getFeedbackCardsHtml() {
                             if (match && match[1]) {
                                 return `
                                 <div class="feedback-card" style="background:#111; border:1px solid #222; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
-                                    <div style="position:relative; width:100%; height:370px; overflow:hidden; background:#111;">
-                                        <iframe src="https://www.instagram.com/p/${match[1]}/embed" style="position:absolute; top:0; left:0; width:100%; height:430px; border:none; background:#111;" frameborder="0" scrolling="no" allowtransparency="true" allow="encrypted-media"></iframe>
-                                    </div>
+                                    ${buildInstagramEmbedFrame(match[1])}
                                 </div>
                                 `;
                             }
@@ -2175,7 +2194,7 @@ function getFeedbackCardsHtml() {
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="window.openFeedbackPost(this)" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; border-bottom: 1px solid #222; cursor:pointer;">
+                <div onclick="window.openFeedbackPost(this)" class="feedback-media" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; cursor:pointer;">
                      <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {
@@ -2195,18 +2214,18 @@ function getFeedbackCardsHtml() {
                 `).join('');
 
                 mediaHtml = `
-                <div class="carousel-box" style="border-radius:10px 10px 0 0; border-bottom: 1px solid #222; aspect-ratio: auto; height: 370px; position: relative;">
-                    <div class="carousel" onscroll="updateDots(this)">
+                <div class="carousel-box feedback-media feedback-diaries-carousel" style="border-radius:10px 10px 0 0; height: 370px; position: relative;">
+                    <div class="carousel feedback-diaries-slides" onscroll="updateDots(this)">
                         ${slideImages}
                     </div>
-                    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(0,0,0,0.85); border:1px solid var(--gold); border-radius:20px; padding:4px 12px; gap:10px; z-index:5; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.carousel-box').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
+                    <div class="feedback-carousel-nav" style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(0,0,0,0.85); border:1px solid var(--gold); border-radius:20px; padding:4px 12px; gap:10px; z-index:5; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:-c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-left"></i>
                         </div>
-                        <div class="indicators" style="position:static; transform:none; display:flex; gap:6px;">
+                        <div class="indicators feedback-carousel-dots" style="position:static; transform:none; display:flex; gap:6px;">
                             ${dotHtml}
                         </div>
-                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.carousel-box').querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
+                        <div style="color:var(--gold); width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px;" onclick="event.stopPropagation(); const c = this.closest('.feedback-diaries-carousel').querySelector('.carousel'); c.scrollBy({left:c.offsetWidth, behavior:'smooth'})">
                             <i class="fa fa-chevron-right"></i>
                         </div>
                     </div>
@@ -2229,7 +2248,7 @@ function getFeedbackCardsHtml() {
             return `
             <div class="feedback-card" style="${cardStyle}" data-links="${dataLinksAttr}" onmouseover="this.style.transform='translateY(-5px)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='none'; this.style.borderColor='#222';">
                 ${mediaHtml}
-                <div style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
+                <div class="feedback-caption" style="padding:15px; display:flex; flex-direction:column; gap:8px; flex:1;">
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <div style="display:flex; flex-direction:column;">
                             <span style="font-size:13px; font-weight:700; color:var(--gold); font-family:'Outfit', sans-serif; letter-spacing:0.3px;">${f.username ? ((f.platform === 'instagram' || f.platform === 'facebook') && !f.username.startsWith('@') ? '@' + f.username : f.username) : 'Customer'}</span>
@@ -2282,10 +2301,12 @@ function renderFeedbacks() {
 // ── Footer Storefront Render & Navigation ──
 let footerPreviousSectionId = 'home';
 
-function renderFooter() {
+function renderFooter(explicitMountSection) {
     const settings = window.footerSettings || {
         showFooter: true,
         copyright: "Swagstree",
+        footerTemplate: 'classic',
+        footerLayout: 'auto',
         aboutText: "Swagstree is your premium fashion destination, offering curated apparel designs, comfortable fits, and modern styles directly to your doorstep. We are committed to high quality manufacturing, premium textiles, and excellent customer support.",
         showGps: true,
         gpsLat: "28.6139",
@@ -2293,49 +2314,86 @@ function renderFooter() {
         contactPhone: "8800467686"
     };
 
+    const templateId = typeof normalizeFooterTemplateId === 'function'
+        ? normalizeFooterTemplateId(settings.footerTemplate)
+        : (settings.footerTemplate || 'classic');
+    const layoutId = typeof normalizeFooterLayoutId === 'function'
+        ? normalizeFooterLayoutId(settings.footerLayout)
+        : (settings.footerLayout || 'auto');
+    const copyrightOn = typeof isFooterCopyrightEnabled === 'function'
+        ? isFooterCopyrightEnabled(settings)
+        : settings.showCopyright === true;
+
     const footerEl = document.getElementById('app-footer');
     if (footerEl) {
         const currentSection = document.querySelector('.section.active');
         const currentId = currentSection ? currentSection.id.replace('-view', '') : 'home';
-        const hasVisibleContent = !!settings.showFooter || settings.showCopyright !== false;
+        const hasVisibleContent = !!settings.showFooter || copyrightOn;
         const shouldShow = hasVisibleContent && (currentId === 'home' || currentId === 'wish');
-        
+        const mountSection = (explicitMountSection === 'home' || explicitMountSection === 'wish')
+            ? explicitMountSection
+            : ((currentId === 'home' || currentId === 'wish')
+                ? currentId
+                : (footerPreviousSectionId || 'home'));
+
         footerEl.classList.toggle('hidden', !shouldShow);
         document.body.classList.toggle('footer-hidden', !shouldShow);
 
-        // Dynamically adjust body padding to prevent grid clipping using compact heights (on mobile only)
-        if (shouldShow && window.innerWidth <= 1024) {
-            const hasCopyright = settings.showCopyright !== false;
-            const hasLinks = !!settings.showFooter;
-            
-            let bodyPadding = '75px';
-            if (hasLinks && hasCopyright) {
-                bodyPadding = '115px';
-            } else if (hasLinks || hasCopyright) {
-                bodyPadding = '95px';
+        if (typeof applyFooterShellClasses === 'function') {
+            applyFooterShellClasses(footerEl, templateId, layoutId);
+        }
+        footerEl.classList.toggle('footer-copyright-on', copyrightOn);
+        footerEl.classList.toggle('footer-copyright-off', !copyrightOn);
+
+        if (typeof mountStorefrontFooter === 'function') {
+            mountStorefrontFooter(footerEl, layoutId, mountSection);
+        }
+
+        footerEl.classList.toggle('hidden', !shouldShow);
+
+        const syncPadding = () => {
+            if (typeof applyFooterBodyPadding === 'function') {
+                applyFooterBodyPadding(footerEl, layoutId);
             }
-            document.body.style.setProperty('padding-bottom', bodyPadding, 'important');
+        };
+        syncPadding();
+        requestAnimationFrame(syncPadding);
+    }
+
+    const linksHost = document.getElementById('footer-links-host');
+    if (linksHost) {
+        if (!!settings.showFooter) {
+            linksHost.innerHTML = typeof buildFooterLinksHtml === 'function'
+                ? buildFooterLinksHtml(templateId, settings)
+                : linksHost.innerHTML;
+            linksHost.style.display = 'block';
         } else {
-            // On desktop or when footer is hidden, let CSS handle it (clear JS overrides)
-            document.body.style.removeProperty('padding-bottom');
+            linksHost.innerHTML = '';
+            linksHost.style.display = 'none';
         }
     }
 
     // Update Copyright Label
     const copyrightRow = document.getElementById('footer-copyright-row');
     if (copyrightRow) {
-        copyrightRow.style.display = settings.showCopyright !== false ? 'flex' : 'none';
+        const hideCopyrightRowForLuxury = templateId === 'luxury';
+        copyrightRow.style.display = (copyrightOn && !hideCopyrightRowForLuxury) ? 'flex' : 'none';
     }
     const copyrightTextEl = document.getElementById('footer-copyright-text');
     if (copyrightTextEl) {
         copyrightTextEl.innerText = settings.copyright || 'Swagstree';
+        copyrightTextEl.style.display = copyrightOn ? '' : 'none';
+    }
+    const luxuryBrand = document.getElementById('footer-luxury-brand-text');
+    if (luxuryBrand) {
+        luxuryBrand.textContent = settings.copyright || 'Swag Stree';
+        const luxuryBrandWrap = luxuryBrand.closest('.footer-luxury-brand');
+        if (luxuryBrandWrap) {
+            luxuryBrandWrap.style.display = copyrightOn ? '' : 'none';
+        }
     }
 
-    // Update Links visibility (About Us, Call Us, Privacy Policy) - hidden by default, visible when checked
-    const linksRow = document.getElementById('footer-links-row');
-    if (linksRow) {
-        linksRow.style.display = !!settings.showFooter ? 'flex' : 'none';
-    }
+    // Legacy links row visibility handled via linksHost above
 
     // Auto-upgrade simple placeholders to premium templates
     const premiumAbout = `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`;
@@ -2445,6 +2503,14 @@ function renderFooter() {
     }
 }
 window.renderFooter = renderFooter;
+
+let footerResizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(footerResizeTimer);
+    footerResizeTimer = setTimeout(() => {
+        if (typeof renderFooter === 'function') renderFooter();
+    }, 150);
+});
 
 function openFooterPage(pageId) {
     // Save previous active section to return back to it

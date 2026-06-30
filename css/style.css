@@ -12,7 +12,9 @@
     --bg: #000; 
     --card: #111; 
     --border: #222; 
-    --red: #ff4757; 
+    --red: #ff4757;
+    --storefront-header-h: 54px;
+    --storefront-bottom-nav-h: 58px;
 }
 
 /* 2. BASE STYLES */
@@ -219,33 +221,98 @@ body {
 @media (max-width: 1024px), (pointer: coarse) {
     .desktop-nav { display: none !important; }
     .bottom-nav { display: flex !important; }
-    body { padding-bottom: 110px !important; } /* Fallback body padding */
+
+    body.body-footer-pos-scroll:not(.footer-hidden) {
+        padding-bottom: 60px !important;
+    }
+
+    /* Auto: short pages push footer to bottom; long pages scroll to footer at end */
+    body.body-footer-pos-scroll #home-view.active,
+    body.body-footer-pos-scroll #wish-view.active {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: none !important;
+        min-height: calc(100dvh - var(--storefront-header-h, 54px) - var(--storefront-bottom-nav-h, 58px)) !important;
+        height: auto !important;
+    }
+    body.body-footer-pos-scroll .storefront-footer-anchor {
+        flex: none !important;
+        margin-top: auto !important;
+        width: 100%;
+    }
+    body.body-footer-pos-scroll #app-footer {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        top: auto !important;
+    }
+
     #app-footer {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        z-index: 10 !important;
+        background: rgba(10, 10, 10, 0.98) !important;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        padding: 12px 14px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+        box-shadow: none !important;
+        margin-top: 0 !important;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    body.body-footer-pos-fixed:not(.footer-hidden) #app-footer {
         position: fixed !important;
-        bottom: 58px !important; /* height of bottom nav item is ~56px */
+        bottom: 58px !important;
         left: 0 !important;
         right: 0 !important;
         z-index: 1999 !important;
-        background: rgba(10, 10, 10, 0.94) !important;
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
-        padding: 8px 12px !important; /* Minimal height bar with equal left/right padding */
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 4px !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+        margin-top: 0 !important;
+        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.45) !important;
     }
-    
-    /* WhatsApp Floating Button on mobile - sits perfectly above the fixed footer bar */
+
+    body.body-footer-pos-scroll .whatsapp-float {
+        bottom: 72px !important;
+    }
+    body.body-footer-pos-fixed .whatsapp-float {
+        bottom: var(--footer-stack-offset, 112px) !important;
+    }
+
+    .storefront-footer-anchor,
+    .storefront-footer-dock {
+        width: 100%;
+    }
+    .storefront-footer-anchor:empty {
+        display: none !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .storefront-footer-dock:not(:has(#app-footer)) {
+        display: none;
+    }
+    body.body-footer-pos-scroll .storefront-footer-anchor #app-footer {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        margin-top: 0 !important;
+    }
+
     .whatsapp-float {
-        bottom: 112px !important; /* Resting elegantly above the fixed footer bar (58px + ~45px = 103px) */
-        right: 16px !important;  /* Spacing from right edge */
+        right: 16px !important;
         width: 44px !important;
         height: 44px !important;
         display: flex !important;
         z-index: 2147483647 !important;
-        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) !important; /* Removed box-shadow to prevent black rectangle box rendering */
+        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) !important;
     }
 }
 
@@ -377,20 +444,610 @@ body.footer-hidden {
     padding-bottom: 60px !important;
 }
 
+#footer-links-host {
+    width: 100%;
+}
+
+/* ── Template: Classic (default chips) ── */
+.footer-links-classic {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center !important;
+    flex-wrap: wrap;
+    gap: 8px !important;
+}
+.footer-links-classic .footer-chip {
+    max-width: 100%;
+}
+
+/* ── Template: Minimal strip ── */
+.footer-links-minimal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px 8px;
+    width: 100%;
+    padding: 2px 0;
+}
+.footer-minimal-link {
+    background: none;
+    border: none;
+    color: #ccc;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 2px;
+}
+.footer-minimal-link i { color: var(--gold); font-size: 10px; }
+.footer-minimal-link:hover { color: var(--gold); }
+.footer-minimal-sep { color: #444; font-size: 10px; user-select: none; }
+
+/* ── Template: Stacked cards ── */
+.footer-links-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+.footer-stacked-link {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: #eee;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s;
+}
+.footer-stacked-link i.fa-circle-info,
+.footer-stacked-link i.fa-phone,
+.footer-stacked-link i.fa-shield-halved { color: var(--gold); width: 16px; text-align: center; }
+.footer-stacked-link span { flex: 1; }
+.footer-stacked-chevron { color: #555 !important; font-size: 9px !important; width: auto !important; }
+.footer-stacked-link:hover {
+    border-color: rgba(255, 215, 0, 0.35);
+    background: rgba(255, 215, 0, 0.06);
+    color: var(--gold);
+}
+
+/* ── Template: Grid actions ── */
+.footer-links-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+}
+.footer-grid-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 6px;
+    min-height: 58px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 215, 0, 0.12);
+    border-radius: 12px;
+    color: #ddd;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.2s;
+}
+.footer-grid-link i { color: var(--gold); font-size: 16px; }
+.footer-grid-link:hover {
+    border-color: rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.08);
+    color: var(--gold);
+    transform: translateY(-1px);
+}
+
+/* ── Template: Luxury bar ── */
+.footer-luxury-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+}
+.footer-luxury-mark {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+#footer-luxury-brand-text {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+.footer-links-luxury {
+    display: flex;
+    width: 100%;
+    justify-content: space-around;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.footer-luxury-link {
+    background: none;
+    border: none;
+    color: #bbb;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+}
+.footer-luxury-link i { color: var(--gold); font-size: 14px; }
+.footer-luxury-link:hover { color: #fff; }
+
+/* ── Template: Underline text links (e-commerce) ── */
+.footer-links-underline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 8px;
+    width: 100%;
+    padding: 6px 4px;
+    row-gap: 8px;
+}
+.footer-underline-link {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    text-decoration: none;
+    padding: 2px 0;
+    border-bottom: 1px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+.footer-underline-link:hover {
+    color: var(--gold);
+    border-bottom-color: rgba(255, 215, 0, 0.45);
+}
+.footer-underline-sep {
+    color: #333;
+    font-size: 10px;
+    user-select: none;
+}
+
+/* ── Template: Capsule bar (quick-commerce) ── */
+.footer-links-capsule {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 215, 0, 0.18);
+    border-radius: 14px;
+    overflow: hidden;
+}
+.footer-capsule-segment {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 6px;
+    background: none;
+    border: none;
+    color: #ccc;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    line-height: 1.25;
+    transition: background 0.2s, color 0.2s;
+}
+.footer-capsule-segment i {
+    color: var(--gold);
+    font-size: 14px;
+}
+.footer-capsule-segment:hover {
+    background: rgba(255, 215, 0, 0.08);
+    color: #fff;
+}
+.footer-capsule-divider {
+    width: 1px;
+    align-self: stretch;
+    background: rgba(255, 215, 0, 0.15);
+    flex-shrink: 0;
+}
+
+/* ── Template: Floating dock ── */
+.footer-links-dock {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+    padding: 4px 2px;
+}
+.footer-dock-slot {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 10px 4px;
+    background: rgba(15, 15, 15, 0.95);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    color: #bbb;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    line-height: 1.2;
+    transition: transform 0.2s, border-color 0.2s, background 0.2s;
+}
+.footer-dock-slot i {
+    color: var(--gold);
+    font-size: 15px;
+}
+.footer-dock-slot:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 215, 0, 0.45);
+    background: rgba(255, 215, 0, 0.06);
+    color: #fff;
+}
+
+/* ── Template: Icon bar (app footer) ── */
+.footer-links-iconbar {
+    display: flex;
+    width: 100%;
+    justify-content: space-around;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 4px 0 2px;
+}
+.footer-iconbar-item {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    text-decoration: none;
+    padding: 4px 2px;
+    transition: color 0.2s;
+}
+.footer-iconbar-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+.footer-iconbar-icon i {
+    color: var(--gold);
+    font-size: 15px;
+}
+.footer-iconbar-label {
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    text-align: center;
+    line-height: 1.25;
+    max-width: 72px;
+}
+.footer-iconbar-item:hover {
+    color: var(--gold);
+}
+.footer-iconbar-item:hover .footer-iconbar-icon {
+    background: rgba(255, 215, 0, 0.14);
+    border-color: rgba(255, 215, 0, 0.35);
+    transform: translateY(-1px);
+}
+
+/* ── Template: Split help layout ── */
+.footer-links-split {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+.footer-split-info {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.footer-split-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    color: #bbb;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s;
+}
+.footer-split-link i { color: var(--gold); font-size: 11px; }
+.footer-split-link:hover {
+    border-color: rgba(255, 215, 0, 0.35);
+    color: #fff;
+}
+.footer-split-call {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 11px 14px;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 215, 0, 0.04));
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    border-radius: 12px;
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.2s;
+    box-sizing: border-box;
+}
+.footer-split-call span {
+    flex: 0 1 auto;
+}
+.footer-split-call-arrow {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.footer-split-call:hover {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.18), rgba(255, 215, 0, 0.08));
+    transform: translateY(-1px);
+}
+
+.footer-tpl-capsule#app-footer,
+#app-footer.footer-tpl-capsule {
+    padding: 10px 12px !important;
+}
+.footer-tpl-dock#app-footer,
+#app-footer.footer-tpl-dock {
+    padding: 8px 10px !important;
+}
+.footer-tpl-iconbar#app-footer,
+#app-footer.footer-tpl-iconbar {
+    padding: 10px 12px !important;
+}
+.footer-tpl-split#app-footer,
+#app-footer.footer-tpl-split {
+    padding: 10px 14px !important;
+}
+.footer-tpl-underline#app-footer,
+#app-footer.footer-tpl-underline {
+    padding: 10px 14px !important;
+}
+
+.footer-template-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.footer-template-group__label {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+.footer-template-group:first-child .footer-template-group__label {
+    margin-top: 0;
+}
+
+@media (min-width: 520px) {
+    .footer-template-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .footer-template-group {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        align-items: start;
+    }
+    .footer-template-group__label {
+        grid-column: 1 / -1;
+    }
+}
+
+.footer-grid-link span {
+    font-size: 8px;
+    line-height: 1.25;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.footer-tpl-stacked#app-footer,
+#app-footer.footer-tpl-stacked {
+    padding: 10px 14px !important;
+    gap: 6px !important;
+}
+.footer-tpl-grid#app-footer,
+#app-footer.footer-tpl-grid {
+    padding: 10px 12px !important;
+}
+.footer-tpl-luxury#app-footer,
+#app-footer.footer-tpl-luxury {
+    padding: 12px 16px !important;
+    background: linear-gradient(180deg, rgba(20, 18, 8, 0.98), rgba(10, 10, 10, 0.98)) !important;
+    border-top: 1px solid rgba(255, 215, 0, 0.2) !important;
+}
+
+/* Admin footer template picker */
+.footer-template-grid,
+.footer-layout-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+.footer-template-option,
+.footer-layout-option {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    background: #1a1a1a;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.footer-template-option input,
+.footer-layout-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.footer-template-option.selected,
+.footer-layout-option.selected {
+    border-color: rgba(255, 215, 0, 0.45);
+    background: rgba(255, 215, 0, 0.06);
+}
+.footer-template-option__name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+}
+.footer-template-option__name em {
+    font-style: normal;
+    font-size: 10px;
+    color: var(--gold);
+    font-weight: 600;
+}
+.footer-template-option__desc {
+    font-size: 10px;
+    color: #777;
+    line-height: 1.45;
+}
+.admin-footer-template-preview {
+    margin-top: 8px;
+    border: 1px dashed #333;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #0a0a0a;
+}
+.admin-footer-preview-shell {
+    padding: 12px;
+}
+.admin-footer-preview-inner {
+    background: rgba(10, 10, 10, 0.94);
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 10px;
+}
+.admin-footer-preview-copy {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 9px;
+    color: #555;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+/* Wish tab — no redundant title (bottom nav already says Wish) */
+.wishlist-title {
+    display: none !important;
+}
+
 @media (min-width: 1025px) and (pointer: fine) {
     .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
     .bottom-nav { display: none !important; }
     .desktop-nav { display: flex !important; }
-    /* Sticky footer: body as flex column so footer is always at bottom */
-    body {
+    /* Sticky footer: body as flex column so footer is always at bottom (Fixed Bar only) */
+    body.body-footer-pos-fixed {
         padding-bottom: 0 !important;
         min-height: 100vh !important;
         display: flex !important;
         flex-direction: column !important;
     }
-    /* Active section grows to push footer down */
-    .section.active {
+    body.body-footer-pos-fixed .section.active {
         flex: 1 !important;
+    }
+    body.body-footer-pos-scroll {
+        display: block !important;
+        min-height: auto !important;
+        padding-bottom: 0 !important;
+    }
+    body.body-footer-pos-scroll .section.active {
+        flex: none !important;
+        min-height: calc(100vh - var(--storefront-header-h, 64px)) !important;
+    }
+    body.body-footer-pos-scroll #home-view.active,
+    body.body-footer-pos-scroll #wish-view.active {
+        min-height: calc(100vh - var(--storefront-header-h, 64px)) !important;
     }
     #app-footer {
         position: relative !important;
@@ -1127,12 +1784,29 @@ input[type="checkbox"], input[type="radio"] {
 .section { display: none; }
 .section.active { display: block; }
 
-/* Ensure home and wishlist sections fill the viewport so footer stays at bottom */
-/* On mobile: footer is position:fixed, no issue */
-/* On desktop: use flex-grow to push footer to bottom */
-#home-view.active,
-#wish-view.active {
+/* Ensure home and wishlist sections fill viewport only for Fixed Bar layout */
+body.body-footer-pos-fixed #home-view.active,
+body.body-footer-pos-fixed #wish-view.active {
     flex: 1;
+}
+body.body-footer-pos-scroll #home-view.active,
+body.body-footer-pos-scroll #wish-view.active {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    min-height: calc(100dvh - var(--storefront-header-h, 54px) - var(--storefront-bottom-nav-h, 58px));
+}
+body.body-footer-pos-scroll .storefront-footer-anchor {
+    margin-top: auto;
+}
+.storefront-footer-anchor:empty {
+    display: none;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+body.body-footer-pos-scroll .storefront-load-more {
+    padding-bottom: 0 !important;
 }
 .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
 .thumb-wrap { position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
@@ -1758,6 +2432,91 @@ body {
 }
 .feedback-card:hover .feedback-img {
     transform: scale(1.05);
+}
+
+/* Customer Diaries — remove white/grey seam between slider and caption */
+.feedback-card .feedback-media,
+.feedback-card .carousel-box.feedback-media,
+.feedback-card .feedback-diaries-carousel {
+    aspect-ratio: unset !important;
+    border-bottom: none !important;
+    background: #111 !important;
+    line-height: 0;
+    font-size: 0;
+    margin-bottom: 0 !important;
+}
+.feedback-card .feedback-diaries-carousel .feedback-diaries-slides,
+.feedback-card .feedback-diaries-carousel .feedback-diaries-slides > div {
+    height: 100% !important;
+    min-height: 100%;
+    background: #111;
+}
+.feedback-card .feedback-media img,
+.feedback-card .carousel-box.feedback-media img,
+.feedback-card .feedback-diaries-carousel img {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100%;
+    object-fit: cover;
+    object-position: center center;
+    vertical-align: top;
+}
+.feedback-card .feedback-caption {
+    border-top: none !important;
+    margin-top: 0 !important;
+    padding-top: 15px;
+    background: #111;
+    line-height: normal;
+    font-size: initial;
+}
+.feedback-card .feedback-media + .feedback-caption,
+.feedback-card .feedback-diaries-carousel + .feedback-caption {
+    margin-top: -1px;
+}
+.feedback-card .feedback-carousel-nav {
+    line-height: normal;
+    font-size: initial;
+}
+.feedback-card .ig-embed-clip {
+    border-bottom: none;
+    line-height: 0;
+}
+
+/* Luxury footer — brand/copyright only when toggle is on */
+#app-footer.footer-copyright-off .footer-luxury-brand,
+#app-footer.footer-copyright-off #footer-copyright-row {
+    display: none !important;
+}
+
+/* Instagram embed — clip header (followers) and footer ("View more on Instagram") */
+:root {
+    --ig-embed-header-offset: 64px;
+    --ig-embed-footer-offset: 56px;
+    --ig-embed-visible-height: 330px;
+}
+.ig-embed-clip {
+    position: relative;
+    width: 100%;
+    height: var(--ig-embed-visible-height);
+    overflow: hidden;
+    background: #111;
+    flex-shrink: 0;
+}
+.ig-embed-clip .ig-embed-frame {
+    position: absolute;
+    top: calc(-1 * var(--ig-embed-header-offset));
+    left: 0;
+    width: 100%;
+    height: calc(
+        var(--ig-embed-visible-height) +
+        var(--ig-embed-header-offset) +
+        var(--ig-embed-footer-offset)
+    );
+    min-height: 420px;
+    border: none;
+    background: #111;
+    pointer-events: auto;
 }
 
 /* WYSIWYG Editor Styles */

@@ -2244,6 +2244,8 @@ async function loadAdminFooterSettings() {
         const settings = snap.exists ? snap.data() : {
             showFooter: false,
             showCopyright: true,
+            footerTemplate: 'classic',
+            footerLayout: 'auto',
             copyright: "Swagstree",
             aboutText: `<h3>Who We Are</h3><p>Established in 2018, Swag Stree has grown into a premier fashion brand dedicated to delivering trendsetting, high-quality, and comfortable apparel directly to your doorstep. We merge modern styles with premium craftsmanship to create garments that make you look and feel confident.</p><h3>Our Commitment</h3><p>We are driven by three core pillars:</p><ul><li><b>Premium Fabrics:</b> Handpicked materials for maximum durability and comfort.</li><li><b>Exquisite Tailoring:</b> Designed for perfect fits and elegant silhouettes.</li><li><b>Customer First:</b> Quick delivery, seamless returns, and dedicated support.</li></ul>`,
             showGps: true,
@@ -2279,7 +2281,7 @@ async function loadAdminFooterSettings() {
         const privacyEl = document.getElementById('admin-footer-privacy-text');
         
         if (showFooterEl) showFooterEl.checked = !!settings.showFooter;
-        if (showCopyrightEl) showCopyrightEl.checked = settings.showCopyright !== false;
+        if (showCopyrightEl) showCopyrightEl.checked = settings.showCopyright === true;
         if (copyrightEl) copyrightEl.value = settings.copyright || '';
         
         if (aboutTextEl) {
@@ -2302,6 +2304,10 @@ async function loadAdminFooterSettings() {
             if (privacyEl.tagName === 'DIV') privacyEl.innerHTML = settings.privacyText || '';
             else privacyEl.value = settings.privacyText || '';
         }
+
+        if (typeof renderAdminFooterTemplatePicker === 'function') {
+            renderAdminFooterTemplatePicker(settings.footerTemplate, settings.footerLayout);
+        }
     } catch (e) {
         console.error('loadAdminFooterSettings error:', e);
     }
@@ -2320,11 +2326,15 @@ async function saveAdminFooterSettings() {
     const gpsQueryEl = document.getElementById('admin-footer-gps-query');
     const phoneEl = document.getElementById('admin-footer-phone');
     const privacyEl = document.getElementById('admin-footer-privacy-text');
+    const templateEl = document.querySelector('input[name="admin-footer-template"]:checked');
+    const layoutEl = document.querySelector('input[name="admin-footer-layout"]:checked');
     
     const settings = {
         showFooter: showFooterEl ? showFooterEl.checked : true,
-        showCopyright: showCopyrightEl ? showCopyrightEl.checked : true,
+        showCopyright: showCopyrightEl ? showCopyrightEl.checked : false,
         copyright: copyrightEl ? copyrightEl.value.trim() : "Swagstree",
+        footerTemplate: templateEl ? templateEl.value : 'classic',
+        footerLayout: layoutEl ? layoutEl.value : 'auto',
         aboutText: aboutTextEl ? (aboutTextEl.tagName === 'DIV' ? aboutTextEl.innerHTML.trim() : aboutTextEl.value.trim()) : "",
         contactAddress: addressEl ? addressEl.value.trim() : "",
         showGps: showGpsEl ? showGpsEl.checked : false,
