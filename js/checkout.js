@@ -1472,17 +1472,22 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
 
         if (isGuest && emailVal) {
             const guestDocId = buildGuestCustomerDocId(emailVal) || effectiveUid;
+            const guestProfile = {
+                email: emailVal.trim().toLowerCase(),
+                displayName: (n || '').trim() || emailVal.split('@')[0],
+                phone: (p || '').trim(),
+                isGuest: true,
+                guestCheckout: true,
+                lastOrderId: orderId,
+                lastOrderUid: effectiveUid,
+                linkedGuestDocId: guestDocId,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
             try {
-                await db.collection('users').doc(guestDocId).set({
-                    email: emailVal.trim().toLowerCase(),
-                    displayName: (n || '').trim() || emailVal.split('@')[0],
-                    phone: (p || '').trim(),
-                    isGuest: true,
-                    guestCheckout: true,
-                    lastOrderId: orderId,
-                    lastOrderUid: effectiveUid,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
+                await db.collection('users').doc(guestDocId).set(guestProfile, { merge: true });
+                if (effectiveUid && effectiveUid !== guestDocId) {
+                    await db.collection('users').doc(effectiveUid).set(guestProfile, { merge: true });
+                }
             } catch (guestProfileErr) {
                 console.error('Guest customer profile save failed:', guestProfileErr);
             }
