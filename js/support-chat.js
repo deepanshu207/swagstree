@@ -28,6 +28,7 @@ let supportAdminNotifyUnsub = null;
 let supportNotifyInitialized = false;
 const supportSeenAdminMsgIds = new Set();
 window.supportThreadsCache = window.supportThreadsCache || [];
+window.supportUserEmailCache = window.supportUserEmailCache || {};
 window.adminSupportInboxState = window.adminSupportInboxState || {
     activeTab: 'registered',
     search: '',
@@ -225,6 +226,116 @@ function isStaffSelfSupportThread(thread) {
     return false;
 }
 
+function getSupportThreadCustomerUid(thread) {
+    const uid = (thread?.customerUid || '').trim();
+    if (uid && !isGuestSupportUid(uid)) return uid;
+    const threadId = (thread?.id || '').trim();
+    if (threadId.startsWith('uid_')) {
+        const fromId = threadId.slice(4);
+        if (fromId && !isGuestSupportUid(fromId)) return fromId;
+    }
+    return uid || '';
+}
+
+function enrichThreadFromCustomerCaches(thread) {
+    const uid = getSupportThreadCustomerUid(thread);
+    if (!uid) return thread;
+    const caches = [window.allCustomersCache, window.superCustomersCache].filter(Array.isArray);
+    for (const cache of caches) {
+        const match = cache.find(c => c.uid === uid || (Array.isArray(c._mergedUids) && c._mergedUids.includes(uid)));
+        if (!match) continue;
+        const email = typeof getCustomerDisplayEmail === 'function' ? getCustomerDisplayEmail(match) : (match.email || '');
+        const name = typeof getCustomerDisplayName === 'function' ? getCustomerDisplayName(match) : (match.displayName || '');
+        if (email && !thread._resolvedEmail && !thread.customerEmail) thread._resolvedEmail = email;
+        if (name && !thread._resolvedDisplayName && (!thread.customerName || thread.customerName === 'Customer' || thread.customerName === 'Guest')) {
+            thread._resolvedDisplayName = name;
+        }
+        break;
+    }
+    return thread;
+}
+
+function getSupportThreadDisplayEmail(thread) {
+    const direct = normalizeSupportEmail(thread?.customerEmail || thread?._resolvedEmail);
+    if (direct) return direct;
+
+    const uid = getSupportThreadCustomerUid(thread);
+    if (uid && window.supportUserEmailCache?.[uid]?.email) {
+        return normalizeSupportEmail(window.supportUserEmailCache[uid].email);
+    }
+
+    enrichThreadFromCustomerCaches(thread);
+    return normalizeSupportEmail(thread?._resolvedEmail || thread?.customerEmail);
+}
+
+function getSupportThreadDisplayName(thread) {
+    const current = (thread?._resolvedDisplayName || thread?.customerName || '').trim();
+    if (current && current !== 'Customer' && current !== 'Guest') return current;
+
+    const uid = getSupportThreadCustomerUid(thread);
+    if (uid && window.supportUserEmailCache?.[uid]?.name) {
+        return window.supportUserEmailCache[uid].name;
+    }
+
+    enrichThreadFromCustomerCaches(thread);
+    const resolved = (thread?._resolvedDisplayName || thread?.customerName || '').trim();
+    if (resolved && resolved !== 'Customer' && resolved !== 'Guest') return resolved;
+
+    const email = getSupportThreadDisplayEmail(thread);
+    if (email) return email.split('@')[0];
+    return resolved || 'Guest';
+}
+
+async function enrichSupportThreadsFromUsers() {
+    const threads = window.supportThreadsCache || [];
+    threads.forEach(enrichThreadFromCustomerCaches);
+
+    const uidsToFetch = [...new Set(
+        threads
+            .filter(t => isRegisteredSupportThread(t) && !getSupportThreadDisplayEmail(t))
+            .map(getSupportThreadCustomerUid)
+            .filter(uid => uid && !window.supportUserEmailCache[uid])
+    )];
+
+    if (!uidsToFetch.length) return;
+
+    await Promise.all(uidsToFetch.map(async uid => {
+        try {
+            const doc = await db.collection('users').doc(uid).get();
+            if (!doc.exists) {
+                window.supportUserEmailCache[uid] = { email: '', name: '' };
+                return;
+            }
+            const data = doc.data() || {};
+            const email = (data.email || '').trim();
+            const name = (data.displayName || '').trim();
+            window.supportUserEmailCache[uid] = { email, name };
+
+            if (!email && !name) return;
+            const thread = threads.find(t => getSupportThreadCustomerUid(t) === uid);
+            if (!thread) return;
+
+            if (email) thread._resolvedEmail = email;
+            if (name) thread._resolvedDisplayName = name;
+
+            const patch = {};
+            if (email && !thread.customerEmail) patch.customerEmail = email;
+            if (name && (!thread.customerName || thread.customerName === 'Customer' || thread.customerName === 'Guest')) {
+                patch.customerName = name;
+            }
+            if (Object.keys(patch).length) {
+                db.collection('support_threads').doc(thread.id).set(patch, { merge: true }).catch(() => {});
+            }
+        } catch (e) {
+            console.warn('Could not enrich support thread user profile:', e);
+        }
+    }));
+}
+
+function prepareSupportThreadsForInbox() {
+    (window.supportThreadsCache || []).forEach(enrichThreadFromCustomerCaches);
+}
+
 function getSupportInboxThreads(includeStaff) {
     return (window.supportThreadsCache || [])
         .filter(threadHasSupportActivity)
@@ -235,8 +346,8 @@ function threadMatchesInboxSearch(thread, query) {
     const q = (query || '').trim().toLowerCase();
     if (!q) return true;
     const haystack = [
-        thread.customerName,
-        thread.customerEmail,
+        getSupportThreadDisplayName(thread),
+        getSupportThreadDisplayEmail(thread),
         thread.lastMessagePreview,
         thread.id,
         getSupportVisitorLabel(thread)
@@ -473,7 +584,17 @@ function getCustomerProfile() {
 async function ensureSupportThread(threadId, profile) {
     const ref = db.collection('support_threads').doc(threadId);
     const snap = await ref.get();
-    if (snap.exists) return snap.data();
+    if (snap.exists) {
+        const existing = snap.data() || {};
+        const updates = {};
+        if (profile.email && !existing.customerEmail) updates.customerEmail = profile.email;
+        if (profile.name && (!existing.customerName || existing.customerName === 'Customer' || existing.customerName === 'Guest')) {
+            updates.customerName = profile.name;
+        }
+        if (profile.uid && !existing.customerUid) updates.customerUid = profile.uid;
+        if (Object.keys(updates).length) await ref.set(updates, { merge: true });
+        return { ...existing, ...updates };
+    }
     const data = {
         customerUid: profile.uid || null,
         customerEmail: profile.email || '',
@@ -1836,13 +1957,15 @@ function renderAdminSupportInboxListItem(t) {
     const visitorBadge = getSupportVisitorBadgeHtml(t);
     const previewPrefix = escHtml(getAdminPreviewPrefix(t));
     const previewText = t.lastMessagePreview || 'No messages yet';
+    const displayName = getSupportThreadDisplayName(t);
+    const displayEmail = getSupportThreadDisplayEmail(t);
     return `
         <div class="admin-support-inbox-item">
             <div class="admin-support-inbox-item-main">
                 <div class="admin-support-inbox-item-head">
-                    <strong class="admin-support-inbox-item-name">${escHtml(t.customerName || 'Guest')}</strong>
+                    <strong class="admin-support-inbox-item-name">${escHtml(displayName)}</strong>
                     ${visitorBadge}
-                    ${t.customerEmail ? `<span class="admin-support-inbox-item-email">${escHtml(t.customerEmail)}</span>` : ''}
+                    ${displayEmail ? `<span class="admin-support-inbox-item-email">${escHtml(displayEmail)}</span>` : (isRegisteredSupportThread(t) ? '<span class="admin-support-inbox-item-email" style="color:#666;">No email on file</span>' : '')}
                     ${unread ? `<span class="admin-support-inbox-badge admin-support-inbox-badge-new">${unread} new</span>` : ''}
                     ${isWaiting ? `<span class="admin-support-inbox-badge admin-support-inbox-badge-wait">Needs reply</span>` : ''}
                 </div>
@@ -1859,8 +1982,9 @@ function renderAdminSupportInboxPagination(totalItems, page, pageSize) {
     if (!pagination) return;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     if (totalItems <= pageSize) {
+        const totalAll = getSupportInboxThreads(false).length;
         pagination.innerHTML = totalItems
-            ? `<span class="admin-support-inbox-page-info">${totalItems} conversation${totalItems === 1 ? '' : 's'}</span>`
+            ? `<span class="admin-support-inbox-page-info">${totalItems} conversation${totalItems === 1 ? '' : 's'}${totalAll !== totalItems ? ` · ${totalAll} total in inbox` : ''}</span>`
             : '';
         return;
     }
@@ -1893,6 +2017,8 @@ function updateAdminSupportInboxTabCounts() {
 function renderAdminSupportInbox() {
     const container = document.getElementById('admin-support-inbox-list');
     if (!container) return;
+
+    prepareSupportThreadsForInbox();
 
     const searchEl = document.getElementById('admin-support-inbox-search');
     if (searchEl && document.activeElement !== searchEl) {
@@ -1932,14 +2058,21 @@ window.loadAdminSupportInbox = function() {
         .onSnapshot(snap => {
             window.supportThreadsCache = [];
             snap.forEach(doc => window.supportThreadsCache.push({ id: doc.id, ...doc.data() }));
+            prepareSupportThreadsForInbox();
             renderAdminSupportInbox();
             updateAdminSupportBadge();
+            enrichSupportThreadsFromUsers().then(() => {
+                renderAdminSupportInbox();
+                updateAdminSupportBadge();
+            });
         }, () => {
             db.collection('support_threads').limit(ADMIN_SUPPORT_INBOX_FETCH_LIMIT).onSnapshot(snap => {
                 window.supportThreadsCache = [];
                 snap.forEach(doc => window.supportThreadsCache.push({ id: doc.id, ...doc.data() }));
                 window.supportThreadsCache.sort((a, b) => (b.lastMessageAt?.toMillis?.() || 0) - (a.lastMessageAt?.toMillis?.() || 0));
+                prepareSupportThreadsForInbox();
                 renderAdminSupportInbox();
+                enrichSupportThreadsFromUsers().then(() => renderAdminSupportInbox());
             });
         });
 };

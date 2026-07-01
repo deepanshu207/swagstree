@@ -867,7 +867,7 @@ function deduplicateCustomersByEmail(customers) {
     const withoutEmail = [];
 
     customers.forEach(customer => {
-        const email = (customer.email || '').trim().toLowerCase();
+        const email = getCustomerDisplayEmail(customer).toLowerCase();
         if (!email) {
             withoutEmail.push(customer);
             return;
@@ -895,8 +895,14 @@ function deduplicateCustomersByEmail(customers) {
     const deduped = [];
     byEmail.forEach(({ primary, mergedCount, mergedUids, mergedRecords }) => {
         const mergedProviders = mergeCustomerProviders(mergedRecords);
+        const bestEmail = mergedRecords.map(r => getCustomerDisplayEmail(r)).find(Boolean) || getCustomerDisplayEmail(primary);
+        const bestPhone = mergedRecords.map(r => (r.phone || '').trim()).find(Boolean) || (primary.phone || '');
+        const bestName = mergedRecords.map(r => (r.displayName || '').trim()).find(Boolean) || (primary.displayName || '');
         deduped.push({
             ...primary,
+            email: bestEmail || primary.email || '',
+            phone: bestPhone,
+            displayName: bestName || primary.displayName,
             providers: mergedProviders.length ? mergedProviders : primary.providers,
             _mergedAccountCount: mergedCount > 1 ? mergedCount : undefined,
             _mergedUids: mergedCount > 1 ? mergedUids : undefined
@@ -904,6 +910,17 @@ function deduplicateCustomersByEmail(customers) {
     });
 
     return deduped.concat(withoutEmail);
+}
+
+function buildCustomerMergedNoteHtml(customer) {
+    if (!(customer?._mergedAccountCount > 1)) return '';
+    const providers = customer.providers || [];
+    const hasGoogle = providers.includes('google.com');
+    const hasPassword = providers.includes('password');
+    let label = 'Linked sign-in methods';
+    if (hasGoogle && hasPassword) label = 'Google + Email linked';
+    else if (hasGoogle) label = 'Linked Google logins';
+    return `<span style="display:inline-block;font-size:9px;color:#888;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:2px 6px;margin-top:4px;" title="Same customer signed in with more than one login method">${label}</span>`;
 }
 
 function getCustomersPageLimit() {
@@ -1197,9 +1214,7 @@ function renderAllCustomersList(list) {
             : (isGuest && hasChatCap
                 ? `<button class="btn-gold admin-customer-card__chat" onclick="openGuestCustomerSupportChat('${safeEmail}','${safeName}')" title="Open guest support chat"><i class="fa fa-headset"></i></button>`
                 : '');
-        const mergedNote = data._mergedAccountCount > 1
-            ? `<div class="admin-customer-card__merged">Merged ${data._mergedAccountCount} duplicate logins (Google / Email)</div>`
-            : '';
+        const mergedNote = buildCustomerMergedNoteHtml(data);
         const authBadge = buildCustomerAuthBadgeHtml(data);
 
         html += `
@@ -1528,9 +1543,7 @@ function renderSuperCustomersList(list) {
         const resolvedEmail = getCustomerDisplayEmail(c);
         const emailLower = resolvedEmail.toLowerCase();
         const isSelfOrSystem = emailLower === SUPER_ADMIN_EMAIL.toLowerCase() || emailLower === ADMIN_EMAIL.toLowerCase();
-        const mergedNote = c._mergedAccountCount > 1
-            ? `<div style="font-size:10px; color:#888; margin-top:4px;">Merged ${c._mergedAccountCount} duplicate logins (Google / Email)</div>`
-            : '';
+        const mergedNote = buildCustomerMergedNoteHtml(c);
         const authBadge = buildCustomerAuthBadgeHtml(c);
         const isGuestRecord = isGuestCustomerRecord(c);
         const safeName = getCustomerDisplayName(c).replace(/'/g, "\\'");
