@@ -6,6 +6,7 @@
 if (typeof window.filterActiveColors === 'undefined') window.filterActiveColors = [];
 if (typeof window.filterActiveSizes === 'undefined') window.filterActiveSizes = [];
 if (typeof window.filterActivePatterns === 'undefined') window.filterActivePatterns = [];
+if (typeof window.filterActiveCategory === 'undefined') window.filterActiveCategory = '';
 if (typeof window.filterMinPrice === 'undefined') window.filterMinPrice = null;
 if (typeof window.filterMaxPrice === 'undefined') window.filterMaxPrice = null;
 if (typeof window.priceAbsoluteMin === 'undefined') window.priceAbsoluteMin = 0;
@@ -295,6 +296,7 @@ function updateDetailURL() {
 // 1. DATA LOADING
 function loadData() {
     if (typeof startFeaturesConfigListener === 'function') startFeaturesConfigListener();
+    if (typeof loadProductCategories === 'function') loadProductCategories();
 
     db.collection("products").onSnapshot(snap => {
         products = snap.docs.map(doc => {
@@ -305,6 +307,9 @@ function loadData() {
         window.productsLoaded = true;
         renderStore();
         renderFilters();
+        if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+        if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
+        if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
         if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
         if (typeof renderAdmin === "function") renderAdmin();
         checkDeepLink(); // open shared product link if present
@@ -477,6 +482,7 @@ function productCardHtml(p) {
             </div> 
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
+            ${typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : ''}
             <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> 
             <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> 
         </div> 
@@ -1408,8 +1414,68 @@ async function shareProduct(id) {
 
 function searchHandler() {
     displayedProductsLimit = productsPageLimitSetting;
-    const q = document.getElementById('app_search').value.toLowerCase();
-    renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
+    applySortAndFilter();
+}
+
+function getStorefrontSearchQuery() {
+    const el = document.getElementById('app_search');
+    return el ? el.value.trim().toLowerCase() : '';
+}
+
+function getFilteredCatalogProducts() {
+    let filtered = [...products];
+    const q = getStorefrontSearchQuery();
+    const activeCategory = window.filterActiveCategory || filterActiveCategory || '';
+    if (q) {
+        filtered = filtered.filter(p => {
+            const categoryLabel = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || '');
+            const haystack = [p.name, p.description, categoryLabel].filter(Boolean).join(' ').toLowerCase();
+            return haystack.includes(q);
+        });
+    }
+
+    if (activeCategory) {
+        filtered = filtered.filter(p => (p.categoryId || '') === activeCategory);
+    }
+
+    if (filterMinPrice !== null) {
+        filtered = filtered.filter(p => (parseFloat(p.price) || 0) >= filterMinPrice);
+    }
+    if (filterMaxPrice !== null) {
+        filtered = filtered.filter(p => (parseFloat(p.price) || 0) <= filterMaxPrice);
+    }
+
+    if (filterActiveSizes.length > 0 || filterActiveColors.length > 0 || filterActivePatterns.length > 0) {
+        filtered = filtered.filter(p => {
+            const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
+                ? p.normalizedVariants : normalizeVariants(p);
+
+            return normVars.some(v => {
+                if (filterActiveSizes.length > 0) {
+                    const vSize = v.size ? v.size.trim().toUpperCase() : 'STANDARD';
+                    if (!filterActiveSizes.includes(vSize)) return false;
+                }
+
+                if (filterActiveColors.length > 0) {
+                    const vCol = v.color ? v.color.trim() : '';
+                    if (!filterActiveColors.includes(vCol)) return false;
+                }
+
+                if (filterActivePatterns.length > 0) {
+                    if (!v.pattern) return false;
+                    const patVal = v.pattern.trim();
+                    const previewUrl = v.previewImage || '';
+                    const displayName = (v.patternDisplayName && v.patternDisplayName.trim()) ? v.patternDisplayName.trim() : patVal;
+                    const vGroupKey = previewUrl ? previewUrl : displayName.toLowerCase();
+                    if (!filterActivePatterns.includes(vGroupKey)) return false;
+                }
+
+                return true;
+            });
+        });
+    }
+
+    return filtered;
 }
 
 function wishSearchHandler() {
@@ -1838,6 +1904,8 @@ function renderFilters() {
             </div>`;
         }).join('');
     }
+
+    if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
 }
 
 function resetFilters() {
@@ -1845,6 +1913,8 @@ function resetFilters() {
     filterActiveSizes = [];
     filterActiveColors = [];
     filterActivePatterns = [];
+    filterActiveCategory = '';
+    window.filterActiveCategory = '';
 
     filterMinPrice = priceAbsoluteMin;
     filterMaxPrice = priceAbsoluteMax;
@@ -1871,6 +1941,8 @@ function resetFilters() {
     if (sortLogicFilter) sortLogicFilter.value = 'none';
 
     document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
+    if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
     applySortAndFilter();
 }
 window.resetFilters = resetFilters;
@@ -1888,46 +1960,7 @@ function getProductTimestamp(p) {
 function applySortAndFilter() {
     const sortEl = document.getElementById('sort-logic');
     const sort = sortEl ? sortEl.value : 'none';
-    let filtered = [...products];
-
-    // Filter by Price Range
-    if (filterMinPrice !== null) {
-        filtered = filtered.filter(p => (parseFloat(p.price) || 0) >= filterMinPrice);
-    }
-    if (filterMaxPrice !== null) {
-        filtered = filtered.filter(p => (parseFloat(p.price) || 0) <= filterMaxPrice);
-    }
-
-    // Filter by size, color, pattern multi-selects (OR within categories, AND between categories)
-    if (filterActiveSizes.length > 0 || filterActiveColors.length > 0 || filterActivePatterns.length > 0) {
-        filtered = filtered.filter(p => {
-            const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
-                ? p.normalizedVariants : normalizeVariants(p);
-
-            return normVars.some(v => {
-                if (filterActiveSizes.length > 0) {
-                    const vSize = v.size ? v.size.trim().toUpperCase() : 'STANDARD';
-                    if (!filterActiveSizes.includes(vSize)) return false;
-                }
-
-                if (filterActiveColors.length > 0) {
-                    const vCol = v.color ? v.color.trim() : '';
-                    if (!filterActiveColors.includes(vCol)) return false;
-                }
-
-                if (filterActivePatterns.length > 0) {
-                    if (!v.pattern) return false;
-                    const patVal = v.pattern.trim();
-                    const previewUrl = v.previewImage || '';
-                    const displayName = (v.patternDisplayName && v.patternDisplayName.trim()) ? v.patternDisplayName.trim() : patVal;
-                    const vGroupKey = previewUrl ? previewUrl : displayName.toLowerCase();
-                    if (!filterActivePatterns.includes(vGroupKey)) return false;
-                }
-
-                return true;
-            });
-        });
-    }
+    let filtered = getFilteredCatalogProducts();
 
     if (sort === 'low') filtered.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
     if (sort === 'high') filtered.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
@@ -1969,12 +2002,7 @@ function changeSortLogic(val, source) {
 
 function loadMoreProducts() {
     displayedProductsLimit += productsPageLimitSetting;
-    const q = document.getElementById('app_search').value.toLowerCase();
-    if (q) {
-        renderProducts(products.filter(p => p.name.toLowerCase().includes(q)), 'product-grid');
-    } else {
-        applySortAndFilter();
-    }
+    applySortAndFilter();
 }
 
 function changeWishlistSort(val) {

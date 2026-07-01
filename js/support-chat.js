@@ -865,7 +865,7 @@ function searchProducts(query, maxPrice, displayLimit = CHAT_PRODUCT_DISPLAY_LIM
         const price = Number(p.price) || 0;
         if (maxPrice != null && price > maxPrice) return false;
         if (!q) return true;
-        const hay = `${p.name} ${p.description || ''}`.toLowerCase();
+        const hay = `${p.name} ${p.description || ''} ${p.categoryName || ''} ${typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : ''}`.toLowerCase();
         return hay.includes(q) || q.split(/\s+/).some(w => w.length > 2 && hay.includes(w));
     });
     if (maxPrice != null) {

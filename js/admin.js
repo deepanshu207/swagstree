@@ -462,12 +462,14 @@ function renderAdmin() {
             stockHtml += `</div>`;
         }
 
+        const catLabel = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || '');
         return `
         <div style="display:flex; align-items:center; gap:12px; background:#111; padding:12px; border-radius:15px; margin-bottom:12px; border:1px solid #222">
             <img src="${thumbUrl}" style="width:40px;height:40px;border-radius:5px;object-fit:cover">
             <div style="flex:1; display:flex; flex-direction:column; gap:4px; min-width:0;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <b>${p.name}</b>
+                    ${catLabel ? `<span style="font-size:10px; color:var(--gold); background:rgba(255,215,0,0.08); border:1px solid rgba(255,215,0,0.2); padding:2px 8px; border-radius:999px;">${typeof escapeCategoryHtml === 'function' ? escapeCategoryHtml(catLabel) : catLabel}</span>` : ''}
                     ${isOutOfStock ? `<span style="background:rgba(255, 77, 77, 0.15); color:#ff4d4d; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; border:1px solid rgba(255, 77, 77, 0.3); letter-spacing:0.5px; text-transform:uppercase; display:inline-block;">OUT OF STOCK</span>` : ''}
                 </div>
                 ${stockHtml}
@@ -595,6 +597,7 @@ function openEdit(id) {
 
     renderImagePreviews('base'); 
     renderVariantBlocks();
+    if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -638,6 +641,7 @@ function openAdd() {
     
     renderImagePreviews('base'); 
     renderVariantBlocks();
+    if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(null);
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -825,6 +829,7 @@ async function saveProduct() {
             name: n, 
             price: Number(pr), 
             description: document.getElementById('m-desc').value, 
+            ...(typeof readProductCategoryFromForm === 'function' ? readProductCategoryFromForm() : {}),
             hideMainCarousel: document.getElementById('m-hide-main').checked,
             hideMainDetailsCarousel: document.getElementById('m-hide-main-details').checked,
             mainImagesPosition: document.getElementById('m-main-pos').value,
@@ -979,6 +984,7 @@ function copyProduct(id) {
 
     renderImagePreviews('base'); 
     renderVariantBlocks();
+    if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -992,6 +998,7 @@ function exportProducts() {
         "Name": p.name || "",
         "Price": p.price || 0,
         "Description": p.description || "",
+        "Category": (typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || "")),
         "Images": (p.images && Array.isArray(p.images)) ? p.images.join(', ') : "",
         "Sizes": (p.sizes && Array.isArray(p.sizes)) ? p.sizes.join(', ') : "",
         "Colors": (p.colors && Array.isArray(p.colors)) ? p.colors.join(', ') : "",
@@ -1046,6 +1053,9 @@ async function importProducts(input) {
                     name: row.Name || "Unnamed Product",
                     price: Number(row.Price) || 0,
                     description: row.Description || "",
+                    ...(typeof resolveCategoryIdFromImportValue === 'function'
+                        ? resolveCategoryIdFromImportValue(row.Category)
+                        : {}),
                     images: row.Images ? String(row.Images).split(',').map(u => u.trim()).filter(u => u.length > 0) : [],
                     sizes: row.Sizes ? String(row.Sizes).split(',').map(s => s.trim()).filter(s => s.length > 0) : [],
                     colors: row.Colors ? String(row.Colors).split(',').map(c => c.trim()).filter(c => c.length > 0) : [],
@@ -2539,7 +2549,7 @@ class FirestoreBatcher {
 
 const BACKUP_FORMAT_VERSION = 2;
 const FIRESTORE_BACKUP_COLLECTIONS = [
-    'products', 'orders', 'feedbacks', 'product_comments', 'admins', 'settings', 'announcements'
+    'products', 'orders', 'feedbacks', 'product_comments', 'categories', 'admins', 'settings', 'announcements'
 ];
 
 async function fetchCollectionBackupDocs(collectionName) {

@@ -38,6 +38,7 @@ var existingImageUrls = [];
 var filterActiveSizes = [];
 var filterActiveColors = [];
 var filterActivePatterns = [];
+var filterActiveCategory = '';
 var filterMinPrice = null;
 var filterMaxPrice = null;
 var priceAbsoluteMin = 0;

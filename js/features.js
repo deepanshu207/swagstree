@@ -12,6 +12,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     announcementBar: false,
     announcementBell: true,
     productComments: true,
+    productCategories: true,
     widgets: {
         recentOrders: false,
         discountWheel: false,
@@ -1291,8 +1292,8 @@ function normalizeCatalogControls(config) {
     const chatGlobal = isSupportChatGloballyEnabled(c);
     const annGlobal = c.announcementBell !== false;
     const defaults = {
-        home: { search: true, sort: true, announcement: annGlobal, chat: chatGlobal },
-        wishlist: { search: false, sort: true, announcement: false, chat: false }
+        home: { search: true, sort: true, announcement: annGlobal, chat: chatGlobal, categories: true },
+        wishlist: { search: false, sort: true, announcement: false, chat: false, categories: false }
     };
     const saved = c.catalogControls || {};
     return {
@@ -1320,6 +1321,7 @@ function syncCatalogControlCheckboxes(config) {
         ['toggle-home-sort', cc.home.sort],
         ['toggle-home-announcement', cc.home.announcement],
         ['toggle-home-chat', cc.home.chat],
+        ['toggle-home-categories', cc.home.categories],
         ['toggle-wish-search', cc.wishlist.search],
         ['toggle-wish-sort', cc.wishlist.sort],
         ['toggle-wish-announcement', cc.wishlist.announcement],
@@ -1396,6 +1398,8 @@ function applyCatalogControlsVisibility() {
 
     window._featuresUiApplied = true;
     if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
+    if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
     syncCatalogControlsReady();
 }
 window.applyCatalogControlsVisibility = applyCatalogControlsVisibility;
@@ -1520,8 +1524,18 @@ function applyFeatureTogglesUI() {
         if (document.getElementById('toggle-product-comments')) {
             document.getElementById('toggle-product-comments').checked = config.productComments !== false;
         }
+        if (document.getElementById('toggle-product-categories')) {
+            document.getElementById('toggle-product-categories').checked = config.productCategories !== false;
+        }
         syncCatalogControlCheckboxes(config);
     }
+
+    if (typeof populateProductCategorySelect === 'function') {
+        populateProductCategorySelect(document.getElementById('m-category')?.value || '');
+    }
+    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+    if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
 
     applyCatalogControlsVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
