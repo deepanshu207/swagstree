@@ -867,7 +867,7 @@ function deduplicateCustomersByEmail(customers) {
     const withoutEmail = [];
 
     customers.forEach(customer => {
-        const email = (customer.email || '').trim().toLowerCase();
+        const email = getCustomerDisplayEmail(customer).toLowerCase();
         if (!email) {
             withoutEmail.push(customer);
             return;
@@ -895,8 +895,14 @@ function deduplicateCustomersByEmail(customers) {
     const deduped = [];
     byEmail.forEach(({ primary, mergedCount, mergedUids, mergedRecords }) => {
         const mergedProviders = mergeCustomerProviders(mergedRecords);
+        const bestEmail = mergedRecords.map(r => getCustomerDisplayEmail(r)).find(Boolean) || getCustomerDisplayEmail(primary);
+        const bestPhone = mergedRecords.map(r => (r.phone || '').trim()).find(Boolean) || (primary.phone || '');
+        const bestName = mergedRecords.map(r => (r.displayName || '').trim()).find(Boolean) || (primary.displayName || '');
         deduped.push({
             ...primary,
+            email: bestEmail || primary.email || '',
+            phone: bestPhone,
+            displayName: bestName || primary.displayName,
             providers: mergedProviders.length ? mergedProviders : primary.providers,
             _mergedAccountCount: mergedCount > 1 ? mergedCount : undefined,
             _mergedUids: mergedCount > 1 ? mergedUids : undefined
@@ -904,6 +910,17 @@ function deduplicateCustomersByEmail(customers) {
     });
 
     return deduped.concat(withoutEmail);
+}
+
+function buildCustomerMergedNoteHtml(customer) {
+    if (!(customer?._mergedAccountCount > 1)) return '';
+    const providers = customer.providers || [];
+    const hasGoogle = providers.includes('google.com');
+    const hasPassword = providers.includes('password');
+    let label = 'Linked sign-in methods';
+    if (hasGoogle && hasPassword) label = 'Google + Email linked';
+    else if (hasGoogle) label = 'Linked Google logins';
+    return `<span style="display:inline-block;font-size:9px;color:#888;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:2px 6px;margin-top:4px;" title="Same customer signed in with more than one login method">${label}</span>`;
 }
 
 function getCustomersPageLimit() {
@@ -929,11 +946,29 @@ function buildGuestCustomerDocId(email) {
     if (!normalized) return null;
     return 'guest_' + normalized.replace(/[@.]/g, '_');
 }
+window.buildGuestCustomerDocId = buildGuestCustomerDocId;
+
+function decodeEmailFromGuestDocId(docId) {
+    const id = (docId || '').trim().toLowerCase();
+    if (!id.startsWith('guest_')) return '';
+    const slug = id.slice(6);
+    if (!slug || !slug.includes('_')) return '';
+    const parts = slug.split('_').filter(Boolean);
+    if (parts.length < 3) return '';
+    const tld = parts[parts.length - 1];
+    const knownTlds = ['com', 'in', 'net', 'org', 'co', 'io', 'me', 'edu', 'uk', 'info', 'biz', 'dev', 'app'];
+    if (!knownTlds.includes(tld)) return '';
+    const domain = parts[parts.length - 2];
+    const local = parts.slice(0, -2).join('.');
+    if (!local || !domain) return '';
+    const email = `${local}@${domain}.${tld}`;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
 
 function getCustomerDisplayName(customer) {
     const name = (customer?.displayName || '').trim();
     if (name) return name;
-    const email = (customer?.email || '').trim();
+    const email = getCustomerDisplayEmail(customer);
     if (email) return email.split('@')[0];
     const phone = (customer?.phone || '').trim();
     if (phone) return `Guest • ${phone}`;
@@ -941,7 +976,58 @@ function getCustomerDisplayName(customer) {
 }
 
 function getCustomerDisplayEmail(customer) {
-    return (customer?.email || '').trim();
+    const direct = (customer?.email || customer?._resolvedEmail || '').trim();
+    if (direct) return direct;
+    return decodeEmailFromGuestDocId(customer?.uid);
+}
+window.getCustomerDisplayEmail = getCustomerDisplayEmail;
+
+function enrichCustomerFromGuestOrderMaps(customer, orderUidToEmail, phoneToEmail) {
+    if (getCustomerDisplayEmail(customer)) return customer;
+
+    let email = '';
+    const uid = (customer.uid || '').trim();
+    const lastOrderUid = (customer.lastOrderUid || '').trim();
+
+    if (uid && orderUidToEmail.has(uid)) email = orderUidToEmail.get(uid);
+    else if (lastOrderUid && orderUidToEmail.has(lastOrderUid)) email = orderUidToEmail.get(lastOrderUid);
+
+    if (!email && customer.phone) {
+        const digits = normalizePhoneDigits(customer.phone);
+        if (digits && phoneToEmail.has(digits)) email = phoneToEmail.get(digits);
+    }
+
+    if (!email) email = decodeEmailFromGuestDocId(uid);
+    if (!email) return customer;
+
+    return {
+        ...customer,
+        email: email.toLowerCase(),
+        displayName: getCustomerDisplayName({ ...customer, email }),
+        guestCheckout: customer.guestCheckout !== false,
+        isGuest: true
+    };
+}
+
+function dedupeGuestCustomerOrphans(customers, orderUidToEmail) {
+    const emailOwners = new Map();
+    customers.forEach(c => {
+        const email = getCustomerDisplayEmail(c).toLowerCase();
+        if (email && !emailOwners.has(email)) emailOwners.set(email, c);
+    });
+
+    return customers.filter(c => {
+        const email = getCustomerDisplayEmail(c);
+        if (email) return true;
+
+        const uid = (c.uid || '').trim();
+        const lastOrderUid = (c.lastOrderUid || '').trim();
+        const linkedEmail = (orderUidToEmail.get(uid) || orderUidToEmail.get(lastOrderUid) || '').toLowerCase();
+        if (linkedEmail && emailOwners.has(linkedEmail) && emailOwners.get(linkedEmail).uid !== uid) {
+            return false;
+        }
+        return true;
+    });
 }
 
 async function mergeGuestCheckoutCustomersFromOrders(customers) {
@@ -949,6 +1035,8 @@ async function mergeGuestCheckoutCustomersFromOrders(customers) {
         const snap = await db.collection('orders').orderBy('timestamp', 'desc').limit(400).get();
         const byEmail = new Map();
         const byUid = new Map();
+        const orderUidToEmail = new Map();
+        const phoneToEmail = new Map();
 
         (customers || []).forEach(c => {
             const email = getCustomerDisplayEmail(c).toLowerCase();
@@ -958,38 +1046,63 @@ async function mergeGuestCheckoutCustomersFromOrders(customers) {
 
         snap.forEach(doc => {
             const o = doc.data();
-            if (!o.isGuest) return;
+            const orderUid = (o.uid || '').trim();
+            const isGuestOrder = !!o.isGuest || orderUid.startsWith('guest_');
+            if (!isGuestOrder) return;
+
             const email = (o.email || '').trim().toLowerCase();
+            const phone = (o.phone || '').trim();
             const patch = {
                 email,
                 displayName: (o.recipient || '').trim(),
-                phone: (o.phone || '').trim(),
+                phone,
                 timestamp: o.timestamp
             };
 
-            if (o.uid && byUid.has(o.uid) && !getCustomerDisplayEmail(byUid.get(o.uid))) {
-                const existing = byUid.get(o.uid);
-                existing.email = patch.email || existing.email;
-                existing.displayName = existing.displayName || patch.displayName;
-                existing.phone = existing.phone || patch.phone;
-                existing.guestCheckout = true;
-                existing.isGuest = true;
-                if (email) byEmail.set(email, existing);
+            if (orderUid && email) orderUidToEmail.set(orderUid, email);
+            if (phone && email) {
+                const digits = normalizePhoneDigits(phone);
+                if (digits) phoneToEmail.set(digits, email);
+            }
+
+            if (orderUid && byUid.has(orderUid)) {
+                const existing = byUid.get(orderUid);
+                if (email && !getCustomerDisplayEmail(existing)) {
+                    existing.email = email;
+                    existing.displayName = existing.displayName || patch.displayName;
+                    existing.phone = existing.phone || patch.phone;
+                    existing.guestCheckout = true;
+                    existing.isGuest = true;
+                    existing.lastOrderUid = orderUid;
+                    byEmail.set(email, existing);
+                }
                 return;
             }
 
             if (!email) return;
+
             if (byEmail.has(email)) {
                 const existing = byEmail.get(email);
                 existing.displayName = existing.displayName || patch.displayName || email.split('@')[0];
                 existing.phone = existing.phone || patch.phone;
                 existing.guestCheckout = true;
                 existing.isGuest = true;
+                if (orderUid) existing.lastOrderUid = existing.lastOrderUid || orderUid;
                 return;
             }
 
-            const guestId = buildGuestCustomerDocId(email) || o.uid || `guest_${doc.id}`;
-            if (byUid.has(guestId)) return;
+            const guestId = buildGuestCustomerDocId(email) || orderUid || `guest_${doc.id}`;
+            if (byUid.has(guestId)) {
+                const existing = byUid.get(guestId);
+                existing.email = existing.email || email;
+                existing.displayName = existing.displayName || patch.displayName || email.split('@')[0];
+                existing.phone = existing.phone || patch.phone;
+                existing.guestCheckout = true;
+                existing.isGuest = true;
+                if (orderUid) existing.lastOrderUid = existing.lastOrderUid || orderUid;
+                byEmail.set(email, existing);
+                return;
+            }
 
             const guestCustomer = {
                 uid: guestId,
@@ -998,34 +1111,23 @@ async function mergeGuestCheckoutCustomersFromOrders(customers) {
                 phone: patch.phone || '',
                 isGuest: true,
                 guestCheckout: true,
+                lastOrderUid: orderUid || null,
                 createdAt: patch.timestamp || null,
                 _fromGuestOrder: true
             };
             customers.push(guestCustomer);
             byEmail.set(email, guestCustomer);
             byUid.set(guestId, guestCustomer);
+            if (orderUid) byUid.set(orderUid, guestCustomer);
         });
 
-        return customers.map(c => {
-            if (getCustomerDisplayEmail(c)) {
-                return {
-                    ...c,
-                    displayName: getCustomerDisplayName(c)
-                };
-            }
-            const fromUid = byUid.get(c.uid);
-            if (fromUid && getCustomerDisplayEmail(fromUid)) {
-                return {
-                    ...c,
-                    email: fromUid.email,
-                    displayName: getCustomerDisplayName({ ...c, email: fromUid.email }),
-                    phone: c.phone || fromUid.phone || '',
-                    guestCheckout: true,
-                    isGuest: true
-                };
-            }
-            return c;
-        });
+        let enriched = customers.map(c => enrichCustomerFromGuestOrderMaps(c, orderUidToEmail, phoneToEmail));
+        enriched = dedupeGuestCustomerOrphans(enriched, orderUidToEmail);
+
+        return enriched.map(c => ({
+            ...c,
+            displayName: getCustomerDisplayName(c)
+        }));
     } catch (e) {
         console.warn('mergeGuestCheckoutCustomersFromOrders failed:', e);
         return customers;
@@ -1104,15 +1206,15 @@ function renderAllCustomersList(list) {
         const safeName = getCustomerDisplayName(data).replace(/'/g, "\\'");
         const safeEmail = getCustomerDisplayEmail(data).replace(/'/g, "\\'");
         const displayEmail = getCustomerDisplayEmail(data) || (isGuestCustomerRecord(data) ? 'No email on file' : 'No email');
-        const canChat = !isGuestCustomerRecord(data)
-            && typeof hasAdminCapability === 'function'
-            && hasAdminCapability('manageSupportChat');
+        const hasChatCap = typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat');
+        const isGuest = isGuestCustomerRecord(data);
+        const canChat = !isGuest && hasChatCap;
         const chatBtn = canChat
             ? `<button class="btn-gold admin-customer-card__chat" onclick="openAdminCustomerChat('${data.uid}','${safeEmail}','${safeName}')" title="Chat with customer"><i class="fa fa-comments"></i></button>`
-            : '';
-        const mergedNote = data._mergedAccountCount > 1
-            ? `<div class="admin-customer-card__merged">Merged ${data._mergedAccountCount} duplicate logins (Google / Email)</div>`
-            : '';
+            : (isGuest && hasChatCap
+                ? `<button class="btn-gold admin-customer-card__chat" onclick="openGuestCustomerSupportChat('${safeEmail}','${safeName}')" title="Open guest support chat"><i class="fa fa-headset"></i></button>`
+                : '');
+        const mergedNote = buildCustomerMergedNoteHtml(data);
         const authBadge = buildCustomerAuthBadgeHtml(data);
 
         html += `
@@ -1438,34 +1540,39 @@ function renderSuperCustomersList(list) {
         const toggleBtnLabel = isDeactivated ? "Activate" : "Deactivate";
         const toggleBtnColor = isDeactivated ? "#2ecc71" : "var(--red)";
         
-        const emailLower = (c.email || '').toLowerCase();
+        const resolvedEmail = getCustomerDisplayEmail(c);
+        const emailLower = resolvedEmail.toLowerCase();
         const isSelfOrSystem = emailLower === SUPER_ADMIN_EMAIL.toLowerCase() || emailLower === ADMIN_EMAIL.toLowerCase();
-        const mergedNote = c._mergedAccountCount > 1
-            ? `<div style="font-size:10px; color:#888; margin-top:4px;">Merged ${c._mergedAccountCount} duplicate logins (Google / Email)</div>`
-            : '';
+        const mergedNote = buildCustomerMergedNoteHtml(c);
         const authBadge = buildCustomerAuthBadgeHtml(c);
         const isGuestRecord = isGuestCustomerRecord(c);
         const safeName = getCustomerDisplayName(c).replace(/'/g, "\\'");
+        const safeEmail = resolvedEmail.replace(/'/g, "\\'");
         const mergedUidsParam = (c._mergedUids || [c.uid]).join(',');
-        const displayEmail = getCustomerDisplayEmail(c) || (isGuestRecord ? 'No email on file' : 'No email');
+        const displayEmail = resolvedEmail || (isGuestRecord ? 'No email on file' : 'No email');
 
         const canManageChat = !isGuestRecord
             && typeof hasAdminCapability === 'function'
             && hasAdminCapability('manageSupportChat');
-        const guestChatHint = isGuestRecord
-            ? `<span style="font-size:10px; color:#666; font-style:italic;">Guest checkout — use Support Inbox for anonymous chats</span>`
+        const hasChatCap = typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat');
+        const guestSupportBtn = isGuestRecord && hasChatCap
+            ? `<button class="btn-gold super-cust-btn super-cust-btn--support" onclick="openGuestCustomerSupportChat('${safeEmail}','${safeName}')"><i class="fa fa-headset"></i> Support Chat</button>`
+            : '';
+        const guestChatHint = isGuestRecord && !hasChatCap
+            ? `<span class="super-cust-hint">Guest checkout — enable Support Chat in admin settings</span>`
             : '';
         const actionButtons = isSelfOrSystem ? `
-            <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
+            <span class="super-cust-system-label">System Account</span>
         ` : `
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${(c.email || '').replace(/'/g, "\\'")}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
-            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
-            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>` : ''}
-            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${(c.email || '').replace(/'/g, "\\'")}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>` : ''}
+            <button class="btn-gold super-cust-btn super-cust-btn--edit" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${safeEmail}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
+            ${canManageChat ? `<button class="btn-gold super-cust-btn super-cust-btn--chat" onclick="openAdminCustomerChat('${c.uid}','${safeEmail}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            ${guestSupportBtn}
+            ${canManageChat ? `<button class="btn-gold super-cust-btn super-cust-btn--delete-ai" onclick="deleteCustomerAiSupportChats('${c.uid}','${safeEmail}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>` : ''}
+            ${canManageChat ? `<button class="btn-gold super-cust-btn super-cust-btn--delete-admin" onclick="deleteCustomerAdminSupportChats('${c.uid}','${safeEmail}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>` : ''}
             ${guestChatHint}
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
+            <button class="btn-gold super-cust-btn super-cust-btn--toggle" style="background:${toggleBtnColor};" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
+            <button class="btn-gold super-cust-btn super-cust-btn--orders" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
+            <button class="btn-gold super-cust-btn super-cust-btn--purge" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
         `;
 
         html += `
@@ -1486,7 +1593,7 @@ function renderSuperCustomersList(list) {
                     </div>
                     <span style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; color:${statusColor}; background:${statusBg}; border:1px solid ${statusColor}33; text-transform:uppercase; letter-spacing:0.5px; flex-shrink: 0;">${statusText}</span>
                 </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:5px; padding-top:8px; border-top:1px solid #222;">
+                <div class="super-cust-actions">
                     ${actionButtons}
                 </div>
             </div>

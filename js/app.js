@@ -272,6 +272,12 @@ window.closeModal = closeModal;
 // - Show on: filter slider, checkout modal (allowed)
 // - Admin/Superadmin: show ONLY on home and wishlist tabs
 // - Customer: show on home, wishlist, profile/orders tabs
+function markWhatsAppFloatReady() {
+    const btn = document.getElementById('whatsapp-float-btn');
+    if (btn) btn.classList.remove('whatsapp-float-pending');
+}
+window.markWhatsAppFloatReady = markWhatsAppFloatReady;
+
 function updateWhatsAppVisibility() {
     const btn = document.getElementById('whatsapp-float-btn');
     if (!btn) return;
@@ -307,6 +313,8 @@ function updateWhatsAppVisibility() {
             btn.classList.add('hidden-btn');
         }
     }
+
+    markWhatsAppFloatReady();
 }
 
 // 4. NAVIGATION SYSTEM
@@ -386,6 +394,13 @@ function navigateTo(id, el) {
         });
     }
 
+    if (id === 'home') {
+        requestAnimationFrame(() => {
+            if (typeof resetStorefrontScroll === 'function') resetStorefrontScroll();
+            if (typeof renderFooter === 'function') renderFooter('home');
+        });
+    }
+
     // Render admin list on navigation to admin view
     if (id === 'admin') {
         renderAdmin();
@@ -434,5 +449,9 @@ window.onload = () => {
     // Real-time Sync of App Features Configuration
     if (typeof startFeaturesConfigListener === 'function') {
         startFeaturesConfigListener();
+    }
+
+    if (typeof markWhatsAppFloatReady === 'function') {
+        requestAnimationFrame(() => markWhatsAppFloatReady());
     }
 };
