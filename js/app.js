@@ -386,6 +386,13 @@ function navigateTo(id, el) {
         });
     }
 
+    if (id === 'home') {
+        requestAnimationFrame(() => {
+            if (typeof resetStorefrontScroll === 'function') resetStorefrontScroll();
+            if (typeof renderFooter === 'function') renderFooter('home');
+        });
+    }
+
     // Render admin list on navigation to admin view
     if (id === 'admin') {
         renderAdmin();

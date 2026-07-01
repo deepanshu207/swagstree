@@ -2196,6 +2196,12 @@ function updateSupportChatVisibility() {
     }
     if (isAnySupportChatEnabled()) startSupportCustomerWatcher();
     else stopSupportCustomerWatcher();
+
+    const activeSection = document.querySelector('.section.active');
+    const activeId = activeSection?.id?.replace('-view', '') || '';
+    if ((activeId === 'home' || activeId === 'wish') && typeof renderFooter === 'function') {
+        requestAnimationFrame(() => renderFooter(activeId));
+    }
 }
 window.updateSupportChatVisibility = updateSupportChatVisibility;
 
