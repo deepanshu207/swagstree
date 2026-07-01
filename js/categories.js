@@ -19,17 +19,41 @@ function slugifyCategoryName(name) {
         .replace(/^-+|-+$/g, '') || 'category';
 }
 
+function parseCategorySortOrder(value, fallback = 0) {
+    if (value === null || value === undefined || value === '') return fallback;
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback;
+}
+
+function getCategorySortOrder(cat) {
+    return parseCategorySortOrder(cat?.sortOrder, 0);
+}
+
+function compareCategoriesByOrder(a, b) {
+    const orderDiff = getCategorySortOrder(a) - getCategorySortOrder(b);
+    if (orderDiff !== 0) return orderDiff;
+    return String(a?.name || '').localeCompare(String(b?.name || ''));
+}
+
+function getNextCategorySortOrder() {
+    const orders = (window.productCategories || []).map(getCategorySortOrder);
+    return orders.length ? Math.max(...orders) + 1 : 0;
+}
+
+function isAdminCategoryInlineEditing() {
+    const active = document.activeElement;
+    return !!(active && active.classList && active.classList.contains('admin-category-inline-input'));
+}
+
 function getActiveCategories() {
     return (window.productCategories || [])
         .filter(c => c.isActive !== false)
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || '')));
+        .sort(compareCategoriesByOrder);
 }
 window.getActiveCategories = getActiveCategories;
 
 function getAllCategoriesSorted() {
-    return [...(window.productCategories || [])].sort((a, b) =>
-        (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || ''))
-    );
+    return [...(window.productCategories || [])].sort(compareCategoriesByOrder);
 }
 
 function canManageProductCategories() {
@@ -366,6 +390,8 @@ function renderAdminCategoryList() {
     section.style.display = 'block';
     renderAdminCategoryBanner();
 
+    if (isAdminCategoryInlineEditing()) return;
+
     const categories = getAllCategoriesSorted();
 
     if (!categories.length) {
@@ -374,24 +400,117 @@ function renderAdminCategoryList() {
     }
 
     const counts = getProductCountsByCategory();
-    list.innerHTML = categories.map(cat => {
+    list.innerHTML = `
+        <div class="admin-category-list-header" aria-hidden="true">
+            <span class="admin-category-col-order">Order</span>
+            <span class="admin-category-col-name">Name</span>
+            <span class="admin-category-col-actions">Actions</span>
+        </div>` +
+        categories.map(cat => {
         const count = counts[cat.id] || 0;
         const active = cat.isActive !== false;
+        const sortOrder = getCategorySortOrder(cat);
         return `
-        <div class="admin-category-row">
-            <div class="admin-category-main">
-                <strong>${escapeCategoryHtml(cat.name)}</strong>
-                <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
+        <div class="admin-category-row" data-category-id="${cat.id}">
+            <div class="admin-category-fields">
+                <input type="number" min="0" step="1" inputmode="numeric"
+                    class="admin-category-inline-input admin-category-inline-order"
+                    value="${sortOrder}" aria-label="Order for ${escapeCategoryHtml(cat.name)}">
+                <div class="admin-category-name-wrap">
+                    <input type="text"
+                        class="admin-category-inline-input admin-category-inline-name"
+                        value="${escapeCategoryHtml(cat.name)}" aria-label="Category name">
+                    <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
+                </div>
             </div>
             <div class="admin-category-actions">
                 <span class="admin-category-status ${active ? 'is-active' : 'is-hidden'}">${active ? 'Active' : 'Hidden'}</span>
-                <button type="button" class="btn-gold admin-category-btn" onclick="editCategory('${cat.id}')">Edit</button>
                 <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="toggleCategoryActive('${cat.id}')">${active ? 'Hide' : 'Show'}</button>
                 <button type="button" class="btn-gold admin-category-btn admin-category-btn-danger" onclick="deleteCategory('${cat.id}')">Delete</button>
             </div>
         </div>`;
     }).join('');
+
+    bindAdminCategoryInlineEditors();
 }
+
+function bindAdminCategoryInlineEditors() {
+    document.querySelectorAll('#admin-category-list .admin-category-inline-input').forEach(el => {
+        if (el.dataset.inlineBound) return;
+        el.dataset.inlineBound = '1';
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                el.blur();
+            }
+        });
+        el.addEventListener('blur', () => {
+            const row = el.closest('.admin-category-row');
+            const id = row?.dataset?.categoryId;
+            if (id) saveCategoryInline(id);
+        });
+    });
+}
+
+async function saveCategoryInline(id) {
+    if (!isAdmin) return showToast('Admin only.');
+    const cat = getCategoryById(id);
+    const row = document.querySelector(`.admin-category-row[data-category-id="${id}"]`);
+    if (!cat || !row) return;
+
+    const nameEl = row.querySelector('.admin-category-inline-name');
+    const orderEl = row.querySelector('.admin-category-inline-order');
+    const name = (nameEl?.value || '').trim();
+    if (!name) {
+        showToast('Category name required.');
+        if (nameEl) nameEl.value = cat.name || '';
+        return;
+    }
+
+    const sortOrder = parseCategorySortOrder(orderEl?.value, getCategorySortOrder(cat));
+    const slug = slugifyCategoryName(name);
+    const duplicate = (window.productCategories || []).find(c =>
+        c.id !== id && String(c.slug || slugifyCategoryName(c.name)) === slug
+    );
+    if (duplicate) {
+        showToast('A category with this name already exists.');
+        if (nameEl) nameEl.value = cat.name || '';
+        if (orderEl) orderEl.value = String(getCategorySortOrder(cat));
+        return;
+    }
+
+    const unchanged = name === (cat.name || '') && sortOrder === getCategorySortOrder(cat);
+    if (unchanged) return;
+
+    try {
+        await db.collection('categories').doc(id).set({
+            name,
+            slug,
+            sortOrder,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        const nameChanged = name !== (cat.name || '');
+        if (nameChanged) {
+            const linkedProducts = getProductsWithCategory(id);
+            if (linkedProducts.length) {
+                const batch = db.batch();
+                linkedProducts.forEach(p => {
+                    batch.update(db.collection('products').doc(p.id), buildCategoryFieldsFromIds(getProductCategoryIds(p)));
+                });
+                await batch.commit();
+            }
+        }
+
+        showToast(sortOrder !== getCategorySortOrder(cat) ? 'Category order saved.' : 'Category saved.');
+    } catch (e) {
+        console.error('saveCategoryInline failed:', e);
+        showToast('Could not save category.');
+        if (nameEl) nameEl.value = cat.name || '';
+        if (orderEl) orderEl.value = String(getCategorySortOrder(cat));
+    }
+}
+window.saveCategoryInline = saveCategoryInline;
 
 function resetCategoryForm() {
     window.editingCategoryId = null;
@@ -425,13 +544,22 @@ window.scrollToCategoryAdmin = function() {
 window.editCategory = function(id) {
     const cat = getCategoryById(id);
     if (!cat) return;
+    const row = document.querySelector(`.admin-category-row[data-category-id="${id}"]`);
+    if (row) {
+        const nameEl = row.querySelector('.admin-category-inline-name');
+        if (nameEl) {
+            nameEl.focus();
+            nameEl.select();
+            return;
+        }
+    }
     window.editingCategoryId = id;
     const name = document.getElementById('admin-category-name');
     const order = document.getElementById('admin-category-order');
     const active = document.getElementById('admin-category-active');
     const saveBtn = document.getElementById('admin-category-save-btn');
     if (name) name.value = cat.name || '';
-    if (order) order.value = String(cat.sortOrder || 0);
+    if (order) order.value = String(getCategorySortOrder(cat));
     if (active) active.checked = cat.isActive !== false;
     if (saveBtn) saveBtn.textContent = 'Update Category';
 };
@@ -444,10 +572,22 @@ window.saveCategory = async function() {
     const name = (nameEl?.value || '').trim();
     if (!name) return showToast('Category name required.');
 
+    let sortOrder;
+    if (orderEl?.value === '' || orderEl?.value === null || orderEl?.value === undefined) {
+        sortOrder = window.editingCategoryId
+            ? getCategorySortOrder(getCategoryById(window.editingCategoryId))
+            : getNextCategorySortOrder();
+    } else {
+        sortOrder = parseCategorySortOrder(orderEl.value, 0);
+    }
+    if (!window.editingCategoryId && sortOrder === 0 && (window.productCategories || []).length > 0) {
+        sortOrder = getNextCategorySortOrder();
+    }
+
     const payload = {
         name,
         slug: slugifyCategoryName(name),
-        sortOrder: Number(orderEl?.value) || 0,
+        sortOrder,
         isActive: activeEl ? !!activeEl.checked : true,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -541,7 +681,14 @@ function loadProductCategories() {
     initCategoryFormKeyboard();
 
     db.collection('categories').onSnapshot(snap => {
-        window.productCategories = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        window.productCategories = snap.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                sortOrder: parseCategorySortOrder(data.sortOrder, 0)
+            };
+        });
         window.categoriesLoaded = true;
         const container = document.getElementById('m-category-checkboxes');
         const selected = container

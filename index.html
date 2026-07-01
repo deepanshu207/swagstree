@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=8.6">
+    <link rel="stylesheet" href="css/style.css?v=8.7">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -735,18 +735,19 @@
                 <i class="fa fa-tags" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Product Categories</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Create categories here, then assign them when adding or editing products</p>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Edit name &amp; order inline in the list. Lower order appears first on home &amp; filters.</p>
                 </div>
             </div>
             <div id="admin-category-storefront-banner" style="display:none; margin-bottom:12px;"></div>
             <div id="admin-category-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
+            <p style="margin:0 0 10px; font-size:10px; color:#666;">Tap outside a row or press Enter to save inline edits.</p>
             <div style="display:grid; grid-template-columns:1fr 90px; gap:10px; align-items:end;">
                 <div>
                     <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Category name</label>
                     <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
                 </div>
                 <div>
-                    <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Order</label>
+                    <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Order (optional)</label>
                     <input id="admin-category-order" type="number" value="0" style="margin:0;">
                 </div>
             </div>
@@ -2923,7 +2924,7 @@
     <script src="js/features.js?v=10.0"></script>
     <script src="js/app.js?v=10.0"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/categories.js?v=10.2"></script>
+    <script src="js/categories.js?v=10.3"></script>
     <script src="js/store.js?v=10.2"></script>
     <script src="js/checkout.js?v=10.0"></script>
     <script src="js/auth.js?v=10.0"></script>

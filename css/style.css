@@ -5133,6 +5133,56 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     background: #0d0d0d;
     flex-wrap: wrap;
 }
+.admin-category-list-header {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 0 12px 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #666;
+}
+.admin-category-col-actions {
+    justify-self: end;
+}
+.admin-category-fields {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    flex: 1;
+    min-width: 0;
+}
+.admin-category-name-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.admin-category-inline-input {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+    background: #181818;
+    color: #fff;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+.admin-category-inline-input:focus {
+    outline: none;
+    border-color: rgba(255, 215, 0, 0.45);
+    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.12);
+}
+.admin-category-inline-order {
+    text-align: center;
+    padding-left: 6px;
+    padding-right: 6px;
+}
 .admin-category-main {
     display: flex;
     flex-direction: column;
@@ -5211,6 +5261,25 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     .category-pill {
         padding: 7px 12px;
         font-size: 10px;
+    }
+    .admin-category-list-header {
+        display: none;
+    }
+    .admin-category-row {
+        align-items: stretch;
+    }
+    .admin-category-fields {
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 8px;
+        width: 100%;
+    }
+    .admin-category-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    .admin-category-inline-input {
+        font-size: 11px;
+        padding: 7px 8px;
     }
 }
 
