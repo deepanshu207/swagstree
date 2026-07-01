@@ -2532,8 +2532,8 @@ body.body-footer-pos-scroll.has-customer-diaries .storefront-footer-anchor {
 .feedback-card .feedback-diaries-slide img {
     display: block;
     width: 100% !important;
-    height: 106% !important;
-    margin: 0 0 -6% 0;
+    height: 108% !important;
+    margin: 0 0 -8% 0;
     padding: 0;
     border: none;
     object-fit: cover;
@@ -2694,10 +2694,10 @@ a.feedback-view-post-btn:active {
     display: none !important;
 }
 
-/* Instagram embed — clip header (followers) and footer ("View more on Instagram") */
+/* Instagram embed — clip header (followers) and footer (PrimaryCTA + "View more on Instagram") */
 :root {
     --ig-embed-header-offset: 64px;
-    --ig-embed-footer-offset: 56px;
+    --ig-embed-footer-offset: 108px;
     --ig-embed-visible-height: 330px;
 }
 .ig-embed-clip {
@@ -2722,6 +2722,35 @@ a.feedback-view-post-btn:active {
     border: none;
     background: #111;
     pointer-events: auto;
+}
+.feedback-card .ig-embed-clip {
+    height: 370px;
+    max-height: 370px;
+    --ig-embed-visible-height: 370px;
+    --ig-embed-header-offset: 54px;
+    --ig-embed-footer-offset: 112px;
+    border-radius: 10px 10px 0 0;
+    background: #000 !important;
+}
+.feedback-card .feedback-diaries-slide .ig-embed-clip,
+.feedback-card .feedback-diaries-single .ig-embed-clip {
+    height: 100%;
+    min-height: 100%;
+    max-height: none;
+}
+.feedback-card .ig-embed-clip::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 52px;
+    background: #000;
+    z-index: 4;
+    pointer-events: none;
+}
+.feedback-card .ig-embed-clip .ig-embed-frame {
+    background: #000;
 }
 
 /* WYSIWYG Editor Styles */
