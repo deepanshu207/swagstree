@@ -14,7 +14,10 @@ window.ADMIN_CAPABILITY_DEFS = window.ADMIN_CAPABILITY_DEFS || {
 window.productCommentsCache = window.productCommentsCache || [];
 window.commentsModerationCache = window.commentsModerationCache || [];
 window.selectedCommentRating = 0;
+window.editingCommentId = null;
 window.currentAdminCapabilities = window.currentAdminCapabilities || {};
+const COMMENT_TEXT_MIN = 3;
+const COMMENT_TEXT_MAX = 1000;
 let productCommentsUnsubscribe = null;
 let commentsModerationUnsubscribe = null;
 
@@ -274,6 +277,92 @@ window.setCommentRating = function(rating) {
     if (container) container.innerHTML = renderStarRatingHtml(rating, true, '18px');
 };
 
+function isReviewOwner(c) {
+    return !!(currentUser && c && c.uid === currentUser.uid);
+}
+
+function getUserReviewsForProduct(productId) {
+    if (!currentUser || !productId) return [];
+    return window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.productId === productId);
+}
+
+function getUserReviewForProduct(productId) {
+    const reviews = getUserReviewsForProduct(productId);
+    if (!reviews.length) return null;
+    return reviews.slice().sort((a, b) => {
+        const ta = a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+        const tb = b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+        return tb - ta;
+    })[0];
+}
+
+function validateReviewInput(text, rating) {
+    if (rating < 1 || rating > 5) return 'Please select a star rating (1–5)';
+    if (text.length > COMMENT_TEXT_MAX) return `Review is too long (max ${COMMENT_TEXT_MAX} characters)`;
+    if (text.length > 0 && text.length < COMMENT_TEXT_MIN) {
+        return `Review text must be at least ${COMMENT_TEXT_MIN} characters, or leave it blank`;
+    }
+    return null;
+}
+
+function resetCommentFormState() {
+    window.selectedCommentRating = 0;
+    window.editingCommentId = null;
+}
+
+function renderOwnerEditButton(safeId) {
+    return `
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="startEditProductComment('${safeId}')"><i class="fa fa-edit"></i> Edit Review</button>
+        </div>`;
+}
+
+function renderCommentFormHtml(editingComment) {
+    const isEditing = !!editingComment;
+    const rating = isEditing ? (editingComment.rating || 0) : (window.selectedCommentRating || 0);
+    const heading = isEditing ? 'EDIT YOUR REVIEW' : 'YOUR RATING';
+    const submitLabel = isEditing ? 'Save Changes' : 'Submit Review';
+    const hint = isEditing
+        ? 'Updated reviews are sent for admin approval again before they appear publicly.'
+        : 'Rating is required. Written review is optional. All reviews need admin approval.';
+
+    return `
+        <div id="det-comment-form" style="background:#111; border:1px solid #222; border-radius:12px; padding:14px;">
+            <p style="font-size:11px; color:#666; margin:0 0 8px 0;">${heading}</p>
+            <div id="det-comment-rating-input" style="margin-bottom:12px;">${renderStarRatingHtml(rating, true, '18px')}</div>
+            <textarea id="det-comment-text" placeholder="Share your experience (optional — min ${COMMENT_TEXT_MIN} characters if you write something)..."
+                maxlength="${COMMENT_TEXT_MAX}" style="margin:0 0 10px 0; font-size:13px; height:80px; resize:vertical;"></textarea>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span style="font-size:10px; color:#555;">${hint}</span>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    ${isEditing ? `<button type="button" class="btn-gold" style="width:auto; padding:10px 16px; font-size:12px; margin:0; background:#333; color:#ccc;" onclick="cancelEditProductComment()">Cancel</button>` : ''}
+                    <button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; margin:0;" onclick="submitProductComment()">${submitLabel}</button>
+                </div>
+            </div>
+        </div>`;
+}
+
+window.startEditProductComment = function(commentId) {
+    const c = window.productCommentsCache.find(x => x.id === commentId);
+    if (!c || !isReviewOwner(c)) return showToast('You can only edit your own review.');
+    window.editingCommentId = commentId;
+    window.selectedCommentRating = c.rating || 0;
+    renderProductCommentsSection();
+    requestAnimationFrame(() => {
+        const textEl = document.getElementById('det-comment-text');
+        if (textEl) textEl.value = c.text || '';
+        const ratingEl = document.getElementById('det-comment-rating-input');
+        if (ratingEl) ratingEl.innerHTML = renderStarRatingHtml(c.rating || 0, true, '18px');
+        textEl?.focus();
+        document.getElementById('det-comment-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+};
+
+window.cancelEditProductComment = function() {
+    resetCommentFormState();
+    renderProductCommentsSection();
+};
+
 function stopProductCommentsListener() {
     if (productCommentsUnsubscribe) {
         productCommentsUnsubscribe();
@@ -297,6 +386,8 @@ window.cleanupCommentsListeners = function() {
     stopCommentsModerationListener();
     window.currentAdminCapabilities = {};
     lastCommentsEnabledState = null;
+    resetCommentFormState();
+    window._commentsLoadedProductId = null;
 };
 
 function renderProductCommentsSection() {
@@ -314,13 +405,13 @@ function renderProductCommentsSection() {
 
     const approved = window.productCommentsCache.filter(c => c.status === 'approved');
     const myPending = currentUser
-        ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'pending')
+        ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'pending' && c.productId === productId)
         : [];
     const myRejected = currentUser
-        ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'rejected')
+        ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'rejected' && c.productId === productId)
         : [];
     const myHidden = currentUser
-        ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'hidden')
+        ? window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.status === 'hidden' && c.productId === productId)
         : [];
 
     const ratedApproved = approved.filter(c => c.rating);
@@ -365,25 +456,25 @@ function renderProductCommentsSection() {
            </div>`
         : '';
 
-    const hasPendingForProduct = myPending.some(c => c.productId === productId);
+    const myReviewsForProduct = getUserReviewsForProduct(productId);
+    const isEditing = !!(window.editingCommentId && myReviewsForProduct.some(c => c.id === window.editingCommentId));
+    const editingComment = isEditing
+        ? myReviewsForProduct.find(c => c.id === window.editingCommentId)
+        : null;
+    const hasReviewForProduct = myReviewsForProduct.length > 0;
+    const hasPendingForProduct = myPending.length > 0;
 
     let formHtml = '';
     if (!currentUser) {
-        formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-lock"></i> <a href="#" onclick="event.preventDefault(); navigateTo('user')" style="color:var(--gold);">Sign in</a> to write a review</p>`;
+        formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-lock"></i> <a href="#" onclick="event.preventDefault(); navigateTo('user')" style="color:var(--gold);">Sign in</a> to leave a review</p>`;
+    } else if (isEditing && editingComment) {
+        formHtml = renderCommentFormHtml(editingComment);
     } else if (hasPendingForProduct) {
-        formHtml = `<p style="font-size:12px; color:#888; margin:0;"><i class="fa fa-hourglass-half"></i> Your review is pending admin approval. You can submit another once it is reviewed.</p>`;
+        formHtml = `<p style="font-size:12px; color:#888; margin:0;"><i class="fa fa-hourglass-half"></i> Your review is awaiting admin approval. Use <strong>Edit Review</strong> above to change your rating or comment — updates will need approval again.</p>`;
+    } else if (hasReviewForProduct) {
+        formHtml = `<p style="font-size:12px; color:#888; margin:0;"><i class="fa fa-edit"></i> You already reviewed this product. Use <strong>Edit Review</strong> on your review above to update your rating or comment.</p>`;
     } else {
-        formHtml = `
-            <div style="background:#111; border:1px solid #222; border-radius:12px; padding:14px;">
-                <p style="font-size:11px; color:#666; margin:0 0 8px 0;">YOUR RATING</p>
-                <div id="det-comment-rating-input" style="margin-bottom:12px;">${renderStarRatingHtml(0, true, '18px')}</div>
-                <textarea id="det-comment-text" placeholder="Share your experience with this product (min 10 characters)..."
-                    maxlength="1000" style="margin:0 0 10px 0; font-size:13px; height:80px; resize:vertical;"></textarea>
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                    <span style="font-size:10px; color:#555;">Reviews are published after admin approval</span>
-                    <button class="btn-gold" style="width:auto; padding:10px 20px; font-size:12px; margin:0;" onclick="submitProductComment()">Submit Review</button>
-                </div>
-            </div>`;
+        formHtml = renderCommentFormHtml(null);
     }
 
     section.innerHTML = `
@@ -398,6 +489,16 @@ function renderProductCommentsSection() {
             ${hiddenNotice}
             ${formHtml}
         </div>`;
+
+    if (isEditing && editingComment) {
+        requestAnimationFrame(() => {
+            const textEl = document.getElementById('det-comment-text');
+            if (textEl) textEl.value = editingComment.text || '';
+            window.selectedCommentRating = editingComment.rating || 0;
+            const ratingEl = document.getElementById('det-comment-rating-input');
+            if (ratingEl) ratingEl.innerHTML = renderStarRatingHtml(editingComment.rating || 0, true, '18px');
+        });
+    }
 }
 
 function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden) {
@@ -449,7 +550,16 @@ function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden) {
                     <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c;" onclick="deleteProductComment('${safeId}')"><i class="fa fa-trash"></i> Delete</button>
                 </div>`;
         }
+    } else if (isReviewOwner(c)) {
+        actionsHtml = renderOwnerEditButton(safeId);
     }
+
+    const textHtml = (c.text && String(c.text).trim())
+        ? `<p style="margin:0; font-size:13px; color:#aaa; line-height:1.5; word-break:break-word;">${escapeHtml(c.text)}</p>`
+        : `<p style="margin:0; font-size:12px; color:#666; font-style:italic;">Rating only — no written review</p>`;
+    const editedMeta = c.updatedAt
+        ? `<span style="font-size:10px; color:#666; margin-left:6px;">· edited ${formatCommentDate(c.updatedAt)}</span>`
+        : '';
 
     return `
         <div style="background:#111; border:1px solid #222; border-radius:10px; padding:12px 14px;">
@@ -460,10 +570,10 @@ function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden) {
                     <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-bottom:4px;">
                         <span style="font-size:13px; font-weight:600; color:#eee;">${escapeHtml(c.userName || 'Customer')}</span>
                         ${statusBadge}
-                        ${!isAdmin ? adminMeta : ''}
+                        ${!isAdmin ? `${adminMeta}${editedMeta}` : ''}
                     </div>
                     ${ratingHtml ? `<div style="margin-bottom:6px;">${ratingHtml}</div>` : ''}
-                    <p style="margin:0; font-size:13px; color:#aaa; line-height:1.5; word-break:break-word;">${escapeHtml(c.text)}</p>
+                    ${textHtml}
                     ${isAdmin ? adminMeta : ''}
                     ${actionsHtml}
                 </div>
@@ -481,7 +591,17 @@ function escapeHtml(str) {
 }
 
 window.loadProductComments = function(productId) {
-    stopProductCommentsListener();
+    if (window._commentsLoadedProductId !== productId) {
+        resetCommentFormState();
+    }
+    window._commentsLoadedProductId = productId;
+
+    if (productCommentsUnsubscribe) {
+        productCommentsUnsubscribe();
+        productCommentsUnsubscribe = null;
+    }
+    window.productCommentsCache = [];
+
     if (!productId || !isProductCommentsEnabled()) {
         renderProductCommentsSection();
         return;
@@ -514,15 +634,24 @@ window.submitProductComment = async function() {
     const textEl = document.getElementById('det-comment-text');
     const text = textEl ? textEl.value.trim() : '';
     const rating = window.selectedCommentRating || 0;
+    const validationError = validateReviewInput(text, rating);
+    if (validationError) return showToast(validationError);
 
-    if (text.length < 10) return showToast('Review must be at least 10 characters');
-    if (text.length > 1000) return showToast('Review is too long (max 1000 characters)');
-    if (rating < 1 || rating > 5) return showToast('Please select a star rating (1–5)');
+    const editingId = window.editingCommentId;
+    const existingReview = editingId
+        ? window.productCommentsCache.find(c => c.id === editingId)
+        : getUserReviewForProduct(activeProductId);
 
-    const existingPending = window.productCommentsCache.some(
-        c => c.uid === currentUser.uid && c.productId === activeProductId && c.status === 'pending'
-    );
-    if (existingPending) return showToast('You already have a review awaiting approval for this product');
+    if (editingId) {
+        if (!existingReview || !isReviewOwner(existingReview)) {
+            return showToast('You can only edit your own review.');
+        }
+        if (existingReview.productId !== activeProductId) {
+            return showToast('This review belongs to another product.');
+        }
+    } else if (existingReview) {
+        return showToast('You already reviewed this product. Tap Edit Review to update it.');
+    }
 
     const p = (typeof products !== 'undefined' ? products : []).find(x => x.id === activeProductId);
     const userName = document.getElementById('prof-name')?.value?.trim()
@@ -530,22 +659,37 @@ window.submitProductComment = async function() {
         || (currentUser.email ? currentUser.email.split('@')[0] : 'Customer');
 
     try {
-        await db.collection('product_comments').add({
-            productId: activeProductId,
-            productName: p ? p.name : 'Unknown Product',
-            uid: currentUser.uid,
-            userName,
-            userEmail: currentUser.email || '',
-            rating,
-            text,
-            status: 'pending',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            reviewedAt: null,
-            reviewedBy: null
-        });
-        window.selectedCommentRating = 0;
-        if (textEl) textEl.value = '';
-        showToast('✅ Review submitted! It will appear after admin approval.');
+        if (editingId && existingReview) {
+            await db.collection('product_comments').doc(editingId).update({
+                rating,
+                text,
+                status: 'pending',
+                reviewedAt: null,
+                reviewedBy: null,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            resetCommentFormState();
+            if (textEl) textEl.value = '';
+            showToast('✅ Review updated! It will appear again after admin approval.');
+        } else {
+            await db.collection('product_comments').add({
+                productId: activeProductId,
+                productName: p ? p.name : 'Unknown Product',
+                uid: currentUser.uid,
+                userName,
+                userEmail: currentUser.email || '',
+                rating,
+                text,
+                status: 'pending',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: null,
+                reviewedAt: null,
+                reviewedBy: null
+            });
+            resetCommentFormState();
+            if (textEl) textEl.value = '';
+            showToast('✅ Review submitted! It will appear after admin approval.');
+        }
         renderProductCommentsSection();
     } catch (e) {
         console.error('submitProductComment error:', e);
