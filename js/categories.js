@@ -42,51 +42,213 @@ function getCategoryById(id) {
 }
 window.getCategoryById = getCategoryById;
 
-function resolveProductCategoryLabel(product) {
-    if (!product) return '';
-    if (product.categoryName) return product.categoryName;
-    const cat = getCategoryById(product.categoryId);
-    return cat ? cat.name : '';
+function normalizeProductCategories(product) {
+    if (!product) return { categoryIds: [], categoryNames: [], categorySlugs: [] };
+
+    const ids = [];
+    const seen = new Set();
+    const addId = (id) => {
+        const clean = String(id || '').trim();
+        if (!clean || seen.has(clean)) return;
+        seen.add(clean);
+        ids.push(clean);
+    };
+
+    if (Array.isArray(product.categoryIds)) {
+        product.categoryIds.forEach(addId);
+    }
+    addId(product.categoryId);
+
+    if (!ids.length) {
+        const legacyNames = [];
+        if (Array.isArray(product.categoryNames)) {
+            product.categoryNames.forEach(name => {
+                const clean = String(name || '').trim();
+                if (clean) legacyNames.push(clean);
+            });
+        } else if (product.categoryName) {
+            String(product.categoryName).split(/[,|;]/).map(s => s.trim()).filter(Boolean).forEach(name => legacyNames.push(name));
+        }
+
+        legacyNames.forEach(name => {
+            const lower = name.toLowerCase();
+            const match = (window.productCategories || []).find(c =>
+                String(c.name || '').trim().toLowerCase() === lower ||
+                String(c.slug || '').trim().toLowerCase() === lower
+            );
+            if (match) addId(match.id);
+        });
+
+        if (!ids.length && product.categorySlug) {
+            const slug = String(product.categorySlug).trim().toLowerCase();
+            const match = (window.productCategories || []).find(c =>
+                String(c.slug || slugifyCategoryName(c.name)).trim().toLowerCase() === slug
+            );
+            if (match) addId(match.id);
+        }
+    }
+
+    const categories = ids.map(id => getCategoryById(id)).filter(Boolean);
+    return {
+        categoryIds: ids,
+        categoryNames: categories.map(c => c.name),
+        categorySlugs: categories.map(c => c.slug || slugifyCategoryName(c.name))
+    };
 }
 
+function buildCategoryFieldsFromIds(categoryIds) {
+    const ids = [...new Set((categoryIds || []).map(id => String(id || '').trim()).filter(Boolean))];
+    const categories = ids.map(id => getCategoryById(id)).filter(Boolean);
+    return {
+        categoryIds: ids,
+        categoryNames: categories.map(c => c.name),
+        categorySlugs: categories.map(c => c.slug || slugifyCategoryName(c.name)),
+        categoryId: ids[0] || '',
+        categoryName: categories.map(c => c.name).join(', '),
+        categorySlug: categories[0] ? (categories[0].slug || slugifyCategoryName(categories[0].name)) : ''
+    };
+}
+
+function getProductCategoryIds(product) {
+    return normalizeProductCategories(product).categoryIds;
+}
+window.getProductCategoryIds = getProductCategoryIds;
+
+function productHasCategory(product, categoryId) {
+    if (!categoryId) return true;
+    return getProductCategoryIds(product).includes(categoryId);
+}
+window.productHasCategory = productHasCategory;
+
+function getProductsWithCategory(categoryId) {
+    return (window.products || []).filter(p => productHasCategory(p, categoryId));
+}
+
+function resolveProductCategoryLabel(product) {
+    const norm = normalizeProductCategories(product);
+    if (norm.categoryNames.length) return norm.categoryNames.join(', ');
+    if (product?.categoryName) return product.categoryName;
+    return '';
+}
+window.resolveProductCategoryLabel = resolveProductCategoryLabel;
+
+function resolveProductCategoryLabels(product) {
+    const norm = normalizeProductCategories(product);
+    if (norm.categoryNames.length) return norm.categoryNames;
+    if (product?.categoryName) {
+        return String(product.categoryName).split(/[,|;]/).map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+}
+window.resolveProductCategoryLabels = resolveProductCategoryLabels;
+
 function resolveProductCategoryId(product) {
-    if (!product) return '';
-    if (product.categoryId) return product.categoryId;
-    const name = String(product.categoryName || '').trim().toLowerCase();
-    const slug = String(product.categorySlug || '').trim().toLowerCase();
-    if (!name && !slug) return '';
-    const match = (window.productCategories || []).find(c =>
-        (name && String(c.name || '').trim().toLowerCase() === name) ||
-        (slug && String(c.slug || slugifyCategoryName(c.name)).trim().toLowerCase() === slug)
-    );
-    return match ? match.id : '';
+    const ids = getProductCategoryIds(product);
+    return ids[0] || '';
 }
 window.resolveProductCategoryId = resolveProductCategoryId;
 
+function getStorefrontVisibleProducts() {
+    return (window.products || []).filter(p => {
+        if (typeof isProductOutOfStock === 'function' && isProductOutOfStock(p)) return false;
+        return true;
+    });
+}
+
 function getProductCountsByCategory() {
     const counts = {};
-    (window.products || []).forEach(p => {
-        const id = resolveProductCategoryId(p) || '';
-        counts[id] = (counts[id] || 0) + 1;
+    getStorefrontVisibleProducts().forEach(p => {
+        const ids = getProductCategoryIds(p);
+        if (!ids.length) {
+            counts[''] = (counts[''] || 0) + 1;
+            return;
+        }
+        ids.forEach(id => {
+            counts[id] = (counts[id] || 0) + 1;
+        });
     });
     return counts;
 }
 
-function populateProductCategorySelect(selectedId) {
-    const select = document.getElementById('m-category');
-    const container = document.getElementById('m-category-container');
-    if (!select) return;
+function renderProductCategoryCheckboxes(selectedIds) {
+    const container = document.getElementById('m-category-checkboxes');
+    const wrapper = document.getElementById('m-category-container');
+    if (!container) return;
 
     const adminCanAssign = canManageProductCategories();
     const storefrontEnabled = isProductCategoriesEnabled();
-    if (container) container.style.display = (adminCanAssign || storefrontEnabled) ? 'block' : 'none';
+    if (wrapper) wrapper.style.display = (adminCanAssign || storefrontEnabled) ? 'block' : 'none';
     if (!adminCanAssign && !storefrontEnabled) return;
 
+    const selected = new Set((selectedIds || []).map(id => String(id || '').trim()).filter(Boolean));
     const categories = adminCanAssign ? getAllCategoriesSorted() : getActiveCategories();
-    select.innerHTML = `<option value="">— No category —</option>` + categories.map(c => {
+
+    if (!categories.length) {
+        container.innerHTML = '<p style="margin:0; font-size:11px; color:#666;">No categories yet. Create categories in Admin first.</p>';
+        return;
+    }
+
+    container.innerHTML = categories.map(c => {
         const hiddenLabel = c.isActive === false ? ' (Hidden)' : '';
-        return `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${escapeCategoryHtml(c.name)}${hiddenLabel}</option>`;
+        const checked = selected.has(c.id) ? ' checked' : '';
+        return `<label class="m-category-option"><input type="checkbox" value="${c.id}"${checked}><span>${escapeCategoryHtml(c.name)}${hiddenLabel}</span></label>`;
     }).join('');
+}
+
+function populateProductCategorySelect(selectedId) {
+    const ids = selectedId ? (Array.isArray(selectedId) ? selectedId : [selectedId]) : [];
+    renderProductCategoryCheckboxes(ids);
+}
+
+function readProductCategoryFromForm() {
+    const container = document.getElementById('m-category-checkboxes');
+    if (!container || (!isProductCategoriesEnabled() && !canManageProductCategories())) {
+        return buildCategoryFieldsFromIds([]);
+    }
+    const checkedIds = [...container.querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value);
+    return buildCategoryFieldsFromIds(checkedIds);
+}
+
+function hydrateProductCategoryForm(product) {
+    renderProductCategoryCheckboxes(getProductCategoryIds(product));
+}
+
+function resolveSingleCategoryImportPart(part) {
+    const raw = String(part || '').trim();
+    if (!raw) return null;
+
+    const byId = getCategoryById(raw);
+    if (byId) return byId.id;
+
+    const lower = raw.toLowerCase();
+    const byName = (window.productCategories || []).find(c =>
+        String(c.name || '').trim().toLowerCase() === lower ||
+        String(c.slug || '').trim().toLowerCase() === lower
+    );
+    return byName ? byName.id : null;
+}
+
+function resolveCategoryIdFromImportValue(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return buildCategoryFieldsFromIds([]);
+
+    const parts = raw.split(/[,|;]/).map(s => s.trim()).filter(Boolean);
+    const ids = [];
+    parts.forEach(part => {
+        const resolvedId = resolveSingleCategoryImportPart(part);
+        if (resolvedId) ids.push(resolvedId);
+    });
+
+    if (ids.length) return buildCategoryFieldsFromIds(ids);
+
+    return {
+        categoryIds: [],
+        categoryNames: parts,
+        categorySlugs: parts.map(slugifyCategoryName),
+        categoryId: '',
+        categoryName: parts.join(', '),
+        categorySlug: parts[0] ? slugifyCategoryName(parts[0]) : ''
+    };
 }
 
 function escapeCategoryHtml(str) {
@@ -97,53 +259,6 @@ function escapeCategoryHtml(str) {
         .replace(/"/g, '&quot;');
 }
 window.escapeCategoryHtml = escapeCategoryHtml;
-
-function readProductCategoryFromForm() {
-    const select = document.getElementById('m-category');
-    if (!select || (!isProductCategoriesEnabled() && !canManageProductCategories())) {
-        return { categoryId: '', categoryName: '', categorySlug: '' };
-    }
-    const categoryId = select.value || '';
-    const cat = getCategoryById(categoryId);
-    return {
-        categoryId: categoryId || '',
-        categoryName: cat ? cat.name : '',
-        categorySlug: cat ? (cat.slug || slugifyCategoryName(cat.name)) : ''
-    };
-}
-
-function hydrateProductCategoryForm(product) {
-    populateProductCategorySelect(product?.categoryId || '');
-}
-
-function resolveCategoryIdFromImportValue(value) {
-    const raw = String(value || '').trim();
-    if (!raw) return { categoryId: '', categoryName: '', categorySlug: '' };
-
-    const byId = getCategoryById(raw);
-    if (byId) {
-        return {
-            categoryId: byId.id,
-            categoryName: byId.name,
-            categorySlug: byId.slug || slugifyCategoryName(byId.name)
-        };
-    }
-
-    const lower = raw.toLowerCase();
-    const byName = (window.productCategories || []).find(c =>
-        String(c.name || '').trim().toLowerCase() === lower ||
-        String(c.slug || '').trim().toLowerCase() === lower
-    );
-    if (byName) {
-        return {
-            categoryId: byName.id,
-            categoryName: byName.name,
-            categorySlug: byName.slug || slugifyCategoryName(byName.name)
-        };
-    }
-
-    return { categoryId: '', categoryName: raw, categorySlug: slugifyCategoryName(raw) };
-}
 
 function renderHomeCategoryBar() {
     const bar = document.getElementById('home-category-bar');
@@ -346,14 +461,11 @@ window.saveCategory = async function() {
     try {
         if (window.editingCategoryId) {
             await db.collection('categories').doc(window.editingCategoryId).set(payload, { merge: true });
-            const linkedProducts = (window.products || []).filter(p => p.categoryId === window.editingCategoryId);
+            const linkedProducts = getProductsWithCategory(window.editingCategoryId);
             if (linkedProducts.length) {
                 const batch = db.batch();
                 linkedProducts.forEach(p => {
-                    batch.update(db.collection('products').doc(p.id), {
-                        categoryName: payload.name,
-                        categorySlug: payload.slug
-                    });
+                    batch.update(db.collection('products').doc(p.id), buildCategoryFieldsFromIds(getProductCategoryIds(p)));
                 });
                 await batch.commit();
             }
@@ -388,7 +500,7 @@ window.deleteCategory = async function(id) {
     if (!cat) return;
     const count = getProductCountsByCategory()[id] || 0;
     const msg = count
-        ? `Delete "${cat.name}"? ${count} product(s) will become uncategorized.`
+        ? `Delete "${cat.name}"? It will be removed from ${count} product${count === 1 ? '' : 's'}.`
         : `Delete "${cat.name}"?`;
     if (!confirm(msg)) return;
 
@@ -396,12 +508,9 @@ window.deleteCategory = async function(id) {
         await db.collection('categories').doc(id).delete();
         if (count > 0) {
             const batch = db.batch();
-            (window.products || []).filter(p => p.categoryId === id).forEach(p => {
-                batch.update(db.collection('products').doc(p.id), {
-                    categoryId: '',
-                    categoryName: '',
-                    categorySlug: ''
-                });
+            getProductsWithCategory(id).forEach(p => {
+                const newIds = getProductCategoryIds(p).filter(cid => cid !== id);
+                batch.update(db.collection('products').doc(p.id), buildCategoryFieldsFromIds(newIds));
             });
             await batch.commit();
         }
@@ -434,7 +543,11 @@ function loadProductCategories() {
     db.collection('categories').onSnapshot(snap => {
         window.productCategories = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         window.categoriesLoaded = true;
-        populateProductCategorySelect(document.getElementById('m-category')?.value || '');
+        const container = document.getElementById('m-category-checkboxes');
+        const selected = container
+            ? [...container.querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value)
+            : [];
+        renderProductCategoryCheckboxes(selected);
         renderAdminCategoryList();
         renderHomeCategoryBar();
         renderCategoryFilterChips();
@@ -461,3 +574,15 @@ function applyCategoryDeepLink() {
 }
 window.applyCategoryDeepLink = applyCategoryDeepLink;
 window.renderAdminCategoryList = renderAdminCategoryList;
+window.readProductCategoryFromForm = readProductCategoryFromForm;
+window.hydrateProductCategoryForm = hydrateProductCategoryForm;
+window.resolveCategoryIdFromImportValue = resolveCategoryIdFromImportValue;
+window.renderProductCategoryBadges = function(product) {
+    const labels = resolveProductCategoryLabels(product);
+    if (!labels.length) return '';
+    const shown = labels.slice(0, 2);
+    const extra = labels.length - shown.length;
+    return `<div class="product-category-badges">${shown.map(label =>
+        `<span class="product-category-badge">${escapeCategoryHtml(label)}</span>`
+    ).join('')}${extra > 0 ? `<span class="product-category-badge product-category-badge-more">+${extra}</span>` : ''}</div>`;
+};

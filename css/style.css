@@ -5051,6 +5051,60 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     white-space: nowrap;
     padding-left: 4px;
 }
+.catalog-sort-dropdown:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: #333 !important;
+    color: #777 !important;
+    background-color: #0d0d0d !important;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+}
+.catalog-sort-wrap.catalog-sort-disabled .catalog-sort-icon {
+    color: #666;
+}
+.filter-sort-disabled .premium-select {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.filter-sort-disabled .fa-sort {
+    color: #666 !important;
+}
+.admin-category-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.m-category-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    border: 1px solid #333;
+    background: #181818;
+    color: #ccc;
+    font-size: 11px;
+    cursor: pointer;
+    margin: 0;
+}
+.m-category-option input {
+    width: auto;
+    margin: 0;
+}
+.m-category-option:has(input:checked) {
+    border-color: rgba(255, 215, 0, 0.45);
+    background: rgba(255, 215, 0, 0.08);
+    color: #fff;
+}
+.product-category-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.product-category-badge-more {
+    opacity: 0.85;
+}
 .product-category-badge {
     display: inline-block;
     font-size: 9px;

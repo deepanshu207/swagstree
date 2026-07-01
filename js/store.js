@@ -482,7 +482,7 @@ function productCardHtml(p) {
             </div> 
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
-            ${typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : ''}
+            ${typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
             <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> 
             <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> 
         </div> 
@@ -611,6 +611,42 @@ window.refreshCatalogCountLabels = function() {
     }
 };
 
+function updateCatalogSortAvailability(displayableCount, viewKey) {
+    const isHome = viewKey === 'home';
+    const containerId = isHome ? 'sort-logic-container' : 'wish-sort-logic-container';
+    const selectId = isHome ? 'sort-logic' : 'wish-sort-logic';
+    const container = document.getElementById(containerId);
+    const select = document.getElementById(selectId);
+    const filterSelect = document.getElementById('sort-logic-filter');
+    const filterGroup = filterSelect ? filterSelect.closest('.filter-group') : null;
+
+    const showSort = typeof isCatalogControlEnabled === 'function'
+        ? isCatalogControlEnabled(viewKey, 'sort')
+        : true;
+    const enabled = displayableCount > 0;
+
+    if (container) {
+        if (!showSort) {
+            container.style.display = 'none';
+            container.classList.remove('catalog-sort-disabled');
+        } else {
+            container.style.display = 'flex';
+            container.classList.toggle('catalog-sort-disabled', !enabled);
+            container.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+        }
+    }
+    if (select) {
+        select.disabled = !enabled;
+        select.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    }
+    if (isHome && filterSelect) {
+        filterSelect.disabled = !enabled;
+        filterSelect.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+        if (filterGroup) filterGroup.classList.toggle('filter-sort-disabled', !enabled);
+    }
+}
+window.updateCatalogSortAvailability = updateCatalogSortAvailability;
+
 function renderProducts(items, targetId) {
     const container = document.getElementById(targetId);
     if (!container) return;
@@ -670,7 +706,7 @@ function renderProducts(items, targetId) {
             if (countContainer) {
                 applyCatalogCountLabel(countContainer, 0, 0);
             }
-            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
+            updateCatalogSortAvailability(0, 'home');
             return;
         }
 
@@ -697,7 +733,9 @@ function renderProducts(items, targetId) {
                 ? isCatalogControlEnabled('home', 'sort')
                 : true;
             sortLogicContainer.style.display = showSort ? 'flex' : 'none';
+            sortLogicContainer.classList.remove('catalog-sort-disabled');
         }
+        updateCatalogSortAvailability(items.length, 'home');
 
         const settings = window.diariesSettings || { placement: 'last', showSection: true };
         const feedbackCards = (typeof getFeedbackCardsHtml === 'function' && settings.showSection !== false) ? getFeedbackCardsHtml() : [];
@@ -779,7 +817,7 @@ function renderProducts(items, targetId) {
             if (countContainer) {
                 applyCatalogCountLabel(countContainer, 0, 0);
             }
-            if (sortLogicContainer) sortLogicContainer.style.display = 'none';
+            updateCatalogSortAvailability(0, 'wishlist');
             return;
         }
 
@@ -806,7 +844,9 @@ function renderProducts(items, targetId) {
                 ? isCatalogControlEnabled('wishlist', 'sort')
                 : true;
             sortLogicContainer.style.display = showSort ? 'flex' : 'none';
+            sortLogicContainer.classList.remove('catalog-sort-disabled');
         }
+        updateCatalogSortAvailability(items.length, 'wishlist');
 
         container.innerHTML = itemsToRender.map(productCardHtml).join('');
     } else {
@@ -1435,7 +1475,10 @@ function getFilteredCatalogProducts() {
     }
 
     if (activeCategory) {
-        filtered = filtered.filter(p => resolveProductCategoryId(p) === activeCategory);
+        filtered = filtered.filter(p => {
+            if (typeof productHasCategory === 'function') return productHasCategory(p, activeCategory);
+            return (p.categoryId || '') === activeCategory;
+        });
     }
 
     if (filterMinPrice !== null) {

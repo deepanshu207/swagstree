@@ -1531,7 +1531,11 @@ function applyFeatureTogglesUI() {
     }
 
     if (typeof populateProductCategorySelect === 'function') {
-        populateProductCategorySelect(document.getElementById('m-category')?.value || '');
+        populateProductCategorySelect(
+            document.getElementById('m-category-checkboxes')
+                ? [...document.getElementById('m-category-checkboxes').querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value)
+                : []
+        );
     }
     if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
     if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
