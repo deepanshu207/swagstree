@@ -2483,9 +2483,9 @@ body.body-footer-pos-scroll.has-customer-diaries .storefront-footer-anchor {
     left: 0;
     right: 0;
     bottom: 0;
-    height: 6px;
+    height: 10px;
     background: #000;
-    z-index: 4;
+    z-index: 3;
     pointer-events: none;
 }
 .feedback-card .feedback-diaries-single {
@@ -2498,9 +2498,9 @@ body.body-footer-pos-scroll.has-customer-diaries .storefront-footer-anchor {
     left: 0;
     right: 0;
     bottom: 0;
-    height: 6px;
+    height: 10px;
     background: #000;
-    z-index: 4;
+    z-index: 3;
     pointer-events: none;
 }
 .feedback-card .feedback-diaries-slides {
@@ -2532,8 +2532,8 @@ body.body-footer-pos-scroll.has-customer-diaries .storefront-footer-anchor {
 .feedback-card .feedback-diaries-slide img {
     display: block;
     width: 100% !important;
-    height: 108% !important;
-    margin: 0 0 -8% 0;
+    height: 100% !important;
+    margin: 0 !important;
     padding: 0;
     border: none;
     object-fit: cover;
@@ -2566,24 +2566,24 @@ body.body-footer-pos-scroll.has-customer-diaries .storefront-footer-anchor {
 }
 .feedback-card .feedback-carousel-nav {
     position: absolute;
-    bottom: 12px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 6;
+    z-index: 10;
     display: flex;
     align-items: center;
     justify-content: center;
     width: auto;
     box-sizing: border-box;
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.92);
     border: 1px solid var(--gold);
     border-radius: 20px;
-    padding: 4px 12px;
+    padding: 5px 14px;
     gap: 10px;
     margin: 0;
     line-height: normal;
     font-size: initial;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
     pointer-events: auto;
 }
 .feedback-card .feedback-carousel-btn {
@@ -2720,9 +2720,9 @@ a.feedback-view-post-btn:active {
 .feedback-card .ig-embed-clip {
     height: 370px;
     max-height: 370px;
-    --ig-embed-visible-height: 370px;
+    --ig-embed-visible-height: 286px;
     --ig-embed-header-offset: 54px;
-    --ig-embed-footer-offset: 112px;
+    --ig-embed-footer-offset: 156px;
     border: none !important;
     line-height: 0;
     margin: 0;
@@ -2734,6 +2734,8 @@ a.feedback-view-post-btn:active {
     height: 100%;
     min-height: 100%;
     max-height: none;
+    --ig-embed-visible-height: 286px;
+    --ig-embed-footer-offset: 156px;
 }
 .feedback-card .ig-embed-clip::after {
     content: '';
@@ -2741,13 +2743,33 @@ a.feedback-view-post-btn:active {
     left: 0;
     right: 0;
     bottom: 0;
-    height: 52px;
-    background: #000;
-    z-index: 4;
+    height: 96px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, #000 28%, #000 100%);
+    z-index: 5;
     pointer-events: none;
 }
 .feedback-card .ig-embed-clip .ig-embed-frame {
     background: #000;
+    clip-path: inset(0 0 96px 0);
+    -webkit-clip-path: inset(0 0 96px 0);
+}
+
+@media (max-width: 768px) {
+    .feedback-card .feedback-media,
+    .feedback-card .feedback-diaries-single,
+    .feedback-card .feedback-diaries-carousel {
+        height: 340px;
+        max-height: 340px;
+    }
+    .feedback-card .ig-embed-clip {
+        height: 340px;
+        max-height: 340px;
+        --ig-embed-visible-height: 262px;
+    }
+    .feedback-card .feedback-carousel-nav {
+        bottom: 22px;
+        padding: 6px 14px;
+    }
 }
 
 /* WYSIWYG Editor Styles */
