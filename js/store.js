@@ -2194,7 +2194,7 @@ function getFeedbackCardsHtml() {
                 const postId = match ? match[1] : '';
                 const onerrorAttr = postId ? `onerror="window.handleFeedbackImageError && window.handleFeedbackImageError(this, '${postId}')"` : '';
                 mediaHtml = `
-                <div onclick="window.openFeedbackPost(this)" class="feedback-media" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; aspect-ratio: auto; height: 370px; background:#000; cursor:pointer;">
+                <div onclick="window.openFeedbackPost(this)" class="feedback-media feedback-diaries-carousel" style="position:relative; overflow:hidden; border-radius:10px 10px 0 0; height: 370px; background:#111; cursor:pointer;">
                      <img src="${images[0]}" referrerpolicy="no-referrer" ${onerrorAttr} style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s; pointer-events:none;" class="feedback-img">
                 </div>`;
             } else if (images.length > 1) {

@@ -259,7 +259,12 @@ function getCustomerProfile() {
     const name = document.getElementById('prof-name')?.value?.trim()
         || (currentUser && currentUser.displayName)
         || (currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'Guest');
-    const email = currentUser?.email || '';
+    let email = currentUser?.email || '';
+    if (!email) {
+        try {
+            email = localStorage.getItem('swagstree_guest_email') || '';
+        } catch (e) { /* ignore */ }
+    }
     return { name, email, uid: currentUser?.uid || null };
 }
 
