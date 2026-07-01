@@ -90,18 +90,40 @@ function canUseStorefrontLiveSupport() {
 
 function applySupportChatTabsVisibility() {
     const aiEnabled = isAiChatEnabled();
-    const showLiveSupportTab = canUseStorefrontLiveSupport();
+    const liveSupportEnabled = isAdminSupportChatEnabled();
+    const liveSupportUsable = canUseStorefrontLiveSupport();
     const tabsEl = document.getElementById('ai-chat-tabs');
     const aiTab = document.getElementById('ai-chat-tab-ai');
     const adminTab = document.getElementById('ai-chat-tab-admin');
+    const card = document.getElementById('ai-chat-box');
 
-    if (aiTab) aiTab.style.display = aiEnabled ? '' : 'none';
-    if (adminTab) adminTab.style.display = showLiveSupportTab ? '' : 'none';
-    if (tabsEl) tabsEl.style.display = (aiEnabled && showLiveSupportTab) ? 'flex' : 'none';
+    if (aiTab) {
+        aiTab.hidden = !aiEnabled;
+        aiTab.style.display = aiEnabled ? 'flex' : 'none';
+    }
+    if (adminTab) {
+        adminTab.hidden = !liveSupportEnabled;
+        adminTab.style.display = liveSupportEnabled ? 'flex' : 'none';
+        adminTab.classList.toggle('ai-chat-tab--locked', liveSupportEnabled && !liveSupportUsable);
+        adminTab.setAttribute('aria-disabled', liveSupportEnabled && !liveSupportUsable ? 'true' : 'false');
+    }
+
+    const showTabsBar = aiEnabled && liveSupportEnabled;
+    if (tabsEl) {
+        tabsEl.hidden = !showTabsBar;
+        tabsEl.style.display = showTabsBar ? 'flex' : 'none';
+        tabsEl.classList.toggle('ai-chat-tabs--visible', showTabsBar);
+        tabsEl.setAttribute('aria-hidden', showTabsBar ? 'false' : 'true');
+    }
+    if (card) {
+        card.classList.toggle('ai-chat-card--has-tabs', showTabsBar);
+    }
 
     const active = window.supportChatState.activeTab;
-    if ((active === 'ai' && !aiEnabled) || (active === 'admin' && !showLiveSupportTab)) {
+    if ((active === 'ai' && !aiEnabled) || (active === 'admin' && !liveSupportUsable)) {
         updateSupportChatTabUI(getDefaultSupportChatTab());
+    } else if (showTabsBar) {
+        updateSupportChatTabUI(active || getDefaultSupportChatTab());
     }
 }
 window.applySupportChatTabsVisibility = applySupportChatTabsVisibility;
@@ -1597,6 +1619,7 @@ window.openSupportChat = async function() {
     const box = document.getElementById('ai-chat-box');
     if (!box) return;
     box.style.display = 'flex';
+    box.classList.add('ai-chat-card--open');
     window.supportChatState.adminThreadId = null;
     window.supportChatState.loaded = false;
 
@@ -1628,9 +1651,18 @@ window.toggleAIChat = function() {
     if (isHidden) openSupportChat();
     else {
         box.style.display = 'none';
+        box.classList.remove('ai-chat-card--open');
         stopCustomerMessagesListener();
     }
 };
+
+function refreshSupportChatChrome() {
+    applySupportChatTabsVisibility();
+    if (isSupportChatOpen()) {
+        updateSupportChatTabUI(window.supportChatState.activeTab || getDefaultSupportChatTab());
+    }
+}
+window.refreshSupportChatChrome = refreshSupportChatChrome;
 
 window.sendChatMessage = async function() {
     const input = document.getElementById('ai-chat-input');
@@ -2273,7 +2305,10 @@ window.cleanupSupportChatListeners = function() {
     window.supportChatState.adminThreadId = null;
     window.supportChatState.loaded = false;
     const box = document.getElementById('ai-chat-box');
-    if (box) box.style.display = 'none';
+    if (box) {
+        box.style.display = 'none';
+        box.classList.remove('ai-chat-card--open');
+    }
     const adminModal = document.getElementById('admin-customer-chat-modal');
     if (adminModal) adminModal.style.display = 'none';
 };
@@ -2281,4 +2316,12 @@ window.cleanupSupportChatListeners = function() {
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof applyCatalogControlsVisibility === 'function') applyCatalogControlsVisibility();
     updateSupportChatVisibility();
+});
+
+let supportChatChromeResizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(supportChatChromeResizeTimer);
+    supportChatChromeResizeTimer = setTimeout(() => {
+        if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
+    }, 150);
 });

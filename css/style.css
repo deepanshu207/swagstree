@@ -3214,8 +3214,9 @@ a.feedback-view-post-btn:active {
     position: fixed;
     bottom: 145px;
     right: 20px;
-    width: 320px;
-    height: 450px;
+    width: min(360px, calc(100vw - 32px));
+    height: min(520px, calc(100dvh - 180px));
+    max-height: 620px;
     background: rgba(17,17,17,0.95);
     border: 1px solid var(--border);
     border-radius: 18px;
@@ -3227,20 +3228,69 @@ a.feedback-view-post-btn:active {
     backdrop-filter: blur(15px);
     animation: drawerSlideUp 0.3s ease-out;
 }
+.ai-chat-card.ai-chat-card--open {
+    display: flex;
+}
 .ai-chat-header {
     background: #111;
     border-bottom: 1px solid var(--border);
-    padding: 12px 15px;
+    padding: 12px 12px 12px 15px;
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-shrink: 0;
+    min-height: 56px;
+    position: relative;
+    z-index: 4;
+}
+.ai-chat-header-main {
+    flex: 1;
+    min-width: 0;
+}
+.ai-chat-close {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    margin-left: auto;
+    border: 1px solid #555;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    padding: 0;
+    visibility: visible;
+    opacity: 1;
+}
+.ai-chat-close-icon {
+    display: block;
+    line-height: 1;
+    margin-top: -1px;
+}
+.ai-chat-close:hover {
+    background: rgba(255, 71, 87, 0.15);
+    border-color: rgba(255, 71, 87, 0.45);
+    color: #ff6b7a;
 }
 .ai-chat-tabs {
-    display: flex;
+    display: none;
+    flex-shrink: 0;
     gap: 0;
     padding: 0 10px;
     background: #0d0d0d;
     border-bottom: 1px solid var(--border);
+    min-height: 42px;
+    position: relative;
+    z-index: 3;
+}
+.ai-chat-tabs.ai-chat-tabs--visible {
+    display: flex !important;
 }
 .ai-chat-tab {
     flex: 1;
@@ -3257,6 +3307,13 @@ a.feedback-view-post-btn:active {
     gap: 6px;
     border-bottom: 2px solid transparent;
     transition: all 0.2s ease;
+    min-height: 42px;
+}
+.ai-chat-tab.ai-chat-tab--locked {
+    color: #666;
+}
+.ai-chat-tab.ai-chat-tab--locked:not(.active):hover {
+    color: #aaa;
 }
 .ai-chat-tab.active {
     color: var(--gold);
@@ -3295,6 +3352,7 @@ a.feedback-view-post-btn:active {
     background: #111;
     display: flex;
     gap: 8px;
+    flex-shrink: 0;
 }
 .ai-chat-input {
     flex: 1;
@@ -3328,6 +3386,9 @@ a.feedback-view-post-btn:active {
     overflow-x: auto;
     padding: 0 15px 8px 15px;
     scrollbar-width: none;
+    flex-shrink: 0;
+    background: #111;
+    border-top: 1px solid var(--border);
 }
 .ai-chat-chips::-webkit-scrollbar { display: none; }
 .ai-chat-chip {
@@ -3579,15 +3640,58 @@ a.feedback-view-post-btn:active {
     animation: pulse-dot 1s infinite;
 }
 
-/* Chat card responsiveness on mobile/tablet viewports */
+/* Chat card responsiveness */
+@media (min-width: 768px) {
+    .ai-chat-card {
+        bottom: 24px;
+        right: 24px;
+        width: min(400px, calc(100vw - 48px));
+        height: min(580px, calc(100dvh - 120px));
+        max-height: min(680px, calc(100dvh - 96px));
+    }
+    .ai-chat-trigger {
+        bottom: 24px;
+        right: 24px;
+    }
+    .ai-chat-header {
+        min-height: 58px;
+        padding-right: 14px;
+    }
+    .ai-chat-close {
+        width: 36px;
+        height: 36px;
+        font-size: 24px;
+    }
+    .ai-chat-tab {
+        font-size: 12px;
+        padding: 11px 10px;
+    }
+    .ai-chat-tabs {
+        min-height: 44px;
+    }
+}
+
+@media (min-width: 1200px) {
+    .ai-chat-card {
+        width: min(420px, calc(100vw - 64px));
+        height: min(640px, calc(100dvh - 100px));
+        max-height: min(720px, calc(100dvh - 80px));
+    }
+}
+
 @media (max-width: 480px) {
     .ai-chat-card {
         bottom: 145px !important;
         right: 15px !important;
         left: 15px !important;
         width: auto !important;
-        height: 65vh !important;
-        max-height: 450px !important;
+        height: min(65vh, calc(100dvh - 160px)) !important;
+        max-height: 520px !important;
+    }
+    .ai-chat-close {
+        width: 32px;
+        height: 32px;
+        font-size: 20px;
     }
 }
 
