@@ -570,8 +570,8 @@ function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden, isYourRevi
         } else if (c.status === 'hidden') {
             actionsHtml = `
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71;" onclick="restoreProductComment('${safeId}')"><i class="fa fa-eye"></i> Restore to product page</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c;" onclick="deleteProductComment('${safeId}')"><i class="fa fa-trash"></i> Delete</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555; border-color:#666;" onclick="restoreProductComment('${safeId}')"><i class="fa fa-eye"></i> Restore</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c; border-color:#c0392b;" onclick="rejectProductComment('${safeId}')"><i class="fa fa-times"></i> Reject</button>
                 </div>`;
         } else {
             actionsHtml = `
@@ -868,6 +868,10 @@ async function approveProductCommentInternal(commentId) {
         comment = { id: snap.id, ...snap.data() };
     }
 
+    if (comment.status !== 'pending') {
+        return showToast('Only pending reviews can be approved. Use Restore for hidden reviews.');
+    }
+
     try {
         const relatedSnap = await db.collection('product_comments')
             .where('productId', '==', comment.productId)
@@ -892,7 +896,7 @@ async function approveProductCommentInternal(commentId) {
             }
         });
         await batch.commit();
-        showToast(comment.status === 'hidden' ? 'Review restored to product page.' : '✅ Review approved.');
+        showToast('✅ Review approved.');
     } catch (e) {
         console.error('approveProductComment error:', e);
         showToast('Failed to approve review.');
@@ -960,8 +964,27 @@ window.hideProductComment = async function(commentId) {
     }
 };
 
-window.restoreProductComment = function(commentId) {
-    approveProductCommentInternal(commentId);
+window.restoreProductComment = async function(commentId) {
+    if (!hasAdminCapability('approveComments')) return showToast('You do not have permission to moderate reviews.');
+
+    const comment = window.commentsModerationCache.find(c => c.id === commentId)
+        || window.productCommentsCache.find(c => c.id === commentId);
+    if (!comment) return showToast('Review not found.');
+    if (comment.status !== 'hidden') return showToast('Only hidden reviews can be restored.');
+
+    if (!confirm('Restore this review on the product page?\n\nThis re-publishes only this review. It does not approve or remove any other pending updates from the same customer.')) return;
+
+    try {
+        await db.collection('product_comments').doc(commentId).update({
+            status: 'approved',
+            reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            reviewedBy: currentUser ? (currentUser.email || '') : ''
+        });
+        showToast('Review restored to the product page.');
+    } catch (e) {
+        console.error('restoreProductComment error:', e);
+        showToast('Failed to restore review.');
+    }
 };
 
 window.deleteProductComment = async function(commentId) {
