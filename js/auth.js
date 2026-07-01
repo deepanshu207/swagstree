@@ -50,6 +50,7 @@ function updateAdminPrivilegesUI() {
     if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
+    if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
 }
 
 // Global real-time listener for admins
@@ -338,6 +339,7 @@ auth.onAuthStateChanged(user => {
     }
 
     updateAdminPrivilegesUI();
+    if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
     if (typeof loadData === "function") loadData();
 });
 
