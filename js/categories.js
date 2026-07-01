@@ -26,6 +26,16 @@ function getActiveCategories() {
 }
 window.getActiveCategories = getActiveCategories;
 
+function getAllCategoriesSorted() {
+    return [...(window.productCategories || [])].sort((a, b) =>
+        (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || ''))
+    );
+}
+
+function canManageProductCategories() {
+    return typeof isAdmin !== 'undefined' && isAdmin;
+}
+
 function getCategoryById(id) {
     if (!id) return null;
     return (window.productCategories || []).find(c => c.id === id) || null;
@@ -39,10 +49,24 @@ function resolveProductCategoryLabel(product) {
     return cat ? cat.name : '';
 }
 
+function resolveProductCategoryId(product) {
+    if (!product) return '';
+    if (product.categoryId) return product.categoryId;
+    const name = String(product.categoryName || '').trim().toLowerCase();
+    const slug = String(product.categorySlug || '').trim().toLowerCase();
+    if (!name && !slug) return '';
+    const match = (window.productCategories || []).find(c =>
+        (name && String(c.name || '').trim().toLowerCase() === name) ||
+        (slug && String(c.slug || slugifyCategoryName(c.name)).trim().toLowerCase() === slug)
+    );
+    return match ? match.id : '';
+}
+window.resolveProductCategoryId = resolveProductCategoryId;
+
 function getProductCountsByCategory() {
     const counts = {};
     (window.products || []).forEach(p => {
-        const id = p.categoryId || '';
+        const id = resolveProductCategoryId(p) || '';
         counts[id] = (counts[id] || 0) + 1;
     });
     return counts;
@@ -53,14 +77,16 @@ function populateProductCategorySelect(selectedId) {
     const container = document.getElementById('m-category-container');
     if (!select) return;
 
-    const enabled = isProductCategoriesEnabled();
-    if (container) container.style.display = enabled ? 'block' : 'none';
-    if (!enabled) return;
+    const adminCanAssign = canManageProductCategories();
+    const storefrontEnabled = isProductCategoriesEnabled();
+    if (container) container.style.display = (adminCanAssign || storefrontEnabled) ? 'block' : 'none';
+    if (!adminCanAssign && !storefrontEnabled) return;
 
-    const categories = getActiveCategories();
-    select.innerHTML = `<option value="">— No category —</option>` + categories.map(c =>
-        `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${escapeCategoryHtml(c.name)}</option>`
-    ).join('');
+    const categories = adminCanAssign ? getAllCategoriesSorted() : getActiveCategories();
+    select.innerHTML = `<option value="">— No category —</option>` + categories.map(c => {
+        const hiddenLabel = c.isActive === false ? ' (Hidden)' : '';
+        return `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${escapeCategoryHtml(c.name)}${hiddenLabel}</option>`;
+    }).join('');
 }
 
 function escapeCategoryHtml(str) {
@@ -74,7 +100,7 @@ window.escapeCategoryHtml = escapeCategoryHtml;
 
 function readProductCategoryFromForm() {
     const select = document.getElementById('m-category');
-    if (!select || !isProductCategoriesEnabled()) {
+    if (!select || (!isProductCategoriesEnabled() && !canManageProductCategories())) {
         return { categoryId: '', categoryName: '', categorySlug: '' };
     }
     const categoryId = select.value || '';
@@ -143,10 +169,10 @@ function renderHomeCategoryBar() {
     let html = `<button type="button" class="category-pill${active === '' ? ' active' : ''}" onclick="setHomeCategoryFilter('')">All</button>`;
     categories.forEach(cat => {
         const count = counts[cat.id] || 0;
-        if (count === 0 && active !== cat.id) return;
         html += `<button type="button" class="category-pill${active === cat.id ? ' active' : ''}" onclick="setHomeCategoryFilter('${cat.id}')">${escapeCategoryHtml(cat.name)}${count ? `<span class="category-pill-count">${count}</span>` : ''}</button>`;
     });
-    if (uncategorizedCount > 0 && active === '') {
+    const showUncategorizedHint = typeof isAdmin !== 'undefined' && isAdmin;
+    if (showUncategorizedHint && uncategorizedCount > 0 && active === '') {
         html += `<span class="category-pill-hint">${uncategorizedCount} uncategorized</span>`;
     }
 
@@ -198,23 +224,37 @@ window.setFilterCategory = function(el, categoryId) {
     if (typeof applySortAndFilter === 'function') applySortAndFilter();
 };
 
+function renderAdminCategoryBanner() {
+    const banner = document.getElementById('admin-category-storefront-banner');
+    if (!banner) return;
+
+    const storefrontOff = !isProductCategoriesEnabled();
+    const barOff = typeof isCatalogControlEnabled === 'function' && !isCatalogControlEnabled('home', 'categories');
+
+    if (storefrontOff) {
+        banner.innerHTML = '<div class="admin-category-banner admin-category-banner-warn"><i class="fa fa-info-circle"></i> Storefront categories are <strong>disabled</strong> in Superadmin. You can still create categories here and assign them to products — they will appear once you enable <strong>Product Categories</strong>.</div>';
+        banner.style.display = 'block';
+    } else if (barOff) {
+        banner.innerHTML = '<div class="admin-category-banner"><i class="fa fa-info-circle"></i> The home category bar is hidden. Customers can still filter by category in the filter drawer, or enable <strong>Category Bar</strong> in Superadmin.</div>';
+        banner.style.display = 'block';
+    } else {
+        banner.innerHTML = '';
+        banner.style.display = 'none';
+    }
+}
+
 function renderAdminCategoryList() {
     const list = document.getElementById('admin-category-list');
     const section = document.getElementById('admin-category-section');
     if (!list || !section) return;
 
-    if (!isProductCategoriesEnabled()) {
-        section.style.display = 'none';
-        return;
-    }
     section.style.display = 'block';
+    renderAdminCategoryBanner();
 
-    const categories = [...(window.productCategories || [])].sort((a, b) =>
-        (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || ''))
-    );
+    const categories = getAllCategoriesSorted();
 
     if (!categories.length) {
-        list.innerHTML = '<p style="margin:0; font-size:12px; color:#666;">No categories yet. Add your first category below.</p>';
+        list.innerHTML = '<p style="margin:0; font-size:12px; color:#666;">No categories yet. Enter a name below and click <strong>Add Category</strong>.</p>';
         return;
     }
 
@@ -252,6 +292,19 @@ function resetCategoryForm() {
 
 window.openCategoryForm = function() {
     resetCategoryForm();
+};
+
+window.scrollToCategoryAdmin = function() {
+    if (typeof navigateTo === 'function') navigateTo('admin');
+    resetCategoryForm();
+    const section = document.getElementById('admin-category-section');
+    if (section) {
+        setTimeout(() => {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const nameEl = document.getElementById('admin-category-name');
+            if (nameEl) nameEl.focus();
+        }, 150);
+    }
 };
 
 window.editCategory = function(id) {
@@ -293,7 +346,18 @@ window.saveCategory = async function() {
     try {
         if (window.editingCategoryId) {
             await db.collection('categories').doc(window.editingCategoryId).set(payload, { merge: true });
-            showToast('Category updated.');
+            const linkedProducts = (window.products || []).filter(p => p.categoryId === window.editingCategoryId);
+            if (linkedProducts.length) {
+                const batch = db.batch();
+                linkedProducts.forEach(p => {
+                    batch.update(db.collection('products').doc(p.id), {
+                        categoryName: payload.name,
+                        categorySlug: payload.slug
+                    });
+                });
+                await batch.commit();
+            }
+            showToast(linkedProducts.length ? `Category updated (${linkedProducts.length} product${linkedProducts.length === 1 ? '' : 's'} synced).` : 'Category updated.');
         } else {
             payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
             await db.collection('categories').add(payload);
@@ -349,10 +413,23 @@ window.deleteCategory = async function(id) {
     }
 };
 
+function initCategoryFormKeyboard() {
+    const nameEl = document.getElementById('admin-category-name');
+    if (!nameEl || nameEl.dataset.categoryEnterBound) return;
+    nameEl.dataset.categoryEnterBound = '1';
+    nameEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveCategory();
+        }
+    });
+}
+
 function loadProductCategories() {
     if (typeof db === 'undefined') return;
     if (window._categoriesListenerStarted) return;
     window._categoriesListenerStarted = true;
+    initCategoryFormKeyboard();
 
     db.collection('categories').onSnapshot(snap => {
         window.productCategories = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -383,3 +460,4 @@ function applyCategoryDeepLink() {
     }
 }
 window.applyCategoryDeepLink = applyCategoryDeepLink;
+window.renderAdminCategoryList = renderAdminCategoryList;

@@ -1435,7 +1435,7 @@ function getFilteredCatalogProducts() {
     }
 
     if (activeCategory) {
-        filtered = filtered.filter(p => (p.categoryId || '') === activeCategory);
+        filtered = filtered.filter(p => resolveProductCategoryId(p) === activeCategory);
     }
 
     if (filterMinPrice !== null) {

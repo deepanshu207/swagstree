@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=8.4">
+    <link rel="stylesheet" href="css/style.css?v=8.5">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -696,10 +696,13 @@
 
     <!-- SECTION: Admin -->
     <div id="admin-view" class="section">
-        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
                     class="count-badge" style="display:none;">0 Products</span></h3>
-            <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn-gold" style="width:auto; padding:8px 16px; background:#222; border:1px solid #444;" onclick="scrollToCategoryAdmin()">+ Category</button>
+                <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+            </div>
         </div>
 
         <!-- Bulk Operations -->
@@ -722,6 +725,41 @@
                     onclick="deleteAllProducts()">Delete All Products</button>
                 <input type="file" id="import-file-input" accept=".xlsx, .xls" style="display:none;"
                     onchange="importProducts(this)">
+            </div>
+        </div>
+
+        <!-- Product Categories -->
+        <div id="admin-category-section"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-tags" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Product Categories</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Create categories here, then assign them when adding or editing products</p>
+                </div>
+            </div>
+            <div id="admin-category-storefront-banner" style="display:none; margin-bottom:12px;"></div>
+            <div id="admin-category-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
+            <div style="display:grid; grid-template-columns:1fr 90px; gap:10px; align-items:end;">
+                <div>
+                    <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Category name</label>
+                    <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
+                </div>
+                <div>
+                    <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Order</label>
+                    <input id="admin-category-order" type="number" value="0" style="margin:0;">
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#aaa; cursor:pointer; margin:0;">
+                    <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;"> Active on storefront
+                </label>
+                <div style="display:flex; gap:8px;">
+                    <button type="button" class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px; background:#222; border:1px solid #444;"
+                        onclick="openCategoryForm()">Clear</button>
+                    <button type="button" id="admin-category-save-btn" class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px;"
+                        onclick="saveCategory()">Add Category</button>
+                </div>
             </div>
         </div>
 
@@ -766,40 +804,6 @@
                 </div>
                 <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
                     onclick="saveMaxQtySettings()">Save</button>
-            </div>
-        </div>
-
-        <!-- Product Categories -->
-        <div id="admin-category-section"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-tags" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Product Categories</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Organize catalog for home browsing and filters</p>
-                </div>
-            </div>
-            <div id="admin-category-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
-            <div style="display:grid; grid-template-columns:1fr 90px; gap:10px; align-items:end;">
-                <div>
-                    <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Category name</label>
-                    <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
-                </div>
-                <div>
-                    <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Order</label>
-                    <input id="admin-category-order" type="number" value="0" style="margin:0;">
-                </div>
-            </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap;">
-                <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#aaa; cursor:pointer; margin:0;">
-                    <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;"> Active on storefront
-                </label>
-                <div style="display:flex; gap:8px;">
-                    <button type="button" class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px; background:#222; border:1px solid #444;"
-                        onclick="openCategoryForm()">Clear</button>
-                    <button type="button" id="admin-category-save-btn" class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px;"
-                        onclick="saveCategory()">Add Category</button>
-                </div>
             </div>
         </div>
 
@@ -2920,14 +2924,14 @@
     <script src="js/features.js?v=10.0"></script>
     <script src="js/app.js?v=10.0"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/categories.js?v=10.0"></script>
-    <script src="js/store.js?v=10.0"></script>
+    <script src="js/categories.js?v=10.1"></script>
+    <script src="js/store.js?v=10.1"></script>
     <script src="js/checkout.js?v=10.0"></script>
     <script src="js/auth.js?v=10.0"></script>
     <script src="js/comments.js?v=10.0"></script>
     <script src="js/support-chat.js?v=10.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=10.0"></script>
+    <script src="js/admin.js?v=10.1"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

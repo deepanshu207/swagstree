@@ -481,6 +481,7 @@ function renderAdmin() {
             </div>
         </div>
     `}).join(''); 
+    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
 }
 
 function loadMoreAdminProducts() {
