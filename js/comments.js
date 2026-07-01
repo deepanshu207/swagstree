@@ -873,11 +873,13 @@ async function approveProductCommentInternal(commentId) {
     try {
         const relatedSnap = await db.collection('product_comments')
             .where('productId', '==', comment.productId)
-            .where('uid', '==', comment.uid)
             .get();
 
         const batch = db.batch();
         relatedSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.uid !== comment.uid) return;
+
             if (doc.id === commentId) {
                 batch.update(doc.ref, {
                     status: 'approved',
@@ -885,7 +887,7 @@ async function approveProductCommentInternal(commentId) {
                     reviewedBy: currentUser ? (currentUser.email || '') : ''
                 });
             } else {
-                const status = doc.data().status;
+                const status = data.status;
                 if (status === 'approved' || status === 'pending') {
                     batch.delete(doc.ref);
                 }
