@@ -468,7 +468,8 @@ function renderAdminCategoryList() {
     const categories = getAllCategoriesSorted();
 
     if (!categories.length) {
-        list.innerHTML = '<p style="margin:0; font-size:12px; color:#666;">No categories yet. Enter a name below and click <strong>Add Category</strong>.</p>';
+        list.innerHTML = '<p style="margin:0; font-size:12px; color:#666;">No categories yet. Use the form below and click <strong>Add Category</strong>.</p>';
+        updateAdminCategoryCountBadge(0);
         return;
     }
 
@@ -498,6 +499,7 @@ function renderAdminCategoryList() {
             </div>
             <div class="admin-category-actions">
                 <span class="admin-category-status ${active ? 'is-active' : 'is-hidden'}">${active ? 'Active' : 'Hidden'}</span>
+                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="loadCategoryIntoForm('${cat.id}')">Edit in form</button>
                 <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="toggleCategoryActive('${cat.id}')">${active ? 'Hide' : 'Show'}</button>
                 <button type="button" class="btn-gold admin-category-btn admin-category-btn-danger" onclick="deleteCategory('${cat.id}')">Delete</button>
             </div>
@@ -505,7 +507,88 @@ function renderAdminCategoryList() {
     }).join('');
 
     bindAdminCategoryInlineEditors();
+    updateAdminCategoryCountBadge(categories.length);
 }
+
+function updateAdminCategoryCountBadge(count) {
+    const badge = document.getElementById('admin-category-count-badge');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = String(count);
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function openAdminCategoryAccordion() {
+    const content = document.getElementById('admin-category-accordion-content');
+    const icon = document.getElementById('admin-category-accordion-icon');
+    if (!content) return;
+    content.style.display = 'flex';
+    if (icon) icon.style.transform = 'rotate(0deg)';
+}
+
+window.toggleAdminCategoryAccordion = function() {
+    const content = document.getElementById('admin-category-accordion-content');
+    const icon = document.getElementById('admin-category-accordion-icon');
+    if (!content) return;
+
+    if (content.style.display === 'none') {
+        openAdminCategoryAccordion();
+    } else {
+        content.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(-90deg)';
+    }
+};
+
+function updateCategoryFormMode() {
+    const formWrap = document.getElementById('admin-category-form-wrap');
+    const modeLabel = document.getElementById('admin-category-form-mode');
+    const saveBtn = document.getElementById('admin-category-save-btn');
+    const clearBtn = document.getElementById('admin-category-clear-btn');
+    const isEditing = !!window.editingCategoryId;
+    const cat = isEditing ? getCategoryById(window.editingCategoryId) : null;
+
+    if (modeLabel) {
+        modeLabel.textContent = isEditing
+            ? `Editing “${cat?.name || 'category'}” — update fields and click Save Changes`
+            : 'Add a new category';
+        modeLabel.classList.toggle('is-editing', isEditing);
+    }
+    if (saveBtn) {
+        saveBtn.textContent = isEditing ? 'Save Changes' : 'Add Category';
+        saveBtn.classList.toggle('is-editing', isEditing);
+        saveBtn.setAttribute('aria-label', isEditing ? 'Save category changes' : 'Add new category');
+    }
+    if (clearBtn) {
+        clearBtn.textContent = isEditing ? 'Cancel Edit' : 'Clear Form';
+    }
+    if (formWrap) {
+        formWrap.classList.toggle('admin-category-form-editing', isEditing);
+    }
+}
+
+window.loadCategoryIntoForm = function(id) {
+    const cat = getCategoryById(id);
+    if (!cat) return;
+    openAdminCategoryAccordion();
+    window.editingCategoryId = id;
+    const name = document.getElementById('admin-category-name');
+    const order = document.getElementById('admin-category-order');
+    const active = document.getElementById('admin-category-active');
+    if (name) name.value = cat.name || '';
+    if (order) order.value = String(getCategorySortOrder(cat));
+    if (active) active.checked = cat.isActive !== false;
+    updateCategoryFormMode();
+    const formWrap = document.getElementById('admin-category-form-wrap');
+    if (formWrap) {
+        setTimeout(() => {
+            formWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            if (name) name.focus();
+        }, 120);
+    }
+};
 
 function bindAdminCategoryInlineEditors() {
     document.querySelectorAll('#admin-category-list .admin-category-inline-input').forEach(el => {
@@ -590,11 +673,10 @@ function resetCategoryForm() {
     const name = document.getElementById('admin-category-name');
     const order = document.getElementById('admin-category-order');
     const active = document.getElementById('admin-category-active');
-    const saveBtn = document.getElementById('admin-category-save-btn');
     if (name) name.value = '';
     if (order) order.value = '0';
     if (active) active.checked = true;
-    if (saveBtn) saveBtn.textContent = 'Add Category';
+    updateCategoryFormMode();
 }
 
 window.openCategoryForm = function() {
@@ -604,6 +686,7 @@ window.openCategoryForm = function() {
 window.scrollToCategoryAdmin = function() {
     if (typeof navigateTo === 'function') navigateTo('admin');
     resetCategoryForm();
+    openAdminCategoryAccordion();
     const section = document.getElementById('admin-category-section');
     if (section) {
         setTimeout(() => {
@@ -615,26 +698,7 @@ window.scrollToCategoryAdmin = function() {
 };
 
 window.editCategory = function(id) {
-    const cat = getCategoryById(id);
-    if (!cat) return;
-    const row = document.querySelector(`.admin-category-row[data-category-id="${id}"]`);
-    if (row) {
-        const nameEl = row.querySelector('.admin-category-inline-name');
-        if (nameEl) {
-            nameEl.focus();
-            nameEl.select();
-            return;
-        }
-    }
-    window.editingCategoryId = id;
-    const name = document.getElementById('admin-category-name');
-    const order = document.getElementById('admin-category-order');
-    const active = document.getElementById('admin-category-active');
-    const saveBtn = document.getElementById('admin-category-save-btn');
-    if (name) name.value = cat.name || '';
-    if (order) order.value = String(getCategorySortOrder(cat));
-    if (active) active.checked = cat.isActive !== false;
-    if (saveBtn) saveBtn.textContent = 'Update Category';
+    loadCategoryIntoForm(id);
 };
 
 window.saveCategory = async function() {
@@ -745,6 +809,7 @@ function initCategoryFormKeyboard() {
             saveCategory();
         }
     });
+    updateCategoryFormMode();
 }
 
 function loadProductCategories() {
