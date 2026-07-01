@@ -85,7 +85,56 @@ function isLoggedInCustomer() {
 }
 
 function canUseStorefrontLiveSupport() {
-    return isAdminSupportChatEnabled() && isLoggedInCustomer();
+    return isAdminSupportChatEnabled() && (isLoggedInCustomer() || hasGuestLiveSupportContact());
+}
+
+function appendGuestLiveSupportSignInReply() {
+    appendSupportBubble(
+        'bot',
+        'To reach our **support team**, please **sign in** so we can link your orders.\n\nYou can also type your **email address** in this chat to continue as a guest.',
+        `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+            <button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin:0;" onclick="navigateTo('user'); toggleAIChat();">Sign In</button>
+        </div>`,
+        SUPPORT_CHANNEL
+    );
+}
+
+async function tryCaptureGuestEmailFromMessage(text) {
+    const email = normalizeSupportEmail(text);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+
+    try {
+        localStorage.setItem('swagstree_guest_email', email);
+    } catch (e) { /* ignore */ }
+
+    const threadId = getCurrentCustomerThreadId();
+    const profile = { ...getCustomerProfile(), email };
+    try {
+        await ensureSupportThread(threadId, profile);
+        await db.collection('support_threads').doc(threadId).set({
+            customerEmail: email,
+            customerName: profile.name || 'Guest'
+        }, { merge: true });
+
+        const guestDocId = typeof buildGuestCustomerDocId === 'function'
+            ? buildGuestCustomerDocId(email)
+            : null;
+        if (guestDocId) {
+            await db.collection('users').doc(guestDocId).set({
+                email,
+                displayName: (profile.name || email.split('@')[0]).trim(),
+                phone: (profile.phone || '').trim(),
+                isGuest: true,
+                guestSupport: true,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+    } catch (e) {
+        console.warn('Could not save guest email from chat:', e);
+    }
+
+    applySupportChatTabsVisibility();
+    return true;
 }
 
 function applySupportChatTabsVisibility() {
@@ -991,19 +1040,18 @@ function updateSupportChatTabUI(tab) {
 window.switchSupportChatTab = function(tab) {
     if (tab !== 'ai' && tab !== 'admin') return;
     if (tab === 'ai' && !isAiChatEnabled()) return;
-    if (tab === 'admin' && !canUseStorefrontLiveSupport()) {
-        if (typeof showToast === 'function') {
-            showToast('Sign in to message our support team live.');
-        }
-        return;
-    }
+    if (tab === 'admin' && !isAdminSupportChatEnabled()) return;
+
     updateSupportChatTabUI(tab);
     showChatBodyForTab(tab);
     if (tab === 'admin') {
         const body = getChatBody(SUPPORT_CHANNEL);
         const hasAdminHint = body && body.querySelector('[data-admin-tab-hint]');
         if (body && !hasAdminHint && body.childElementCount === 0) {
-            appendSupportBubble('bot', 'You are now in **Live Support**. Tell us your issue and a real admin will reply in this chat.', '', SUPPORT_CHANNEL);
+            const welcome = canUseStorefrontLiveSupport()
+                ? 'You are now in **Live Support**. Tell us your issue and our team will reply here.'
+                : 'Welcome to **Live Support**. Type your question below — sign in or share your email when prompted so we can reply here.';
+            appendSupportBubble('bot', welcome, '', SUPPORT_CHANNEL);
             const last = body.lastElementChild;
             if (last) last.setAttribute('data-admin-tab-hint', '1');
         }
@@ -1329,16 +1377,34 @@ async function syncSupportChatHeaderFromThread(threadId) {
 }
 
 async function handleAdminSupportMessage(text) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+
+    appendSupportBubble('customer', trimmed, '', SUPPORT_CHANNEL);
+
+    if (!canUseStorefrontLiveSupport()) {
+        if (await tryCaptureGuestEmailFromMessage(trimmed)) {
+            appendSupportBubble(
+                'bot',
+                'Thanks! Your email is saved. Send your support request and our **team will reply here**.',
+                '',
+                SUPPORT_CHANNEL
+            );
+            return;
+        }
+        appendGuestLiveSupportSignInReply();
+        return;
+    }
+
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
     await ensureSupportThread(threadId, profile);
 
     window.supportChatState.loaded = true;
-    appendSupportBubble('customer', text, '', SUPPORT_CHANNEL);
 
     const customerMsg = {
         sender: 'customer',
-        text,
+        text: trimmed,
         type: 'complaint',
         customerName: profile.name,
         customerEmail: profile.email,
@@ -1515,20 +1581,8 @@ async function handleAiSupportMessage(text) {
 async function handleSupportCustomerMessage(text) {
     const q = (text || '').trim().toLowerCase();
     if (window.supportChatState.activeTab === 'ai' && isAdminSupportChatEnabled() && /contact support|talk to admin|live support|speak to support/.test(q)) {
-        if (!isLoggedInCustomer()) {
-            appendSupportBubble(
-                'bot',
-                'For **live support**, please **sign in** to your account so we can link your orders.\n\nYou can keep asking me about products, prices, and orders here.',
-                `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-                    <button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin:0;" onclick="navigateTo('user'); toggleAIChat();">Sign In</button>
-                    ${getContactInfoHtml()}
-                </div>`,
-                AI_CHANNEL
-            );
-            return;
-        }
         switchSupportChatTab('admin');
-        return;
+        return handleAdminSupportMessage(text);
     }
     if (window.supportChatState.activeTab === 'admin') {
         return handleAdminSupportMessage(text);
@@ -1568,7 +1622,7 @@ function subscribeCustomerThread(threadId) {
                     }
                     appendSupportBubble('bot', welcome, '', AI_CHANNEL);
                 }
-                if (isAdminSupportChatEnabled() && isLoggedInCustomer() && !split.support.length) {
+                if (isAdminSupportChatEnabled() && canUseStorefrontLiveSupport() && !split.support.length) {
                     const hint = getChatBody(SUPPORT_CHANNEL);
                     if (hint && !hint.querySelector('[data-admin-tab-hint]')) {
                         appendSupportBubble('bot', 'Welcome to **Live Support**. Describe your issue and our team will reply here.', '', SUPPORT_CHANNEL);
