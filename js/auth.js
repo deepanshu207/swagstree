@@ -2372,10 +2372,12 @@ async function loadSuperadminFeatures() {
                 if (document.getElementById('toggle-home-sort')) document.getElementById('toggle-home-sort').checked = cc.home?.sort !== false;
                 if (document.getElementById('toggle-home-announcement')) document.getElementById('toggle-home-announcement').checked = cc.home?.announcement !== false;
                 if (document.getElementById('toggle-home-chat')) document.getElementById('toggle-home-chat').checked = cc.home?.chat !== false;
+                if (document.getElementById('toggle-home-categories')) document.getElementById('toggle-home-categories').checked = cc.home?.categories !== false;
                 if (document.getElementById('toggle-wish-search')) document.getElementById('toggle-wish-search').checked = !!cc.wishlist?.search;
                 if (document.getElementById('toggle-wish-sort')) document.getElementById('toggle-wish-sort').checked = cc.wishlist?.sort !== false;
                 if (document.getElementById('toggle-wish-announcement')) document.getElementById('toggle-wish-announcement').checked = !!cc.wishlist?.announcement;
                 if (document.getElementById('toggle-wish-chat')) document.getElementById('toggle-wish-chat').checked = !!cc.wishlist?.chat;
+                if (document.getElementById('toggle-wish-categories')) document.getElementById('toggle-wish-categories').checked = !!cc.wishlist?.categories;
             }
             
             toggleCustomColorPickers(data.themePreset || 'outlaw');
@@ -2430,7 +2432,8 @@ async function saveSuperadminFeatures() {
                 search: !!document.getElementById('toggle-wish-search')?.checked,
                 sort: !!document.getElementById('toggle-wish-sort')?.checked,
                 announcement: !!document.getElementById('toggle-wish-announcement')?.checked,
-                chat: !!document.getElementById('toggle-wish-chat')?.checked
+                chat: !!document.getElementById('toggle-wish-chat')?.checked,
+                categories: !!document.getElementById('toggle-wish-categories')?.checked
             }
         }
     };

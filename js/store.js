@@ -6,7 +6,8 @@
 if (typeof window.filterActiveColors === 'undefined') window.filterActiveColors = [];
 if (typeof window.filterActiveSizes === 'undefined') window.filterActiveSizes = [];
 if (typeof window.filterActivePatterns === 'undefined') window.filterActivePatterns = [];
-if (typeof window.filterActiveCategory === 'undefined') window.filterActiveCategory = '';
+if (typeof window.homeFilterActiveCategories === 'undefined') window.homeFilterActiveCategories = [];
+if (typeof window.wishFilterActiveCategories === 'undefined') window.wishFilterActiveCategories = [];
 if (typeof window.filterMinPrice === 'undefined') window.filterMinPrice = null;
 if (typeof window.filterMaxPrice === 'undefined') window.filterMaxPrice = null;
 if (typeof window.priceAbsoluteMin === 'undefined') window.priceAbsoluteMin = 0;
@@ -308,6 +309,7 @@ function loadData() {
         renderStore();
         renderFilters();
         if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+        if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
         if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
         if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
         if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
@@ -387,6 +389,16 @@ function renderStore() {
     const wishQ = wishSearchEl ? wishSearchEl.value.trim().toLowerCase() : '';
     if (wishQ) {
         wishProducts = wishProducts.filter(p => (p.name || '').toLowerCase().includes(wishQ));
+    }
+
+    const wishCategories = window.wishFilterActiveCategories || [];
+    if (wishCategories.length) {
+        wishProducts = wishProducts.filter(p => {
+            if (typeof productMatchesCategoryFilters === 'function') {
+                return productMatchesCategoryFilters(p, wishCategories);
+            }
+            return wishCategories.some(id => (p.categoryId || '') === id);
+        });
     }
     
     if (sort === 'low') wishProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
@@ -1465,7 +1477,6 @@ function getStorefrontSearchQuery() {
 function getFilteredCatalogProducts() {
     let filtered = [...products];
     const q = getStorefrontSearchQuery();
-    const activeCategory = window.filterActiveCategory || filterActiveCategory || '';
     if (q) {
         filtered = filtered.filter(p => {
             const categoryLabel = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || '');
@@ -1474,10 +1485,15 @@ function getFilteredCatalogProducts() {
         });
     }
 
-    if (activeCategory) {
+    const activeCategories = typeof window.homeFilterActiveCategories !== 'undefined'
+        ? (window.homeFilterActiveCategories || [])
+        : (window.filterActiveCategory ? [window.filterActiveCategory] : []);
+    if (activeCategories.length) {
         filtered = filtered.filter(p => {
-            if (typeof productHasCategory === 'function') return productHasCategory(p, activeCategory);
-            return (p.categoryId || '') === activeCategory;
+            if (typeof productMatchesCategoryFilters === 'function') {
+                return productMatchesCategoryFilters(p, activeCategories);
+            }
+            return activeCategories.some(id => (p.categoryId || '') === id);
         });
     }
 
@@ -1958,6 +1974,7 @@ function resetFilters() {
     filterActivePatterns = [];
     filterActiveCategory = '';
     window.filterActiveCategory = '';
+    window.homeFilterActiveCategories = [];
 
     filterMinPrice = priceAbsoluteMin;
     filterMaxPrice = priceAbsoluteMax;
@@ -1985,6 +2002,7 @@ function resetFilters() {
 
     document.querySelectorAll('#filter-slider .size-chip, #filter-slider .color-chip').forEach(c => c.classList.remove('active'));
     if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
     if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
     applySortAndFilter();
 }

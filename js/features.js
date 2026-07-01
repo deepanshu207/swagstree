@@ -26,8 +26,8 @@ window.APP_FEATURES = window.APP_FEATURES || {
         phone: true
     },
     catalogControls: {
-        home: { search: true, sort: true, announcement: true, chat: true },
-        wishlist: { search: false, sort: true, announcement: false, chat: false }
+        home: { search: true, sort: true, announcement: true, chat: true, categories: true },
+        wishlist: { search: false, sort: true, announcement: false, chat: false, categories: false }
     }
 };
 
@@ -1308,6 +1308,7 @@ function isCatalogControlEnabled(view, feature) {
     const cc = normalizeCatalogControls(config);
     const viewKey = view === 'wishlist' ? 'wishlist' : 'home';
     const enabled = !!cc[viewKey]?.[feature];
+    if (feature === 'categories') return config.productCategories !== false && enabled;
     if (feature === 'chat') return isSupportChatGloballyEnabled(config) && enabled;
     if (feature === 'announcement') return config.announcementBell !== false && enabled;
     return enabled;
@@ -1325,7 +1326,8 @@ function syncCatalogControlCheckboxes(config) {
         ['toggle-wish-search', cc.wishlist.search],
         ['toggle-wish-sort', cc.wishlist.sort],
         ['toggle-wish-announcement', cc.wishlist.announcement],
-        ['toggle-wish-chat', cc.wishlist.chat]
+        ['toggle-wish-chat', cc.wishlist.chat],
+        ['toggle-wish-categories', cc.wishlist.categories]
     ];
     map.forEach(([id, checked]) => {
         const el = document.getElementById(id);
@@ -1399,6 +1401,7 @@ function applyCatalogControlsVisibility() {
     window._featuresUiApplied = true;
     if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
     if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
     if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
     syncCatalogControlsReady();
 }
@@ -1539,6 +1542,7 @@ function applyFeatureTogglesUI() {
     }
     if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
     if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
     if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
 
     applyCatalogControlsVisibility();

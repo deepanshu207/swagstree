@@ -4,7 +4,92 @@
 
 window.productCategories = window.productCategories || [];
 window.filterActiveCategory = window.filterActiveCategory || '';
+window.homeFilterActiveCategories = window.homeFilterActiveCategories || [];
+window.wishFilterActiveCategories = window.wishFilterActiveCategories || [];
 window.categoriesLoaded = false;
+
+if (window.filterActiveCategory && !window.homeFilterActiveCategories.length) {
+    window.homeFilterActiveCategories = [window.filterActiveCategory];
+}
+
+function normalizeCategoryFilterIds(ids) {
+    return [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
+}
+
+function getCategoryFiltersForView(view) {
+    return view === 'wishlist' ? window.wishFilterActiveCategories : window.homeFilterActiveCategories;
+}
+
+function setCategoryFiltersForView(view, ids) {
+    const normalized = normalizeCategoryFilterIds(ids);
+    if (view === 'wishlist') {
+        window.wishFilterActiveCategories = normalized;
+    } else {
+        window.homeFilterActiveCategories = normalized;
+        window.filterActiveCategory = normalized[0] || '';
+        if (typeof filterActiveCategory !== 'undefined') filterActiveCategory = window.filterActiveCategory;
+    }
+}
+
+function isCategoryBarEnabledForView(view) {
+    if (!isProductCategoriesEnabled()) return false;
+    return typeof isCatalogControlEnabled === 'function' && isCatalogControlEnabled(view, 'categories');
+}
+
+function productMatchesCategoryFilters(product, categoryIds) {
+    const ids = normalizeCategoryFilterIds(categoryIds);
+    if (!ids.length) return true;
+    return ids.some(id => productHasCategory(product, id));
+}
+window.productMatchesCategoryFilters = productMatchesCategoryFilters;
+
+function toggleCategoryFilterForView(view, categoryId) {
+    const current = [...getCategoryFiltersForView(view)];
+    if (!categoryId) {
+        setCategoryFiltersForView(view, []);
+        return;
+    }
+    const idx = current.indexOf(categoryId);
+    if (idx >= 0) current.splice(idx, 1);
+    else current.push(categoryId);
+    setCategoryFiltersForView(view, current);
+}
+
+function renderCategoryBarForView(view, barId) {
+    const bar = document.getElementById(barId);
+    if (!bar) return;
+
+    if (!isCategoryBarEnabledForView(view)) {
+        bar.style.display = 'none';
+        bar.innerHTML = '';
+        return;
+    }
+
+    const categories = getActiveCategories();
+    if (!categories.length) {
+        bar.style.display = 'none';
+        bar.innerHTML = '';
+        return;
+    }
+
+    const counts = getProductCountsByCategory();
+    const uncategorizedCount = counts[''] || 0;
+    const activeIds = getCategoryFiltersForView(view);
+    const toggleFn = view === 'wishlist' ? 'toggleWishCategoryFilter' : 'toggleHomeCategoryFilter';
+
+    let html = `<button type="button" class="category-pill${activeIds.length === 0 ? ' active' : ''}" onclick="${toggleFn}('')">All</button>`;
+    categories.forEach(cat => {
+        const count = counts[cat.id] || 0;
+        html += `<button type="button" class="category-pill${activeIds.includes(cat.id) ? ' active' : ''}" onclick="${toggleFn}('${cat.id}')">${escapeCategoryHtml(cat.name)}${count ? `<span class="category-pill-count">${count}</span>` : ''}</button>`;
+    });
+    const showUncategorizedHint = typeof isAdmin !== 'undefined' && isAdmin && view === 'home';
+    if (showUncategorizedHint && uncategorizedCount > 0 && activeIds.length === 0) {
+        html += `<span class="category-pill-hint">${uncategorizedCount} uncategorized</span>`;
+    }
+
+    bar.innerHTML = html;
+    bar.style.display = 'flex';
+}
 
 function isProductCategoriesEnabled() {
     return !!(window.APP_FEATURES && window.APP_FEATURES.productCategories !== false);
@@ -285,46 +370,20 @@ function escapeCategoryHtml(str) {
 window.escapeCategoryHtml = escapeCategoryHtml;
 
 function renderHomeCategoryBar() {
-    const bar = document.getElementById('home-category-bar');
-    if (!bar) return;
-
-    if (!isProductCategoriesEnabled() || !isCatalogControlEnabled('home', 'categories')) {
-        bar.style.display = 'none';
-        bar.innerHTML = '';
-        return;
-    }
-
-    const categories = getActiveCategories();
-    if (!categories.length) {
-        bar.style.display = 'none';
-        bar.innerHTML = '';
-        return;
-    }
-
-    const counts = getProductCountsByCategory();
-    const uncategorizedCount = counts[''] || 0;
-    const active = window.filterActiveCategory || '';
-
-    let html = `<button type="button" class="category-pill${active === '' ? ' active' : ''}" onclick="setHomeCategoryFilter('')">All</button>`;
-    categories.forEach(cat => {
-        const count = counts[cat.id] || 0;
-        html += `<button type="button" class="category-pill${active === cat.id ? ' active' : ''}" onclick="setHomeCategoryFilter('${cat.id}')">${escapeCategoryHtml(cat.name)}${count ? `<span class="category-pill-count">${count}</span>` : ''}</button>`;
-    });
-    const showUncategorizedHint = typeof isAdmin !== 'undefined' && isAdmin;
-    if (showUncategorizedHint && uncategorizedCount > 0 && active === '') {
-        html += `<span class="category-pill-hint">${uncategorizedCount} uncategorized</span>`;
-    }
-
-    bar.innerHTML = html;
-    bar.style.display = 'flex';
+    renderCategoryBarForView('home', 'home-category-bar');
 }
+
+function renderWishCategoryBar() {
+    renderCategoryBarForView('wishlist', 'wish-category-bar');
+}
+window.renderWishCategoryBar = renderWishCategoryBar;
 
 function renderCategoryFilterChips() {
     const group = document.getElementById('filter-category-group');
     const container = document.getElementById('filter-categories');
     if (!group || !container) return;
 
-    if (!isProductCategoriesEnabled()) {
+    if (!isCategoryBarEnabledForView('home')) {
         group.style.display = 'none';
         container.innerHTML = '';
         return;
@@ -338,25 +397,32 @@ function renderCategoryFilterChips() {
     }
 
     group.style.display = 'block';
-    const active = window.filterActiveCategory || '';
-    container.innerHTML = `<div class="size-chip${active === '' ? ' active' : ''}" onclick="setFilterCategory(this, '')">All</div>` +
+    const activeIds = getCategoryFiltersForView('home');
+    container.innerHTML = `<div class="size-chip${activeIds.length === 0 ? ' active' : ''}" onclick="setFilterCategory(this, '')">All</div>` +
         categories.map(cat =>
-            `<div class="size-chip${active === cat.id ? ' active' : ''}" onclick="setFilterCategory(this, '${cat.id}')">${escapeCategoryHtml(cat.name)}</div>`
+            `<div class="size-chip${activeIds.includes(cat.id) ? ' active' : ''}" onclick="setFilterCategory(this, '${cat.id}')">${escapeCategoryHtml(cat.name)}</div>`
         ).join('');
 }
 
-window.setHomeCategoryFilter = function(categoryId) {
-    window.filterActiveCategory = categoryId || '';
-    filterActiveCategory = window.filterActiveCategory;
+window.toggleHomeCategoryFilter = function(categoryId) {
+    toggleCategoryFilterForView('home', categoryId || '');
     displayedProductsLimit = productsPageLimitSetting;
     renderHomeCategoryBar();
     renderCategoryFilterChips();
     if (typeof applySortAndFilter === 'function') applySortAndFilter();
 };
 
+window.toggleWishCategoryFilter = function(categoryId) {
+    toggleCategoryFilterForView('wishlist', categoryId || '');
+    displayedWishlistLimit = productsPageLimitSetting;
+    renderWishCategoryBar();
+    if (typeof renderStore === 'function') renderStore();
+};
+
+window.setHomeCategoryFilter = window.toggleHomeCategoryFilter;
+
 window.setFilterCategory = function(el, categoryId) {
-    window.filterActiveCategory = categoryId || '';
-    filterActiveCategory = window.filterActiveCategory;
+    toggleCategoryFilterForView('home', categoryId || '');
     displayedProductsLimit = productsPageLimitSetting;
     renderHomeCategoryBar();
     renderCategoryFilterChips();
@@ -368,13 +434,20 @@ function renderAdminCategoryBanner() {
     if (!banner) return;
 
     const storefrontOff = !isProductCategoriesEnabled();
-    const barOff = typeof isCatalogControlEnabled === 'function' && !isCatalogControlEnabled('home', 'categories');
+    const homeBarOff = typeof isCatalogControlEnabled === 'function' && !isCatalogControlEnabled('home', 'categories');
+    const wishBarOff = typeof isCatalogControlEnabled === 'function' && !isCatalogControlEnabled('wishlist', 'categories');
 
     if (storefrontOff) {
         banner.innerHTML = '<div class="admin-category-banner admin-category-banner-warn"><i class="fa fa-info-circle"></i> Storefront categories are <strong>disabled</strong> in Superadmin. You can still create categories here and assign them to products — they will appear once you enable <strong>Product Categories</strong>.</div>';
         banner.style.display = 'block';
-    } else if (barOff) {
-        banner.innerHTML = '<div class="admin-category-banner"><i class="fa fa-info-circle"></i> The home category bar is hidden. Customers can still filter by category in the filter drawer, or enable <strong>Category Bar</strong> in Superadmin.</div>';
+    } else if (homeBarOff && wishBarOff) {
+        banner.innerHTML = '<div class="admin-category-banner"><i class="fa fa-info-circle"></i> Category bars are hidden on Home and Wishlist. Enable <strong>Category Bar</strong> under Catalog Controls in Superadmin.</div>';
+        banner.style.display = 'block';
+    } else if (homeBarOff) {
+        banner.innerHTML = '<div class="admin-category-banner"><i class="fa fa-info-circle"></i> The home category bar is hidden. Enable <strong>Category Bar</strong> under Home Catalog Controls in Superadmin.</div>';
+        banner.style.display = 'block';
+    } else if (wishBarOff) {
+        banner.innerHTML = '<div class="admin-category-banner"><i class="fa fa-info-circle"></i> The wishlist category bar is hidden. Enable <strong>Category Bar</strong> under Wishlist Catalog Controls in Superadmin.</div>';
         banner.style.display = 'block';
     } else {
         banner.innerHTML = '';
@@ -697,6 +770,7 @@ function loadProductCategories() {
         renderProductCategoryCheckboxes(selected);
         renderAdminCategoryList();
         renderHomeCategoryBar();
+        renderWishCategoryBar();
         renderCategoryFilterChips();
         if (typeof renderAdmin === 'function') renderAdmin();
     }, err => {
@@ -714,7 +788,7 @@ function applyCategoryDeepLink() {
         (c.slug || slugifyCategoryName(c.name)) === slug.toLowerCase()
     );
     if (match) {
-        window.filterActiveCategory = match.id;
+        setCategoryFiltersForView('home', [match.id]);
         renderHomeCategoryBar();
         renderCategoryFilterChips();
     }

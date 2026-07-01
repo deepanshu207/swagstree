@@ -5254,8 +5254,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     background: rgba(255, 165, 0, 0.08);
     border-color: rgba(255, 165, 0, 0.2);
 }
+.wish-category-bar {
+    padding: 0 15px 10px;
+}
 @media (max-width: 480px) {
-    .home-category-bar {
+    .home-category-bar,
+    .wish-category-bar {
         padding-bottom: 8px;
     }
     .category-pill {
