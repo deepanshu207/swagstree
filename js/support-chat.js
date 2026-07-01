@@ -1125,11 +1125,12 @@ function hasSupportChatCapability() {
 
 window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride) {
     if (!isAdmin || !hasSupportChatCapability()) return showToast('You do not have permission to manage support chats.');
-    if (typeof isGuestCustomerRecord === 'function' && isGuestCustomerRecord({ uid, email })) {
-        return showToast('Guest checkout has no profile chat — use Support Inbox for anonymous visitors.');
-    }
     const threadId = threadIdOverride || getCustomerThreadIdForUser(uid);
-    if (!threadId) return showToast('Unable to create a console thread.');
+    if (!threadId) return showToast('Unable to open this conversation.');
+    // Block only Manage Customers profile chat for guest checkout records — Support Inbox always passes threadId
+    if (!threadIdOverride && typeof isGuestCustomerRecord === 'function' && isGuestCustomerRecord({ uid, email })) {
+        return showToast('Guest checkout has no profile chat — use Support Inbox below.');
+    }
     window.supportChatState.adminThreadId = threadId;
 
     document.getElementById('admin-customer-chat-name').textContent = name || 'Customer';
@@ -1451,9 +1452,7 @@ function renderAdminSupportInbox() {
         const safeEmail = (t.customerEmail || '').replace(/'/g, "\\'");
         const safeName = (t.customerName || 'Customer').replace(/'/g, "\\'");
         const safeThreadId = (t.id || '').replace(/'/g, "\\'");
-        const openArgs = t.customerUid
-            ? `'${safeUid}','${safeEmail}','${safeName}'`
-            : `'','${safeEmail}','${safeName}','${safeThreadId}'`;
+        const openArgs = `'${safeUid}','${safeEmail}','${safeName}','${safeThreadId}'`;
         const previewPrefix = getAdminPreviewPrefix(t.lastMessageSender || 'customer');
         const previewText = t.lastMessagePreview || 'No messages yet';
         return `
