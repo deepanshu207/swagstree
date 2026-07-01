@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=6.9">
+    <link rel="stylesheet" href="css/style.css?v=6.10">
 </head>
 
 <body class="footer-hidden catalog-controls-pending">
@@ -1405,8 +1405,29 @@
                     style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg);"></i>
             </div>
             <div id="admin-support-accordion-content"
-                style="display:none; margin-top:15px; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto;">
-                <div id="admin-support-inbox-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+                style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
+                <div class="admin-support-inbox-toolbar">
+                    <div class="admin-support-inbox-search-wrap">
+                        <i class="fa fa-search"></i>
+                        <input type="search" id="admin-support-inbox-search"
+                            placeholder="Search name, email, or message..."
+                            oninput="onAdminSupportInboxSearch(this.value)">
+                    </div>
+                </div>
+                <div class="admin-support-inbox-tabs">
+                    <button type="button" id="admin-support-tab-registered" class="admin-support-inbox-tab active"
+                        onclick="setAdminSupportInboxTab('registered')">
+                        <i class="fa fa-user-check"></i> Registered
+                        <span id="admin-support-tab-registered-count" class="admin-support-inbox-tab-count">0</span>
+                    </button>
+                    <button type="button" id="admin-support-tab-guests" class="admin-support-inbox-tab"
+                        onclick="setAdminSupportInboxTab('guests')">
+                        <i class="fa fa-user-secret"></i> Guests
+                        <span id="admin-support-tab-guests-count" class="admin-support-inbox-tab-count">0</span>
+                    </button>
+                </div>
+                <div id="admin-support-inbox-list" class="admin-support-inbox-list"></div>
+                <div id="admin-support-inbox-pagination" class="admin-support-inbox-pagination"></div>
             </div>
         </div>
 
@@ -2773,6 +2794,33 @@
         </div>
     </div>
 
+    <!-- Guest Live Support Contact Modal -->
+    <div id="guest-support-contact-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index:2400;">
+        <div class="modal-box" style="max-width:400px; width:92%; padding:20px;">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:12px;">
+                <div>
+                    <h3 style="margin:0; font-size:15px;">Contact for Live Support</h3>
+                    <p style="margin:6px 0 0; font-size:11px; color:#888; line-height:1.5;">
+                        Enter your email so our team can reply, or sign in for order-linked support.
+                    </p>
+                </div>
+                <span onclick="closeModal('guest-support-contact-modal')" style="cursor:pointer; font-size:22px; color:#888; line-height:1;">&times;</span>
+            </div>
+            <input type="email" id="guest-support-contact-email" placeholder="you@example.com"
+                style="margin:0 0 12px 0; font-size:13px;"
+                onkeydown="if(event.key==='Enter') submitGuestSupportContact()">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn-gold" style="flex:1; min-width:120px; margin:0; font-size:12px;" onclick="submitGuestSupportContact()">
+                    Continue with Email
+                </button>
+                <button class="btn-gold" style="flex:1; min-width:120px; margin:0; font-size:12px; background:#222; border:1px solid #444;"
+                    onclick="goToSignInFromGuestSupport()">
+                    Sign In
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin Customer Chat Modal -->
     <div id="admin-customer-chat-modal" class="modal" style="display:none; align-items:center; justify-content:center; z-index:2500;">
         <div class="modal-box" style="max-width:480px; width:92%; padding:0; overflow:hidden; display:flex; flex-direction:column; max-height:85vh;">
@@ -2795,18 +2843,18 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.78"></script>
-    <script src="js/app.js?v=9.78"></script>
-    <script src="js/footer-templates.js?v=9.78"></script>
-    <script src="js/store.js?v=9.78"></script>
-    <script src="js/checkout.js?v=9.78"></script>
-    <script src="js/auth.js?v=9.78"></script>
-    <script src="js/comments.js?v=9.78"></script>
-    <script src="js/support-chat.js?v=9.78"></script>
-    <script src="js/auto-retention.js?v=9.78"></script>
-    <script src="js/admin.js?v=9.78"></script>
-    <script src="js/cloudinary-admin.js?v=9.78"></script>
-    <script src="js/bind-globals.js?v=9.78"></script>
+    <script src="js/features.js?v=9.79"></script>
+    <script src="js/app.js?v=9.79"></script>
+    <script src="js/footer-templates.js?v=9.79"></script>
+    <script src="js/store.js?v=9.79"></script>
+    <script src="js/checkout.js?v=9.79"></script>
+    <script src="js/auth.js?v=9.79"></script>
+    <script src="js/comments.js?v=9.79"></script>
+    <script src="js/support-chat.js?v=9.79"></script>
+    <script src="js/auto-retention.js?v=9.79"></script>
+    <script src="js/admin.js?v=9.79"></script>
+    <script src="js/cloudinary-admin.js?v=9.79"></script>
+    <script src="js/bind-globals.js?v=9.79"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">

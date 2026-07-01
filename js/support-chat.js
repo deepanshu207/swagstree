@@ -28,6 +28,15 @@ let supportAdminNotifyUnsub = null;
 let supportNotifyInitialized = false;
 const supportSeenAdminMsgIds = new Set();
 window.supportThreadsCache = window.supportThreadsCache || [];
+window.adminSupportInboxState = window.adminSupportInboxState || {
+    activeTab: 'registered',
+    search: '',
+    page: 1,
+    pageSize: 10
+};
+
+const STAFF_ADMIN_EMAILS = ['admin@swagstree.com', 'superadmin@swagstree.com'];
+const ADMIN_SUPPORT_INBOX_FETCH_LIMIT = 100;
 
 const AI_SUPPORT_CHIPS = [
     'Suggest outfits under ₹1000',
@@ -173,6 +182,185 @@ function getSupportVisitorBadgeHtml(thread) {
     };
     const c = colors[label] || colors['Guest visitor'];
     return `<span style="font-size:9px;background:${c.bg};color:${c.fg};padding:2px 6px;border-radius:8px;">${escHtml(label)}</span>`;
+}
+
+function getStaffAdminEmails() {
+    const emails = new Set(STAFF_ADMIN_EMAILS.map(e => e.toLowerCase()));
+    if (typeof assignedAdmins !== 'undefined' && Array.isArray(assignedAdmins)) {
+        assignedAdmins.forEach(a => {
+            if (a.email) emails.add(a.email.toLowerCase());
+        });
+    }
+    return emails;
+}
+
+function isRegisteredSupportThread(thread) {
+    if (!thread) return false;
+    const uid = (thread.customerUid || '').trim();
+    if (uid && !isGuestSupportUid(uid)) return true;
+    const threadId = (thread.id || '').trim();
+    if (threadId.startsWith('uid_')) {
+        const threadUid = threadId.slice(4);
+        if (threadUid && !isGuestSupportUid(threadUid)) return true;
+    }
+    return false;
+}
+
+function isGuestSupportThread(thread) {
+    return !isRegisteredSupportThread(thread);
+}
+
+function isStaffSelfSupportThread(thread) {
+    if (!thread) return false;
+    const staffEmails = getStaffAdminEmails();
+    const email = normalizeSupportEmail(thread.customerEmail);
+    if (email && staffEmails.has(email)) return true;
+
+    const uid = (thread.customerUid || '').trim();
+    if (uid && currentUser && isAdmin && currentUser.uid === uid) return true;
+
+    const threadId = (thread.id || '').trim();
+    if (currentUser && isAdmin && threadId === getCustomerThreadIdForUser(currentUser.uid)) return true;
+
+    return false;
+}
+
+function getSupportInboxThreads(includeStaff) {
+    return (window.supportThreadsCache || [])
+        .filter(threadHasSupportActivity)
+        .filter(t => includeStaff || !isStaffSelfSupportThread(t));
+}
+
+function threadMatchesInboxSearch(thread, query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return true;
+    const haystack = [
+        thread.customerName,
+        thread.customerEmail,
+        thread.lastMessagePreview,
+        thread.id,
+        getSupportVisitorLabel(thread)
+    ].join(' ').toLowerCase();
+    return haystack.includes(q);
+}
+
+function getFilteredSupportInboxThreads() {
+    const state = window.adminSupportInboxState || {};
+    const tab = state.activeTab === 'guests' ? 'guests' : 'registered';
+    const search = state.search || '';
+    return getSupportInboxThreads(false).filter(thread => {
+        const matchesTab = tab === 'registered' ? isRegisteredSupportThread(thread) : isGuestSupportThread(thread);
+        return matchesTab && threadMatchesInboxSearch(thread, search);
+    });
+}
+
+function resetAdminSupportInboxPage() {
+    window.adminSupportInboxState.page = 1;
+}
+
+window.setAdminSupportInboxTab = function(tab) {
+    if (tab !== 'registered' && tab !== 'guests') return;
+    window.adminSupportInboxState.activeTab = tab;
+    resetAdminSupportInboxPage();
+    renderAdminSupportInbox();
+};
+
+window.onAdminSupportInboxSearch = function(value) {
+    window.adminSupportInboxState.search = value || '';
+    resetAdminSupportInboxPage();
+    renderAdminSupportInbox();
+};
+
+window.goAdminSupportInboxPage = function(page) {
+    const filtered = getFilteredSupportInboxThreads();
+    const pageSize = window.adminSupportInboxState.pageSize || 10;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const nextPage = Math.min(Math.max(1, page), totalPages);
+    window.adminSupportInboxState.page = nextPage;
+    renderAdminSupportInbox();
+};
+
+function hasGuestLiveSupportContact() {
+    if (currentUser?.email) return true;
+    return !!normalizeSupportEmail(getCustomerProfile().email);
+}
+
+function promptGuestLiveSupportContact(pendingText) {
+    window.supportChatState.pendingLiveSupportMessage = pendingText || null;
+    const modal = document.getElementById('guest-support-contact-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const input = document.getElementById('guest-support-contact-email');
+    if (input) {
+        try {
+            input.value = localStorage.getItem('swagstree_guest_email') || '';
+        } catch (e) {
+            input.value = '';
+        }
+        setTimeout(() => input.focus(), 100);
+    }
+}
+
+window.submitGuestSupportContact = async function() {
+    const input = document.getElementById('guest-support-contact-email');
+    const email = normalizeSupportEmail(input?.value);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (typeof showToast === 'function') showToast('Please enter a valid email address.');
+        return;
+    }
+
+    try {
+        localStorage.setItem('swagstree_guest_email', email);
+    } catch (e) { /* ignore */ }
+
+    const threadId = getCurrentCustomerThreadId();
+    const profile = getCustomerProfile();
+    try {
+        await ensureSupportThread(threadId, { ...profile, email });
+        await db.collection('support_threads').doc(threadId).set({
+            customerEmail: email,
+            customerName: profile.name || 'Guest'
+        }, { merge: true });
+    } catch (e) {
+        console.warn('Could not save guest support email:', e);
+    }
+
+    if (typeof closeModal === 'function') closeModal('guest-support-contact-modal');
+
+    const pending = window.supportChatState.pendingLiveSupportMessage;
+    window.supportChatState.pendingLiveSupportMessage = null;
+    if (pending) {
+        await handleAdminSupportMessage(pending);
+    } else if (typeof showToast === 'function') {
+        showToast('Email saved. You can now message live support.');
+    }
+};
+
+window.goToSignInFromGuestSupport = function() {
+    window.supportChatState.pendingLiveSupportMessage = null;
+    if (typeof closeModal === 'function') closeModal('guest-support-contact-modal');
+    if (typeof toggleAIChat === 'function') toggleAIChat();
+    if (typeof navigateTo === 'function') navigateTo('user');
+};
+
+async function ensureGuestLiveSupportReady(pendingText) {
+    if (hasGuestLiveSupportContact()) return true;
+    promptGuestLiveSupportContact(pendingText);
+    return false;
+}
+
+function showGuestLiveSupportHint() {
+    if (hasGuestLiveSupportContact()) return;
+    const body = getChatBody(SUPPORT_CHANNEL);
+    if (!body || body.querySelector('[data-guest-contact-hint]')) return;
+    appendSupportBubble(
+        'bot',
+        'To reach our support team, please **enter your email** when prompted, or **sign in** so we can link your orders.',
+        '',
+        SUPPORT_CHANNEL
+    );
+    const last = body.lastElementChild;
+    if (last) last.setAttribute('data-guest-contact-hint', '1');
 }
 
 function findSupportThreadInCache({ uid, email, threadId } = {}) {
@@ -326,7 +514,11 @@ async function persistSupportMessage(threadId, msg) {
     if (msg.customerName) update.customerName = msg.customerName;
     if (msg.customerEmail) update.customerEmail = msg.customerEmail;
     if (msg.sender === 'customer') update.unreadByAdmin = unreadByAdmin;
-    if (msg.sender === 'admin') update.unreadByCustomer = unreadByCustomer;
+    if (msg.sender === 'admin') {
+        update.unreadByCustomer = unreadByCustomer;
+        if (msg.senderName) update.lastAdminSenderName = msg.senderName;
+        if (msg.senderEmail) update.lastAdminSenderEmail = msg.senderEmail;
+    }
     if (msg.escalated) {
         update.mode = 'human';
         update.status = 'waiting_admin';
@@ -601,6 +793,7 @@ window.switchSupportChatTab = function(tab) {
             const last = body.lastElementChild;
             if (last) last.setAttribute('data-admin-tab-hint', '1');
         }
+        showGuestLiveSupportHint();
     }
 };
 
@@ -973,9 +1166,17 @@ function formatSupportDayLabel(ts) {
     return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function getAdminPreviewPrefix(sender) {
+function getAdminPreviewPrefix(threadOrSender) {
+    const thread = typeof threadOrSender === 'object' ? threadOrSender : null;
+    const sender = thread ? (thread.lastMessageSender || 'customer') : (threadOrSender || 'customer');
     if (sender === 'customer') return 'Customer';
-    if (sender === 'admin') return 'You';
+    if (sender === 'admin') {
+        const currentEmail = normalizeSupportEmail(currentUser?.email);
+        const senderEmail = normalizeSupportEmail(thread?.lastAdminSenderEmail);
+        if (currentEmail && senderEmail && currentEmail === senderEmail) return 'You';
+        const name = thread?.lastAdminSenderName || (thread?.lastAdminSenderEmail ? thread.lastAdminSenderEmail.split('@')[0] : '');
+        return name || 'Support';
+    }
     return 'AI';
 }
 
@@ -1096,6 +1297,8 @@ async function handleSupportCustomerMessage(text) {
         return;
     }
     if (window.supportChatState.activeTab === 'admin') {
+        const ready = await ensureGuestLiveSupportReady(text);
+        if (!ready) return;
         return handleAdminSupportMessage(text);
     }
     return handleAiSupportMessage(text);
@@ -1584,7 +1787,7 @@ window.sendAdminCustomerChat = async function() {
             text,
             type: 'text',
             senderEmail: currentUser?.email || '',
-            senderName: currentUser?.displayName || 'Admin'
+            senderName: currentUser?.displayName || (currentUser?.email ? currentUser.email.split('@')[0] : 'Admin')
         });
         await db.collection('support_threads').doc(threadId).set({
             mode: 'human',
@@ -1608,51 +1811,108 @@ function threadHasSupportActivity(t) {
     return false;
 }
 
+function renderAdminSupportInboxListItem(t) {
+    const unread = t.unreadByAdmin || 0;
+    const isWaiting = t.status === 'waiting_admin';
+    const safeThreadId = (t.id || '').replace(/'/g, "\\'");
+    const visitorBadge = getSupportVisitorBadgeHtml(t);
+    const previewPrefix = escHtml(getAdminPreviewPrefix(t));
+    const previewText = t.lastMessagePreview || 'No messages yet';
+    return `
+        <div class="admin-support-inbox-item">
+            <div class="admin-support-inbox-item-main">
+                <div class="admin-support-inbox-item-head">
+                    <strong class="admin-support-inbox-item-name">${escHtml(t.customerName || 'Guest')}</strong>
+                    ${visitorBadge}
+                    ${t.customerEmail ? `<span class="admin-support-inbox-item-email">${escHtml(t.customerEmail)}</span>` : ''}
+                    ${unread ? `<span class="admin-support-inbox-badge admin-support-inbox-badge-new">${unread} new</span>` : ''}
+                    ${isWaiting ? `<span class="admin-support-inbox-badge admin-support-inbox-badge-wait">Needs reply</span>` : ''}
+                </div>
+                <p class="admin-support-inbox-item-preview">
+                    <span class="admin-support-inbox-preview-prefix">${previewPrefix}:</span> ${escHtml(previewText)}
+                </p>
+            </div>
+            <button class="btn-gold admin-support-inbox-open-btn" onclick="openAdminSupportInboxChat('${safeThreadId}')"><i class="fa fa-comments"></i> Open Chat</button>
+        </div>`;
+}
+
+function renderAdminSupportInboxPagination(totalItems, page, pageSize) {
+    const pagination = document.getElementById('admin-support-inbox-pagination');
+    if (!pagination) return;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    if (totalItems <= pageSize) {
+        pagination.innerHTML = totalItems
+            ? `<span class="admin-support-inbox-page-info">${totalItems} conversation${totalItems === 1 ? '' : 's'}</span>`
+            : '';
+        return;
+    }
+    pagination.innerHTML = `
+        <button type="button" class="admin-support-inbox-page-btn" ${page <= 1 ? 'disabled' : ''} onclick="goAdminSupportInboxPage(${page - 1})">
+            <i class="fa fa-chevron-left"></i> Prev
+        </button>
+        <span class="admin-support-inbox-page-info">Page ${page} of ${totalPages} · ${totalItems} total</span>
+        <button type="button" class="admin-support-inbox-page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="goAdminSupportInboxPage(${page + 1})">
+            Next <i class="fa fa-chevron-right"></i>
+        </button>`;
+}
+
+function updateAdminSupportInboxTabCounts() {
+    const threads = getSupportInboxThreads(false);
+    const registeredCount = threads.filter(isRegisteredSupportThread).length;
+    const guestCount = threads.filter(isGuestSupportThread).length;
+    const registeredEl = document.getElementById('admin-support-tab-registered-count');
+    const guestsEl = document.getElementById('admin-support-tab-guests-count');
+    if (registeredEl) registeredEl.textContent = String(registeredCount);
+    if (guestsEl) guestsEl.textContent = String(guestCount);
+
+    const activeTab = window.adminSupportInboxState.activeTab === 'guests' ? 'guests' : 'registered';
+    const registeredBtn = document.getElementById('admin-support-tab-registered');
+    const guestsBtn = document.getElementById('admin-support-tab-guests');
+    if (registeredBtn) registeredBtn.classList.toggle('active', activeTab === 'registered');
+    if (guestsBtn) guestsBtn.classList.toggle('active', activeTab === 'guests');
+}
+
 function renderAdminSupportInbox() {
     const container = document.getElementById('admin-support-inbox-list');
     if (!container) return;
-    const threads = (window.supportThreadsCache || []).filter(threadHasSupportActivity);
-    if (!threads.length) {
-        container.innerHTML = '<p style="text-align:center;color:#555;font-size:12px;padding:20px 0;">No support conversations yet.</p>';
+
+    updateAdminSupportInboxTabCounts();
+
+    const filtered = getFilteredSupportInboxThreads();
+    const pageSize = window.adminSupportInboxState.pageSize || 10;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if ((window.adminSupportInboxState.page || 1) > totalPages) {
+        window.adminSupportInboxState.page = totalPages;
+    }
+    const page = window.adminSupportInboxState.page || 1;
+    const start = (page - 1) * pageSize;
+    const pageItems = filtered.slice(start, start + pageSize);
+
+    if (!filtered.length) {
+        const tabLabel = window.adminSupportInboxState.activeTab === 'guests' ? 'guest' : 'registered';
+        const search = (window.adminSupportInboxState.search || '').trim();
+        container.innerHTML = search
+            ? '<p class="admin-support-inbox-empty">No conversations match your search.</p>'
+            : `<p class="admin-support-inbox-empty">No ${tabLabel} support conversations yet.</p>`;
+        renderAdminSupportInboxPagination(0, 1, pageSize);
         return;
     }
-    container.innerHTML = threads.map(t => {
-        const unread = t.unreadByAdmin || 0;
-        const isWaiting = t.status === 'waiting_admin';
-        const safeThreadId = (t.id || '').replace(/'/g, "\\'");
-        const visitorBadge = getSupportVisitorBadgeHtml(t);
-        const previewPrefix = getAdminPreviewPrefix(t.lastMessageSender || 'customer');
-        const previewText = t.lastMessagePreview || 'No messages yet';
-        return `
-        <div style="background:#111;border:1px solid #222;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                    <strong style="font-size:13px;color:#eee;">${escHtml(t.customerName || 'Guest')}</strong>
-                    ${visitorBadge}
-                    ${t.customerEmail ? `<span style="font-size:9px;color:#555;">${escHtml(t.customerEmail)}</span>` : ''}
-                    ${unread ? `<span style="font-size:9px;background:var(--red);color:#fff;padding:2px 6px;border-radius:8px;">${unread} new</span>` : ''}
-                    ${isWaiting ? `<span style="font-size:9px;background:rgba(255,215,0,0.15);color:var(--gold);padding:2px 6px;border-radius:8px;">Needs reply</span>` : ''}
-                </div>
-                <p style="margin:4px 0 0;font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    <span style="color:var(--gold);font-weight:700;">${previewPrefix}:</span> ${escHtml(previewText)}
-                </p>
-            </div>
-            <button class="btn-gold" style="width:auto;padding:8px 12px;font-size:11px;margin:0;" onclick="openAdminSupportInboxChat('${safeThreadId}')"><i class="fa fa-comments"></i> Open Chat</button>
-        </div>`;
-    }).join('');
+
+    container.innerHTML = pageItems.map(renderAdminSupportInboxListItem).join('');
+    renderAdminSupportInboxPagination(filtered.length, page, pageSize);
 }
 
 window.loadAdminSupportInbox = function() {
     if (!isAdmin || !hasSupportChatCapability()) return;
     if (adminInboxUnsub) return;
-    adminInboxUnsub = db.collection('support_threads').orderBy('lastMessageAt', 'desc').limit(50)
+    adminInboxUnsub = db.collection('support_threads').orderBy('lastMessageAt', 'desc').limit(ADMIN_SUPPORT_INBOX_FETCH_LIMIT)
         .onSnapshot(snap => {
             window.supportThreadsCache = [];
             snap.forEach(doc => window.supportThreadsCache.push({ id: doc.id, ...doc.data() }));
             renderAdminSupportInbox();
             updateAdminSupportBadge();
         }, () => {
-            db.collection('support_threads').limit(50).onSnapshot(snap => {
+            db.collection('support_threads').limit(ADMIN_SUPPORT_INBOX_FETCH_LIMIT).onSnapshot(snap => {
                 window.supportThreadsCache = [];
                 snap.forEach(doc => window.supportThreadsCache.push({ id: doc.id, ...doc.data() }));
                 window.supportThreadsCache.sort((a, b) => (b.lastMessageAt?.toMillis?.() || 0) - (a.lastMessageAt?.toMillis?.() || 0));
@@ -1682,8 +1942,7 @@ function updateSupportUnreadBadge() {
 function updateAdminSupportBadge() {
     const badge = document.getElementById('admin-support-pending-badge');
     if (!badge) return;
-    const total = (window.supportThreadsCache || [])
-        .filter(threadHasSupportActivity)
+    const total = getSupportInboxThreads(false)
         .reduce((s, t) => s + (t.unreadByAdmin || 0), 0);
     badge.textContent = total;
     badge.style.display = total > 0 ? 'inline-block' : 'none';
@@ -1763,6 +2022,7 @@ window.cleanupSupportChatListeners = function() {
         adminThreadUnsub = null;
     }
     window.supportThreadsCache = [];
+    window.adminSupportInboxState = { activeTab: 'registered', search: '', page: 1, pageSize: 10 };
     window.supportChatState.activeThreadId = null;
     window.supportChatState.adminThreadId = null;
     window.supportChatState.loaded = false;
