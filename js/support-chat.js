@@ -1876,6 +1876,11 @@ function renderAdminSupportInbox() {
     const container = document.getElementById('admin-support-inbox-list');
     if (!container) return;
 
+    const searchEl = document.getElementById('admin-support-inbox-search');
+    if (searchEl && document.activeElement !== searchEl) {
+        searchEl.value = window.adminSupportInboxState.search || '';
+    }
+
     updateAdminSupportInboxTabCounts();
 
     const filtered = getFilteredSupportInboxThreads();
@@ -2023,6 +2028,8 @@ window.cleanupSupportChatListeners = function() {
     }
     window.supportThreadsCache = [];
     window.adminSupportInboxState = { activeTab: 'registered', search: '', page: 1, pageSize: 10 };
+    const searchEl = document.getElementById('admin-support-inbox-search');
+    if (searchEl) searchEl.value = '';
     window.supportChatState.activeThreadId = null;
     window.supportChatState.adminThreadId = null;
     window.supportChatState.loaded = false;
