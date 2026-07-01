@@ -238,6 +238,7 @@ function applyFooterShellClasses(footerEl, templateId, layoutId) {
 function applyFooterBodyPadding(footerEl, layoutId) {
     if (!footerEl || footerEl.classList.contains('hidden')) {
         document.body.style.setProperty('padding-bottom', '60px', 'important');
+        if (typeof markWhatsAppFloatReady === 'function') markWhatsAppFloatReady();
         return;
     }
     const posMode = resolveFooterPositionMode(layoutId);
@@ -255,6 +256,7 @@ function applyFooterBodyPadding(footerEl, layoutId) {
         document.body.style.removeProperty('padding-bottom');
         document.documentElement.style.removeProperty('--footer-stack-offset');
     }
+    if (typeof markWhatsAppFloatReady === 'function') markWhatsAppFloatReady();
 }
 
 function normalizeStorefrontFooterSection(sectionId) {

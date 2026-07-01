@@ -15,6 +15,7 @@
     --red: #ff4757;
     --storefront-header-h: 54px;
     --storefront-bottom-nav-h: 58px;
+    --footer-stack-offset: calc(var(--storefront-bottom-nav-h, 58px) + 54px);
 }
 
 /* 2. BASE STYLES */
@@ -278,11 +279,21 @@ body {
         box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.45) !important;
     }
 
-    body.body-footer-pos-scroll .whatsapp-float {
-        bottom: 72px !important;
+    .whatsapp-float {
+        bottom: calc(var(--storefront-bottom-nav-h, 58px) + 14px) !important;
+        right: 16px !important;
+        width: 44px !important;
+        height: 44px !important;
+        display: flex !important;
+        z-index: 2147483647 !important;
+        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) !important;
     }
-    body.body-footer-pos-fixed .whatsapp-float {
-        bottom: var(--footer-stack-offset, 112px) !important;
+    body.body-footer-pos-fixed:not(.footer-hidden) .whatsapp-float {
+        bottom: var(--footer-stack-offset) !important;
+    }
+    .whatsapp-float.whatsapp-float-pending:not(.hidden-btn) {
+        visibility: hidden !important;
+        pointer-events: none !important;
     }
 
     .storefront-footer-anchor,
@@ -304,15 +315,6 @@ body {
         left: auto !important;
         right: auto !important;
         margin-top: 0 !important;
-    }
-
-    .whatsapp-float {
-        right: 16px !important;
-        width: 44px !important;
-        height: 44px !important;
-        display: flex !important;
-        z-index: 2147483647 !important;
-        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)) !important;
     }
 }
 
@@ -2818,6 +2820,10 @@ a.feedback-view-post-btn:active {
 .whatsapp-float.hidden-btn {
     display: none !important;
 }
+.whatsapp-float.whatsapp-float-pending:not(.hidden-btn) {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
 .whatsapp-float:hover {
     transform: scale(1.08);
 }
@@ -4506,5 +4512,89 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     font-size: 12px;
     padding: 20px 0;
     margin: 0;
+}
+
+/* Superadmin customer card action buttons */
+.super-cust-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 5px;
+    padding-top: 8px;
+    border-top: 1px solid #222;
+}
+
+.super-cust-btn {
+    width: auto !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    margin: 0 !important;
+    border-radius: 8px !important;
+    text-transform: none !important;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+}
+
+.super-cust-btn--edit {
+    background: var(--gold) !important;
+    color: #111 !important;
+    border: 1px solid #e6c200 !important;
+}
+
+.super-cust-btn--chat {
+    background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%) !important;
+    color: #fff !important;
+    border: 1px solid #2dd4bf !important;
+    box-shadow: 0 2px 8px rgba(20, 184, 166, 0.25);
+}
+
+.super-cust-btn--support {
+    background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%) !important;
+    color: #fff !important;
+    border: 1px solid #60a5fa !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+.super-cust-btn--delete-ai {
+    background: #3d2f14 !important;
+    color: #fbbf24 !important;
+    border: 1px solid #92400e !important;
+}
+
+.super-cust-btn--delete-admin {
+    background: #4a1520 !important;
+    color: #fda4af !important;
+    border: 1px solid #be123c !important;
+}
+
+.super-cust-btn--orders {
+    background: #1a1a1a !important;
+    color: #ddd !important;
+    border: 1px solid #444 !important;
+}
+
+.super-cust-btn--purge {
+    background: #3b1212 !important;
+    color: #fca5a5 !important;
+    border: 1px solid #991b1b !important;
+}
+
+.super-cust-btn--toggle {
+    color: #fff !important;
+    border: none !important;
+}
+
+.super-cust-system-label {
+    font-size: 11px;
+    color: #444;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.super-cust-hint {
+    font-size: 10px;
+    color: #666;
+    font-style: italic;
 }
 

@@ -1556,23 +1556,23 @@ function renderSuperCustomersList(list) {
             && hasAdminCapability('manageSupportChat');
         const hasChatCap = typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat');
         const guestSupportBtn = isGuestRecord && hasChatCap
-            ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openGuestCustomerSupportChat('${safeEmail}','${safeName}')"><i class="fa fa-headset"></i> Support Chat</button>`
+            ? `<button class="btn-gold super-cust-btn super-cust-btn--support" onclick="openGuestCustomerSupportChat('${safeEmail}','${safeName}')"><i class="fa fa-headset"></i> Support Chat</button>`
             : '';
         const guestChatHint = isGuestRecord && !hasChatCap
-            ? `<span style="font-size:10px; color:#666; font-style:italic;">Guest checkout — enable Support Chat in admin settings</span>`
+            ? `<span class="super-cust-hint">Guest checkout — enable Support Chat in admin settings</span>`
             : '';
         const actionButtons = isSelfOrSystem ? `
-            <span style="font-size:11px; color:#444; font-weight:700; text-transform:uppercase;">System Account</span>
+            <span class="super-cust-system-label">System Account</span>
         ` : `
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0;" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${safeEmail}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
-            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444;" onclick="openAdminCustomerChat('${c.uid}','${safeEmail}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
+            <button class="btn-gold super-cust-btn super-cust-btn--edit" onclick="openSuperEditCust('${c.uid}', '${(c.displayName || '').replace(/'/g, "\\'")}', '${safeEmail}', '${c.phone || ''}')"><i class="fa fa-edit"></i> Edit</button>
+            ${canManageChat ? `<button class="btn-gold super-cust-btn super-cust-btn--chat" onclick="openAdminCustomerChat('${c.uid}','${safeEmail}','${safeName}')"><i class="fa fa-comments"></i> Chat</button>` : ''}
             ${guestSupportBtn}
-            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#2a2211; border:1px solid #665522; color:#fff;" onclick="deleteCustomerAiSupportChats('${c.uid}','${safeEmail}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>` : ''}
-            ${canManageChat ? `<button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#331111; border:1px solid #662222; color:#fff;" onclick="deleteCustomerAdminSupportChats('${c.uid}','${safeEmail}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>` : ''}
+            ${canManageChat ? `<button class="btn-gold super-cust-btn super-cust-btn--delete-ai" onclick="deleteCustomerAiSupportChats('${c.uid}','${safeEmail}','${safeName}','${mergedUidsParam}')" title="Delete AI Help chat only"><i class="fa fa-trash"></i> Delete AI Chat</button>` : ''}
+            ${canManageChat ? `<button class="btn-gold super-cust-btn super-cust-btn--delete-admin" onclick="deleteCustomerAdminSupportChats('${c.uid}','${safeEmail}','${safeName}','${mergedUidsParam}')" title="Delete Live Support chat only"><i class="fa fa-trash"></i> Delete Admin Chat</button>` : ''}
             ${guestChatHint}
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:${toggleBtnColor}; color:#fff;" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#222; border:1px solid #444; color:#fff;" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
-            <button class="btn-gold" style="width:auto; padding:6px 10px; font-size:11px; margin:0; background:#441111; border:1px solid #772222; color:#fff;" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
+            <button class="btn-gold super-cust-btn super-cust-btn--toggle" style="background:${toggleBtnColor};" onclick="toggleCustomerStatus('${c.uid}', '${c.status || 'active'}')"><i class="fa fa-power-off"></i> ${toggleBtnLabel}</button>
+            <button class="btn-gold super-cust-btn super-cust-btn--orders" onclick="openSuperViewOrders('${c.uid}', '${emailLower}')"><i class="fa fa-shopping-bag"></i> View Orders</button>
+            <button class="btn-gold super-cust-btn super-cust-btn--purge" onclick="clearCustomerOrderHistory('${c.uid}', '${emailLower}')"><i class="fa fa-history"></i> Purge History</button>
         `;
 
         html += `
@@ -1593,7 +1593,7 @@ function renderSuperCustomersList(list) {
                     </div>
                     <span style="font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; color:${statusColor}; background:${statusBg}; border:1px solid ${statusColor}33; text-transform:uppercase; letter-spacing:0.5px; flex-shrink: 0;">${statusText}</span>
                 </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:5px; padding-top:8px; border-top:1px solid #222;">
+                <div class="super-cust-actions">
                     ${actionButtons}
                 </div>
             </div>
