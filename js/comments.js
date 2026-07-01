@@ -892,7 +892,7 @@ async function approveProductCommentInternal(commentId) {
             }
         });
         await batch.commit();
-        showToast('✅ Review approved.');
+        showToast(comment.status === 'hidden' ? 'Review restored to product page.' : '✅ Review approved.');
     } catch (e) {
         console.error('approveProductComment error:', e);
         showToast('Failed to approve review.');
