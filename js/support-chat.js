@@ -144,6 +144,112 @@ function getCustomerThreadIdForUser(uid) {
     return uid ? `uid_${uid}` : `guest_${getGuestSessionId()}`;
 }
 
+function normalizeSupportEmail(email) {
+    return (email || '').trim().toLowerCase();
+}
+
+function isGuestSupportUid(uid) {
+    const id = (uid || '').trim();
+    return !id || id.toLowerCase().startsWith('guest_');
+}
+
+function getSupportVisitorLabel(thread) {
+    if (!thread) return 'Visitor';
+    const uid = (thread.customerUid || '').trim();
+    const email = normalizeSupportEmail(thread.customerEmail);
+    if (uid && !isGuestSupportUid(uid)) return 'Registered customer';
+    if (email) return 'Guest checkout';
+    if ((thread.id || '').startsWith('guest_')) return 'Anonymous visitor';
+    return 'Guest visitor';
+}
+
+function getSupportVisitorBadgeHtml(thread) {
+    const label = getSupportVisitorLabel(thread);
+    const colors = {
+        'Registered customer': { bg: 'rgba(46,204,113,0.12)', fg: '#2ecc71' },
+        'Guest checkout': { bg: 'rgba(255,215,0,0.12)', fg: 'var(--gold)' },
+        'Anonymous visitor': { bg: 'rgba(136,136,136,0.15)', fg: '#aaa' },
+        'Guest visitor': { bg: 'rgba(136,136,136,0.15)', fg: '#aaa' }
+    };
+    const c = colors[label] || colors['Guest visitor'];
+    return `<span style="font-size:9px;background:${c.bg};color:${c.fg};padding:2px 6px;border-radius:8px;">${escHtml(label)}</span>`;
+}
+
+function findSupportThreadInCache({ uid, email, threadId } = {}) {
+    const cache = window.supportThreadsCache || [];
+    if (threadId) {
+        const direct = cache.find(t => t.id === threadId);
+        if (direct) return direct;
+    }
+    const emailNorm = normalizeSupportEmail(email);
+    if (emailNorm) {
+        const matches = cache.filter(t => normalizeSupportEmail(t.customerEmail) === emailNorm);
+        if (matches.length) {
+            return matches.sort((a, b) => (b.lastMessageAt?.toMillis?.() || 0) - (a.lastMessageAt?.toMillis?.() || 0))[0];
+        }
+    }
+    const uidTrim = (uid || '').trim();
+    if (uidTrim) {
+        const matches = cache.filter(t => t.customerUid === uidTrim || t.id === `uid_${uidTrim}`);
+        if (matches.length) {
+            return matches.sort((a, b) => (b.lastMessageAt?.toMillis?.() || 0) - (a.lastMessageAt?.toMillis?.() || 0))[0];
+        }
+    }
+    return null;
+}
+
+async function fetchSupportThreadByEmail(email) {
+    const trimmed = (email || '').trim();
+    if (!trimmed) return null;
+    try {
+        const snap = await db.collection('support_threads').where('customerEmail', '==', trimmed).limit(25).get();
+        const threads = [];
+        snap.forEach(doc => threads.push({ id: doc.id, ...doc.data() }));
+        if (!threads.length) return null;
+        threads.sort((a, b) => (b.lastMessageAt?.toMillis?.() || 0) - (a.lastMessageAt?.toMillis?.() || 0));
+        return threads.find(threadHasSupportActivity) || threads[0];
+    } catch (e) {
+        console.warn('fetchSupportThreadByEmail failed:', e);
+        return null;
+    }
+}
+
+async function resolveAdminSupportThreadId(uid, email, threadIdOverride) {
+    if (threadIdOverride) return threadIdOverride;
+
+    const cached = findSupportThreadInCache({ uid, email });
+    if (cached?.id) return cached.id;
+
+    const uidTrim = (uid || '').trim();
+    if (uidTrim && !isGuestSupportUid(uidTrim)) {
+        const registeredId = getCustomerThreadIdForUser(uidTrim);
+        const doc = await db.collection('support_threads').doc(registeredId).get();
+        if (doc.exists) return registeredId;
+        return registeredId;
+    }
+
+    if (uidTrim && isGuestSupportUid(uidTrim)) {
+        const guestUidThread = getCustomerThreadIdForUser(uidTrim);
+        const guestDoc = await db.collection('support_threads').doc(guestUidThread).get();
+        if (guestDoc.exists) return guestUidThread;
+    }
+
+    const byEmail = await fetchSupportThreadByEmail(email);
+    if (byEmail?.id) return byEmail.id;
+
+    return null;
+}
+
+function expandAdminSupportInbox() {
+    const content = document.getElementById('admin-support-accordion-content');
+    const icon = document.getElementById('admin-support-accordion-icon');
+    if (content && content.style.display === 'none') {
+        content.style.display = 'flex';
+        if (icon) icon.style.transform = 'rotate(0deg)';
+    }
+    if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+}
+
 function getCurrentCustomerThreadId() {
     if (window.supportChatState.adminThreadId) return window.supportChatState.adminThreadId;
     return getCustomerThreadIdForUser(currentUser ? currentUser.uid : null);
@@ -1123,26 +1229,86 @@ function hasSupportChatCapability() {
     return typeof hasAdminCapability === 'function' && hasAdminCapability('manageSupportChat');
 }
 
+window.openAdminSupportInboxChat = async function(threadId) {
+    if (!isAdmin || !hasSupportChatCapability()) return showToast('You do not have permission to manage support chats.');
+    if (!threadId) return showToast('Conversation not found.');
+    const cached = findSupportThreadInCache({ threadId });
+    await openAdminCustomerChat(
+        cached?.customerUid || '',
+        cached?.customerEmail || '',
+        cached?.customerName || 'Guest',
+        threadId
+    );
+};
+
+window.openGuestCustomerSupportChat = async function(email, name) {
+    if (!isAdmin || !hasSupportChatCapability()) return showToast('You do not have permission to manage support chats.');
+    expandAdminSupportInbox();
+
+    let thread = findSupportThreadInCache({ email });
+    if (!thread && email) thread = await fetchSupportThreadByEmail(email);
+
+    if (thread?.id) {
+        await openAdminCustomerChat(thread.customerUid || '', thread.customerEmail || email, thread.customerName || name || 'Guest', thread.id);
+        return;
+    }
+
+    showToast('No chat thread yet. Ask the customer to message via the site chat — it will appear in Support Chats.');
+};
+
 window.openAdminCustomerChat = async function(uid, email, name, threadIdOverride) {
     if (!isAdmin || !hasSupportChatCapability()) return showToast('You do not have permission to manage support chats.');
-    const threadId = threadIdOverride || getCustomerThreadIdForUser(uid);
-    if (!threadId) return showToast('Unable to open this conversation.');
-    // Block only Manage Customers profile chat for guest checkout records — Support Inbox always passes threadId
-    if (!threadIdOverride && typeof isGuestCustomerRecord === 'function' && isGuestCustomerRecord({ uid, email })) {
-        return showToast('Guest checkout has no profile chat — use Support Inbox below.');
+
+    let threadId = threadIdOverride || null;
+    let threadMeta = threadId ? findSupportThreadInCache({ threadId }) : findSupportThreadInCache({ uid, email });
+
+    if (!threadId) {
+        threadId = await resolveAdminSupportThreadId(uid, email, null);
+        if (!threadMeta && threadId) threadMeta = findSupportThreadInCache({ threadId });
     }
+
+    if (!threadId) {
+        if (typeof isGuestCustomerRecord === 'function' && isGuestCustomerRecord({ uid, email })) {
+            return openGuestCustomerSupportChat(email, name);
+        }
+        return showToast('Unable to open this conversation.');
+    }
+
+    if (!threadMeta) {
+        try {
+            const doc = await db.collection('support_threads').doc(threadId).get();
+            if (doc.exists) threadMeta = { id: doc.id, ...doc.data() };
+        } catch (e) {
+            console.warn('Failed to load support thread meta:', e);
+        }
+    }
+
+    const displayName = threadMeta?.customerName || name || 'Customer';
+    const displayEmail = threadMeta?.customerEmail || email || '';
+    const visitorLabel = getSupportVisitorLabel(threadMeta || { customerUid: uid, customerEmail: email, id: threadId });
+
     window.supportChatState.adminThreadId = threadId;
 
-    document.getElementById('admin-customer-chat-name').textContent = name || 'Customer';
-    document.getElementById('admin-customer-chat-email').textContent = email || 'Guest visitor';
+    document.getElementById('admin-customer-chat-name').textContent = displayName;
+    const emailEl = document.getElementById('admin-customer-chat-email');
+    if (emailEl) {
+        emailEl.innerHTML = [
+            getSupportVisitorBadgeHtml(threadMeta || { customerUid: uid, customerEmail: email, id: threadId }),
+            displayEmail ? `<span style="margin-left:6px;color:#888;">${escHtml(displayEmail)}</span>` : '<span style="margin-left:6px;color:#666;">No email on file</span>'
+        ].join('');
+    }
+
     document.getElementById('admin-customer-chat-modal').style.display = 'flex';
     document.getElementById('admin-customer-chat-input').value = '';
 
-    await ensureSupportThread(threadId, { uid, email, name: name || 'Customer' });
+    await ensureSupportThread(threadId, {
+        uid: threadMeta?.customerUid || uid || null,
+        email: displayEmail,
+        name: displayName
+    });
 
     if (adminThreadUnsub) adminThreadUnsub();
     const body = document.getElementById('admin-customer-chat-body');
-    const displayName = name || 'Customer';
     if (body) body.innerHTML = '<p style="color:#666;font-size:12px;">Loading conversation...</p>';
 
     adminThreadUnsub = db.collection('support_threads').doc(threadId)
@@ -1448,11 +1614,8 @@ function renderAdminSupportInbox() {
     container.innerHTML = threads.map(t => {
         const unread = t.unreadByAdmin || 0;
         const isWaiting = t.status === 'waiting_admin';
-        const safeUid = (t.customerUid || '').replace(/'/g, "\\'");
-        const safeEmail = (t.customerEmail || '').replace(/'/g, "\\'");
-        const safeName = (t.customerName || 'Customer').replace(/'/g, "\\'");
         const safeThreadId = (t.id || '').replace(/'/g, "\\'");
-        const openArgs = `'${safeUid}','${safeEmail}','${safeName}','${safeThreadId}'`;
+        const visitorBadge = getSupportVisitorBadgeHtml(t);
         const previewPrefix = getAdminPreviewPrefix(t.lastMessageSender || 'customer');
         const previewText = t.lastMessagePreview || 'No messages yet';
         return `
@@ -1460,7 +1623,7 @@ function renderAdminSupportInbox() {
             <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <strong style="font-size:13px;color:#eee;">${escHtml(t.customerName || 'Guest')}</strong>
-                    ${!t.customerUid ? '<span style="font-size:9px;color:#666;">Guest</span>' : ''}
+                    ${visitorBadge}
                     ${t.customerEmail ? `<span style="font-size:9px;color:#555;">${escHtml(t.customerEmail)}</span>` : ''}
                     ${unread ? `<span style="font-size:9px;background:var(--red);color:#fff;padding:2px 6px;border-radius:8px;">${unread} new</span>` : ''}
                     ${isWaiting ? `<span style="font-size:9px;background:rgba(255,215,0,0.15);color:var(--gold);padding:2px 6px;border-radius:8px;">Needs reply</span>` : ''}
@@ -1469,7 +1632,7 @@ function renderAdminSupportInbox() {
                     <span style="color:var(--gold);font-weight:700;">${previewPrefix}:</span> ${escHtml(previewText)}
                 </p>
             </div>
-            <button class="btn-gold" style="width:auto;padding:8px 12px;font-size:11px;margin:0;" onclick="openAdminCustomerChat(${openArgs})"><i class="fa fa-comments"></i> Open Chat</button>
+            <button class="btn-gold" style="width:auto;padding:8px 12px;font-size:11px;margin:0;" onclick="openAdminSupportInboxChat('${safeThreadId}')"><i class="fa fa-comments"></i> Open Chat</button>
         </div>`;
     }).join('');
 }
