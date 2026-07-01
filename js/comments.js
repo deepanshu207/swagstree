@@ -315,8 +315,7 @@ function getUserLatestHiddenReview(productId) {
 /** What the signed-in customer should see in "Your review". Pending update wins over last live review. */
 function getUserDisplayReview(productId) {
     return getUserPendingReview(productId)
-        || getUserLatestApprovedReview(productId)
-        || getUserLatestHiddenReview(productId);
+        || getUserLatestApprovedReview(productId);
 }
 
 function dedupeApprovedByUser(comments) {
@@ -511,7 +510,7 @@ function renderProductCommentsSection() {
     let formHtml = '';
     if (!currentUser) {
         formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-lock"></i> <a href="#" onclick="event.preventDefault(); navigateTo('user')" style="color:var(--gold);">Sign in</a> to leave a review</p>`;
-    } else if (!myPending && !myApproved && !getUserLatestHiddenReview(productId)) {
+    } else if (!myPending && !myApproved) {
         formHtml = renderCommentFormHtml();
     }
 
@@ -561,7 +560,6 @@ function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden, isYourRevi
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
                     <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71; border-color:#27ae60;" onclick="approveProductComment('${safeId}')"><i class="fa fa-check"></i> Approve</button>
                     <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c; border-color:#c0392b;" onclick="rejectProductComment('${safeId}')"><i class="fa fa-times"></i> Reject</button>
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#555;" onclick="hideProductComment('${safeId}')"><i class="fa fa-eye-slash"></i> Hide</button>
                 </div>`;
         } else if (c.status === 'approved') {
             actionsHtml = `
@@ -572,7 +570,7 @@ function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden, isYourRevi
         } else if (c.status === 'hidden') {
             actionsHtml = `
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71;" onclick="approveProductComment('${safeId}')"><i class="fa fa-check"></i> Show / Approve</button>
+                    <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#2ecc71;" onclick="restoreProductComment('${safeId}')"><i class="fa fa-eye"></i> Restore to product page</button>
                     <button class="btn-gold" style="width:auto; padding:6px 12px; font-size:11px; margin:0; background:#e74c3c;" onclick="deleteProductComment('${safeId}')"><i class="fa fa-trash"></i> Delete</button>
                 </div>`;
         } else {
@@ -690,7 +688,7 @@ window.submitProductComment = async function() {
         }
     } else if (pendingReview) {
         return showToast('You already have a review awaiting approval.');
-    } else if (approvedReview || getUserLatestHiddenReview(activeProductId)) {
+    } else if (approvedReview) {
         return showToast('Tap the pencil icon on your review to update it.');
     }
 
@@ -888,7 +886,7 @@ async function approveProductCommentInternal(commentId) {
                 });
             } else {
                 const status = data.status;
-                if (status === 'approved' || status === 'pending') {
+                if (status === 'approved' || status === 'pending' || status === 'hidden') {
                     batch.delete(doc.ref);
                 }
             }
@@ -932,8 +930,38 @@ window.rejectProductComment = async function(commentId) {
     }
 };
 
-window.hideProductComment = function(commentId) {
-    updateCommentStatus(commentId, 'hidden');
+window.hideProductComment = async function(commentId) {
+    if (!hasAdminCapability('approveComments')) return showToast('You do not have permission to moderate reviews.');
+
+    const comment = window.commentsModerationCache.find(c => c.id === commentId)
+        || window.productCommentsCache.find(c => c.id === commentId);
+    if (!comment) return showToast('Review not found.');
+
+    if (comment.status === 'pending') {
+        return showToast('Use Reject to remove a pending review. Hide only applies to live reviews.');
+    }
+
+    if (comment.status !== 'approved') {
+        return showToast('Only approved reviews can be hidden.');
+    }
+
+    if (!confirm('Hide this review from the product page? The customer will no longer see it publicly. You can restore it later from the Hidden tab.')) return;
+
+    try {
+        await db.collection('product_comments').doc(commentId).update({
+            status: 'hidden',
+            reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            reviewedBy: currentUser ? (currentUser.email || '') : ''
+        });
+        showToast('Review hidden from product page.');
+    } catch (e) {
+        console.error('hideProductComment error:', e);
+        showToast('Failed to hide review.');
+    }
+};
+
+window.restoreProductComment = function(commentId) {
+    approveProductCommentInternal(commentId);
 };
 
 window.deleteProductComment = async function(commentId) {
