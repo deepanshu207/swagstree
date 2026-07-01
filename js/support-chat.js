@@ -321,6 +321,20 @@ window.submitGuestSupportContact = async function() {
             customerEmail: email,
             customerName: profile.name || 'Guest'
         }, { merge: true });
+
+        const guestDocId = typeof buildGuestCustomerDocId === 'function'
+            ? buildGuestCustomerDocId(email)
+            : null;
+        if (guestDocId) {
+            await db.collection('users').doc(guestDocId).set({
+                email,
+                displayName: (profile.name || email.split('@')[0]).trim(),
+                phone: (profile.phone || '').trim(),
+                isGuest: true,
+                guestSupport: true,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
     } catch (e) {
         console.warn('Could not save guest support email:', e);
     }
@@ -794,6 +808,10 @@ window.switchSupportChatTab = function(tab) {
             if (last) last.setAttribute('data-admin-tab-hint', '1');
         }
         showGuestLiveSupportHint();
+        if (!hasGuestLiveSupportContact() && !window.supportChatState.guestContactPromptShown) {
+            window.supportChatState.guestContactPromptShown = true;
+            promptGuestLiveSupportContact(null);
+        }
     }
 };
 
