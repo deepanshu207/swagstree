@@ -4835,3 +4835,15 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     color: #777;
 }
 
+.product-review-pending-note {
+    margin: -8px 0 14px;
+    font-size: 11px;
+    color: #888;
+    line-height: 1.45;
+}
+
+.product-review-pending-note i {
+    color: var(--gold);
+    margin-right: 4px;
+}
+

@@ -286,14 +286,53 @@ function getUserReviewsForProduct(productId) {
     return window.productCommentsCache.filter(c => c.uid === currentUser.uid && c.productId === productId);
 }
 
+function getCommentSortTime(c) {
+    if (!c) return 0;
+    return c.updatedAt?.toMillis?.()
+        || c.reviewedAt?.toMillis?.()
+        || c.createdAt?.toMillis?.()
+        || 0;
+}
+
+function getUserPendingReview(productId) {
+    const pending = getUserReviewsForProduct(productId).filter(c => c.status === 'pending');
+    if (!pending.length) return null;
+    return pending.slice().sort((a, b) => getCommentSortTime(b) - getCommentSortTime(a))[0];
+}
+
+function getUserLatestApprovedReview(productId) {
+    const approved = getUserReviewsForProduct(productId).filter(c => c.status === 'approved');
+    if (!approved.length) return null;
+    return approved.slice().sort((a, b) => getCommentSortTime(b) - getCommentSortTime(a))[0];
+}
+
+function getUserLatestHiddenReview(productId) {
+    const hidden = getUserReviewsForProduct(productId).filter(c => c.status === 'hidden');
+    if (!hidden.length) return null;
+    return hidden.slice().sort((a, b) => getCommentSortTime(b) - getCommentSortTime(a))[0];
+}
+
+/** What the signed-in customer should see in "Your review". Pending update wins over last live review. */
+function getUserDisplayReview(productId) {
+    return getUserPendingReview(productId)
+        || getUserLatestApprovedReview(productId)
+        || getUserLatestHiddenReview(productId);
+}
+
+function dedupeApprovedByUser(comments) {
+    const byUid = new Map();
+    comments.forEach(c => {
+        if (c.status !== 'approved' || !c.uid) return;
+        const existing = byUid.get(c.uid);
+        if (!existing || getCommentSortTime(c) > getCommentSortTime(existing)) {
+            byUid.set(c.uid, c);
+        }
+    });
+    return Array.from(byUid.values()).sort((a, b) => getCommentSortTime(b) - getCommentSortTime(a));
+}
+
 function getUserReviewForProduct(productId) {
-    const reviews = getUserReviewsForProduct(productId);
-    if (!reviews.length) return null;
-    return reviews.slice().sort((a, b) => {
-        const ta = a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
-        const tb = b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
-        return tb - ta;
-    })[0];
+    return getUserDisplayReview(productId);
 }
 
 function validateReviewInput(text, rating) {
@@ -418,33 +457,37 @@ function renderProductCommentsSection() {
     if (!productId) return;
 
     const approved = window.productCommentsCache.filter(c => c.status === 'approved');
+    const publicApproved = dedupeApprovedByUser(approved);
 
-    const ratedApproved = approved.filter(c => c.rating);
+    const ratedApproved = publicApproved.filter(c => c.rating);
     const avgRating = ratedApproved.length
         ? ratedApproved.reduce((s, c) => s + (c.rating || 0), 0) / ratedApproved.length
         : 0;
     const avgDisplay = ratedApproved.length ? avgRating.toFixed(1) : null;
 
     let summaryHtml = '';
-    if (approved.length > 0) {
+    if (publicApproved.length > 0) {
         summaryHtml = `
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
                 ${avgDisplay ? renderStarRatingHtml(Math.round(avgRating), false, '13px') : ''}
                 <span style="font-size:12px; color:#888;">
-                    ${avgDisplay ? `<strong style="color:var(--gold);">${avgDisplay}</strong> · ` : ''}${approved.length} review${approved.length !== 1 ? 's' : ''}
+                    ${avgDisplay ? `<strong style="color:var(--gold);">${avgDisplay}</strong> · ` : ''}${publicApproved.length} review${publicApproved.length !== 1 ? 's' : ''}
                 </span>
             </div>`;
     }
 
-    const myReview = currentUser ? getUserReviewForProduct(productId) : null;
-    const publicApproved = approved.filter(c => {
-        if (!currentUser) return true;
-        return !(c.uid === currentUser.uid && c.productId === productId);
-    });
+    const myPending = currentUser ? getUserPendingReview(productId) : null;
+    const myApproved = currentUser ? getUserLatestApprovedReview(productId) : null;
+    const myReview = currentUser ? getUserDisplayReview(productId) : null;
 
-    const listHtml = publicApproved.length === 0 && !myReview
+    let visiblePublicApproved = publicApproved;
+    if (currentUser && myApproved && !myPending) {
+        visiblePublicApproved = publicApproved.filter(c => c.uid !== currentUser.uid);
+    }
+
+    const listHtml = visiblePublicApproved.length === 0 && !myReview
         ? `<p style="color:#555; font-size:12px; margin:0 0 15px 0;">No reviews yet. Be the first to share your experience!</p>`
-        : publicApproved.map(c => commentCardHtml(c, false)).join('');
+        : visiblePublicApproved.map(c => commentCardHtml(c, false)).join('');
 
     let yourReviewHtml = '';
     if (currentUser && myReview) {
@@ -455,17 +498,20 @@ function renderProductCommentsSection() {
                     myReview,
                     false,
                     myReview.status === 'pending',
-                    myReview.status === 'rejected',
-                    myReview.status === 'hidden',
+                    false,
+                    false,
                     true
                 )}
             </div>`;
+        if (myPending && myApproved) {
+            yourReviewHtml += `<p class="product-review-pending-note"><i class="fa fa-clock"></i> Your updated review is awaiting approval. Your previous review stays visible until the update is approved.</p>`;
+        }
     }
 
     let formHtml = '';
     if (!currentUser) {
         formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-lock"></i> <a href="#" onclick="event.preventDefault(); navigateTo('user')" style="color:var(--gold);">Sign in</a> to leave a review</p>`;
-    } else if (!myReview) {
+    } else if (!myPending && !myApproved && !getUserLatestHiddenReview(productId)) {
         formHtml = renderCommentFormHtml();
     }
 
@@ -490,15 +536,16 @@ function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden, isYourRevi
 
     const initials = (c.userName || c.userEmail || 'U').charAt(0).toUpperCase();
     const displayName = isYourReview ? 'You' : (c.userName || 'Customer');
-    const statusBadge = isPending
+    const pendingFlag = isPending === true || (isPending !== false && c.status === 'pending');
+    const rejectedFlag = isRejected === true || (isRejected !== false && c.status === 'rejected');
+    const hiddenFlag = isHidden === true || (isHidden !== false && c.status === 'hidden');
+    const statusBadge = pendingFlag
         ? `<span style="font-size:9px; color:var(--gold); background:rgba(255,215,0,0.1); padding:2px 6px; border-radius:4px; margin-left:6px;">PENDING</span>`
-        : isRejected
-            ? `<span style="font-size:9px; color:var(--red); background:rgba(255,71,87,0.1); padding:2px 6px; border-radius:4px; margin-left:6px;">NOT PUBLISHED</span>`
-            : isHidden
+        : rejectedFlag && isAdmin
+            ? `<span style="font-size:9px; color:var(--red); background:rgba(255,71,87,0.1); padding:2px 6px; border-radius:4px; margin-left:6px;">REJECTED</span>`
+            : hiddenFlag
                 ? `<span style="font-size:9px; color:#888; background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; margin-left:6px;">HIDDEN</span>`
-                : (isAdmin && c.status === 'hidden')
-                    ? `<span style="font-size:9px; color:#888; background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; margin-left:6px;">HIDDEN</span>`
-                    : '';
+                : '';
     const ratingHtml = c.rating ? renderStarRatingHtml(c.rating, false, '11px') : '';
     const productLine = isAdmin && c.productName
         ? `<p style="margin:0 0 4px 0; font-size:11px; color:var(--gold);"><i class="fa fa-box"></i> ${escapeHtml(c.productName)}</p>`
@@ -630,7 +677,9 @@ window.submitProductComment = async function() {
     const editingId = window.editingCommentId;
     const existingReview = editingId
         ? window.productCommentsCache.find(c => c.id === editingId)
-        : getUserReviewForProduct(activeProductId);
+        : null;
+    const pendingReview = getUserPendingReview(activeProductId);
+    const approvedReview = getUserLatestApprovedReview(activeProductId);
 
     if (editingId) {
         if (!existingReview || !isReviewOwner(existingReview)) {
@@ -639,7 +688,9 @@ window.submitProductComment = async function() {
         if (existingReview.productId !== activeProductId) {
             return showToast('This review belongs to another product.');
         }
-    } else if (existingReview) {
+    } else if (pendingReview) {
+        return showToast('You already have a review awaiting approval.');
+    } else if (approvedReview || getUserLatestHiddenReview(activeProductId)) {
         return showToast('Tap the pencil icon on your review to update it.');
     }
 
@@ -650,17 +701,48 @@ window.submitProductComment = async function() {
 
     try {
         if (editingId && existingReview) {
-            await db.collection('product_comments').doc(editingId).update({
-                rating,
-                text,
-                status: 'pending',
-                reviewedAt: null,
-                reviewedBy: null,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            if (existingReview.status === 'pending') {
+                await db.collection('product_comments').doc(editingId).update({
+                    rating,
+                    text,
+                    status: 'pending',
+                    reviewedAt: null,
+                    reviewedBy: null,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                showToast('Your review was updated. Pending approval before it goes live.');
+            } else {
+                const targetPending = pendingReview && pendingReview.id !== editingId ? pendingReview : null;
+                if (targetPending) {
+                    await db.collection('product_comments').doc(targetPending.id).update({
+                        rating,
+                        text,
+                        status: 'pending',
+                        reviewedAt: null,
+                        reviewedBy: null,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    await db.collection('product_comments').add({
+                        productId: activeProductId,
+                        productName: p ? p.name : 'Unknown Product',
+                        uid: currentUser.uid,
+                        userName,
+                        userEmail: currentUser.email || '',
+                        rating,
+                        text,
+                        status: 'pending',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        reviewedAt: null,
+                        reviewedBy: null,
+                        replacesCommentId: existingReview.id
+                    });
+                }
+                showToast('Your update was submitted. Your previous review stays visible until this is approved.');
+            }
             resetCommentFormState();
             if (textEl) textEl.value = '';
-            showToast('Your review was updated. Pending approval before it goes live again.');
         } else {
             await db.collection('product_comments').add({
                 productId: activeProductId,
@@ -776,6 +858,47 @@ window.loadCommentsModeration = function() {
         .onSnapshot(handleModerationSnapshot, handleModerationError);
 };
 
+async function approveProductCommentInternal(commentId) {
+    if (!hasAdminCapability('approveComments')) return showToast('You do not have permission to moderate reviews.');
+
+    const fromCache = window.commentsModerationCache.find(c => c.id === commentId)
+        || window.productCommentsCache.find(c => c.id === commentId);
+    let comment = fromCache;
+    if (!comment) {
+        const snap = await db.collection('product_comments').doc(commentId).get();
+        if (!snap.exists) return showToast('Review not found.');
+        comment = { id: snap.id, ...snap.data() };
+    }
+
+    try {
+        const relatedSnap = await db.collection('product_comments')
+            .where('productId', '==', comment.productId)
+            .where('uid', '==', comment.uid)
+            .get();
+
+        const batch = db.batch();
+        relatedSnap.forEach(doc => {
+            if (doc.id === commentId) {
+                batch.update(doc.ref, {
+                    status: 'approved',
+                    reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    reviewedBy: currentUser ? (currentUser.email || '') : ''
+                });
+            } else {
+                const status = doc.data().status;
+                if (status === 'approved' || status === 'pending') {
+                    batch.delete(doc.ref);
+                }
+            }
+        });
+        await batch.commit();
+        showToast('✅ Review approved.');
+    } catch (e) {
+        console.error('approveProductComment error:', e);
+        showToast('Failed to approve review.');
+    }
+}
+
 async function updateCommentStatus(commentId, status) {
     if (!hasAdminCapability('approveComments')) return showToast('You do not have permission to moderate reviews.');
     try {
@@ -784,7 +907,7 @@ async function updateCommentStatus(commentId, status) {
             reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
             reviewedBy: currentUser ? (currentUser.email || '') : ''
         });
-        showToast(status === 'approved' ? '✅ Review approved.' : status === 'hidden' ? 'Review hidden from product page.' : 'Review rejected.');
+        showToast(status === 'hidden' ? 'Review hidden from product page.' : 'Review updated.');
     } catch (e) {
         console.error('updateCommentStatus error:', e);
         showToast('Failed to update review.');
@@ -792,11 +915,19 @@ async function updateCommentStatus(commentId, status) {
 }
 
 window.approveProductComment = function(commentId) {
-    updateCommentStatus(commentId, 'approved');
+    approveProductCommentInternal(commentId);
 };
 
-window.rejectProductComment = function(commentId) {
-    updateCommentStatus(commentId, 'rejected');
+window.rejectProductComment = async function(commentId) {
+    if (!hasAdminCapability('approveComments')) return showToast('You do not have permission to moderate reviews.');
+    if (!confirm('Reject and remove this review? It will not be shown to the customer.')) return;
+    try {
+        await db.collection('product_comments').doc(commentId).delete();
+        showToast('Review rejected and removed.');
+    } catch (e) {
+        console.error('rejectProductComment error:', e);
+        showToast('Failed to reject review.');
+    }
 };
 
 window.hideProductComment = function(commentId) {
