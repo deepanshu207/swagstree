@@ -440,6 +440,7 @@ window.cleanupCommentsListeners = function() {
     lastCommentsEnabledState = null;
     resetCommentFormState();
     window._commentsLoadedProductId = null;
+    window._activeProductPurchaseVerified = {};
 };
 
 function renderProductCommentsSection() {
@@ -455,7 +456,7 @@ function renderProductCommentsSection() {
     const productId = typeof activeProductId !== 'undefined' ? activeProductId : null;
     if (!productId) return;
 
-    const approved = window.productCommentsCache.filter(c => c.status === 'approved');
+    const approved = window.productCommentsCache.filter(c => isReviewEligibleForPublicDisplay(c));
     const publicApproved = dedupeApprovedByUser(approved);
 
     const ratedApproved = publicApproved.filter(c => c.rating);
@@ -480,7 +481,7 @@ function renderProductCommentsSection() {
     const myReview = currentUser ? getUserDisplayReview(productId) : null;
 
     let visiblePublicApproved = publicApproved;
-    if (currentUser && myApproved && !myPending) {
+    if (currentUser && (myReview || myApproved)) {
         visiblePublicApproved = publicApproved.filter(c => c.uid !== currentUser.uid);
     }
 
@@ -503,15 +504,17 @@ function renderProductCommentsSection() {
                 )}
             </div>`;
         if (myPending && myApproved) {
-            yourReviewHtml += `<p class="product-review-pending-note"><i class="fa fa-clock"></i> Your updated review is awaiting approval. Your previous review stays visible until the update is approved.</p>`;
+            yourReviewHtml += `<p class="product-review-pending-note"><i class="fa fa-clock"></i> Your updated review is awaiting approval. It will replace your current review once approved.</p>`;
         }
     }
 
     let formHtml = '';
     if (!currentUser) {
         formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-lock"></i> <a href="#" onclick="event.preventDefault(); navigateTo('user')" style="color:var(--gold);">Sign in</a> to leave a review</p>`;
-    } else if (!myPending && !myApproved) {
+    } else if (!myPending && !myApproved && canUserReviewProduct(productId)) {
         formHtml = renderCommentFormHtml();
+    } else if (!myPending && !myApproved && !canUserReviewProduct(productId)) {
+        formHtml = `<p style="font-size:12px; color:#666; margin:0;"><i class="fa fa-shopping-bag"></i> Purchase this product to leave a review.</p>`;
     }
 
     section.innerHTML = `
@@ -616,6 +619,60 @@ function commentCardHtml(c, isAdmin, isPending, isRejected, isHidden, isYourRevi
         </div>`;
 }
 
+window._activeProductPurchaseVerified = window._activeProductPurchaseVerified || {};
+window._purchaseVerifyCache = window._purchaseVerifyCache || {};
+
+function isReviewEligibleForPublicDisplay(c) {
+    if (!c || c.status !== 'approved') return false;
+    return c.verifiedPurchase !== false;
+}
+
+async function hasUserPurchasedProduct(productId) {
+    if (!currentUser || !productId || typeof db === 'undefined') return false;
+
+    const cacheKey = `${currentUser.uid}:${productId}`;
+    if (window._purchaseVerifyCache[cacheKey] !== undefined) {
+        return window._purchaseVerifyCache[cacheKey];
+    }
+
+    try {
+        const snap = await db.collection('orders').where('uid', '==', currentUser.uid).limit(200).get();
+        const purchased = snap.docs.some(doc => {
+            const data = doc.data() || {};
+            if (data.status === 'cancelled') return false;
+            return (data.items || []).some(item => item && item.id === productId);
+        });
+        window._purchaseVerifyCache[cacheKey] = purchased;
+        return purchased;
+    } catch (e) {
+        console.error('hasUserPurchasedProduct error:', e);
+        return false;
+    }
+}
+
+async function refreshProductPurchaseEligibility(productId) {
+    if (!productId || !currentUser) {
+        if (productId) window._activeProductPurchaseVerified[productId] = false;
+        return false;
+    }
+    if ((typeof isAdmin !== 'undefined' && isAdmin) || (typeof isSuperAdmin !== 'undefined' && isSuperAdmin)) {
+        window._activeProductPurchaseVerified[productId] = true;
+        return true;
+    }
+    const purchased = await hasUserPurchasedProduct(productId);
+    window._activeProductPurchaseVerified[productId] = purchased;
+    return purchased;
+}
+
+function canUserReviewProduct(productId) {
+    if (!currentUser || !productId) return false;
+    if ((typeof isAdmin !== 'undefined' && isAdmin) || (typeof isSuperAdmin !== 'undefined' && isSuperAdmin)) {
+        return true;
+    }
+    return !!window._activeProductPurchaseVerified[productId];
+}
+window.canUserReviewProduct = canUserReviewProduct;
+
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -642,6 +699,12 @@ window.loadProductComments = function(productId) {
         return;
     }
 
+    refreshProductPurchaseEligibility(productId).then(() => {
+        if (window._commentsLoadedProductId === productId) {
+            renderProductCommentsSection();
+        }
+    });
+
     productCommentsUnsubscribe = db.collection('product_comments')
         .where('productId', '==', productId)
         .onSnapshot(snap => {
@@ -665,6 +728,13 @@ window.submitProductComment = async function() {
     if (!currentUser) return showToast('Please sign in to leave a review');
     if (!isProductCommentsEnabled()) return showToast('Reviews are currently disabled');
     if (!activeProductId) return;
+
+    if (!canUserReviewProduct(activeProductId)) {
+        const eligible = await refreshProductPurchaseEligibility(activeProductId);
+        if (!eligible) {
+            return showToast('You can only review products you have purchased.');
+        }
+    }
 
     const textEl = document.getElementById('det-comment-text');
     const text = textEl ? textEl.value.trim() : '';
@@ -730,6 +800,7 @@ window.submitProductComment = async function() {
                         rating,
                         text,
                         status: 'pending',
+                        verifiedPurchase: true,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                         reviewedAt: null,
@@ -751,6 +822,7 @@ window.submitProductComment = async function() {
                 rating,
                 text,
                 status: 'pending',
+                verifiedPurchase: true,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: null,
                 reviewedAt: null,
