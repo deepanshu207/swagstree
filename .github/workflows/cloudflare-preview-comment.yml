@@ -7,13 +7,13 @@ on:
     types: [completed]
 
 concurrency:
-  group: cloudflare-preview-${{ github.event.pull_request.number || format('sha-{0}', github.event.check_run.head_sha) }}
+  group: cloudflare-preview-${{ github.event.pull_request.number || github.event.check_run.head_sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   post-preview-link:
     name: Post Cloudflare preview URL
-    if: github.event_name == 'pull_request' || github.event.check_run.name == 'Workers Builds: swagstree'
+    if: github.event_name == 'pull_request' || (github.event_name == 'check_run' && github.event.check_run.name == 'Workers Builds: swagstree')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
