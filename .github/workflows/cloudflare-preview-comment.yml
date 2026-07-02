@@ -3,6 +3,10 @@ name: Cloudflare Preview Comment
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - 'cursor/**'
+      - 'testv*'
   check_run:
     types: [completed]
 
@@ -13,7 +17,10 @@ concurrency:
 jobs:
   post-preview-link:
     name: Post Cloudflare preview URL
-    if: github.event_name == 'pull_request' || (github.event_name == 'check_run' && github.event.check_run.name == 'Workers Builds: swagstree')
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'check_run' && github.event.check_run.name == 'Workers Builds: swagstree')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -43,6 +50,16 @@ jobs:
               return data.check_runs.find((run) => run.name === CHECK_NAME && run.status === 'completed' && run.conclusion === 'success');
             }
 
+            async function findPrForSha(sha) {
+              const { data: pulls } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+              });
+              return pulls.find((pr) => pr.head.sha === sha) || null;
+            }
+
             let prNumber = null;
             let headSha = null;
             let summary = '';
@@ -56,9 +73,17 @@ jobs:
               headSha = run.head_sha;
               summary = run.output?.summary || '';
               prNumber = run.pull_requests?.[0]?.number || null;
-            } else {
+            } else if (context.eventName === 'pull_request') {
               prNumber = context.payload.pull_request.number;
               headSha = context.payload.pull_request.head.sha;
+            } else if (context.eventName === 'push') {
+              headSha = context.sha;
+              const pr = await findPrForSha(headSha);
+              if (!pr) {
+                core.info('No open pull request for this push; skipping preview comment.');
+                return;
+              }
+              prNumber = pr.number;
             }
 
             if (!summary) {
@@ -80,14 +105,8 @@ jobs:
             }
 
             if (!prNumber) {
-              const { data: pulls } = await github.rest.pulls.list({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open',
-                per_page: 50,
-              });
-              const match = pulls.find((pr) => pr.head.sha === headSha);
-              prNumber = match?.number || null;
+              const pr = await findPrForSha(headSha);
+              prNumber = pr?.number || null;
             }
 
             if (!prNumber) {
