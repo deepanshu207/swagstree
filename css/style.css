@@ -3675,7 +3675,213 @@ a.feedback-view-post-btn:active {
 }
 
 .spinner-360 {
+    width: 44px;
+    height: 44px;
+    border: 3px solid rgba(255,215,0,0.1);
+    border-top: 3px solid var(--gold);
+    border-radius: 50%;
     animation: spin-360 1s linear infinite;
+}
+
+/* Unified Media Viewer */
+.media-viewer-modal {
+    position: fixed;
+    inset: 0;
+    background: #0a0a0a;
+    z-index: 999999;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Outfit', sans-serif;
+}
+
+.mv-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
+    transition: background 0.2s;
+}
+.mv-close:hover { background: rgba(255,255,255,0.15); }
+
+.mv-header {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    z-index: 10;
+    max-width: 70%;
+}
+.mv-header h3 {
+    color: #fff;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.mv-header p {
+    color: var(--gold);
+    margin: 4px 0 0;
+    font-size: 11px;
+    opacity: 0.85;
+}
+
+.mv-stage {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: grab;
+    position: relative;
+}
+
+.mv-image {
+    max-width: 92%;
+    max-height: 78vh;
+    object-fit: contain;
+    transform: scale(1) translate(0, 0);
+    transition: transform 0.08s ease-out;
+    pointer-events: none;
+    user-select: none;
+}
+
+.mv-video {
+    max-width: 92%;
+    max-height: 78vh;
+    object-fit: contain;
+    border-radius: 8px;
+    background: #000;
+}
+
+.mv-loader {
+    position: absolute;
+    inset: 0;
+    background: #0a0a0a;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    gap: 12px;
+}
+.mv-loader p {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.mv-guide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+    pointer-events: none;
+    background: rgba(0,0,0,0.45);
+    transition: opacity 0.4s;
+}
+.mv-guide i {
+    font-size: 36px;
+    color: var(--gold);
+    animation: pulse-gesture 2.5s infinite;
+    filter: drop-shadow(0 0 10px rgba(255,215,0,0.4));
+}
+.mv-guide p {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    margin: 10px 0 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.mv-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(6px);
+    transition: all 0.2s;
+}
+.mv-nav:hover { background: var(--gold); color: #000; border-color: var(--gold); }
+.mv-prev { left: 16px; }
+.mv-next { right: 16px; }
+
+.mv-toolbar {
+    position: absolute;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(15,15,15,0.75);
+    border: 1px solid rgba(255,215,0,0.25);
+    padding: 8px 18px;
+    border-radius: 30px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.mv-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    outline: none;
+}
+.mv-btn:hover { background: rgba(255,215,0,0.15); color: var(--gold); }
+.mv-btn i { pointer-events: none; }
+
+.mv-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255,255,255,0.15);
+    display: inline-block;
+}
+
+#det-gallery img[cursor="zoom-in"],
+#det-gallery img[style*="cursor:zoom-in"] {
+    cursor: zoom-in;
+}
+
+.det-gallery-video {
+    scroll-snap-align: center;
+    flex-shrink: 0;
 }
 
 /* Typing indicator animation */

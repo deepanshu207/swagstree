@@ -25,6 +25,8 @@ if (typeof window.isAdmin === 'undefined') window.isAdmin = false;
 if (typeof window.products === 'undefined') window.products = [];
 if (typeof window.editingId === 'undefined') window.editingId = null;
 if (typeof window.existingImageUrls === 'undefined') window.existingImageUrls = [];
+if (typeof window.existingSpinUrls === 'undefined') window.existingSpinUrls = [];
+if (typeof window.existingVideoUrls === 'undefined') window.existingVideoUrls = [];
 if (typeof window.currentProductFiles === 'undefined') window.currentProductFiles = [];
 
 if (typeof window.editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
@@ -147,15 +149,33 @@ function renderVariantBlocks() {
 
                 <!-- Row 4: Upload buttons -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed ${is360Enabled && v.is360 ? 'var(--gold)' : '#444'}; background:#1a1a1a; color:${is360Enabled && v.is360 ? 'var(--gold)' : '#aaa'}; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
+                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #444; background:#1a1a1a; color:#aaa; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
                         <span style="font-size:18px;">🖼️</span>
-                        <span>Upload Variant Images ${is360Enabled && v.is360 ? '(360° Rotations)' : ''}</span>
+                        <span>Gallery Images</span>
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
                     </label>
                     <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #25D366; background:#1a1a1a; color:#25D366; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
                         <span style="font-size:18px;">🎨</span>
                         <span>Pattern / Color Swatch(es)</span>
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
+                    </label>
+                </div>
+                ${is360Enabled ? `
+                <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
+                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Spin Frames <span style="color:#666; text-transform:none;">(upload in order, min 2)</span></p>
+                    <div id="v-spin-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
+                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
+                        <span>🔄</span> Upload 360° Frames
+                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
+                    </label>
+                </div>
+                ` : ''}
+                <div>
+                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Product Video <span style="color:#666; text-transform:none;">(optional)</span></p>
+                    <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
+                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
+                        <span>🎬</span> Upload Video
+                        <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
                     </label>
                 </div>
 
@@ -166,7 +186,7 @@ function renderVariantBlocks() {
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
                     ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked); const badge = document.getElementById('v-active-badge-${v.id}'); if(badge) { badge.style.background = this.checked ? '#1a3a1a' : '#3a1a1a'; badge.style.color = this.checked ? '#4caf50' : '#e57373'; badge.innerHTML = this.checked ? '● Active' : '○ Hidden'; }`, 'Active', '#4caf50')}
-                    ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Rotate View Enabled', '#FFD700') : ''}
+                    ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Spin View', '#FFD700') : ''}
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
@@ -175,15 +195,6 @@ function renderVariantBlocks() {
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
                         <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
                     </div>
-                    ${is360Enabled ? `
-                    <div id="v-360-grid-container-${v.id}" style="display:${v.is360 ? 'flex' : 'none'}; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column: 1 / -1;">
-                        <span style="font-size:12px; color:#aaa; white-space:nowrap;">360 Grid:</span>
-                        <input type="number" placeholder="Cols" value="${v.threeSixtyCols || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyCols', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
-                        <span style="font-size:12px; color:#666;">x</span>
-                        <input type="number" placeholder="Rows" value="${v.threeSixtyRows || 1}" min="1" oninput="updateVariant('${v.id}', 'threeSixtyRows', parseInt(this.value)||1)" style="width:60px; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center; margin:0;">
-                        <span style="font-size:11px; color:#666; margin-left:5px;">(Cols x Rows frames)</span>
-                    </div>
-                    ` : ''}
 
             </div>
         </div>
@@ -192,6 +203,8 @@ function renderVariantBlocks() {
 
     variantBlocks.forEach((v, index) => {
         renderImagePreviews(v.id);
+        renderSpinPreviews(v.id);
+        renderVideoPreviews(v.id);
         renderSwatchPreview(v.id);
         
         const blockEl = document.getElementById(`v-block-${v.id}`);
@@ -313,11 +326,45 @@ function addVariantBlock() {
         trackStock: false,
         stockCount: 0,
         is360: false,
+        spinImages: [],
+        videos: [],
         images: [],
         previewImages: []
     });
     renderVariantBlocks();
 }
+
+function handleSpinFileSelect(input, vId) {
+    if (!input.files || input.files.length === 0) return;
+    const newFiles = Array.from(input.files);
+    if (vId === 'base') {
+        existingSpinUrls = [...(existingSpinUrls || []), ...newFiles];
+        renderSpinPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === vId);
+        if (!v) return;
+        v.spinImages = [...(v.spinImages || []), ...newFiles];
+        renderSpinPreviews(vId);
+    }
+    input.value = '';
+}
+window.handleSpinFileSelect = handleSpinFileSelect;
+
+function handleVideoFileSelect(input, vId) {
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    if (vId === 'base') {
+        existingVideoUrls = [...(existingVideoUrls || []), file];
+        renderVideoPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === vId);
+        if (!v) return;
+        v.videos = [...(v.videos || []), file];
+        renderVideoPreviews(vId);
+    }
+    input.value = '';
+}
+window.handleVideoFileSelect = handleVideoFileSelect;
 
 function handleFileSelect(input, vId) {
     if(!input.files || input.files.length === 0) return;
@@ -343,6 +390,30 @@ function handleSwatchSelect(input, vId) {
     renderVariantBlocks();
     input.value = '';
 }
+
+function removeSpinImage(vId, index) {
+    if (vId === 'base') {
+        existingSpinUrls.splice(index, 1);
+        renderSpinPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === vId);
+        if (v && v.spinImages) v.spinImages.splice(index, 1);
+        renderSpinPreviews(vId);
+    }
+}
+window.removeSpinImage = removeSpinImage;
+
+function removeVideoItem(vId, index) {
+    if (vId === 'base') {
+        existingVideoUrls.splice(index, 1);
+        renderVideoPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === vId);
+        if (v && v.videos) v.videos.splice(index, 1);
+        renderVideoPreviews(vId);
+    }
+}
+window.removeVideoItem = removeVideoItem;
 
 function removeVariantImage(vId, index) {
     const v = variantBlocks.find(x => x.id === vId);
@@ -500,7 +571,9 @@ function openEdit(id) {
     document.getElementById('m-main-pos').value = p.mainImagesPosition || 'end';
     document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
-    existingImageUrls = [...(p.images || [])]; 
+    existingImageUrls = [...(p.images || [])];
+    existingSpinUrls = [...(p.spinImages || [])];
+    existingVideoUrls = [...(p.videos || [])];
     
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
     const mainIs360Container = document.getElementById('m-is360-container');
@@ -512,14 +585,12 @@ function openEdit(id) {
         mainIs360.checked = !!p.is360;
         toggle360Badge('base', is360Enabled && !!p.is360);
     }
-    const baseCols = document.getElementById('m-360-cols');
-    if (baseCols) baseCols.value = p.threeSixtyCols || 1;
-    const baseRows = document.getElementById('m-360-rows');
-    if (baseRows) baseRows.value = p.threeSixtyRows || 1;
-    const baseGridSettings = document.getElementById('m-360-grid-settings');
-    if (baseGridSettings) baseGridSettings.style.display = (is360Enabled && p.is360) ? 'flex' : 'none';
+    const baseSpinUpload = document.getElementById('m-spin-upload-container');
+    if (baseSpinUpload) baseSpinUpload.style.display = (is360Enabled && p.is360) ? 'block' : 'none';
 
-    renderImagePreviews('base'); 
+    renderImagePreviews('base');
+    renderSpinPreviews('base');
+    renderVideoPreviews('base');
     
     // Load variants or fallback
     if (p.variants && Array.isArray(p.variants)) {
@@ -540,6 +611,8 @@ function openEdit(id) {
             is360: !!v.is360,
             threeSixtyCols: v.threeSixtyCols || 1,
             threeSixtyRows: v.threeSixtyRows || 1,
+            spinImages: [...(v.spinImages || [])],
+            videos: [...(v.videos || [])],
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
@@ -606,13 +679,17 @@ function toggle360Badge(id, checked) {
     if (id === 'base') {
         const b = document.getElementById('base-360-badge');
         if (b) b.style.display = checked ? 'inline-block' : 'none';
+        const spinUpload = document.getElementById('m-spin-upload-container');
+        if (spinUpload) spinUpload.style.display = checked ? 'block' : 'none';
     }
 }
 window.toggle360Badge = toggle360Badge;
 
 function openAdd() { 
     editingId = null; 
-    existingImageUrls = []; 
+    existingImageUrls = [];
+    existingSpinUrls = [];
+    existingVideoUrls = [];
     variantBlocks = [];
     document.getElementById('m-name').value = ""; 
     document.getElementById('m-price').value = ""; 
@@ -633,14 +710,12 @@ function openAdd() {
         mainIs360.checked = false;
         toggle360Badge('base', false);
     }
-    const baseCols = document.getElementById('m-360-cols');
-    if (baseCols) baseCols.value = 1;
-    const baseRows = document.getElementById('m-360-rows');
-    if (baseRows) baseRows.value = 1;
-    const baseGridSettings = document.getElementById('m-360-grid-settings');
-    if (baseGridSettings) baseGridSettings.style.display = 'none';
+    const baseSpinUpload = document.getElementById('m-spin-upload-container');
+    if (baseSpinUpload) baseSpinUpload.style.display = 'none';
     
-    renderImagePreviews('base'); 
+    renderImagePreviews('base');
+    renderSpinPreviews('base');
+    renderVideoPreviews('base');
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(null);
     document.getElementById('prod-modal').style.display = 'flex'; 
@@ -711,18 +786,53 @@ function renderImagePreviews(targetId = 'base') {
     }
 }
 
-// Global helper to upload a file to Cloudinary
+// Global helper to upload a file to Cloudinary (images + videos)
 async function uploadToCloudinary(file) {
-    const fd = new FormData(); 
-    fd.append("file", file); 
-    fd.append("upload_preset", PRESET); 
-    const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:"POST", body:fd}); 
-    const d = await r.json(); 
+    const isVideo = file.type && file.type.startsWith('video/');
+    const resourceType = isVideo ? 'video' : 'image';
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("upload_preset", PRESET);
+    const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`, { method: "POST", body: fd });
+    const d = await r.json();
     if (!d.secure_url) {
         throw new Error(d.error ? d.error.message : "Cloudinary upload failed");
     }
-    return d.secure_url; 
+    return d.secure_url;
 }
+
+function renderSpinPreviews(targetId = 'base') {
+    const container = document.getElementById(targetId === 'base' ? 'm-spin-preview' : `v-spin-preview-${targetId}`);
+    if (!container) return;
+    const items = targetId === 'base' ? (existingSpinUrls || []) : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
+    container.innerHTML = items.map((img, i) => {
+        const isFile = img instanceof File;
+        const url = isFile ? URL.createObjectURL(img) : img;
+        return `
+            <div style="position:relative; width:50px; height:50px; border-radius:6px; overflow:hidden; border:1px solid var(--gold);">
+                <div style="position:absolute; top:1px; left:1px; background:var(--gold); color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
+                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:1px; right:1px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.6); padding:2px; border-radius:3px;" onclick="removeSpinImage('${targetId}', ${i})"></i>
+            </div>`;
+    }).join('');
+}
+window.renderSpinPreviews = renderSpinPreviews;
+
+function renderVideoPreviews(targetId = 'base') {
+    const container = document.getElementById(targetId === 'base' ? 'm-video-preview' : `v-video-preview-${targetId}`);
+    if (!container) return;
+    const items = targetId === 'base' ? (existingVideoUrls || []) : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    container.innerHTML = items.map((vid, i) => {
+        const isFile = vid instanceof File;
+        const label = isFile ? vid.name.substring(0, 12) + '...' : 'Video';
+        return `
+            <div style="position:relative; padding:6px 10px; border-radius:6px; border:1px solid #64b5f6; background:#1a1a1a; display:flex; align-items:center; gap:6px; font-size:11px; color:#64b5f6;">
+                <i class="fa fa-film"></i> ${label}
+                <i class="fa fa-times" style="color:var(--red); cursor:pointer; font-size:10px; margin-left:4px;" onclick="removeVideoItem('${targetId}', ${i})"></i>
+            </div>`;
+    }).join('');
+}
+window.renderVideoPreviews = renderVideoPreviews;
 
 async function saveProduct() { 
     const n = document.getElementById('m-name').value;
@@ -737,10 +847,22 @@ async function saveProduct() {
         // Upload all base images in parallel (interleaved support)
         const finalMainImages = await Promise.all(
             existingImageUrls.map(async img => {
-                if (img instanceof File) {
-                    return await uploadToCloudinary(img);
-                }
+                if (img instanceof File) return await uploadToCloudinary(img);
                 return img;
+            })
+        );
+
+        const finalSpinImages = await Promise.all(
+            (existingSpinUrls || []).map(async img => {
+                if (img instanceof File) return await uploadToCloudinary(img);
+                return img;
+            })
+        );
+
+        const finalVideos = await Promise.all(
+            (existingVideoUrls || []).map(async vid => {
+                if (vid instanceof File) return await uploadToCloudinary(vid);
+                return vid;
             })
         );
         
@@ -748,10 +870,22 @@ async function saveProduct() {
         const parsedVariantsResult = await Promise.all(variantBlocks.map(async v => {
             const uploadedVariantImages = await Promise.all(
                 (v.images || []).map(async img => {
-                    if (img instanceof File) {
-                        return await uploadToCloudinary(img);
-                    }
+                    if (img instanceof File) return await uploadToCloudinary(img);
                     return img;
+                })
+            );
+
+            const uploadedSpinImages = await Promise.all(
+                (v.spinImages || []).map(async img => {
+                    if (img instanceof File) return await uploadToCloudinary(img);
+                    return img;
+                })
+            );
+
+            const uploadedVideos = await Promise.all(
+                (v.videos || []).map(async vid => {
+                    if (vid instanceof File) return await uploadToCloudinary(vid);
+                    return vid;
                 })
             );
             
@@ -788,8 +922,10 @@ async function saveProduct() {
                 trackStock: !!v.trackStock,
                 stockCount: typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0),
                 is360: !!v.is360,
-                threeSixtyCols: v.threeSixtyCols ? Number(v.threeSixtyCols) : 1,
+                threeSixtyCols: uploadedSpinImages.length || (v.threeSixtyCols ? Number(v.threeSixtyCols) : 1),
                 threeSixtyRows: v.threeSixtyRows ? Number(v.threeSixtyRows) : 1,
+                spinImages: uploadedSpinImages,
+                videos: uploadedVideos,
                 images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
             };
@@ -815,8 +951,12 @@ async function saveProduct() {
                 if (v.isActive) dup.isActive = true;
                 if (v.is360) {
                     dup.is360 = true;
-                    dup.threeSixtyCols = v.threeSixtyCols ? Number(v.threeSixtyCols) : 1;
+                    dup.spinImages = [...new Set([...(dup.spinImages || []), ...(v.spinImages || [])])];
+                    dup.threeSixtyCols = dup.spinImages.length || (v.threeSixtyCols ? Number(v.threeSixtyCols) : 1);
                     dup.threeSixtyRows = v.threeSixtyRows ? Number(v.threeSixtyRows) : 1;
+                }
+                if (v.videos && v.videos.length) {
+                    dup.videos = [...new Set([...(dup.videos || []), ...v.videos])];
                 }
                 if (v.hideDetailsGallery) dup.hideDetailsGallery = true;
                 if (v.showInMainCarousel) dup.showInMainCarousel = true;
@@ -836,8 +976,10 @@ async function saveProduct() {
             mainImagesPosition: document.getElementById('m-main-pos').value,
             hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
             is360: document.getElementById('m-is360').checked,
-            threeSixtyCols: document.getElementById('m-360-cols') ? Number(document.getElementById('m-360-cols').value) || 1 : 1,
-            threeSixtyRows: document.getElementById('m-360-rows') ? Number(document.getElementById('m-360-rows').value) || 1 : 1,
+            threeSixtyCols: finalSpinImages.length || 1,
+            threeSixtyRows: 1,
+            spinImages: finalSpinImages,
+            videos: finalVideos,
             images: finalMainImages,
             variants: mergedVariants,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -903,14 +1045,10 @@ function copyProduct(id) {
         mainIs360.checked = !!p.is360;
         toggle360Badge('base', !!p.is360);
     }
-    const baseCols = document.getElementById('m-360-cols');
-    if (baseCols) baseCols.value = p.threeSixtyCols || 1;
-    const baseRows = document.getElementById('m-360-rows');
-    if (baseRows) baseRows.value = p.threeSixtyRows || 1;
-    const baseGridSettings = document.getElementById('m-360-grid-settings');
-    if (baseGridSettings) baseGridSettings.style.display = p.is360 ? 'flex' : 'none';
 
-    existingImageUrls = [...(p.images || [])]; 
+    existingImageUrls = [...(p.images || [])];
+    existingSpinUrls = [...(p.spinImages || [])];
+    existingVideoUrls = [...(p.videos || [])];
     
     // Load variants or fallback
     if (p.variants && Array.isArray(p.variants)) {
@@ -931,6 +1069,8 @@ function copyProduct(id) {
             is360: !!v.is360,
             threeSixtyCols: v.threeSixtyCols || 1,
             threeSixtyRows: v.threeSixtyRows || 1,
+            spinImages: [...(v.spinImages || [])],
+            videos: [...(v.videos || [])],
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
@@ -983,7 +1123,9 @@ function copyProduct(id) {
         });
     }
 
-    renderImagePreviews('base'); 
+    renderImagePreviews('base');
+    renderSpinPreviews('base');
+    renderVideoPreviews('base');
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     document.getElementById('prod-modal').style.display = 'flex'; 

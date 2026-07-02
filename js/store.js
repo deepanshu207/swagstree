@@ -1029,15 +1029,11 @@ function showDetail(id, initialColor = null, initialSize = null) {
     updateVariantUI(p);
     updateDetailURL();
 
-    // Check if 360 viewer is enabled and product has multiple images
+    // Check if 360 viewer is enabled
     const trigger360 = document.getElementById('det-360-trigger');
     if (trigger360) {
-        const active360Img = window.getActive360Images(p);
-        if (active360Img) {
-            trigger360.style.display = 'flex';
-        } else {
-            trigger360.style.display = 'none';
-        }
+        const media = resolveProductMedia(p);
+        trigger360.style.display = media.has360 ? 'flex' : 'none';
     }
 
     const detView = document.getElementById('detail-view');
@@ -1181,6 +1177,8 @@ function renderDetailPatterns(p) {
 
 function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const v = getSelectedVariant(p);
+    const productMedia = resolveProductMedia(p);
+    const spinSet = productMedia.spinSet;
 
     // Update Price
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
@@ -1195,14 +1193,11 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const mainImagesMap = [];
     if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
         p.images.forEach(img => {
+            if (spinSet.has(img)) return;
             if (!addedImages.has(img)) {
                 addedImages.add(img);
                 mainImages.push(img);
-                mainImagesMap.push({
-                    url: img,
-                    color: '',
-                    size: ''
-                });
+                mainImagesMap.push({ url: img, color: '', size: '', type: 'image' });
             }
         });
     }
@@ -1212,38 +1207,47 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     if (p.normalizedVariants && p.normalizedVariants.length > 0) {
         p.normalizedVariants.forEach(variant => {
             const shouldHide = variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true';
-            if (shouldHide) {
-                return; // Skip this variant's images and placeholder entirely
-            }
+            if (shouldHide) return;
             if (variant.images && variant.images.length > 0) {
                 variant.images.forEach(img => {
+                    const variantSpin = variant.spinImages && variant.spinImages.length >= 2 ? new Set(variant.spinImages) : spinSet;
+                    if (variantSpin.has(img)) return;
                     if (!addedImages.has(img)) {
                         addedImages.add(img);
                         variantImages.push(img);
-                        variantImagesMap.push({
-                            url: img,
-                            color: variant.color || '',
-                            size: variant.size || ''
-                        });
+                        variantImagesMap.push({ url: img, color: variant.color || '', size: variant.size || '', type: 'image' });
                     }
                 });
             } else {
-                // Pre-generate a placeholder key to avoid duplicate placeholders for the same color/size
                 const placeholderKey = `placeholder-${variant.color || ''}-${variant.size || ''}`;
                 if (!addedImages.has(placeholderKey)) {
                     addedImages.add(placeholderKey);
                     const placeholderImg = "https://placehold.co/400x400/222/FFF?text=No+Image";
                     variantImages.push(placeholderImg);
-                    variantImagesMap.push({
-                        url: placeholderImg,
-                        color: variant.color || '',
-                        size: variant.size || '',
-                        isPlaceholder: true
-                    });
+                    variantImagesMap.push({ url: placeholderImg, color: variant.color || '', size: variant.size || '', isPlaceholder: true, type: 'image' });
                 }
             }
         });
     }
+
+    // Add 360 preview frame if spin exists but no gallery images
+    if (productMedia.has360 && mainImages.length === 0 && variantImages.length === 0) {
+        const preview = productMedia.spinFrames[0];
+        mainImages.push(preview);
+        mainImagesMap.push({ url: preview, color: '', size: '', type: 'image', is360Preview: true });
+    }
+
+    // Add product videos to gallery
+    const videoItems = productMedia.videos || [];
+    videoItems.forEach((vidUrl, vi) => {
+        const vidKey = `video-${vidUrl}`;
+        if (!addedImages.has(vidKey)) {
+            addedImages.add(vidKey);
+            const poster = (mainImages[0] || variantImages[0] || (productMedia.spinFrames && productMedia.spinFrames[0]) || '');
+            variantImages.push(vidUrl);
+            variantImagesMap.push({ url: vidUrl, color: '', size: '', type: 'video', poster, videoIndex: vi });
+        }
+    });
 
     // Combine based on admin-configured position (defaults to 'end')
     const pos = p.mainImagesPosition || 'end';
@@ -1263,14 +1267,27 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         ? overrideActiveIdx
         : (targetIndex > -1 ? targetIndex : 0);
 
-    window.detailGalleryImages = imagesToDisplay.slice();
+    window.detailGalleryImages = imagesToDisplay.filter((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
     window.detailGalleryActiveIndex = activeThumbIdx > -1 ? activeThumbIdx : 0;
 
     // Render gallery with mapping metadata
+    let imageOnlyIdx = 0;
     const galleryHtml = imagesToDisplay.length 
         ? imagesToDisplay.map((img, index) => {
-            const mapInfo = imageToVariantMap[index] || { color: '', size: '' };
-            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" onclick="openProductDetailImageZoom(${index}, event)" alt="Product image ${index + 1}">`;
+            const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
+            if (mapInfo.type === 'video') {
+                const poster = mapInfo.poster || '';
+                return `<div class="det-gallery-video" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openProductVideo(activeProductId, '${mapInfo.url.replace(/'/g, "\\'")}')" style="position:relative; width:100%; height:100%; flex-shrink:0; scroll-snap-align:center; cursor:pointer; background:#000;">
+                    ${poster ? `<img src="${poster}" style="width:100%; height:100%; object-fit:contain; pointer-events:none;">` : ''}
+                    <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35);">
+                        <div style="width:56px; height:56px; border-radius:50%; background:rgba(0,0,0,0.65); border:2px solid var(--gold); display:flex; align-items:center; justify-content:center;">
+                            <i class="fa fa-play" style="color:var(--gold); font-size:20px; margin-left:3px;"></i>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            const zoomIdx = imageOnlyIdx++;
+            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
         }).join('') 
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
 
@@ -1296,8 +1313,16 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         if (imagesToDisplay.length > 1) {
             thumbsContainer.style.display = 'flex';
             const thumbsHtml = imagesToDisplay.map((img, idx) => {
-                const mapInfo = imageToVariantMap[idx] || { color: '', size: '' };
+                const mapInfo = imageToVariantMap[idx] || { color: '', size: '', type: 'image' };
                 const borderStyle = idx === activeThumbIdx ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
+                if (mapInfo.type === 'video') {
+                    const poster = mapInfo.poster || 'https://placehold.co/45x60/111/FFD700?text=▶';
+                    return `
+                    <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; position:relative; ${borderStyle}" onclick="clickDetThumb(${idx})">
+                        <img src="${poster}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
+                        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4);"><i class="fa fa-play" style="color:var(--gold); font-size:10px;"></i></div>
+                    </div>`;
+                }
                 return `
                     <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
                         <img src="${img}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
@@ -1424,12 +1449,13 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     }
     const trigger360 = document.getElementById('det-360-trigger');
     if (trigger360) {
-        const active360Img = window.getActive360Images(p);
-        if (active360Img) {
-            trigger360.style.display = 'flex';
-        } else {
-            trigger360.style.display = 'none';
-        }
+        const media = resolveProductMedia(p);
+        trigger360.style.display = media.has360 ? 'flex' : 'none';
+    }
+    const zoomHint = document.getElementById('det-zoom-hint');
+    if (zoomHint) {
+        const hasImages = imagesToDisplay.some((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
+        zoomHint.style.display = hasImages ? 'block' : 'none';
     }
 
     const zoomTrigger = document.getElementById('det-zoom-trigger');
@@ -2735,18 +2761,58 @@ function closeFooterPage() {
         if (fallback) fallback.classList.add('active');
     }
 }
-function getActive360Images(p) {
-    const isEnabled = window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer;
-    if (!isEnabled) return null;
-
+function resolveProductMedia(p) {
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
     const v = getSelectedVariant(p);
-    if (v && v.is360 && v.images && v.images.length >= 2) {
-        return v.images;
+    const spinSet = new Set();
+    let spinFrames = null;
+    let spinCols = 1;
+    let spinRows = 1;
+    let videos = [];
+
+    function getSpinFrames(source) {
+        if (!source || !source.is360 || !is360Enabled) return null;
+        const dedicated = source.spinImages && source.spinImages.length >= 2 ? source.spinImages : null;
+        const legacy = source.images && source.images.length >= 2 ? source.images : null;
+        const frames = dedicated || legacy;
+        if (!frames) return null;
+        const cols = source.threeSixtyCols ? Number(source.threeSixtyCols) : frames.length;
+        const rows = source.threeSixtyRows ? Number(source.threeSixtyRows) : 1;
+        return { frames, cols, rows };
     }
-    if (p.is360 && p.images && p.images.length >= 2) {
-        return p.images;
+
+    const variantSpin = v ? getSpinFrames(v) : null;
+    const productSpin = getSpinFrames(p);
+
+    if (variantSpin) {
+        spinFrames = variantSpin.frames;
+        spinCols = variantSpin.cols;
+        spinRows = variantSpin.rows;
+        spinFrames.forEach(url => spinSet.add(url));
+        if (v.videos && v.videos.length) videos = [...v.videos];
+    } else if (productSpin) {
+        spinFrames = productSpin.frames;
+        spinCols = productSpin.cols;
+        spinRows = productSpin.rows;
+        spinFrames.forEach(url => spinSet.add(url));
     }
-    return null;
+
+    if (!videos.length) {
+        if (v && v.videos && v.videos.length) videos = [...v.videos];
+        else if (p.videos && p.videos.length) videos = [...p.videos];
+    }
+
+    if (spinFrames && spinCols * spinRows > spinFrames.length) {
+        spinCols = Math.max(1, Math.floor(spinFrames.length / spinRows));
+    }
+
+    return { spinFrames, spinCols, spinRows, spinSet, videos, galleryImages: [], has360: !!(spinFrames && spinFrames.length >= 2) };
+}
+window.resolveProductMedia = resolveProductMedia;
+
+function getActive360Images(p) {
+    const media = resolveProductMedia(p);
+    return media.has360 ? media.spinFrames : null;
 }
 window.getActive360Images = getActive360Images;
 
@@ -2839,6 +2905,10 @@ function openProductDetailImageZoom(index, event) {
     const images = window.detailGalleryImages || [];
     if (!images.length) return;
     window.detailGalleryActiveIndex = Math.max(0, Math.min(index || 0, images.length - 1));
+    if (typeof openGalleryZoom === 'function' && activeProductId) {
+        openGalleryZoom(activeProductId, window.detailGalleryActiveIndex);
+        return;
+    }
     openMediaZoomLightbox(images, window.detailGalleryActiveIndex);
 }
 window.openProductDetailImageZoom = openProductDetailImageZoom;
