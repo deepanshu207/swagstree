@@ -1,0 +1,139 @@
+name: Cloudflare Preview Comment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - 'cursor/**'
+      - 'testv*'
+  check_run:
+    types: [completed]
+
+concurrency:
+  group: cloudflare-preview-${{ github.event.pull_request.number || github.event.check_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  post-preview-link:
+    name: Post Cloudflare preview URL
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'check_run' && github.event.check_run.name == 'Workers Builds: swagstree')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      checks: read
+    steps:
+      - name: Resolve preview URLs from Cloudflare check
+        id: preview
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const CHECK_NAME = 'Workers Builds: swagstree';
+
+            function parseUrls(summary) {
+              if (!summary) return {};
+              const previewUrl = summary.match(/Preview URL:\s*(https:\/\/\S+)/)?.[1] || '';
+              const aliasUrl = summary.match(/Preview Alias URL:\s*(https:\/\/\S+)/)?.[1] || '';
+              return { previewUrl, aliasUrl };
+            }
+
+            async function findCheckForSha(sha) {
+              const { data } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: sha,
+                check_name: CHECK_NAME,
+              });
+              return data.check_runs.find((run) => run.name === CHECK_NAME && run.status === 'completed' && run.conclusion === 'success');
+            }
+
+            async function findPrForSha(sha) {
+              const { data: pulls } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+              });
+              return pulls.find((pr) => pr.head.sha === sha) || null;
+            }
+
+            let prNumber = null;
+            let headSha = null;
+            let summary = '';
+
+            if (context.eventName === 'check_run') {
+              const run = context.payload.check_run;
+              if (run.name !== CHECK_NAME || run.conclusion !== 'success') {
+                core.info('Ignoring unrelated or unsuccessful check run.');
+                return;
+              }
+              headSha = run.head_sha;
+              summary = run.output?.summary || '';
+              prNumber = run.pull_requests?.[0]?.number || null;
+            } else if (context.eventName === 'pull_request') {
+              prNumber = context.payload.pull_request.number;
+              headSha = context.payload.pull_request.head.sha;
+            } else if (context.eventName === 'push') {
+              headSha = context.sha;
+              const pr = await findPrForSha(headSha);
+              if (!pr) {
+                core.info('No open pull request for this push; skipping preview comment.');
+                return;
+              }
+              prNumber = pr.number;
+            }
+
+            if (!summary) {
+              core.info(`Waiting for ${CHECK_NAME} on ${headSha}...`);
+              for (let attempt = 0; attempt < 36; attempt++) {
+                const check = await findCheckForSha(headSha);
+                if (check) {
+                  summary = check.output?.summary || '';
+                  if (summary.includes('Preview URL:')) break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 10000));
+              }
+            }
+
+            const { previewUrl, aliasUrl } = parseUrls(summary);
+            if (!previewUrl) {
+              core.setFailed('Cloudflare preview URL not found. Ensure the Cloudflare Workers GitHub App is connected and preview builds are enabled.');
+              return;
+            }
+
+            if (!prNumber) {
+              const pr = await findPrForSha(headSha);
+              prNumber = pr?.number || null;
+            }
+
+            if (!prNumber) {
+              core.setFailed('Could not determine PR number for this Cloudflare preview.');
+              return;
+            }
+
+            core.setOutput('pr_number', String(prNumber));
+            core.setOutput('preview_url', previewUrl);
+            core.setOutput('alias_url', aliasUrl || previewUrl);
+            core.setOutput('head_sha', headSha);
+
+      - name: Comment on pull request
+        if: steps.preview.outputs.preview_url != ''
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ steps.preview.outputs.pr_number }}
+          comment-tag: cloudflare-workers-preview
+          body: |
+            ## Cloudflare Workers Preview
+
+            | | Link |
+            |:-:|:-:|
+            | 🔗 **Branch preview** | [${{ steps.preview.outputs.alias_url }}](${{ steps.preview.outputs.alias_url }}) |
+            | 📌 **Commit preview** | [${{ steps.preview.outputs.preview_url }}](${{ steps.preview.outputs.preview_url }}) |
+            | 🔨 **Commit** | `${{ steps.preview.outputs.head_sha }}` |
+
+            The branch preview URL stays the same as you push new commits. Use the commit preview for this exact revision.
+
+            _Worker: **swagstree** · Deployed by [Cloudflare Workers GitHub App](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/)_
