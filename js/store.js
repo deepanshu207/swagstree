@@ -951,12 +951,12 @@ function normalizeVariants(p) {
                 });
             });
         });
-        return normalized;
+        if (normalized.length > 0) return normalized;
     }
     const variants = [];
     const sizes = p.sizes || [];
     const map = p.sizeColorMap || {};
-    if (sizes.length === 0) return [];
+    if (sizes.length === 0) return [buildDefaultStorefrontVariant(p)];
     sizes.forEach(sz => {
         const colors = map[sz] || [];
         if (colors.length > 0) {
@@ -970,8 +970,22 @@ function normalizeVariants(p) {
     return variants;
 }
 
+function buildDefaultStorefrontVariant(p) {
+    return {
+        size: 'Standard',
+        color: '',
+        pattern: '',
+        price: p?.price ?? null,
+        images: Array.isArray(p?.images) ? p.images : [],
+        trackStock: false,
+        stockCount: 0,
+        isActive: true
+    };
+}
+
 function getSelectedVariant(p) {
     if (!p || !p.normalizedVariants) return null;
+    if (!p.normalizedVariants.length) return null;
     let match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor && v.pattern === (window.selectedPattern || ''));
     if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor);
     if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize);
@@ -1346,22 +1360,25 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     warningContainer.innerText = lowStockText;
 
     let qtyInCart = 0;
-    if (typeof cart !== 'undefined' && v) {
-        const existing = cart.find(item => item.id === p.id && item.variantSize === v.size && item.variantColor === v.color && (item.variantPattern || '') === (window.selectedPattern || ''));
+    const cartSize = v?.size || selectedSize || 'Standard';
+    const cartColor = v?.color || selectedColor || '';
+    const cartPattern = v?.pattern || window.selectedPattern || '';
+    if (typeof cart !== 'undefined') {
+        const existing = cart.find(item => item.id === p.id && item.variantSize === cartSize && item.variantColor === cartColor && (item.variantPattern || '') === cartPattern);
         if (existing) qtyInCart = existing.qty;
     }
 
     if (qtyInCart > 0) {
-        const reachedLimit = v && ((v.trackStock && qtyInCart >= v.stockCount) || (!v.trackStock && qtyInCart >= (typeof globalMaxCartQty !== 'undefined' ? globalMaxCartQty : 1)));
+        const reachedLimit = (v?.trackStock && qtyInCart >= v.stockCount) || (!v?.trackStock && qtyInCart >= (typeof globalMaxCartQty !== 'undefined' ? globalMaxCartQty : 1));
         btn.style.padding = "0";
         btn.style.background = "var(--gold)";
         btn.style.color = "#000";
         btn.disabled = false;
         btn.innerHTML = `
             <div style="display:flex; width:100%; align-items:center; justify-content:space-between; font-size:24px;">
-                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', '${window.selectedPattern || ''}', -1)">-</div>
+                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08);" onclick="event.stopPropagation(); updateVariantCartQty('${p.id}', '${cartSize}', '${cartColor}', '${cartPattern}', -1)">-</div>
                 <div style="padding:15px; flex:2; font-size:16px; text-align:center; white-space:nowrap; font-weight:900;">${qtyInCart} IN BAG</div>
-                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08); ${reachedLimit ? 'opacity:0.3; pointer-events:none;' : ''}" onclick="event.stopPropagation(); ${reachedLimit ? '' : `updateVariantCartQty('${p.id}', '${v.size}', '${v.color}', '${window.selectedPattern || ''}', 1)`}">+</div>
+                <div style="padding:15px 30px; cursor:pointer; flex:1; text-align:center; background:rgba(0,0,0,0.08); ${reachedLimit ? 'opacity:0.3; pointer-events:none;' : ''}" onclick="event.stopPropagation(); ${reachedLimit ? '' : `updateVariantCartQty('${p.id}', '${cartSize}', '${cartColor}', '${cartPattern}', 1)`}">+</div>
             </div>
         `;
         btn.onclick = null;
