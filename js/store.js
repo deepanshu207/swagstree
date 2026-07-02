@@ -2806,7 +2806,7 @@ function resolveProductMedia(p) {
         spinCols = Math.max(1, Math.floor(spinFrames.length / spinRows));
     }
 
-    return { spinFrames, spinCols, spinRows, spinSet, videos, galleryImages: [], has360: !!(spinFrames && spinFrames.length >= 2) };
+    return { spinFrames, spinCols, spinRows, spinSet, videos, has360: !!(spinFrames && spinFrames.length >= 2) };
 }
 window.resolveProductMedia = resolveProductMedia;
 

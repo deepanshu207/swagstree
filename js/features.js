@@ -943,7 +943,7 @@ function open360Viewer(prodId) {
         spinFrames: media.spinFrames,
         spinCols: media.spinCols,
         spinRows: media.spinRows,
-        images: media.galleryImages,
+        images: (window.detailGalleryImages && window.detailGalleryImages.length) ? window.detailGalleryImages : (p.images || []),
         title: p.name || '360° View'
     });
 }
@@ -952,8 +952,10 @@ window.open360Viewer = open360Viewer;
 function openGalleryZoom(prodId, startIndex) {
     const p = window.products ? window.products.find(x => x.id === prodId) : null;
     if (!p) return;
-    const media = window.resolveProductMedia ? window.resolveProductMedia(p) : { galleryImages: [] };
-    const images = media.galleryImages || [];
+    const media = window.resolveProductMedia ? window.resolveProductMedia(p) : {};
+    const images = (window.detailGalleryImages && window.detailGalleryImages.length)
+        ? window.detailGalleryImages
+        : (p.images || []);
     if (!images.length) return;
     openMediaViewer({
         mode: 'gallery',
