@@ -1106,7 +1106,14 @@ body.footer-hidden {
 }
 /* Detail view — slightly taller ratio & black background */
 #det-box { aspect-ratio: 3/4; background: #000; }
-#det-box .indicators { bottom: 52px; }
+#det-gallery img,
+#det-gallery .det-gallery-video,
+#det-gallery .det-gallery-video img {
+    object-fit: contain !important;
+    object-position: center center !important;
+    background: #000;
+}
+#det-box .indicators { bottom: 10px; }
 .indicators { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; z-index: 5; }
 .dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: 0.3s; }
 .dot.active { background: var(--gold); width: 12px; border-radius: 4px; }
@@ -1533,13 +1540,12 @@ input[type="checkbox"], input[type="radio"] {
 #det-gallery img.det-gallery-zoomable {
     cursor: zoom-in;
 }
-#det-zoom-trigger {
-    display: none;
-    align-items: center;
-}
-.carousel-box:hover #det-zoom-trigger,
-#detail-view-left-col:focus-within #det-zoom-trigger {
-    opacity: 1;
+
+@media (min-width: 1025px) and (pointer: fine) {
+    #det-media-bar {
+        width: 90%;
+        margin: 0 auto;
+    }
 }
 
 .checkout-promo-chip {
@@ -3955,50 +3961,51 @@ body.media-viewer-open .bottom-nav {
 .mv-prev { left: max(12px, env(safe-area-inset-left)); }
 .mv-next { right: max(12px, env(safe-area-inset-right)); }
 
-/* Detail gallery action buttons */
+/* Detail gallery — media bar below image (not over it) */
+.det-media-bar {
+    padding: 10px 15px 8px;
+    background: #000;
+    border-bottom: 1px solid #141414;
+}
+.det-media-label {
+    margin: 0 0 8px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    letter-spacing: 0.2px;
+    line-height: 1.35;
+}
 .det-gallery-actions {
-    position: absolute;
-    left: 12px;
-    right: 12px;
-    bottom: 10px;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    align-items: stretch;
+    justify-content: center;
     gap: 8px;
-    z-index: 12;
-    pointer-events: none;
+    flex-wrap: wrap;
 }
 .det-gallery-actions button {
-    pointer-events: auto;
     display: none;
     align-items: center;
-    gap: 5px;
-    border-radius: 30px;
-    padding: 8px 12px;
-    font-size: 10px;
+    justify-content: center;
+    gap: 6px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 180px;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 11px;
     font-weight: 800;
     cursor: pointer;
-    backdrop-filter: blur(6px);
-    border: 1px solid rgba(255,255,255,0.25);
-    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(255,255,255,0.2);
+    background: #161616;
     color: #fff;
 }
 #det-zoom-trigger { border-color: rgba(255,255,255,0.25); }
+#det-play-trigger { border-color: #64b5f6; color: #64b5f6; background: rgba(100,181,246,0.08); }
 #det-360-trigger {
     border-color: var(--gold);
     color: var(--gold);
-    margin-left: auto;
-}
-.carousel-box:hover .det-gallery-actions button,
-#detail-view-left-col:focus-within .det-gallery-actions button,
-.det-gallery-actions button[style*="inline-flex"] {
-    opacity: 1;
-}
-
-@media (pointer: coarse) {
-    .det-gallery-actions button {
-        opacity: 1;
-    }
+    background: rgba(255,215,0,0.08);
 }
 
 #det-gallery img.det-gallery-zoomable {
@@ -4006,8 +4013,43 @@ body.media-viewer-open .bottom-nav {
 }
 
 .det-gallery-video {
-    scroll-snap-align: center;
+    position: relative;
+    width: 100%;
+    height: 100%;
     flex-shrink: 0;
+    scroll-snap-align: center;
+    cursor: pointer;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.det-gallery-video img {
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.det-gallery-video-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.28);
+    pointer-events: none;
+}
+.det-gallery-video-play i {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.65);
+    border: 2px solid var(--gold);
+    color: var(--gold);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 3px;
 }
 
 /* Typing indicator animation */

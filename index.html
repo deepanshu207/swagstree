@@ -2401,8 +2401,12 @@
             <div id="det-box" class="carousel-box" style="position:relative;">
                 <div id="det-gallery" class="carousel" onscroll="updateDots(this)"></div>
                 <div id="det-indicators" class="indicators"></div>
+            </div>
+            <div id="det-media-bar" class="det-media-bar">
+                <p id="det-media-label" class="det-media-label"></p>
                 <div id="det-gallery-actions" class="det-gallery-actions">
-                    <button id="det-zoom-trigger" type="button" onclick="openProductDetailImageZoom(window.detailGalleryActiveIndex || 0, event)" aria-label="Zoom product image"><i class="fa fa-magnifying-glass-plus"></i> Zoom</button>
+                    <button id="det-zoom-trigger" type="button" onclick="openProductDetailImageZoom(window.detailGalleryZoomIndex ?? 0, event)" aria-label="Zoom product photo"><i class="fa fa-magnifying-glass-plus"></i> Zoom Photo</button>
+                    <button id="det-play-trigger" type="button" onclick="openCurrentDetailVideo()" aria-label="Play product video" style="display:none;"><i class="fa fa-play"></i> Play Video</button>
                     <button id="det-360-trigger" type="button" onclick="open360Viewer(activeProductId)" aria-label="360 degree product spin"><i class="fa fa-rotate"></i> 360° Spin</button>
                 </div>
             </div>

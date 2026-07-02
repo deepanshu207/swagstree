@@ -1268,6 +1268,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         : (targetIndex > -1 ? targetIndex : 0);
 
     window.detailGalleryImages = imagesToDisplay.filter((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
+    window.detailGallerySlideMap = imageToVariantMap;
     window.detailGalleryActiveIndex = activeThumbIdx > -1 ? activeThumbIdx : 0;
 
     // Render gallery with mapping metadata
@@ -1277,13 +1278,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
             if (mapInfo.type === 'video') {
                 const poster = mapInfo.poster || '';
-                return `<div class="det-gallery-video" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openProductVideo(activeProductId, '${mapInfo.url.replace(/'/g, "\\'")}')" style="position:relative; width:100%; height:100%; flex-shrink:0; scroll-snap-align:center; cursor:pointer; background:#000;">
-                    ${poster ? `<img src="${poster}" style="width:100%; height:100%; object-fit:contain; pointer-events:none;">` : ''}
-                    <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35);">
-                        <div style="width:56px; height:56px; border-radius:50%; background:rgba(0,0,0,0.65); border:2px solid var(--gold); display:flex; align-items:center; justify-content:center;">
-                            <i class="fa fa-play" style="color:var(--gold); font-size:20px; margin-left:3px;"></i>
-                        </div>
-                    </div>
+                return `<div class="det-gallery-video" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
+                    ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
+                    <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
                 </div>`;
             }
             const zoomIdx = imageOnlyIdx++;
@@ -1340,6 +1337,8 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             thumbsContainer.style.display = 'none';
         }
     }
+
+    updateDetailGalleryActions(activeThumbIdx > -1 ? activeThumbIdx : 0, p);
 
     // Scroll to the current selected variant's first image if we're not triggered by a scroll event
     if (scrollGallery && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
@@ -1452,13 +1451,65 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         const media = resolveProductMedia(p);
         trigger360.style.display = media.has360 ? 'inline-flex' : 'none';
     }
+}
 
-    const zoomTrigger = document.getElementById('det-zoom-trigger');
-    if (zoomTrigger) {
-        const hasZoomImages = imagesToDisplay.some((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
-        zoomTrigger.style.display = hasZoomImages ? 'inline-flex' : 'none';
+function updateDetailGalleryActions(idx, productOverride) {
+    const map = window.detailGallerySlideMap || [];
+    const slide = map[idx];
+    const p = productOverride || products.find(x => x.id === activeProductId);
+    const labelEl = document.getElementById('det-media-label');
+    const zoomBtn = document.getElementById('det-zoom-trigger');
+    const playBtn = document.getElementById('det-play-trigger');
+    const spinBtn = document.getElementById('det-360-trigger');
+
+    window.detailGalleryActiveIndex = idx;
+
+    let zoomIdx = 0;
+    for (let i = 0; i < idx; i++) {
+        if ((map[i] || {}).type !== 'video') zoomIdx++;
+    }
+    window.detailGalleryZoomIndex = slide && slide.type !== 'video' ? zoomIdx : 0;
+
+    const imageCount = map.filter(m => m && m.type !== 'video').length;
+    const totalSlides = map.length;
+
+    if (labelEl) {
+        if (!slide || totalSlides === 0) {
+            labelEl.textContent = '';
+        } else if (slide.type === 'video') {
+            labelEl.textContent = `Product video · slide ${idx + 1} of ${totalSlides}`;
+        } else {
+            labelEl.textContent = `Photo ${zoomIdx + 1} of ${imageCount} · swipe or tap thumbnails`;
+        }
+    }
+
+    if (zoomBtn) {
+        zoomBtn.style.display = (slide && slide.type !== 'video' && imageCount > 0) ? 'inline-flex' : 'none';
+    }
+    if (playBtn) {
+        playBtn.style.display = (slide && slide.type === 'video') ? 'inline-flex' : 'none';
+    }
+    if (spinBtn && p) {
+        const media = resolveProductMedia(p);
+        spinBtn.style.display = media.has360 ? 'inline-flex' : 'none';
     }
 }
+window.updateDetailGalleryActions = updateDetailGalleryActions;
+
+function openCurrentDetailVideoAt(index, event) {
+    if (event) event.stopPropagation();
+    const map = window.detailGallerySlideMap || [];
+    const slide = map[index];
+    if (slide && slide.type === 'video' && slide.url) {
+        openProductVideo(activeProductId, slide.url);
+    }
+}
+window.openCurrentDetailVideoAt = openCurrentDetailVideoAt;
+
+function openCurrentDetailVideo() {
+    openCurrentDetailVideoAt(window.detailGalleryActiveIndex || 0);
+}
+window.openCurrentDetailVideo = openCurrentDetailVideo;
 
 function closeDetail() {
     const detView = document.getElementById('detail-view');
@@ -1648,6 +1699,7 @@ function updateDots(el) {
         }
         // Update thumbnail borders to show active image indicator
         updateActiveThumbnailBorder(idx);
+        updateDetailGalleryActions(idx);
     }
 }
 
@@ -1660,6 +1712,7 @@ function clickDetThumb(idx) {
         clearTimeout(window.detGalleryScrollEndTimeout);
         detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
         updateActiveThumbnailBorder(idx);
+        updateDetailGalleryActions(idx);
         
         // Also sync option selection states matching this thumbnail
         const imgColor = imgEl.getAttribute('data-color');
