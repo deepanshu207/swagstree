@@ -986,9 +986,10 @@ function buildDefaultStorefrontVariant(p) {
 function getSelectedVariant(p) {
     if (!p || !p.normalizedVariants) return null;
     if (!p.normalizedVariants.length) return null;
-    let match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor && v.pattern === (window.selectedPattern || ''));
-    if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor);
-    if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize);
+    const pat = window.selectedPattern || '';
+    let match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor) && v.pattern === pat);
+    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor));
+    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize));
     return match;
 }
 
@@ -1078,22 +1079,32 @@ function renderDetailColors(p, initialColor = null) {
     const colorSelector = document.getElementById('detail-color-selector');
     if (!colorsContainer || !colorSelector) return;
 
-    const colors = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize).map(v => v.color).filter(c => c))];
+    const colors = [];
+    const seenColorKeys = new Set();
+    p.normalizedVariants.filter(v => sizesMatch(v.size, selectedSize)).forEach(v => {
+        const key = getVariantColorKey(v);
+        if (!key) return;
+        const norm = normalizeColorKey(key);
+        if (seenColorKeys.has(norm)) return;
+        seenColorKeys.add(norm);
+        colors.push({ key, variant: v });
+    });
 
     if (colors.length === 0) {
         colorsContainer.style.display = 'none';
         selectedColor = '';
     } else {
         colorsContainer.style.display = 'block';
-        if (initialColor && colors.includes(initialColor)) {
-            selectedColor = initialColor;
-        } else {
-            // Only reset color if the current selectedColor isn't available for this size
-            if (!colors.includes(selectedColor)) selectedColor = colors[0];
+        if (initialColor && colors.some(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor))) {
+            const hit = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor));
+            selectedColor = hit.key;
+        } else if (!colors.some(c => colorsMatch(c.key, selectedColor) || variantColorMatches(c.variant, selectedColor))) {
+            selectedColor = colors[0].key;
         }
 
-        colorSelector.innerHTML = colors.map(col => {
-            const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === col);
+        colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
+            const col = key;
+            const isActive = colorsMatch(col, selectedColor) || variantColorMatches(v, selectedColor);
             // Normalize for CSS: hex stays as-is; check customColorsMap; otherwise strip spaces
             let cleanColor = col.trim();
             if (!cleanColor.startsWith('#')) {
@@ -1112,8 +1123,8 @@ function renderDetailColors(p, initialColor = null) {
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
 
             return `
-                <div class="color-chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">
-                    ${colorPreview}<span>${v ? v.colorName : formatColorName(col)}</span>
+                <div class="color-chip ${isActive ? 'active' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)">
+                    ${colorPreview}<span>${v ? (v.colorName || formatColorName(col)) : formatColorName(col)}</span>
                 </div>
             `;
         }).join('');
@@ -1135,7 +1146,7 @@ function renderDetailPatterns(p) {
     if (!patternsContainer || !patternSelector) return;
 
     // Filter variants that match current size and color, then get unique patterns
-    const patterns = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize && v.color === selectedColor).map(v => v.pattern).filter(pat => pat))];
+    const patterns = [...new Set(p.normalizedVariants.filter(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor)).map(v => v.pattern).filter(pat => pat))];
 
     if (patterns.length === 0) {
         patternsContainer.style.display = 'none';
@@ -1145,7 +1156,7 @@ function renderDetailPatterns(p) {
         if (!patterns.includes(window.selectedPattern)) window.selectedPattern = patterns[0];
 
         patternSelector.innerHTML = patterns.map(pat => {
-            const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === selectedColor && x.pattern === pat);
+            const v = p.normalizedVariants.find(x => sizesMatch(x.size, selectedSize) && variantColorMatches(x, selectedColor) && x.pattern === pat);
             const hasImage = v && v.previewImage;
             // Display text logic:
             // - If patternDisplayName set: use it (like colorName for colors)
@@ -1175,11 +1186,42 @@ function renderDetailPatterns(p) {
     }
 }
 
+function normalizeColorKey(c) {
+    return String(c || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function colorsMatch(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return normalizeColorKey(a) === normalizeColorKey(b);
+}
+
+function getVariantColorKey(v) {
+    if (!v) return '';
+    if (v.color && String(v.color).trim()) return String(v.color).trim();
+    if (v.colorName && String(v.colorName).trim()) return String(v.colorName).trim();
+    return '';
+}
+
+function variantColorMatches(variant, colorKey) {
+    if (!colorKey) return true;
+    const target = normalizeColorKey(colorKey);
+    return [variant.color, variant.colorName].some(c => c && normalizeColorKey(c) === target);
+}
+
+function sizesMatch(a, b) {
+    const sa = String(a || '').trim();
+    const sb = String(b || '').trim();
+    if (!sa || sa === 'Standard') return true;
+    if (!sb || sb === 'Standard') return sa === sb || sb === 'Standard';
+    return sa.toLowerCase() === sb.toLowerCase();
+}
+
 function variantMatchesDetailSelection(variant) {
     if (!variant || variant.isActive === false) return false;
     if (variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true') return false;
-    if (selectedSize && selectedSize !== 'Standard' && variant.size && variant.size !== selectedSize) return false;
-    if (selectedColor && variant.color && variant.color !== selectedColor) return false;
+    if (selectedSize && selectedSize !== 'Standard' && variant.size && !sizesMatch(variant.size, selectedSize)) return false;
+    if (selectedColor && !variantColorMatches(variant, selectedColor)) return false;
     if (window.selectedPattern && variant.pattern && variant.pattern !== window.selectedPattern) return false;
     return true;
 }
@@ -1207,20 +1249,31 @@ function buildDetailGallerySlides(p, productMedia) {
 
     const variantPhotos = [];
     const variantPhotosMap = [];
+    const selectedVariant = getSelectedVariant(p);
+    const variantSources = [];
+
     if (p.normalizedVariants && p.normalizedVariants.length > 0) {
         p.normalizedVariants.forEach(variant => {
-            if (!variantMatchesDetailSelection(variant)) return;
-            (variant.images || []).forEach(img => {
-                if (isPlaceholderImageUrl(img)) return;
-                const variantSpin = variant.spinImages && variant.spinImages.length >= 2 ? new Set(variant.spinImages) : spinSet;
-                if (variantSpin.has(img)) return;
-                if (!variantPhotos.includes(img)) {
-                    variantPhotos.push(img);
-                    variantPhotosMap.push({ url: img, color: variant.color || '', size: variant.size || '', type: 'image', scope: 'variant' });
-                }
-            });
+            if (variantMatchesDetailSelection(variant)) variantSources.push(variant);
         });
     }
+    if (variantSources.length === 0 && selectedVariant) variantSources.push(selectedVariant);
+
+    variantSources.forEach(variant => {
+        (variant.images || []).forEach(img => {
+            if (isPlaceholderImageUrl(img)) return;
+            if (!variantPhotos.includes(img)) {
+                variantPhotos.push(img);
+                variantPhotosMap.push({
+                    url: img,
+                    color: getVariantColorKey(variant) || variant.color || '',
+                    size: variant.size || '',
+                    type: 'image',
+                    scope: 'variant'
+                });
+            }
+        });
+    });
 
     let photoSlides = [];
     let photoMap = [];
@@ -1327,11 +1380,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const detGallery = document.getElementById('det-gallery');
     const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
     if (detGallery) {
-        if (detGallery.getAttribute('data-loaded-images') !== galleryCacheKey) {
-            detGallery.innerHTML = galleryHtml;
-            detGallery.setAttribute('data-loaded-images', galleryCacheKey);
-            detGallery.scrollLeft = 0;
-        }
+        detGallery.innerHTML = galleryHtml;
+        detGallery.setAttribute('data-loaded-images', galleryCacheKey);
+        detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
@@ -1364,12 +1415,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                 `;
             }).join('');
             
-            if (thumbsContainer.getAttribute('data-loaded-images') !== galleryCacheKey) {
-                thumbsContainer.innerHTML = thumbsHtml;
-                thumbsContainer.setAttribute('data-loaded-images', galleryCacheKey);
-            } else {
-                updateActiveThumbnailBorder(activeThumbIdx);
-            }
+            thumbsContainer.innerHTML = thumbsHtml;
+            thumbsContainer.setAttribute('data-loaded-images', galleryCacheKey);
+            updateActiveThumbnailBorder(activeThumbIdx);
         } else {
             thumbsContainer.style.display = 'none';
         }
@@ -1460,7 +1508,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         const specs = [];
         if (selectedSize && selectedSize !== 'Standard') specs.push(`Size: ${selectedSize}`);
         if (selectedColor) {
-            const dispColor = (v && v.color === selectedColor && v.colorName) ? v.colorName : formatColorName(selectedColor);
+            const dispColor = (v && variantColorMatches(v, selectedColor) && v.colorName) ? v.colorName : formatColorName(selectedColor);
             specs.push(`Color: ${dispColor}`);
         }
         if (window.selectedPattern) {
@@ -1711,7 +1759,7 @@ function updateDots(el) {
                 let changed = false;
 
                 // Sync visible color only when slide belongs to a different variant color
-                if (imgColor && imgColor !== selectedColor) {
+                if (imgColor && !colorsMatch(imgColor, selectedColor)) {
                     selectedColor = imgColor;
                     changed = true;
                     // Highlight color chip
@@ -1763,7 +1811,7 @@ function clickDetThumb(idx) {
         const p = products.find(x => x.id === activeProductId);
         if (p) {
             let changed = false;
-            if (imgColor && imgColor !== selectedColor) {
+            if (imgColor && !colorsMatch(imgColor, selectedColor)) {
                 selectedColor = imgColor;
                 changed = true;
             }
