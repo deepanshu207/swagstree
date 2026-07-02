@@ -957,6 +957,7 @@ async function approveProductCommentInternal(commentId) {
             if (doc.id === commentId) {
                 batch.update(doc.ref, {
                     status: 'approved',
+                    verifiedPurchase: data.verifiedPurchase !== false,
                     reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     reviewedBy: currentUser ? (currentUser.email || '') : ''
                 });
