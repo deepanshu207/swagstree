@@ -425,7 +425,8 @@ function renderStore() {
 }
 
 // 2. RENDERING LOGIC
-function productCardHtml(p) {
+function productCardHtml(p, options = {}) {
+    const showCategoryBadges = !!options.showCategoryBadges;
     const isFav = wishlist.includes(p.id);
 
     const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
@@ -494,7 +495,7 @@ function productCardHtml(p) {
             </div> 
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
-            ${typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
+            ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
             <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> 
             <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> 
         </div> 
@@ -666,6 +667,8 @@ function renderProducts(items, targetId) {
     // Filter out completely out-of-stock products for storefront and wishlist
     items = items.filter(p => !isProductOutOfStock(p));
 
+    const toCard = (p) => productCardHtml(p, { showCategoryBadges: targetId === 'wish-grid' });
+
     if (targetId === 'product-grid') {
         const loadMoreBtnContainer = document.getElementById('load-more-container');
         const countContainer = document.getElementById('product-count');
@@ -768,12 +771,12 @@ function renderProducts(items, targetId) {
 
         let finalHtml = '';
         if (settings.placement === 'first') {
-            finalHtml = getDiariesSectionHtml(feedbackCards) + itemsToRender.map(productCardHtml).join('');
+            finalHtml = getDiariesSectionHtml(feedbackCards) + itemsToRender.map(toCard).join('');
         } else if (settings.placement === 'last') {
-            finalHtml = itemsToRender.map(productCardHtml).join('') + getDiariesSectionHtml(feedbackCards);
+            finalHtml = itemsToRender.map(toCard).join('') + getDiariesSectionHtml(feedbackCards);
         } else if (settings.placement === 'custom') {
             const n = settings.n || 6;
-            const pCards = itemsToRender.map(productCardHtml);
+            const pCards = itemsToRender.map(toCard);
             let combined = [];
 
             for (let i = 0; i < pCards.length; i++) {
@@ -787,7 +790,7 @@ function renderProducts(items, targetId) {
             }
             finalHtml = combined.join('');
         } else {
-            finalHtml = itemsToRender.map(productCardHtml).join('');
+            finalHtml = itemsToRender.map(toCard).join('');
         }
 
         container.innerHTML = finalHtml;
@@ -860,13 +863,13 @@ function renderProducts(items, targetId) {
         }
         updateCatalogSortAvailability(items.length, 'wishlist');
 
-        container.innerHTML = itemsToRender.map(productCardHtml).join('');
+        container.innerHTML = itemsToRender.map(toCard).join('');
     } else {
         if (items.length === 0) {
             container.innerHTML = `<p style="text-align:center; grid-column: 1/-1; color:#555;">No products found.</p>`;
             return;
         }
-        container.innerHTML = items.map(productCardHtml).join('');
+        container.innerHTML = items.map(toCard).join('');
     }
 
     setupInfiniteScrollObserver();
