@@ -1175,6 +1175,15 @@ function renderDetailPatterns(p) {
     }
 }
 
+function variantMatchesDetailSelection(variant) {
+    if (!variant || variant.isActive === false) return false;
+    if (variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true') return false;
+    if (selectedSize && selectedSize !== 'Standard' && variant.size && variant.size !== selectedSize) return false;
+    if (selectedColor && variant.color && variant.color !== selectedColor) return false;
+    if (window.selectedPattern && variant.pattern && variant.pattern !== window.selectedPattern) return false;
+    return true;
+}
+
 function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const v = getSelectedVariant(p);
     const productMedia = resolveProductMedia(p);
@@ -1184,7 +1193,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
 
-    // Update Images: Gather images or placeholders for all variants and main images
+    // Build gallery for the currently selected size/color only (+ shared main images)
     let imagesToDisplay = [];
     let imageToVariantMap = [];
     const addedImages = new Set();
@@ -1197,7 +1206,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             if (!addedImages.has(img)) {
                 addedImages.add(img);
                 mainImages.push(img);
-                mainImagesMap.push({ url: img, color: '', size: '', type: 'image' });
+                mainImagesMap.push({ url: img, color: '', size: '', type: 'image', scope: 'main' });
             }
         });
     }
@@ -1206,8 +1215,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const variantImagesMap = [];
     if (p.normalizedVariants && p.normalizedVariants.length > 0) {
         p.normalizedVariants.forEach(variant => {
-            const shouldHide = variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true';
-            if (shouldHide) return;
+            if (!variantMatchesDetailSelection(variant)) return;
             if (variant.images && variant.images.length > 0) {
                 variant.images.forEach(img => {
                     const variantSpin = variant.spinImages && variant.spinImages.length >= 2 ? new Set(variant.spinImages) : spinSet;
@@ -1215,37 +1223,39 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                     if (!addedImages.has(img)) {
                         addedImages.add(img);
                         variantImages.push(img);
-                        variantImagesMap.push({ url: img, color: variant.color || '', size: variant.size || '', type: 'image' });
+                        variantImagesMap.push({ url: img, color: variant.color || '', size: variant.size || '', type: 'image', scope: 'variant' });
                     }
                 });
-            } else {
-                const placeholderKey = `placeholder-${variant.color || ''}-${variant.size || ''}`;
-                if (!addedImages.has(placeholderKey)) {
-                    addedImages.add(placeholderKey);
-                    const placeholderImg = "https://placehold.co/400x400/222/FFF?text=No+Image";
-                    variantImages.push(placeholderImg);
-                    variantImagesMap.push({ url: placeholderImg, color: variant.color || '', size: variant.size || '', isPlaceholder: true, type: 'image' });
-                }
             }
         });
+
+        if (variantImages.length === 0 && mainImages.length === 0 && v && variantMatchesDetailSelection(v)) {
+            const placeholderKey = `placeholder-${v.color || ''}-${v.size || ''}`;
+            if (!addedImages.has(placeholderKey)) {
+                addedImages.add(placeholderKey);
+                const placeholderImg = "https://placehold.co/400x400/222/FFF?text=No+Image";
+                variantImages.push(placeholderImg);
+                variantImagesMap.push({ url: placeholderImg, color: v.color || '', size: v.size || '', isPlaceholder: true, type: 'image', scope: 'variant' });
+            }
+        }
     }
 
     // Add 360 preview frame if spin exists but no gallery images
     if (productMedia.has360 && mainImages.length === 0 && variantImages.length === 0) {
         const preview = productMedia.spinFrames[0];
         mainImages.push(preview);
-        mainImagesMap.push({ url: preview, color: '', size: '', type: 'image', is360Preview: true });
+        mainImagesMap.push({ url: preview, color: '', size: '', type: 'image', is360Preview: true, scope: 'main' });
     }
 
-    // Add product videos to gallery
+    // Videos for the active variant (or product-level fallback via resolveProductMedia)
     const videoItems = productMedia.videos || [];
     videoItems.forEach((vidUrl, vi) => {
         const vidKey = `video-${vidUrl}`;
         if (!addedImages.has(vidKey)) {
             addedImages.add(vidKey);
-            const poster = (mainImages[0] || variantImages[0] || (productMedia.spinFrames && productMedia.spinFrames[0]) || '');
+            const poster = (variantImages[0] || mainImages[0] || (productMedia.spinFrames && productMedia.spinFrames[0]) || '');
             variantImages.push(vidUrl);
-            variantImagesMap.push({ url: vidUrl, color: '', size: '', type: 'video', poster, videoIndex: vi });
+            variantImagesMap.push({ url: vidUrl, color: selectedColor || '', size: selectedSize || '', type: 'video', poster, videoIndex: vi, scope: 'video' });
         }
     });
 
@@ -1259,17 +1269,13 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         imageToVariantMap = [...mainImagesMap, ...variantImagesMap];
     }
 
-    // Determine targetIndex based on currently selected options
-    const targetIndex = imagesToDisplay.length > 0
-        ? imageToVariantMap.findIndex(m => m.color === selectedColor && (selectedSize === 'Standard' || m.size === selectedSize))
-        : -1;
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
-        ? overrideActiveIdx
-        : (targetIndex > -1 ? targetIndex : 0);
+        ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
+        : 0;
 
     window.detailGalleryImages = imagesToDisplay.filter((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
     window.detailGallerySlideMap = imageToVariantMap;
-    window.detailGalleryActiveIndex = activeThumbIdx > -1 ? activeThumbIdx : 0;
+    window.detailGalleryActiveIndex = activeThumbIdx;
 
     // Render gallery with mapping metadata
     let imageOnlyIdx = 0;
@@ -1289,11 +1295,12 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
 
     const detGallery = document.getElementById('det-gallery');
-    const imageListString = imagesToDisplay.join(',');
+    const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
     if (detGallery) {
-        if (detGallery.getAttribute('data-loaded-images') !== imageListString) {
+        if (detGallery.getAttribute('data-loaded-images') !== galleryCacheKey) {
             detGallery.innerHTML = galleryHtml;
-            detGallery.setAttribute('data-loaded-images', imageListString);
+            detGallery.setAttribute('data-loaded-images', galleryCacheKey);
+            detGallery.scrollLeft = 0;
         }
     }
     
@@ -1327,9 +1334,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                 `;
             }).join('');
             
-            if (thumbsContainer.getAttribute('data-loaded-images') !== imageListString) {
+            if (thumbsContainer.getAttribute('data-loaded-images') !== galleryCacheKey) {
                 thumbsContainer.innerHTML = thumbsHtml;
-                thumbsContainer.setAttribute('data-loaded-images', imageListString);
+                thumbsContainer.setAttribute('data-loaded-images', galleryCacheKey);
             } else {
                 updateActiveThumbnailBorder(activeThumbIdx);
             }
@@ -1472,14 +1479,18 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     const imageCount = map.filter(m => m && m.type !== 'video').length;
     const totalSlides = map.length;
+    const v = p ? getSelectedVariant(p) : null;
+    const colorLabel = (v && v.colorName) ? v.colorName : (selectedColor ? formatColorName(selectedColor) : '');
 
     if (labelEl) {
         if (!slide || totalSlides === 0) {
             labelEl.textContent = '';
         } else if (slide.type === 'video') {
-            labelEl.textContent = `Product video · slide ${idx + 1} of ${totalSlides}`;
+            labelEl.textContent = `${colorLabel ? colorLabel + ' · ' : ''}Product video`;
+        } else if (slide.scope === 'main') {
+            labelEl.textContent = `Shared photo ${zoomIdx + 1} of ${imageCount}${colorLabel ? ' · ' + colorLabel : ''}`;
         } else {
-            labelEl.textContent = `Photo ${zoomIdx + 1} of ${imageCount} · swipe or tap thumbnails`;
+            labelEl.textContent = `${colorLabel ? colorLabel + ' · ' : ''}Photo ${zoomIdx + 1} of ${imageCount}`;
         }
     }
 
@@ -1667,7 +1678,7 @@ function updateDots(el) {
             if (p) {
                 let changed = false;
 
-                // Sync visible color
+                // Sync visible color only when slide belongs to a different variant color
                 if (imgColor && imgColor !== selectedColor) {
                     selectedColor = imgColor;
                     changed = true;
