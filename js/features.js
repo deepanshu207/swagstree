@@ -550,7 +550,8 @@ let mvState = {
     guideShown: false,
     isPinching: false,
     pinchStartDist: 0,
-    pinchStartScale: 1
+    pinchStartScale: 1,
+    lastTapAt: 0
 };
 
 function mvTouchDistance(touches) {
@@ -598,6 +599,10 @@ function updateMediaViewerHints() {
 
 function ensureMediaViewerModal() {
     let modal = document.getElementById('media-viewer-modal');
+    if (modal && !modal.querySelector('.mv-topbar')) {
+        modal.remove();
+        modal = null;
+    }
     if (modal) return modal;
 
     modal = document.createElement('div');
@@ -694,7 +699,10 @@ function openMediaViewer(opts = {}) {
     const btnPrev = document.getElementById('mv-prev');
     const btnNext = document.getElementById('mv-next');
 
-    if (titleEl) titleEl.textContent = mvState.title;
+    if (titleEl) {
+        const spinSuffix = mvState.mode === 'spin360' ? ' · 360° Spin' : '';
+        titleEl.textContent = mvState.title + spinSuffix;
+    }
     if (loader) loader.style.display = 'none';
     if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
     if (vidEl) { vidEl.pause(); vidEl.style.display = 'none'; }
@@ -828,6 +836,8 @@ function mediaViewerSwitchMode(mode) {
         if (dividerSpin) dividerSpin.style.display = 'inline-block';
         const guide = document.getElementById('mv-guide');
         if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
+        const titleEl = document.getElementById('mv-title');
+        if (titleEl) titleEl.textContent = mvState.title + ' · 360° Spin';
         updateMediaViewerHints();
         renderMediaViewerContent();
         preloadMediaFrames(mvState.spinFrames);
@@ -889,12 +899,15 @@ function mediaViewerDragMove(e) {
 
 function mediaViewerDragEnd() {
     if (!mvState.isDragging) return;
+    const dragX = mvState.lastX - mvState.startX;
     mvState.isDragging = false;
     const stage = document.getElementById('mv-stage');
     if (stage) stage.style.cursor = 'grab';
 
     if (mvState.mode === 'spin360' && mvState.scale === 1 && Math.abs(mvState.velocityX) > 2) {
         applyMediaMomentum();
+    } else if (mvState.mode === 'gallery' && mvState.scale === 1 && mvState.images.length > 1 && Math.abs(dragX) > 48) {
+        mediaViewerNav(dragX < 0 ? 1 : -1);
     }
 }
 
@@ -996,13 +1009,24 @@ function mediaViewerTouchMove(e) {
     }
 }
 
-function mediaViewerTouchEnd() {
+function mediaViewerTouchEnd(e) {
     if (mvState.isPinching) {
         mvState.isPinching = false;
         if (mvState.scale === 1) { mvState.panX = 0; mvState.panY = 0; updateMediaTransform(); }
         return;
     }
+    const moved = Math.hypot(mvState.lastX - mvState.startX, mvState.lastY - mvState.startY);
     mediaViewerDragEnd();
+    if (mvState.mode !== 'video' && moved < 12 && e && e.changedTouches && e.changedTouches.length === 1) {
+        const now = Date.now();
+        if (now - mvState.lastTapAt < 300) {
+            if (mvState.scale > 1) mediaViewerReset();
+            else mediaViewerZoom(1);
+            mvState.lastTapAt = 0;
+            return;
+        }
+        mvState.lastTapAt = now;
+    }
 }
 
 function closeMediaViewer() {

@@ -1106,7 +1106,8 @@ body.footer-hidden {
 }
 /* Detail view — slightly taller ratio & black background */
 #det-box { aspect-ratio: 3/4; background: #000; }
-.indicators { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; }
+#det-box .indicators { bottom: 52px; }
+.indicators { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; z-index: 5; }
 .dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: 0.3s; }
 .dot.active { background: var(--gold); width: 12px; border-radius: 4px; }
 
@@ -3736,6 +3737,10 @@ body.media-viewer-open .bottom-nav {
     font-size: clamp(10px, 2.6vw, 12px);
     opacity: 0.9;
     line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .mv-close {
@@ -3955,12 +3960,12 @@ body.media-viewer-open .bottom-nav {
     position: absolute;
     left: 12px;
     right: 12px;
-    bottom: 12px;
+    bottom: 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    z-index: 10;
+    z-index: 12;
     pointer-events: none;
 }
 .det-gallery-actions button {

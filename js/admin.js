@@ -148,7 +148,7 @@ function renderVariantBlocks() {
                 </div>
 
                 <!-- Row 4: Upload buttons -->
-                <p style="font-size:10px; color:#777; margin:0 0 6px; line-height:1.45;">Variant photos show when this size/color is selected. Spin frames and video are separate from gallery images.</p>
+                <p style="font-size:10px; color:#777; margin:0 0 6px; line-height:1.45;">Variant photos for this size/color. Main images are used when this variant has none, or appended globally at start/end of the gallery.</p>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                     <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #444; background:#1a1a1a; color:#aaa; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
                         <span style="font-size:18px;">🖼️</span>
