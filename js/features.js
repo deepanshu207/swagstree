@@ -28,7 +28,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     },
     catalogControls: {
         home: { search: true, sort: true, announcement: true, chat: true, categories: true },
-        wishlist: { search: false, sort: true, announcement: false, chat: false, categories: false }
+        wishlist: { search: false, sort: true, announcement: false, chat: false, categories: true }
     }
 };
 
@@ -1294,7 +1294,7 @@ function normalizeCatalogControls(config) {
     const annGlobal = c.announcementBell !== false;
     const defaults = {
         home: { search: true, sort: true, announcement: annGlobal, chat: chatGlobal, categories: true },
-        wishlist: { search: false, sort: true, announcement: false, chat: false, categories: false }
+        wishlist: { search: false, sort: true, announcement: false, chat: false, categories: true }
     };
     const saved = c.catalogControls || {};
     return {
@@ -1321,8 +1321,10 @@ function isCatalogControlEnabled(view, feature) {
     const config = window.APP_FEATURES || {};
     const cc = normalizeCatalogControls(config);
     const viewKey = view === 'wishlist' ? 'wishlist' : 'home';
-    const enabled = !!cc[viewKey]?.[feature];
-    if (feature === 'categories') return config.productCategories !== false && enabled;
+    const enabled = cc[viewKey]?.[feature];
+    if (feature === 'categories') {
+        return config.productCategories !== false && enabled !== false;
+    }
     if (feature === 'chat') return isSupportChatGloballyEnabled(config) && enabled;
     if (feature === 'announcement') return config.announcementBell !== false && enabled;
     return enabled;
@@ -1358,6 +1360,8 @@ function syncCatalogControlsReady() {
     document.body.classList.remove('catalog-controls-pending');
     if (typeof updateCatalogControlsRowLayout === 'function') updateCatalogControlsRowLayout();
     if (typeof updateAnnouncementBellUI === 'function') updateAnnouncementBellUI();
+    if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
 }
 window.syncCatalogControlsReady = syncCatalogControlsReady;
 

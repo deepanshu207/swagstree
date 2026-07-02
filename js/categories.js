@@ -372,6 +372,7 @@ window.escapeCategoryHtml = escapeCategoryHtml;
 function renderHomeCategoryBar() {
     renderCategoryBarForView('home', 'home-category-bar');
 }
+window.renderHomeCategoryBar = renderHomeCategoryBar;
 
 function renderWishCategoryBar() {
     renderCategoryBarForView('wishlist', 'wish-category-bar');
