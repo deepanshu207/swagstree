@@ -865,7 +865,7 @@ function searchProducts(query, maxPrice, displayLimit = CHAT_PRODUCT_DISPLAY_LIM
         const price = Number(p.price) || 0;
         if (maxPrice != null && price > maxPrice) return false;
         if (!q) return true;
-        const hay = `${p.name} ${p.description || ''}`.toLowerCase();
+        const hay = `${p.name} ${p.description || ''} ${p.categoryName || ''} ${typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : ''}`.toLowerCase();
         return hay.includes(q) || q.split(/\s+/).some(w => w.length > 2 && hay.includes(w));
     });
     if (maxPrice != null) {
@@ -2255,21 +2255,11 @@ window.updateCatalogControlsRowLayout = function() {
         row.classList.toggle('catalog-row-no-chat', !chatEnabled);
         row.classList.toggle('catalog-row-no-announcement', !annEnabled);
         row.classList.toggle('catalog-row-icons-minimal', !chatEnabled && !annEnabled);
+        if (isWish) row.classList.add('catalog-row-wishlist');
 
         let actionsWidth = isMobile ? 102 : (isTablet ? 116 : 128);
         if (chatEnabled) actionsWidth += isMobile ? 36 : 40;
         if (annEnabled) actionsWidth += isMobile ? 36 : 40;
-
-        if (isWish) {
-            row.classList.add('catalog-row-wishlist');
-            if (!chatEnabled && !annEnabled) {
-                const sortWidth = isMobile ? 104 : (isTablet ? 118 : 130);
-                row.style.setProperty('--catalog-actions-width', `${sortWidth}px`);
-            } else {
-                row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
-            }
-            return;
-        }
 
         row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
     });

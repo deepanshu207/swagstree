@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=8.3">
+    <link rel="stylesheet" href="css/style.css?v=9.0">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -136,6 +136,11 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="filter-group" id="filter-category-group" style="display:none;">
+            <label class="filter-section-title">Category</label>
+            <div class="chip-group" id="filter-categories"></div>
         </div>
 
         <div class="filter-group">
@@ -235,6 +240,7 @@
                 autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');"
                 data-i18n="search_placeholder">
         </div>
+        <div id="home-category-bar" class="home-category-bar" style="display:none;" aria-label="Shop by category"></div>
         <div class="catalog-controls-row">
             <span id="product-count" class="count-badge catalog-count-label catalog-count-pill" style="display:none;" role="status"></span>
 
@@ -346,6 +352,7 @@
             <input type="text" id="wish_search" class="home-search-input" placeholder="Search wishlist..."
                 oninput="wishSearchHandler()" autocomplete="off" data-i18n="search_placeholder">
         </div>
+        <div id="wish-category-bar" class="home-category-bar wish-category-bar" style="display:none;" aria-label="Filter wishlist by category"></div>
         <div class="catalog-controls-row catalog-row-wishlist">
             <span id="wish-count" class="count-badge catalog-count-label catalog-count-pill" style="display:none;" role="status"></span>
 
@@ -690,10 +697,13 @@
 
     <!-- SECTION: Admin -->
     <div id="admin-view" class="section">
-        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
                     class="count-badge" style="display:none;">0 Products</span></h3>
-            <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn-gold" style="width:auto; padding:8px 16px;" onclick="scrollToCategoryAdmin()">+ Category</button>
+                <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+            </div>
         </div>
 
         <!-- Bulk Operations -->
@@ -716,6 +726,58 @@
                     onclick="deleteAllProducts()">Delete All Products</button>
                 <input type="file" id="import-file-input" accept=".xlsx, .xls" style="display:none;"
                     onchange="importProducts(this)">
+            </div>
+        </div>
+
+        <!-- Product Categories -->
+        <div id="admin-category-section"
+            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminCategoryAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-tags" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            Product Categories
+                            <span id="admin-category-count-badge" class="admin-category-count-badge" style="display:none;">0</span>
+                        </h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Edit inline in the list, or use the form below to add / edit</p>
+                    </div>
+                </div>
+                <i id="admin-category-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
+            </div>
+
+            <div id="admin-category-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+                <div id="admin-category-storefront-banner" style="display:none; margin-bottom:12px;"></div>
+                <div id="admin-category-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
+                <p style="margin:0 0 12px; font-size:10px; color:#666;">Inline: tap outside a row or press Enter to save. Form below: use for add or full edit.</p>
+
+                <div id="admin-category-form-wrap" class="admin-category-form-wrap">
+                    <div id="admin-category-form-mode" class="admin-category-form-mode">Add a new category</div>
+                    <div style="display:grid; grid-template-columns:1fr 90px; gap:10px; align-items:end;">
+                        <div>
+                            <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Category name</label>
+                            <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
+                        </div>
+                        <div>
+                            <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Order (optional)</label>
+                            <input id="admin-category-order" type="number" value="0" style="margin:0;">
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#aaa; cursor:pointer; margin:0;">
+                            <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;"> Active on storefront
+                        </label>
+                        <div style="display:flex; gap:8px;">
+                            <button type="button" id="admin-category-clear-btn" class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px; background:#222; border:1px solid #444;"
+                                onclick="openCategoryForm()">Clear Form</button>
+                            <button type="button" id="admin-category-save-btn" class="btn-gold admin-category-save-btn" style="width:auto; padding:10px 16px; margin:0; font-size:12px;"
+                                onclick="saveCategory()">Add Category</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -763,20 +825,24 @@
             </div>
         </div>
 
-
-
-
         <!-- Promo Code Settings -->
         <div id="admin-promo-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminPromoAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+                    </div>
                 </div>
+                <i id="admin-promo-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
 
+            <div id="admin-promo-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div id="admin-promo-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
                 <!-- Promo items render here -->
             </div>
@@ -834,18 +900,26 @@
                         onclick="addPromoCode()">+ Add Promo</button>
                 </div>
             </div>
+            </div>
         </div>
 
         <!-- Global Pagination Settings -->
         <div id="admin-pagination-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Pagination Settings</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set the number of items loaded per page</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminPaginationAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Pagination Settings</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Set the number of items loaded per page</p>
+                    </div>
                 </div>
+                <i id="admin-pagination-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
+            <div id="admin-pagination-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
                 <div>
                     <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Products Page
@@ -869,6 +943,7 @@
             <button class="btn-gold"
                 style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
                 onclick="savePaginationSettings()">Save Pagination Settings</button>
+            </div>
         </div>
 
         <!-- Admin: Content Settings for Features -->
@@ -951,15 +1026,22 @@
         <!-- Feedback / Instagram Feed Settings -->
         <div id="admin-feedback-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Customer Diaries & Feed</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown
-                        on home</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminFeedbackAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Customer Diaries & Feed</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown
+                            on home</p>
+                    </div>
                 </div>
+                <i id="admin-feedback-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
 
+            <div id="admin-feedback-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <!-- List of existing feedbacks -->
             <div id="admin-feedback-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
                 <!-- Feedbacks render here -->
@@ -1076,6 +1158,7 @@
                 </div>
                 <div id="admin-fb-img-preview-container"
                     style="display:none; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;"></div>
+            </div>
             </div>
         </div>
 
@@ -1825,6 +1908,16 @@
                         <input type="checkbox" id="toggle-product-comments" style="margin:0; width:16px; height:16px;">
                         Product Reviews & Comments
                     </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-product-categories" style="margin:0; width:16px; height:16px;">
+                        Product Categories
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-admin-storefront-content" style="margin:0; width:16px; height:16px;">
+                        Storefront Content (Admin)
+                    </label>
                 </div>
 
                 <div style="height:1px; background:#333; margin:12px 0 8px;"></div>
@@ -1851,6 +1944,11 @@
                         <input type="checkbox" id="toggle-home-chat" style="margin:0; width:16px; height:16px;"> Support
                         Chat
                     </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-home-categories" style="margin:0; width:16px; height:16px;"> Category
+                        Bar
+                    </label>
                 </div>
 
                 <span
@@ -1876,6 +1974,11 @@
                         style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
                         <input type="checkbox" id="toggle-wish-chat" style="margin:0; width:16px; height:16px;"> Support
                         Chat
+                    </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-wish-categories" style="margin:0; width:16px; height:16px;"> Category
+                        Bar
                     </label>
                 </div>
 
@@ -2345,6 +2448,11 @@
             <h3>Product Details</h3>
             <input id="m-name" placeholder="Name">
             <input id="m-price" type="number" placeholder="Price">
+            <div id="m-category-container" style="margin-bottom:12px;">
+                <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:5px;">Categories</label>
+                <p style="margin:0 0 8px; font-size:10px; color:#777;">Select one or more categories for this product</p>
+                <div id="m-category-checkboxes" class="admin-category-checkboxes"></div>
+            </div>
             <textarea id="m-desc" placeholder="Description"></textarea>
 
             <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Product Variants <span
@@ -2864,16 +2972,17 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=9.89"></script>
-    <script src="js/app.js?v=9.89"></script>
-    <script src="js/footer-templates.js?v=9.89"></script>
-    <script src="js/store.js?v=9.89"></script>
-    <script src="js/checkout.js?v=9.89"></script>
-    <script src="js/auth.js?v=9.95"></script>
-    <script src="js/comments.js?v=9.94"></script>
-    <script src="js/support-chat.js?v=9.97"></script>
-    <script src="js/auto-retention.js?v=9.89"></script>
-    <script src="js/admin.js?v=9.89"></script>
+    <script src="js/features.js?v=10.6"></script>
+    <script src="js/app.js?v=10.4"></script>
+    <script src="js/footer-templates.js?v=10.0"></script>
+    <script src="js/categories.js?v=10.6"></script>
+    <script src="js/store.js?v=10.7"></script>
+    <script src="js/checkout.js?v=10.0"></script>
+    <script src="js/auth.js?v=10.5"></script>
+    <script src="js/comments.js?v=10.2"></script>
+    <script src="js/support-chat.js?v=10.6"></script>
+    <script src="js/auto-retention.js?v=10.0"></script>
+    <script src="js/admin.js?v=10.2"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

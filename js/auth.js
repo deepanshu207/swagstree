@@ -49,6 +49,7 @@ function updateAdminPrivilegesUI() {
 
     if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
+    if (typeof applyAdminPanelVisibility === 'function') applyAdminPanelVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
     if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
 }
@@ -2362,6 +2363,10 @@ async function loadSuperadminFeatures() {
                 if (document.getElementById('toggle-newsletter')) document.getElementById('toggle-newsletter').checked = !!data.widgets.newsletterPopup;
             }
             if (document.getElementById('toggle-product-comments')) document.getElementById('toggle-product-comments').checked = data.productComments !== false;
+            if (document.getElementById('toggle-product-categories')) document.getElementById('toggle-product-categories').checked = data.productCategories !== false;
+            if (document.getElementById('toggle-admin-storefront-content')) {
+                document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
+            }
 
             if (typeof syncCatalogControlCheckboxes === 'function') {
                 syncCatalogControlCheckboxes(data);
@@ -2371,10 +2376,12 @@ async function loadSuperadminFeatures() {
                 if (document.getElementById('toggle-home-sort')) document.getElementById('toggle-home-sort').checked = cc.home?.sort !== false;
                 if (document.getElementById('toggle-home-announcement')) document.getElementById('toggle-home-announcement').checked = cc.home?.announcement !== false;
                 if (document.getElementById('toggle-home-chat')) document.getElementById('toggle-home-chat').checked = cc.home?.chat !== false;
+                if (document.getElementById('toggle-home-categories')) document.getElementById('toggle-home-categories').checked = cc.home?.categories !== false;
                 if (document.getElementById('toggle-wish-search')) document.getElementById('toggle-wish-search').checked = !!cc.wishlist?.search;
                 if (document.getElementById('toggle-wish-sort')) document.getElementById('toggle-wish-sort').checked = cc.wishlist?.sort !== false;
                 if (document.getElementById('toggle-wish-announcement')) document.getElementById('toggle-wish-announcement').checked = !!cc.wishlist?.announcement;
                 if (document.getElementById('toggle-wish-chat')) document.getElementById('toggle-wish-chat').checked = !!cc.wishlist?.chat;
+                if (document.getElementById('toggle-wish-categories')) document.getElementById('toggle-wish-categories').checked = !!cc.wishlist?.categories;
             }
             
             toggleCustomColorPickers(data.themePreset || 'outlaw');
@@ -2411,6 +2418,8 @@ async function saveSuperadminFeatures() {
         announcementBar: !!document.getElementById('toggle-announcement')?.checked,
         announcementBell: !!document.getElementById('toggle-announcement-bell')?.checked,
         productComments: !!document.getElementById('toggle-product-comments')?.checked,
+        productCategories: !!document.getElementById('toggle-product-categories')?.checked,
+        adminStorefrontContent: !!document.getElementById('toggle-admin-storefront-content')?.checked,
         widgets: {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
@@ -2421,13 +2430,15 @@ async function saveSuperadminFeatures() {
                 search: !!document.getElementById('toggle-home-search')?.checked,
                 sort: !!document.getElementById('toggle-home-sort')?.checked,
                 announcement: !!document.getElementById('toggle-home-announcement')?.checked,
-                chat: !!document.getElementById('toggle-home-chat')?.checked
+                chat: !!document.getElementById('toggle-home-chat')?.checked,
+                categories: !!document.getElementById('toggle-home-categories')?.checked
             },
             wishlist: {
                 search: !!document.getElementById('toggle-wish-search')?.checked,
                 sort: !!document.getElementById('toggle-wish-sort')?.checked,
                 announcement: !!document.getElementById('toggle-wish-announcement')?.checked,
-                chat: !!document.getElementById('toggle-wish-chat')?.checked
+                chat: !!document.getElementById('toggle-wish-chat')?.checked,
+                categories: !!document.getElementById('toggle-wish-categories')?.checked
             }
         }
     };

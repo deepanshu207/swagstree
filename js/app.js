@@ -38,6 +38,9 @@ var existingImageUrls = [];
 var filterActiveSizes = [];
 var filterActiveColors = [];
 var filterActivePatterns = [];
+var filterActiveCategory = '';
+var homeFilterActiveCategories = [];
+var wishFilterActiveCategories = [];
 var filterMinPrice = null;
 var filterMaxPrice = null;
 var priceAbsoluteMin = 0;
@@ -387,6 +390,7 @@ function navigateTo(id, el) {
     // Reset wishlist page limit when navigating to wishlist
     if (id === 'wish') {
         displayedWishlistLimit = productsPageLimitSetting;
+        if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
         if (typeof renderStore === 'function') renderStore();
         requestAnimationFrame(() => {
             if (typeof resetStorefrontScroll === 'function') resetStorefrontScroll();
@@ -395,6 +399,7 @@ function navigateTo(id, el) {
     }
 
     if (id === 'home') {
+        if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
         requestAnimationFrame(() => {
             if (typeof resetStorefrontScroll === 'function') resetStorefrontScroll();
             if (typeof renderFooter === 'function') renderFooter('home');
