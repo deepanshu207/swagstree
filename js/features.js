@@ -13,6 +13,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     announcementBell: true,
     productComments: true,
     productCategories: true,
+    adminStorefrontContent: true,
     widgets: {
         recentOrders: false,
         discountWheel: false,
@@ -1303,6 +1304,19 @@ function normalizeCatalogControls(config) {
 }
 window.normalizeCatalogControls = normalizeCatalogControls;
 
+function isAdminStorefrontContentEnabled() {
+    return !!(window.APP_FEATURES && window.APP_FEATURES.adminStorefrontContent !== false);
+}
+window.isAdminStorefrontContentEnabled = isAdminStorefrontContentEnabled;
+
+function applyAdminPanelVisibility() {
+    const section = document.getElementById('admin-feature-content-settings');
+    if (!section) return;
+    const show = typeof isAdmin !== 'undefined' && isAdmin && isAdminStorefrontContentEnabled();
+    section.style.display = show ? '' : 'none';
+}
+window.applyAdminPanelVisibility = applyAdminPanelVisibility;
+
 function isCatalogControlEnabled(view, feature) {
     const config = window.APP_FEATURES || {};
     const cc = normalizeCatalogControls(config);
@@ -1530,8 +1544,13 @@ function applyFeatureTogglesUI() {
         if (document.getElementById('toggle-product-categories')) {
             document.getElementById('toggle-product-categories').checked = config.productCategories !== false;
         }
+        if (document.getElementById('toggle-admin-storefront-content')) {
+            document.getElementById('toggle-admin-storefront-content').checked = config.adminStorefrontContent !== false;
+        }
         syncCatalogControlCheckboxes(config);
     }
+
+    applyAdminPanelVisibility();
 
     if (typeof populateProductCategorySelect === 'function') {
         populateProductCategorySelect(

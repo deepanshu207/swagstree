@@ -49,6 +49,7 @@ function updateAdminPrivilegesUI() {
 
     if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
+    if (typeof applyAdminPanelVisibility === 'function') applyAdminPanelVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
     if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
 }
@@ -2363,6 +2364,9 @@ async function loadSuperadminFeatures() {
             }
             if (document.getElementById('toggle-product-comments')) document.getElementById('toggle-product-comments').checked = data.productComments !== false;
             if (document.getElementById('toggle-product-categories')) document.getElementById('toggle-product-categories').checked = data.productCategories !== false;
+            if (document.getElementById('toggle-admin-storefront-content')) {
+                document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
+            }
 
             if (typeof syncCatalogControlCheckboxes === 'function') {
                 syncCatalogControlCheckboxes(data);
@@ -2415,6 +2419,7 @@ async function saveSuperadminFeatures() {
         announcementBell: !!document.getElementById('toggle-announcement-bell')?.checked,
         productComments: !!document.getElementById('toggle-product-comments')?.checked,
         productCategories: !!document.getElementById('toggle-product-categories')?.checked,
+        adminStorefrontContent: !!document.getElementById('toggle-admin-storefront-content')?.checked,
         widgets: {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
