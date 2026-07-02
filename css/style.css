@@ -1107,7 +1107,7 @@ body.footer-hidden {
 /* Detail view — slightly taller ratio & black background */
 #det-box { aspect-ratio: 3/4; background: #000; }
 #det-gallery {
-    align-items: center;
+    align-items: stretch;
 }
 #det-gallery > img,
 #det-gallery > .det-gallery-video {
