@@ -701,7 +701,7 @@
             <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
                     class="count-badge" style="display:none;">0 Products</span></h3>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn-gold" style="width:auto; padding:8px 16px; background:#222; border:1px solid #444;" onclick="scrollToCategoryAdmin()">+ Category</button>
+                <button class="btn-gold" style="width:auto; padding:8px 16px;" onclick="scrollToCategoryAdmin()">+ Category</button>
                 <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
             </div>
         </div>
@@ -828,14 +828,21 @@
         <!-- Promo Code Settings -->
         <div id="admin-promo-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminPromoAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+                    </div>
                 </div>
+                <i id="admin-promo-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
 
+            <div id="admin-promo-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div id="admin-promo-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
                 <!-- Promo items render here -->
             </div>
@@ -893,18 +900,26 @@
                         onclick="addPromoCode()">+ Add Promo</button>
                 </div>
             </div>
+            </div>
         </div>
 
         <!-- Global Pagination Settings -->
         <div id="admin-pagination-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Pagination Settings</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set the number of items loaded per page</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminPaginationAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Pagination Settings</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Set the number of items loaded per page</p>
+                    </div>
                 </div>
+                <i id="admin-pagination-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
+            <div id="admin-pagination-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
                 <div>
                     <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Products Page
@@ -928,6 +943,7 @@
             <button class="btn-gold"
                 style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
                 onclick="savePaginationSettings()">Save Pagination Settings</button>
+            </div>
         </div>
 
         <!-- Admin: Content Settings for Features -->
@@ -1010,15 +1026,22 @@
         <!-- Feedback / Instagram Feed Settings -->
         <div id="admin-feedback-settings"
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Customer Diaries & Feed</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown
-                        on home</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminFeedbackAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-comments" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Customer Diaries & Feed</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage testimonials and Instagram posts shown
+                            on home</p>
+                    </div>
                 </div>
+                <i id="admin-feedback-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
 
+            <div id="admin-feedback-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <!-- List of existing feedbacks -->
             <div id="admin-feedback-list" style="margin-bottom:15px; display:flex; flex-direction:column; gap:8px;">
                 <!-- Feedbacks render here -->
@@ -1135,6 +1158,7 @@
                 </div>
                 <div id="admin-fb-img-preview-container"
                     style="display:none; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;"></div>
+            </div>
             </div>
         </div>
 
@@ -2958,7 +2982,7 @@
     <script src="js/comments.js?v=10.0"></script>
     <script src="js/support-chat.js?v=10.6"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=10.1"></script>
+    <script src="js/admin.js?v=10.2"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

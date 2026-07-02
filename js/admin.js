@@ -1993,6 +1993,7 @@ function editFeedbackItem(id) {
         actionGroup.insertBefore(cancelBtn, addBtn);
     }
     
+    if (typeof openAdminFeedbackAccordion === 'function') openAdminFeedbackAccordion();
     document.getElementById('admin-feedback-settings').scrollIntoView({ behavior: 'smooth' });
 }
 window.editFeedbackItem = editFeedbackItem;
@@ -2993,6 +2994,44 @@ function clearAnnouncementImages() {
     if (fileInput) fileInput.value = '';
     renderAnnouncementImagesPreview();
 }
+
+function toggleAdminSectionAccordion(contentId, iconId) {
+    const content = document.getElementById(contentId);
+    const icon = document.getElementById(iconId);
+    if (!content) return;
+
+    if (content.style.display === 'none' || !content.style.display) {
+        content.style.display = 'flex';
+        if (icon) icon.style.transform = 'rotate(0deg)';
+    } else {
+        content.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(-90deg)';
+    }
+}
+
+function openAdminSectionAccordion(contentId, iconId) {
+    const content = document.getElementById(contentId);
+    const icon = document.getElementById(iconId);
+    if (!content) return;
+    content.style.display = 'flex';
+    if (icon) icon.style.transform = 'rotate(0deg)';
+}
+
+window.toggleAdminPromoAccordion = function() {
+    toggleAdminSectionAccordion('admin-promo-accordion-content', 'admin-promo-accordion-icon');
+};
+
+window.toggleAdminPaginationAccordion = function() {
+    toggleAdminSectionAccordion('admin-pagination-accordion-content', 'admin-pagination-accordion-icon');
+};
+
+window.toggleAdminFeedbackAccordion = function() {
+    toggleAdminSectionAccordion('admin-feedback-accordion-content', 'admin-feedback-accordion-icon');
+};
+
+window.openAdminFeedbackAccordion = function() {
+    openAdminSectionAccordion('admin-feedback-accordion-content', 'admin-feedback-accordion-icon');
+};
 
 function toggleAnnouncementAccordion() {
     const content = document.getElementById('announcement-accordion-content');
