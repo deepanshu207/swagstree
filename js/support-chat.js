@@ -2245,31 +2245,50 @@ window.updateCatalogControlsRowLayout = function() {
         const isWish = row.classList.contains('catalog-row-wishlist') || !!row.closest('#wish-view');
         const viewKey = isWish ? 'wishlist' : 'home';
 
+        const config = window.APP_FEATURES || {};
+        const chatGlobal = typeof isSupportChatGloballyEnabled === 'function'
+            ? isSupportChatGloballyEnabled(config)
+            : !!(config.aiChatbot || config.adminSupportChat);
+        const annGlobal = config.announcementBell !== false;
+
         const chatEnabled = typeof isCatalogControlEnabled === 'function'
             ? isCatalogControlEnabled(viewKey, 'chat')
-            : isAnySupportChatEnabled();
+            : chatGlobal;
         const annEnabled = typeof isCatalogControlEnabled === 'function'
             ? isCatalogControlEnabled(viewKey, 'announcement')
-            : window.APP_FEATURES?.announcementBell !== false;
+            : annGlobal;
+        const sortEnabled = typeof isCatalogControlEnabled === 'function'
+            ? isCatalogControlEnabled(viewKey, 'sort')
+            : true;
 
-        row.classList.toggle('catalog-row-no-chat', !chatEnabled);
-        row.classList.toggle('catalog-row-no-announcement', !annEnabled);
-        row.classList.toggle('catalog-row-icons-minimal', !chatEnabled && !annEnabled);
+        const showChat = chatGlobal && chatEnabled;
+        const showAnn = annGlobal && annEnabled;
 
-        let actionsWidth = isMobile ? 102 : (isTablet ? 116 : 128);
-        if (chatEnabled) actionsWidth += isMobile ? 36 : 40;
-        if (annEnabled) actionsWidth += isMobile ? 36 : 40;
+        row.classList.toggle('catalog-row-no-chat', !showChat);
+        row.classList.toggle('catalog-row-no-announcement', !showAnn);
+        row.classList.toggle('catalog-row-icons-minimal', !showChat && !showAnn);
+        if (isWish) row.classList.add('catalog-row-wishlist');
 
-        if (isWish) {
-            row.classList.add('catalog-row-wishlist');
-            if (!chatEnabled && !annEnabled) {
-                const sortWidth = isMobile ? 104 : (isTablet ? 118 : 130);
-                row.style.setProperty('--catalog-actions-width', `${sortWidth}px`);
-            } else {
-                row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
-            }
-            return;
+        const iconW = isMobile ? 34 : 36;
+        const sortW = isMobile ? 108 : (isTablet ? 118 : 120);
+        const gap = isMobile ? 4 : 8;
+
+        let actionsWidth = 0;
+        let visibleCount = 0;
+        if (showChat) {
+            actionsWidth += iconW;
+            visibleCount += 1;
         }
+        if (showAnn) {
+            actionsWidth += iconW;
+            visibleCount += 1;
+        }
+        if (sortEnabled) {
+            actionsWidth += sortW;
+            visibleCount += 1;
+        }
+        if (visibleCount > 1) actionsWidth += gap * (visibleCount - 1);
+        actionsWidth += isMobile ? 8 : 12;
 
         row.style.setProperty('--catalog-actions-width', `${actionsWidth}px`);
     });
