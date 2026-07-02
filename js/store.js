@@ -1033,7 +1033,7 @@ function showDetail(id, initialColor = null, initialSize = null) {
     const trigger360 = document.getElementById('det-360-trigger');
     if (trigger360) {
         const media = resolveProductMedia(p);
-        trigger360.style.display = media.has360 ? 'flex' : 'none';
+        trigger360.style.display = media.has360 ? 'inline-flex' : 'none';
     }
 
     const detView = document.getElementById('detail-view');
@@ -1450,17 +1450,13 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const trigger360 = document.getElementById('det-360-trigger');
     if (trigger360) {
         const media = resolveProductMedia(p);
-        trigger360.style.display = media.has360 ? 'flex' : 'none';
-    }
-    const zoomHint = document.getElementById('det-zoom-hint');
-    if (zoomHint) {
-        const hasImages = imagesToDisplay.some((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
-        zoomHint.style.display = hasImages ? 'block' : 'none';
+        trigger360.style.display = media.has360 ? 'inline-flex' : 'none';
     }
 
     const zoomTrigger = document.getElementById('det-zoom-trigger');
     if (zoomTrigger) {
-        zoomTrigger.style.display = imagesToDisplay.length > 0 ? 'inline-flex' : 'none';
+        const hasZoomImages = imagesToDisplay.some((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
+        zoomTrigger.style.display = hasZoomImages ? 'inline-flex' : 'none';
     }
 }
 

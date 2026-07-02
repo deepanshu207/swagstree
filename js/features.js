@@ -547,8 +547,54 @@ let mvState = {
     momentumId: null,
     autoSpin: false,
     autoSpinId: null,
-    guideShown: false
+    guideShown: false,
+    isPinching: false,
+    pinchStartDist: 0,
+    pinchStartScale: 1
 };
+
+function mvTouchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+}
+
+function updateMediaViewerHints() {
+    const hintEl = document.getElementById('mv-hint');
+    const guideText = document.getElementById('mv-guide-text');
+    const frameLabel = document.getElementById('mv-frame-label');
+    const guideIcon = document.getElementById('mv-guide-icon');
+    const isVideo = mvState.mode === 'video';
+    const isSpin = mvState.mode === 'spin360';
+
+    if (guideIcon) {
+        guideIcon.className = isSpin ? 'fa fa-arrows-left-right' : (isVideo ? 'fa fa-play' : 'fa fa-magnifying-glass-plus');
+    }
+
+    if (hintEl) {
+        if (isVideo) hintEl.textContent = 'Tap play to watch';
+        else if (isSpin) hintEl.textContent = 'Swipe to spin · Pinch to zoom';
+        else hintEl.textContent = 'Pinch or +/− to zoom';
+    }
+    if (guideText) {
+        guideText.textContent = isSpin
+            ? 'Swipe left or right to spin the product'
+            : 'Pinch or tap + to zoom in';
+    }
+    if (frameLabel) {
+        if (isSpin && mvState.spinFrames.length) {
+            const idx = mvState.spinRow * mvState.spinCols + mvState.spinCol;
+            frameLabel.textContent = `Spin ${Math.min(idx + 1, mvState.spinFrames.length)} / ${mvState.spinFrames.length}`;
+            frameLabel.style.display = 'block';
+        } else if (!isVideo && mvState.images.length > 1 && mvState.mode === 'gallery') {
+            frameLabel.textContent = `Photo ${mvState.imageIndex + 1} / ${mvState.images.length}`;
+            frameLabel.style.display = 'block';
+        } else {
+            frameLabel.textContent = '';
+            frameLabel.style.display = 'none';
+        }
+    }
+}
 
 function ensureMediaViewerModal() {
     let modal = document.getElementById('media-viewer-modal');
@@ -557,11 +603,13 @@ function ensureMediaViewerModal() {
     modal = document.createElement('div');
     modal.id = 'media-viewer-modal';
     modal.className = 'media-viewer-modal';
-    modal.innerHTML = `
-        <button class="mv-close" onclick="closeMediaViewer()" aria-label="Close">&times;</button>
-        <div class="mv-header">
-            <h3 id="mv-title">Product View</h3>
-            <p id="mv-hint">Pinch or scroll to zoom · Drag to pan</p>
+        modal.innerHTML = `
+        <div class="mv-topbar">
+            <div class="mv-topbar-text">
+                <h3 id="mv-title">Product View</h3>
+                <p id="mv-hint">Pinch or use +/− to zoom</p>
+            </div>
+            <button class="mv-close" onclick="closeMediaViewer()" aria-label="Close">&times;</button>
         </div>
         <div id="mv-stage" class="mv-stage">
             <div id="mv-loader" class="mv-loader">
@@ -569,23 +617,26 @@ function ensureMediaViewerModal() {
                 <p id="mv-load-status">Loading...</p>
             </div>
             <div id="mv-guide" class="mv-guide">
-                <i class="fa fa-hand-pointer"></i>
-                <p id="mv-guide-text">Drag left/right to rotate</p>
+                <i class="fa fa-arrows-left-right" id="mv-guide-icon"></i>
+                <p id="mv-guide-text">Swipe left or right to spin the product</p>
             </div>
             <img id="mv-image" class="mv-image" src="" alt="" draggable="false">
             <video id="mv-video" class="mv-video" playsinline controls style="display:none;"></video>
-            <button id="mv-prev" class="mv-nav mv-prev" onclick="mediaViewerNav(-1)" style="display:none;"><i class="fa fa-chevron-left"></i></button>
-            <button id="mv-next" class="mv-nav mv-next" onclick="mediaViewerNav(1)" style="display:none;"><i class="fa fa-chevron-right"></i></button>
+            <button id="mv-prev" class="mv-nav mv-prev" onclick="mediaViewerNav(-1)" style="display:none;" aria-label="Previous"><i class="fa fa-chevron-left"></i></button>
+            <button id="mv-next" class="mv-nav mv-next" onclick="mediaViewerNav(1)" style="display:none;" aria-label="Next"><i class="fa fa-chevron-right"></i></button>
         </div>
-        <div class="mv-toolbar">
-            <button id="mv-btn-spin" class="mv-btn" onclick="mediaViewerSwitchMode('spin360')" title="360° View" style="display:none;"><i class="fa fa-sync"></i></button>
-            <button id="mv-btn-play" class="mv-btn" onclick="toggleMediaAutoSpin()" title="Auto Spin" style="display:none;"><i class="fa fa-play"></i></button>
-            <span class="mv-divider" id="mv-divider-spin" style="display:none;"></span>
-            <button class="mv-btn" onclick="mediaViewerZoom(-0.4)" title="Zoom Out"><i class="fa fa-minus"></i></button>
-            <button class="mv-btn" onclick="mediaViewerZoom(0.4)" title="Zoom In"><i class="fa fa-plus"></i></button>
-            <button class="mv-btn" onclick="mediaViewerReset()" title="Reset"><i class="fa fa-rotate-left"></i></button>
-            <span class="mv-divider"></span>
-            <button class="mv-btn" onclick="toggleMediaFullscreen()" title="Fullscreen"><i class="fa fa-expand"></i></button>
+        <div class="mv-bottom">
+            <p id="mv-frame-label" class="mv-frame-label"></p>
+            <div class="mv-toolbar">
+                <button id="mv-btn-spin" class="mv-btn mv-btn-label" onclick="mediaViewerSwitchMode('spin360')" title="360° Product Spin" style="display:none;"><i class="fa fa-rotate"></i><span>360° Spin</span></button>
+                <button id="mv-btn-play" class="mv-btn" onclick="toggleMediaAutoSpin()" title="Auto rotate" style="display:none;"><i class="fa fa-play"></i></button>
+                <span class="mv-divider" id="mv-divider-spin" style="display:none;"></span>
+                <button class="mv-btn" onclick="mediaViewerZoom(-0.4)" title="Zoom out" aria-label="Zoom out"><i class="fa fa-minus"></i></button>
+                <button class="mv-btn" onclick="mediaViewerZoom(0.4)" title="Zoom in" aria-label="Zoom in"><i class="fa fa-plus"></i></button>
+                <button class="mv-btn" onclick="mediaViewerReset()" title="Reset view" aria-label="Reset"><i class="fa fa-rotate-left"></i></button>
+                <span class="mv-divider"></span>
+                <button class="mv-btn" onclick="toggleMediaFullscreen()" title="Fullscreen" aria-label="Fullscreen"><i class="fa fa-expand"></i></button>
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -595,9 +646,10 @@ function ensureMediaViewerModal() {
     stage.addEventListener('mousemove', mediaViewerDragMove);
     stage.addEventListener('mouseup', mediaViewerDragEnd);
     stage.addEventListener('mouseleave', mediaViewerDragEnd);
-    stage.addEventListener('touchstart', mediaViewerDragStart, { passive: true });
-    stage.addEventListener('touchmove', mediaViewerDragMove, { passive: true });
-    stage.addEventListener('touchend', mediaViewerDragEnd);
+    stage.addEventListener('touchstart', mediaViewerTouchStart, { passive: false });
+    stage.addEventListener('touchmove', mediaViewerTouchMove, { passive: false });
+    stage.addEventListener('touchend', mediaViewerTouchEnd);
+    stage.addEventListener('touchcancel', mediaViewerTouchEnd);
     stage.addEventListener('wheel', e => {
         if (mvState.mode === 'video') return;
         e.preventDefault();
@@ -652,15 +704,6 @@ function openMediaViewer(opts = {}) {
     const isSpin = mvState.mode === 'spin360';
     const isVideo = mvState.mode === 'video';
 
-    if (hintEl) {
-        if (isVideo) hintEl.textContent = 'Tap play to watch product video';
-        else if (isSpin) hintEl.textContent = 'Drag left/right to rotate · Zoom to inspect details';
-        else hintEl.textContent = 'Pinch or scroll to zoom · Drag to pan';
-    }
-    if (document.getElementById('mv-guide-text')) {
-        document.getElementById('mv-guide-text').textContent = isSpin ? 'Drag left/right to rotate' : 'Drag to explore';
-    }
-
     if (btnSpin) btnSpin.style.display = (hasSpin && !isSpin && !isVideo) ? 'flex' : 'none';
     if (btnPlay) btnPlay.style.display = isSpin ? 'flex' : 'none';
     if (dividerSpin) dividerSpin.style.display = (hasSpin && !isVideo) ? 'inline-block' : 'none';
@@ -669,8 +712,10 @@ function openMediaViewer(opts = {}) {
     if (btnPrev) btnPrev.style.display = showNav ? 'flex' : 'none';
     if (btnNext) btnNext.style.display = showNav ? 'flex' : 'none';
 
+    document.body.classList.add('media-viewer-open');
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
+    updateMediaViewerHints();
     renderMediaViewerContent();
 
     if (isSpin && mvState.spinFrames.length > 0) {
@@ -725,6 +770,7 @@ function renderMediaViewerContent() {
     }
     imgEl.src = src;
     updateMediaTransform();
+    updateMediaViewerHints();
 }
 
 function updateMediaTransform() {
@@ -774,8 +820,6 @@ function mediaViewerSwitchMode(mode) {
         mvState.panX = 0;
         mvState.panY = 0;
         mvState.guideShown = false;
-        const hintEl = document.getElementById('mv-hint');
-        if (hintEl) hintEl.textContent = 'Drag left/right to rotate · Zoom to inspect details';
         const btnSpin = document.getElementById('mv-btn-spin');
         const btnPlay = document.getElementById('mv-btn-play');
         const dividerSpin = document.getElementById('mv-divider-spin');
@@ -784,6 +828,7 @@ function mediaViewerSwitchMode(mode) {
         if (dividerSpin) dividerSpin.style.display = 'inline-block';
         const guide = document.getElementById('mv-guide');
         if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
+        updateMediaViewerHints();
         renderMediaViewerContent();
         preloadMediaFrames(mvState.spinFrames);
     }
@@ -917,9 +962,53 @@ function toggleMediaFullscreen() {
 window.toggleMediaFullscreen = toggleMediaFullscreen;
 window.toggleFullscreen360 = toggleMediaFullscreen;
 
+function mediaViewerTouchStart(e) {
+    if (mvState.mode === 'video') return;
+    if (e.touches.length === 2) {
+        e.preventDefault();
+        cancelAnimationFrame(mvState.momentumId);
+        stopMediaAutoSpin();
+        mvState.isPinching = true;
+        mvState.isDragging = false;
+        mvState.pinchStartDist = mvTouchDistance(e.touches);
+        mvState.pinchStartScale = mvState.scale;
+        return;
+    }
+    if (e.touches.length === 1) mediaViewerDragStart(e);
+}
+
+function mediaViewerTouchMove(e) {
+    if (mvState.mode === 'video') return;
+    if (mvState.isPinching && e.touches.length === 2) {
+        e.preventDefault();
+        const dist = mvTouchDistance(e.touches);
+        if (mvState.pinchStartDist > 0) {
+            const ratio = dist / mvState.pinchStartDist;
+            mvState.scale = Math.max(1, Math.min(4, mvState.pinchStartScale * ratio));
+            if (mvState.scale === 1) { mvState.panX = 0; mvState.panY = 0; }
+            updateMediaTransform();
+        }
+        return;
+    }
+    if (mvState.isDragging && e.touches.length === 1) {
+        e.preventDefault();
+        mediaViewerDragMove(e);
+    }
+}
+
+function mediaViewerTouchEnd() {
+    if (mvState.isPinching) {
+        mvState.isPinching = false;
+        if (mvState.scale === 1) { mvState.panX = 0; mvState.panY = 0; updateMediaTransform(); }
+        return;
+    }
+    mediaViewerDragEnd();
+}
+
 function closeMediaViewer() {
     const modal = document.getElementById('media-viewer-modal');
     if (modal) modal.style.display = 'none';
+    document.body.classList.remove('media-viewer-open');
     document.body.style.overflow = '';
     stopMediaAutoSpin();
     cancelAnimationFrame(mvState.momentumId);
@@ -944,7 +1033,7 @@ function open360Viewer(prodId) {
         spinCols: media.spinCols,
         spinRows: media.spinRows,
         images: (window.detailGalleryImages && window.detailGalleryImages.length) ? window.detailGalleryImages : (p.images || []),
-        title: p.name || '360° View'
+        title: p.name || 'Product Spin'
     });
 }
 window.open360Viewer = open360Viewer;

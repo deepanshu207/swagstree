@@ -148,10 +148,12 @@ function renderVariantBlocks() {
                 </div>
 
                 <!-- Row 4: Upload buttons -->
+                <p style="font-size:10px; color:#777; margin:0 0 6px; line-height:1.45;">Variant photos show when this size/color is selected. Spin frames and video are separate from gallery images.</p>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                     <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #444; background:#1a1a1a; color:#aaa; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
                         <span style="font-size:18px;">🖼️</span>
-                        <span>Gallery Images</span>
+                        <span>Variant Gallery Images</span>
+                        <span style="font-size:9px; color:#666;">For this size/color only</span>
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
                     </label>
                     <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #25D366; background:#1a1a1a; color:#25D366; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
@@ -162,7 +164,7 @@ function renderVariantBlocks() {
                 </div>
                 ${is360Enabled ? `
                 <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
-                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Spin Frames <span style="color:#666; text-transform:none;">(upload in order, min 2)</span></p>
+                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Product Spin Frames <span style="color:#666; text-transform:none;">(rotation order — product spin, not street view)</span></p>
                     <div id="v-spin-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
                     <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
                         <span>🔄</span> Upload 360° Frames
@@ -186,7 +188,7 @@ function renderVariantBlocks() {
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
                     ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked); const badge = document.getElementById('v-active-badge-${v.id}'); if(badge) { badge.style.background = this.checked ? '#1a3a1a' : '#3a1a1a'; badge.style.color = this.checked ? '#4caf50' : '#e57373'; badge.innerHTML = this.checked ? '● Active' : '○ Hidden'; }`, 'Active', '#4caf50')}
-                    ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Spin View', '#FFD700') : ''}
+                    ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Product Spin', '#FFD700') : ''}
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
