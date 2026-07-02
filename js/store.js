@@ -667,7 +667,7 @@ function renderProducts(items, targetId) {
     // Filter out completely out-of-stock products for storefront and wishlist
     items = items.filter(p => !isProductOutOfStock(p));
 
-    const toCard = (p) => productCardHtml(p, { showCategoryBadges: targetId === 'wish-grid' });
+    const toCard = (p) => productCardHtml(p, { showCategoryBadges: false });
 
     if (targetId === 'product-grid') {
         const loadMoreBtnContainer = document.getElementById('load-more-container');
