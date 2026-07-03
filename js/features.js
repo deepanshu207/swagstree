@@ -1073,6 +1073,11 @@ function closeMediaViewer() {
     const vidEl = document.getElementById('mv-video');
     if (vidEl) { vidEl.pause(); vidEl.src = ''; }
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+
+    const detView = document.getElementById('detail-view');
+    if (detView && detView.style.display !== 'none') {
+        detView.scrollTop = 0;
+    }
 }
 window.closeMediaViewer = closeMediaViewer;
 window.close360Viewer = closeMediaViewer;
