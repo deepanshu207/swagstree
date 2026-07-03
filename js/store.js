@@ -1030,9 +1030,9 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
 
     if (!detailNeedsSizePicker(uniqueSizes)) {
         selectedSize = uniqueSizes[0] || 'Standard';
-    } else if (initialSize && uniqueSizes.some(s => sizesMatch(s, initialSize))) {
-        selectedSize = uniqueSizes.find(s => sizesMatch(s, initialSize));
-    } else if (!selectedSize || !uniqueSizes.some(s => sizesMatch(s, selectedSize))) {
+    } else if (initialSize && uniqueSizes.some(s => sizesEqual(s, initialSize))) {
+        selectedSize = uniqueSizes.find(s => sizesEqual(s, initialSize));
+    } else if (!selectedSize || !uniqueSizes.some(s => sizesEqual(s, selectedSize))) {
         selectedSize = uniqueSizes[0];
     }
 
@@ -1080,7 +1080,7 @@ function showDetail(id, initialColor = null, initialSize = null) {
     } else {
         sizesContainer.style.display = 'block';
         sizeSelector.innerHTML = uniqueSizes.map(sz => `
-            <div class="size-chip ${sizesMatch(sz, selectedSize) ? 'active' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
+            <div class="size-chip ${sizesEqual(sz, selectedSize) ? 'active' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
         `).join('');
     }
 
@@ -1257,11 +1257,20 @@ function variantColorMatches(variant, colorKey) {
     return [variant.color, variant.colorName].some(c => c && normalizeColorKey(c) === target);
 }
 
+function sizesEqual(a, b) {
+    const sa = String(a || '').trim();
+    const sb = String(b || '').trim();
+    if (!sa && !sb) return true;
+    if (sa === 'Standard' && sb === 'Standard') return true;
+    if (sa === 'Standard' || sb === 'Standard') return false;
+    return sa.toLowerCase() === sb.toLowerCase();
+}
+
 function sizesMatch(a, b) {
     const sa = String(a || '').trim();
     const sb = String(b || '').trim();
     if (!sa || sa === 'Standard') return true;
-    if (!sb || sb === 'Standard') return sa === sb || sb === 'Standard';
+    if (!sb || sb === 'Standard') return true;
     return sa.toLowerCase() === sb.toLowerCase();
 }
 
@@ -1905,7 +1914,7 @@ function syncSizeChips() {
     sizeChips.forEach(chip => {
         const label = chip.innerText.trim();
         const chipSize = label === 'Free Size' ? 'Standard' : label;
-        chip.classList.toggle('active', sizesMatch(chipSize, selectedSize));
+        chip.classList.toggle('active', sizesEqual(chipSize, selectedSize));
     });
 }
 window.syncSizeChips = syncSizeChips;
