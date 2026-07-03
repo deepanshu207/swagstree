@@ -1290,6 +1290,17 @@ function buildDetailGallerySlides(p, productMedia) {
             photoSlides = [...variantPhotos, ...sharedMain];
             photoMap = [...variantPhotosMap, ...sharedMainMap];
         }
+    } else if (!p.hideNoImagePlaceholder) {
+        const placeholderImg = 'https://placehold.co/400x400/222/FFF?text=No+Image';
+        photoSlides = [placeholderImg];
+        photoMap = [{
+            url: placeholderImg,
+            color: selectedColor || '',
+            size: selectedSize || '',
+            type: 'image',
+            scope: 'variant',
+            isPlaceholder: true
+        }];
     }
 
     if (productMedia.has360 && photoSlides.length === 0) {
@@ -1319,6 +1330,10 @@ function buildDetailGallerySlides(p, productMedia) {
         });
     });
 
+    if (photoMap.length === 1 && photoMap[0].isPlaceholder && videoSlides.length > 0) {
+        photoSlides = [];
+        photoMap = [];
+    }
 
     return {
         imagesToDisplay: [...photoSlides, ...videoSlides],
@@ -1344,14 +1359,16 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     const hasRealPhotos = galleryHasRealPhotos(imageToVariantMap);
     const hasVideo = imageToVariantMap.some(m => m && m.type === 'video');
-    const detBox = document.getElementById('det-box');
     const mediaBar = document.getElementById('det-media-bar');
 
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
         ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
         : 0;
 
-    window.detailGalleryImages = imagesToDisplay.filter((_, i) => (imageToVariantMap[i] || {}).type !== 'video');
+    window.detailGalleryImages = imagesToDisplay.filter((_, i) => {
+        const m = imageToVariantMap[i] || {};
+        return m.type !== 'video' && !m.isPlaceholder && !isPlaceholderImageUrl(m.url || imagesToDisplay[i]);
+    });
     window.detailGallerySlideMap = imageToVariantMap;
     window.detailGalleryActiveIndex = activeThumbIdx;
 
@@ -1368,9 +1385,12 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                 </div>`;
             }
             const zoomIdx = imageOnlyIdx++;
+            if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
+                return `<img src="${img}" class="det-gallery-placeholder" data-type="image" alt="No image">`;
+            }
             return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
         }).join('')
-        : (hasRealPhotos || hasVideo ? '' : '<div class="det-gallery-empty"><i class="fa fa-image"></i><span>No photo available</span></div>');
+        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" class="det-gallery-placeholder" alt="No image">');
 
     const detGallery = document.getElementById('det-gallery');
     const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
@@ -1378,9 +1398,6 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         detGallery.innerHTML = galleryHtml;
         detGallery.setAttribute('data-loaded-images', galleryCacheKey);
         detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
-    }
-    if (detBox) {
-        detBox.classList.toggle('det-no-media', !hasRealPhotos && !hasVideo);
     }
     if (mediaBar) {
         mediaBar.style.display = (hasRealPhotos || hasVideo) ? '' : 'none';

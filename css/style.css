@@ -3975,31 +3975,9 @@ body.media-viewer-open .bottom-nav {
 .mv-next { right: max(12px, env(safe-area-inset-right)); }
 
 /* Detail gallery — media bar below image (not over it) */
-#det-box.det-no-media {
-    aspect-ratio: auto;
-    min-height: 0;
-    height: auto;
-}
-#det-box.det-no-media .det-gallery-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 72px;
-    padding: 16px;
-    color: #555;
-    font-size: 12px;
-    font-weight: 600;
-    background: #111;
-}
-#det-box.det-no-media .det-gallery-empty i {
-    font-size: 20px;
-    opacity: 0.5;
-}
-#det-box.det-no-media .indicators {
-    display: none;
+#det-gallery img.det-gallery-placeholder {
+    object-fit: contain !important;
+    cursor: default;
 }
 
 .det-media-bar {
