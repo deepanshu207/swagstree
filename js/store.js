@@ -993,39 +993,98 @@ function getSelectedVariant(p) {
     return match;
 }
 
+function getDetailUniqueSizes(variants) {
+    return [...new Set((variants || []).map(v => v.size))];
+}
+
+function detailNeedsSizePicker(uniqueSizes) {
+    return uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
+}
+
+function getDetailColorOptions(p) {
+    const colors = [];
+    const seenColorKeys = new Set();
+    (p.normalizedVariants || []).filter(v => sizesMatch(v.size, selectedSize)).forEach(v => {
+        const key = getVariantColorKey(v);
+        if (!key) return;
+        const norm = normalizeColorKey(key);
+        if (seenColorKeys.has(norm)) return;
+        seenColorKeys.add(norm);
+        colors.push({ key, variant: v });
+    });
+    return colors;
+}
+
+function isValidDetailColorPick(colorKey, colors) {
+    if (!colorKey || !String(colorKey).trim()) return false;
+    return colors.some(c => colorsMatch(c.key, colorKey) || variantColorMatches(c.variant, colorKey));
+}
+
+function ensureDetailSelectionDefaults(p, opts = {}) {
+    if (!p) return;
+    if (!p.normalizedVariants || !p.normalizedVariants.length) {
+        p.normalizedVariants = normalizeVariants(p);
+    }
+    const { initialColor = null, initialSize = null } = opts;
+    const uniqueSizes = getDetailUniqueSizes(p.normalizedVariants);
+
+    if (!detailNeedsSizePicker(uniqueSizes)) {
+        selectedSize = uniqueSizes[0] || 'Standard';
+    } else if (initialSize && uniqueSizes.some(s => sizesMatch(s, initialSize))) {
+        selectedSize = uniqueSizes.find(s => sizesMatch(s, initialSize));
+    } else if (!selectedSize || !uniqueSizes.some(s => sizesMatch(s, selectedSize))) {
+        selectedSize = uniqueSizes[0];
+    }
+
+    const colors = getDetailColorOptions(p);
+    if (colors.length === 0) {
+        selectedColor = '';
+    } else if (initialColor && colors.some(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor))) {
+        selectedColor = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor)).key;
+    } else if (!isValidDetailColorPick(selectedColor, colors)) {
+        selectedColor = colors[0].key;
+    }
+
+    const patterns = [...new Set(
+        p.normalizedVariants
+            .filter(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor))
+            .map(v => v.pattern)
+            .filter(pat => pat)
+    )];
+    if (patterns.length === 0) {
+        window.selectedPattern = '';
+    } else if (!window.selectedPattern || !patterns.includes(window.selectedPattern)) {
+        window.selectedPattern = patterns[0];
+    }
+}
+
 function showDetail(id, initialColor = null, initialSize = null) {
     const p = products.find(x => x.id === id);
     if (!p) return;
 
     activeProductId = id;
     p.normalizedVariants = normalizeVariants(p);
+    window.selectedPattern = '';
 
     document.getElementById('det-name').innerText = p.name;
     document.getElementById('det-desc').innerText = p.description || "Premium Quality.";
 
-    // Set up sizes
-    const uniqueSizes = [...new Set(p.normalizedVariants.map(v => v.size))];
+    ensureDetailSelectionDefaults(p, { initialColor, initialSize });
+
+    const uniqueSizes = getDetailUniqueSizes(p.normalizedVariants);
     const sizeSelector = document.getElementById('detail-size-selector');
     const sizesContainer = document.getElementById('det-sizes-container');
 
-    if (uniqueSizes.length === 0 || (uniqueSizes.length === 1 && uniqueSizes[0] === 'Standard')) {
+    if (!detailNeedsSizePicker(uniqueSizes)) {
         sizesContainer.style.display = 'none';
-        selectedSize = 'Standard';
-        if (uniqueSizes.length === 0) selectedColor = '';
     } else {
         sizesContainer.style.display = 'block';
-        if (initialSize && uniqueSizes.includes(initialSize)) {
-            selectedSize = initialSize;
-        } else {
-            selectedSize = uniqueSizes[0];
-        }
-
         sizeSelector.innerHTML = uniqueSizes.map(sz => `
-            <div class="size-chip ${sz === selectedSize ? 'active' : ''}" onclick="selectDetailSize('${sz}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
+            <div class="size-chip ${sizesMatch(sz, selectedSize) ? 'active' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
         `).join('');
     }
 
-    renderDetailColors(p, initialColor);
+    renderDetailColors(p);
     renderDetailPatterns(p);
     updateVariantUI(p);
     updateDetailURL();
@@ -1072,32 +1131,28 @@ function renderDetailColors(p, initialColor = null) {
     const colorSelector = document.getElementById('detail-color-selector');
     if (!colorsContainer || !colorSelector) return;
 
-    const colors = [];
-    const seenColorKeys = new Set();
-    p.normalizedVariants.filter(v => sizesMatch(v.size, selectedSize)).forEach(v => {
-        const key = getVariantColorKey(v);
-        if (!key) return;
-        const norm = normalizeColorKey(key);
-        if (seenColorKeys.has(norm)) return;
-        seenColorKeys.add(norm);
-        colors.push({ key, variant: v });
-    });
+    if (initialColor) {
+        const colors = getDetailColorOptions(p);
+        const hit = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor));
+        if (hit) selectedColor = hit.key;
+    } else if (!isValidDetailColorPick(selectedColor, getDetailColorOptions(p))) {
+        ensureDetailSelectionDefaults(p);
+    }
+
+    const colors = getDetailColorOptions(p);
 
     if (colors.length === 0) {
         colorsContainer.style.display = 'none';
         selectedColor = '';
     } else {
         colorsContainer.style.display = 'block';
-        if (initialColor && colors.some(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor))) {
-            const hit = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor));
-            selectedColor = hit.key;
-        } else if (!colors.some(c => colorsMatch(c.key, selectedColor) || variantColorMatches(c.variant, selectedColor))) {
+        if (!isValidDetailColorPick(selectedColor, colors)) {
             selectedColor = colors[0].key;
         }
 
         colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
             const col = key;
-            const isActive = colorsMatch(col, selectedColor) || variantColorMatches(v, selectedColor);
+            const isActive = isValidDetailColorPick(selectedColor, [ { key: col, variant: v } ]);
             // Normalize for CSS: hex stays as-is; check customColorsMap; otherwise strip spaces
             let cleanColor = col.trim();
             if (!cleanColor.startsWith('#')) {
@@ -1533,13 +1588,21 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         btn.innerHTML = label;
 
         btn.onclick = () => {
-            const uniqueSizes = [...new Set(p.normalizedVariants.map(v => v.size))];
-            if (uniqueSizes.length > 0 && !selectedSize) return showToast("Please select a size");
-            const availableColors = p.normalizedVariants.filter(x => x.size === selectedSize).map(x => x.color).filter(c => c);
-            if (availableColors.length > 0 && !selectedColor) return showToast("Please select a color");
+            ensureDetailSelectionDefaults(p);
+            syncSizeChips();
+            renderDetailColors(p);
+            renderDetailPatterns(p);
+
+            const uniqueSizes = getDetailUniqueSizes(p.normalizedVariants);
+            if (detailNeedsSizePicker(uniqueSizes) && !selectedSize) {
+                return showToast("Please select a size");
+            }
+            const colorOptions = getDetailColorOptions(p);
+            if (colorOptions.length > 0 && !isValidDetailColorPick(selectedColor, colorOptions)) {
+                selectedColor = colorOptions[0].key;
+            }
 
             addToBagWithSelection(p.id, selectedSize, selectedColor, window.selectedPattern || '');
-            // Don't close detail instantly, let them use the stepper
             updateVariantUI(p);
         };
     }
@@ -1840,9 +1903,9 @@ function clickDetThumb(idx) {
 function syncSizeChips() {
     const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
     sizeChips.forEach(chip => {
-        const sz = chip.innerText.trim();
-        const displaySz = selectedSize === 'Standard' ? 'Free Size' : selectedSize;
-        chip.classList.toggle('active', sz === displaySz);
+        const label = chip.innerText.trim();
+        const chipSize = label === 'Free Size' ? 'Standard' : label;
+        chip.classList.toggle('active', sizesMatch(chipSize, selectedSize));
     });
 }
 window.syncSizeChips = syncSizeChips;
