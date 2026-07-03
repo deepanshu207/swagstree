@@ -4108,23 +4108,25 @@ body.media-viewer-open .bottom-nav {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    background: rgba(0,0,0,0.55);
-    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.65);
+    border: 1px solid rgba(255,255,255,0.2);
     color: #fff;
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
-    z-index: 20;
+    z-index: 60;
     display: flex;
     align-items: center;
     justify-content: center;
     backdrop-filter: blur(6px);
-    transition: all 0.2s;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    pointer-events: auto;
 }
+.mv-nav i { pointer-events: none; }
 .mv-nav:hover { background: var(--gold); color: #000; border-color: var(--gold); }
 .mv-prev { left: max(12px, env(safe-area-inset-left)); }
 .mv-next { right: max(12px, env(safe-area-inset-right)); }

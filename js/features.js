@@ -560,29 +560,40 @@ function mvIsCoarsePointer() {
     return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
 
+const MV_MODAL_DOM_VERSION = 3;
+
 function mvSpinPixelsPerFrame() {
-    return mvIsCoarsePointer() ? 150 : 56;
+    return mvIsCoarsePointer() ? 220 : 64;
 }
 
 function mvNormalizeSpinGrid() {
     const n = mvState.spinFrames.length;
     if (n < 1) return;
-    if (mvState.spinCols * mvState.spinRows < n) {
-        mvState.spinCols = n;
-        mvState.spinRows = 1;
-    }
+    mvState.spinCols = n;
+    mvState.spinRows = 1;
     mvState.spinIndex = Math.max(0, Math.min(n - 1, mvState.spinIndex || 0));
-    mvState.spinCol = mvState.spinIndex % mvState.spinCols;
-    mvState.spinRow = Math.floor(mvState.spinIndex / mvState.spinCols);
+    mvState.spinCol = mvState.spinIndex;
+    mvState.spinRow = 0;
 }
 
 function mvSetSpinIndex(idx) {
     const n = mvState.spinFrames.length;
     if (n < 1) return;
-    mvState.spinIndex = ((idx % n) + n) % n;
-    mvState.spinCol = mvState.spinIndex % mvState.spinCols;
-    mvState.spinRow = Math.floor(mvState.spinIndex / mvState.spinCols);
+    const next = ((idx % n) + n) % n;
+    if (next === mvState.spinIndex) return;
+    mvState.spinIndex = next;
+    mvState.spinCol = next;
+    mvState.spinRow = 0;
+    const imgEl = document.getElementById('mv-image');
+    if (imgEl) {
+        imgEl.style.opacity = '0.55';
+    }
     renderMediaViewerContent();
+    if (imgEl) {
+        requestAnimationFrame(() => {
+            imgEl.style.opacity = '1';
+        });
+    }
 }
 
 function mvStepSpin(dir) {
@@ -647,7 +658,11 @@ function updateMediaViewerToolbar() {
 
 function ensureMediaViewerModal() {
     let modal = document.getElementById('media-viewer-modal');
-    if (modal && (!modal.querySelector('.mv-topbar') || !modal.querySelector('#mv-divider-zoom') || !modal.querySelector('#mv-btn-step-back'))) {
+    const domOk = modal
+        && modal.getAttribute('data-mv-version') === String(MV_MODAL_DOM_VERSION)
+        && modal.querySelector('.mv-topbar')
+        && modal.querySelector('#mv-btn-step-back');
+    if (modal && !domOk) {
         modal.remove();
         modal = null;
     }
@@ -656,6 +671,7 @@ function ensureMediaViewerModal() {
     modal = document.createElement('div');
     modal.id = 'media-viewer-modal';
     modal.className = 'media-viewer-modal';
+    modal.setAttribute('data-mv-version', String(MV_MODAL_DOM_VERSION));
         modal.innerHTML = `
         <div class="mv-topbar">
             <div class="mv-topbar-text">
@@ -669,14 +685,14 @@ function ensureMediaViewerModal() {
                 <div class="spinner-360"></div>
                 <p id="mv-load-status">Loading...</p>
             </div>
+            <img id="mv-image" class="mv-image" src="" alt="" draggable="false">
+            <video id="mv-video" class="mv-video" playsinline controls style="display:none;"></video>
             <div id="mv-guide" class="mv-guide">
                 <i class="fa fa-arrows-left-right" id="mv-guide-icon"></i>
                 <p id="mv-guide-text">Swipe left or right to spin the product</p>
             </div>
-            <img id="mv-image" class="mv-image" src="" alt="" draggable="false">
-            <video id="mv-video" class="mv-video" playsinline controls style="display:none;"></video>
-            <button id="mv-prev" class="mv-nav mv-prev" onclick="mediaViewerNav(-1)" style="display:none;" aria-label="Previous"><i class="fa fa-chevron-left"></i></button>
-            <button id="mv-next" class="mv-nav mv-next" onclick="mediaViewerNav(1)" style="display:none;" aria-label="Next"><i class="fa fa-chevron-right"></i></button>
+            <button type="button" id="mv-prev" class="mv-nav mv-prev" style="display:none;" aria-label="Previous frame"><i class="fa fa-chevron-left"></i></button>
+            <button type="button" id="mv-next" class="mv-nav mv-next" style="display:none;" aria-label="Next frame"><i class="fa fa-chevron-right"></i></button>
         </div>
         <div class="mv-bottom">
             <p id="mv-frame-label" class="mv-frame-label"></p>
@@ -695,6 +711,26 @@ function ensureMediaViewerModal() {
         </div>
     `;
     document.body.appendChild(modal);
+
+    const bindNavBtn = (id, dir) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        const go = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            cancelAnimationFrame(mvState.momentumId);
+            mvState.isDragging = false;
+            mvState.spinAccumX = 0;
+            if (mvState.mode === 'spin360') mvStepSpin(dir);
+            else mediaViewerNav(dir);
+        };
+        btn.addEventListener('click', go);
+        btn.addEventListener('touchend', go, { passive: false });
+    };
+    bindNavBtn('mv-prev', -1);
+    bindNavBtn('mv-next', 1);
 
     const stage = document.getElementById('mv-stage');
     stage.addEventListener('mousedown', mediaViewerDragStart);
@@ -723,8 +759,8 @@ function openMediaViewer(opts = {}) {
     mvState.images = opts.images || [];
     mvState.imageIndex = opts.startIndex || 0;
     mvState.spinFrames = opts.spinFrames || [];
-    mvState.spinCols = opts.spinCols || mvState.spinFrames.length || 1;
-    mvState.spinRows = opts.spinRows || 1;
+    mvState.spinRows = 1;
+    mvState.spinCols = mvState.spinFrames.length || 1;
     mvNormalizeSpinGrid();
     mvState.spinIndex = 0;
     mvState.spinCol = 0;
@@ -934,6 +970,7 @@ window.mediaViewerSwitchMode = mediaViewerSwitchMode;
 
 function mediaViewerDragStart(e) {
     if (mvState.mode === 'video') return;
+    if (e.target && e.target.closest && (e.target.closest('.mv-nav') || e.target.closest('.mv-toolbar'))) return;
     cancelAnimationFrame(mvState.momentumId);
     stopMediaAutoSpin();
 
@@ -972,14 +1009,14 @@ function mediaViewerDragMove(e) {
     } else if (mvState.mode === 'spin360') {
         const deltaX = cx - mvState.lastX;
         mvState.spinAccumX += deltaX;
-        const ppf = mvSpinPixelsPerFrame();
-        let frameDelta = Math.trunc(mvState.spinAccumX / ppf);
-        if (mvIsCoarsePointer()) {
+        if (!mvIsCoarsePointer()) {
+            const ppf = mvSpinPixelsPerFrame();
+            let frameDelta = Math.trunc(mvState.spinAccumX / ppf);
             frameDelta = Math.max(-1, Math.min(1, frameDelta));
-        }
-        if (frameDelta !== 0) {
-            mvState.spinAccumX -= frameDelta * ppf;
-            mvSetSpinIndex(mvState.spinIndex + frameDelta);
+            if (frameDelta !== 0) {
+                mvState.spinAccumX -= frameDelta * ppf;
+                mvSetSpinIndex(mvState.spinIndex + frameDelta);
+            }
         }
     }
 
@@ -997,10 +1034,16 @@ function mediaViewerDragEnd() {
 
     if (mvState.mode === 'spin360' && mvState.scale === 1) {
         const ppf = mvSpinPixelsPerFrame();
-        if (Math.abs(mvState.velocityX) > (mvIsCoarsePointer() ? 14 : 8)) {
-            if (mvIsCoarsePointer()) mvState.velocityX *= 0.42;
+        const coarse = mvIsCoarsePointer();
+        if (coarse) {
+            if (Math.abs(mvState.spinAccumX) > ppf * 0.22) {
+                mvStepSpin(mvState.spinAccumX < 0 ? 1 : -1);
+            }
+            mvState.spinAccumX = 0;
+        } else if (Math.abs(mvState.velocityX) > 10) {
+            mvState.velocityX *= 0.35;
             applyMediaMomentum();
-        } else if (Math.abs(dragX) > ppf * 0.35) {
+        } else if (Math.abs(dragX) > ppf * 0.3) {
             mvStepSpin(dragX < 0 ? 1 : -1);
         }
     } else if (mvState.mode === 'gallery' && mvState.scale === 1 && mvState.images.length > 1 && Math.abs(dragX) > 48) {
@@ -1009,6 +1052,7 @@ function mediaViewerDragEnd() {
 }
 
 function applyMediaMomentum() {
+    if (mvIsCoarsePointer()) return;
     cancelAnimationFrame(mvState.momentumId);
     const coarse = mvIsCoarsePointer();
     const friction = coarse ? 0.9 : 0.84;
@@ -1074,6 +1118,7 @@ window.toggleFullscreen360 = toggleMediaFullscreen;
 
 function mediaViewerTouchStart(e) {
     if (mvState.mode === 'video') return;
+    if (e.target && e.target.closest && e.target.closest('.mv-nav')) return;
     if (e.touches.length === 2) {
         e.preventDefault();
         cancelAnimationFrame(mvState.momentumId);
