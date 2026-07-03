@@ -456,13 +456,7 @@ function productCardHtml(p, options = {}) {
         displayImages = [];
     }
 
-    let isOutOfStock = false;
-    if (activeVariants.length > 0) {
-        const trackingVariants = activeVariants.filter(v => v.trackStock);
-        if (trackingVariants.length > 0 && trackingVariants.every(v => (v.stockCount || 0) <= 0)) {
-            isOutOfStock = true;
-        }
-    }
+    const isOutOfStock = typeof isProductOutOfStock === 'function' ? isProductOutOfStock(p) : false;
 
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
     const has360 = is360Enabled && (!!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360)));
@@ -538,13 +532,10 @@ function setupInfiniteScrollObserver() {
 
 function isProductOutOfStock(p) {
     const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
-    if (activeVariants.length > 0) {
-        const trackingVariants = activeVariants.filter(v => v.trackStock);
-        if (trackingVariants.length > 0 && trackingVariants.every(v => (v.stockCount || 0) <= 0)) {
-            return true;
-        }
-    }
-    return false;
+    if (activeVariants.length === 0) return false;
+    const trackingVariants = activeVariants.filter(v => v.trackStock);
+    if (trackingVariants.length === 0) return false;
+    return !trackingVariants.some(v => variantBlockHasStock(v));
 }
 window.isProductOutOfStock = isProductOutOfStock;
 
@@ -962,6 +953,38 @@ function resolveSkuStockCount(variantBlock, skuKey) {
     return fallback;
 }
 
+function isNormalizedVariantInStock(v) {
+    if (!v || !v.trackStock) return true;
+    const qty = typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0);
+    return qty > 0;
+}
+
+function variantBlockHasStock(v) {
+    if (!v || !v.trackStock) return true;
+    const skus = expandVariantBlockSkus(v);
+    if (!skus.length) return (parseInt(v.stockCount, 10) || 0) > 0;
+    return skus.some(sku => resolveSkuStockCount(v, sku.key) > 0);
+}
+window.variantBlockHasStock = variantBlockHasStock;
+
+function isDetailSizeInStock(p, size) {
+    const matches = (p.normalizedVariants || []).filter(v => sizesMatch(v.size, size) && variantColorMatches(v, selectedColor));
+    if (!matches.length) return true;
+    return matches.some(isNormalizedVariantInStock);
+}
+
+function isDetailColorInStock(p, colorKey) {
+    const matches = (p.normalizedVariants || []).filter(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, colorKey));
+    if (!matches.length) return true;
+    return matches.some(isNormalizedVariantInStock);
+}
+
+function isDetailPatternInStock(p, pat) {
+    const v = (p.normalizedVariants || []).find(x => sizesMatch(x.size, selectedSize) && variantColorMatches(x, selectedColor) && x.pattern === pat);
+    if (!v) return true;
+    return isNormalizedVariantInStock(v);
+}
+
 function normalizeVariants(p) {
     if (p.variants && Array.isArray(p.variants) && p.variants.length > 0) {
         const normalized = [];
@@ -1199,7 +1222,7 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
     } else if (initialSize && uniqueSizes.some(s => sizesEqual(s, initialSize))) {
         selectedSize = uniqueSizes.find(s => sizesEqual(s, initialSize));
     } else if (!selectedSize || !uniqueSizes.some(s => sizesEqual(s, selectedSize))) {
-        selectedSize = uniqueSizes[0];
+        selectedSize = uniqueSizes.find(sz => isDetailSizeInStock(p, sz)) || uniqueSizes[0];
     }
 
     const colors = getDetailColorOptions(p);
@@ -1208,7 +1231,7 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
     } else if (initialColor && colors.some(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor))) {
         selectedColor = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor)).key;
     } else if (!isValidDetailColorPick(selectedColor, colors)) {
-        selectedColor = colors[0].key;
+        selectedColor = (colors.find(c => isDetailColorInStock(p, c.key)) || colors[0]).key;
     }
 
     const patterns = [...new Set(
@@ -1220,7 +1243,7 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
     if (patterns.length === 0) {
         window.selectedPattern = '';
     } else if (!window.selectedPattern || !patterns.includes(window.selectedPattern)) {
-        window.selectedPattern = patterns[0];
+        window.selectedPattern = patterns.find(pat => isDetailPatternInStock(p, pat)) || patterns[0];
     }
 }
 
@@ -1245,9 +1268,12 @@ function showDetail(id, initialColor = null, initialSize = null) {
         sizesContainer.style.display = 'none';
     } else {
         sizesContainer.style.display = 'block';
-        sizeSelector.innerHTML = uniqueSizes.map(sz => `
-            <div class="size-chip ${sizesEqual(sz, selectedSize) ? 'active' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
-        `).join('');
+        sizeSelector.innerHTML = uniqueSizes.map(sz => {
+            const oos = !isDetailSizeInStock(p, sz);
+            return `
+            <div class="size-chip ${sizesEqual(sz, selectedSize) ? 'active' : ''} ${oos ? 'chip-oos' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)" title="${oos ? 'Out of stock for this size' : ''}">${sz === 'Standard' ? 'Free Size' : sz}</div>
+        `;
+        }).join('');
     }
 
     renderDetailColors(p);
@@ -1266,11 +1292,15 @@ function showDetail(id, initialColor = null, initialSize = null) {
 }
 
 function selectDetailSize(sz, el) {
+    const p = products.find(x => x.id === activeProductId);
+    if (p && !isDetailSizeInStock(p, sz)) {
+        if (typeof showToast === 'function') showToast('This size is out of stock for the selected color.');
+        return;
+    }
     selectedSize = sz;
     el.parentElement.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
-    const p = products.find(x => x.id === activeProductId);
     if (p) {
         renderDetailColors(p);
         renderDetailPatterns(p);
@@ -1280,11 +1310,15 @@ function selectDetailSize(sz, el) {
 }
 
 function selectDetailColor(col, el) {
+    const p = products.find(x => x.id === activeProductId);
+    if (p && !isDetailColorInStock(p, col)) {
+        if (typeof showToast === 'function') showToast('This color is out of stock for the selected size.');
+        return;
+    }
     selectedColor = col;
     el.parentElement.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
-    const p = products.find(x => x.id === activeProductId);
     if (p) {
         renderDetailPatterns(p);
         updateVariantUI(p);
@@ -1336,8 +1370,9 @@ function renderDetailColors(p, initialColor = null) {
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
 
+            const oos = !isDetailColorInStock(p, col);
             return `
-                <div class="color-chip ${isActive ? 'active' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)">
+                <div class="color-chip ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)" title="${oos ? 'Out of stock for this color' : ''}">
                     ${colorPreview}<span>${v ? (v.colorName || formatColorName(col)) : formatColorName(col)}</span>
                 </div>
             `;
@@ -1346,11 +1381,15 @@ function renderDetailColors(p, initialColor = null) {
 }
 
 function selectDetailPattern(pat, el) {
+    const p = products.find(x => x.id === activeProductId);
+    if (p && !isDetailPatternInStock(p, pat)) {
+        if (typeof showToast === 'function') showToast('This pattern is out of stock.');
+        return;
+    }
     window.selectedPattern = pat;
     el.parentElement.querySelectorAll('.size-chip, .color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
-    const p = products.find(x => x.id === activeProductId);
     if (p) updateVariantUI(p);
 }
 
@@ -1380,11 +1419,13 @@ function renderDetailPatterns(p) {
             const displayText = v && v.patternDisplayName ? v.patternDisplayName : pat;
             const shouldShowText = !hasImage || (v && v.showPatternText);
 
+            const oos = !isDetailPatternInStock(p, pat);
+            const oosTitle = oos ? 'Out of stock' : displayText;
             if (hasImage) {
                 const imgHtml = `<img src="${v.previewImage}" style="width:28px; height:28px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); vertical-align:middle; flex-shrink:0;">`;
                 const textHtml = shouldShowText ? `<span style="font-size:11px; font-weight:600; margin-left:5px; line-height:1.2;">${displayText}</span>` : '';
                 return `
-                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${pat}', this)" title="${displayText}">
+                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
                     ${imgHtml}${textHtml}
                 </div>
                 `;
@@ -1392,7 +1433,7 @@ function renderDetailPatterns(p) {
 
             // Text-only pattern
             return `
-            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${displayText}">
+            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
                 <span>${displayText}</span>
             </div>
             `;

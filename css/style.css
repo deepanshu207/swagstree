@@ -2204,6 +2204,22 @@ body {
     transform: translateY(-2px);
 }
 
+.size-chip.chip-oos,
+.color-chip.chip-oos {
+    opacity: 0.38;
+    text-decoration: line-through;
+    cursor: not-allowed;
+    border-color: rgba(255, 77, 77, 0.35) !important;
+    color: #888 !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.size-chip.chip-oos.active,
+.color-chip.chip-oos.active {
+    background: rgba(255, 77, 77, 0.08) !important;
+}
+
 .color-indicator {
     width: 14px;
     height: 14px;

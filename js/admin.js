@@ -562,49 +562,56 @@ function renderAdmin() {
         }
 
         const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
-        let isOutOfStock = false;
-        if (activeVariants.length > 0) {
-            const trackingVariants = activeVariants.filter(v => v.trackStock);
-            if (trackingVariants.length > 0 && trackingVariants.every(v => (v.stockCount || 0) <= 0)) {
-                isOutOfStock = true;
-            }
-        }
+        const isOutOfStock = typeof variantBlockHasStock === 'function'
+            ? (activeVariants.length > 0 && activeVariants.some(v => v.trackStock) && !activeVariants.filter(v => v.trackStock).some(v => variantBlockHasStock(v)))
+            : false;
 
         let stockHtml = '';
         if (activeVariants.length > 0) {
             stockHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;">`;
             activeVariants.forEach(v => {
-                let badgeColor = '#888';
-                let badgeBg = 'rgba(255,255,255,0.05)';
-                let border = '1px solid rgba(255,255,255,0.1)';
-                let label = '';
-                
-                const nameParts = [];
-                if (v.size && v.size !== 'Standard') nameParts.push(v.size);
-                if (v.colorName) nameParts.push(v.colorName);
-                else if (v.color) nameParts.push(v.color);
-                if (v.patternName) nameParts.push(v.patternName);
-                else if (v.pattern) nameParts.push(v.pattern);
-                
-                const varName = nameParts.join(' / ') || 'Standard';
-                
-                if (v.trackStock) {
-                    const stock = v.stockCount || 0;
-                    if (stock <= 0) {
-                        badgeColor = '#ff4d4d';
-                        badgeBg = 'rgba(255, 77, 77, 0.1)';
-                        border = '1px solid rgba(255, 77, 77, 0.2)';
-                        label = `${varName}: 0 Left (OOS)`;
+                const renderStockBadge = (label, stock, tracking) => {
+                    let badgeColor = '#888';
+                    let badgeBg = 'rgba(255,255,255,0.05)';
+                    let border = '1px solid rgba(255,255,255,0.1)';
+                    let text = '';
+                    if (tracking) {
+                        if (stock <= 0) {
+                            badgeColor = '#ff4d4d';
+                            badgeBg = 'rgba(255, 77, 77, 0.1)';
+                            border = '1px solid rgba(255, 77, 77, 0.2)';
+                            text = `${label}: 0 Left (OOS)`;
+                        } else {
+                            badgeColor = '#FFD700';
+                            badgeBg = 'rgba(255, 215, 0, 0.05)';
+                            border = '1px solid rgba(255, 215, 0, 0.2)';
+                            text = `${label}: ${stock} Left`;
+                        }
                     } else {
-                        badgeColor = '#FFD700';
-                        badgeBg = 'rgba(255, 215, 0, 0.05)';
-                        border = '1px solid rgba(255, 215, 0, 0.2)';
-                        label = `${varName}: ${stock} Left`;
+                        text = `${label}: Unlimited`;
                     }
+                    stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:normal; display:inline-block; max-width:100%; word-break:break-word;">${text}</span>`;
+                };
+
+                const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
+                if (v.trackStock && skus.length > 1) {
+                    skus.forEach(sku => {
+                        const stock = getVariantSkuStock(v, sku.key);
+                        renderStockBadge(sku.label, stock, true);
+                    });
                 } else {
-                    label = `${varName}: Unlimited`;
+                    const nameParts = [];
+                    if (v.size && v.size !== 'Standard') nameParts.push(v.size);
+                    if (v.colorName) nameParts.push(v.colorName);
+                    else if (v.color) nameParts.push(v.color);
+                    if (v.patternName) nameParts.push(v.patternName);
+                    else if (v.pattern) nameParts.push(v.pattern);
+                    const varName = (skus.length === 1 ? skus[0].label : nameParts.join(' / ')) || 'Standard';
+                    const stock = v.trackStock
+                        ? (skus.length === 1 ? getVariantSkuStock(v, skus[0].key) : (parseInt(v.stockCount, 10) || 0))
+                        : 0;
+                    renderStockBadge(varName, stock, !!v.trackStock);
                 }
-                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:normal; display:inline-block; max-width:100%; word-break:break-word;">${label}</span>`;
             });
             stockHtml += `</div>`;
         }
