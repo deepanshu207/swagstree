@@ -173,7 +173,7 @@ function renderVariantBlocks() {
                 </div>
                 ` : ''}
                 <div>
-                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Product Video <span style="color:#666; text-transform:none;">(optional)</span></p>
+                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(optional — for this color only; overrides global video)</span></p>
                     <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
                     <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
                         <span>🎬</span> Upload Video
@@ -820,17 +820,38 @@ function renderSpinPreviews(targetId = 'base') {
 }
 window.renderSpinPreviews = renderSpinPreviews;
 
+function previewAdminVideo(targetId, index) {
+    const items = targetId === 'base'
+        ? (existingVideoUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    const vid = items[index];
+    if (!vid) return;
+    let url = typeof vid === 'string' ? vid : '';
+    let revoke = null;
+    if (vid instanceof File) {
+        url = URL.createObjectURL(vid);
+        revoke = url;
+    }
+    if (!url || typeof openMediaViewer !== 'function') return;
+    openMediaViewer({ mode: 'video', videoUrl: url, title: 'Video Preview' });
+    if (revoke) {
+        setTimeout(() => URL.revokeObjectURL(revoke), 60000);
+    }
+}
+window.previewAdminVideo = previewAdminVideo;
+
 function renderVideoPreviews(targetId = 'base') {
     const container = document.getElementById(targetId === 'base' ? 'm-video-preview' : `v-video-preview-${targetId}`);
     if (!container) return;
     const items = targetId === 'base' ? (existingVideoUrls || []) : (variantBlocks.find(x => x.id === targetId)?.videos || []);
     container.innerHTML = items.map((vid, i) => {
         const isFile = vid instanceof File;
-        const label = isFile ? vid.name.substring(0, 12) + '...' : 'Video';
+        const label = isFile ? vid.name.substring(0, 16) + (vid.name.length > 16 ? '…' : '') : 'Saved video';
         return `
-            <div style="position:relative; padding:6px 10px; border-radius:6px; border:1px solid #64b5f6; background:#1a1a1a; display:flex; align-items:center; gap:6px; font-size:11px; color:#64b5f6;">
-                <i class="fa fa-film"></i> ${label}
-                <i class="fa fa-times" style="color:var(--red); cursor:pointer; font-size:10px; margin-left:4px;" onclick="removeVideoItem('${targetId}', ${i})"></i>
+            <div onclick="previewAdminVideo('${targetId}', ${i})" title="Tap to preview video" style="position:relative; padding:8px 12px; border-radius:8px; border:1px solid #64b5f6; background:#1a1a1a; display:flex; align-items:center; gap:8px; font-size:11px; color:#64b5f6; cursor:pointer;">
+                <i class="fa fa-play-circle" style="font-size:16px;"></i>
+                <span>${label}</span>
+                <i class="fa fa-times" style="color:var(--red); cursor:pointer; font-size:11px; margin-left:auto;" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})"></i>
             </div>`;
     }).join('');
 }

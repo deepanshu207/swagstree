@@ -578,12 +578,13 @@ function updateMediaViewerHints() {
     }
 
     if (hintEl) {
-        if (isVideo) hintEl.textContent = 'Tap play to watch';
+        if (isVideo) hintEl.textContent = 'Use the video player controls below';
         else if (isSpin) hintEl.textContent = 'Swipe to spin · Pinch to zoom';
         else hintEl.textContent = 'Pinch or +/− to zoom';
     }
     if (guideText) {
-        guideText.textContent = isSpin
+        if (isVideo) guideText.textContent = 'Tap play on the video player';
+        else guideText.textContent = isSpin
             ? 'Swipe left or right to spin the product'
             : 'Pinch or tap + to zoom in';
     }
@@ -600,11 +601,21 @@ function updateMediaViewerHints() {
             frameLabel.style.display = 'none';
         }
     }
+    updateMediaViewerToolbar();
+}
+
+function updateMediaViewerToolbar() {
+    const isVideo = mvState.mode === 'video';
+    document.querySelectorAll('.mv-toolbar-zoom').forEach(el => {
+        el.style.display = isVideo ? 'none' : '';
+    });
+    const dividerZoom = document.getElementById('mv-divider-zoom');
+    if (dividerZoom) dividerZoom.style.display = isVideo ? 'none' : '';
 }
 
 function ensureMediaViewerModal() {
     let modal = document.getElementById('media-viewer-modal');
-    if (modal && !modal.querySelector('.mv-topbar')) {
+    if (modal && (!modal.querySelector('.mv-topbar') || !modal.querySelector('#mv-divider-zoom'))) {
         modal.remove();
         modal = null;
     }
@@ -640,11 +651,11 @@ function ensureMediaViewerModal() {
             <div class="mv-toolbar">
                 <button id="mv-btn-spin" class="mv-btn mv-btn-label" onclick="mediaViewerSwitchMode('spin360')" title="360° Product Spin" style="display:none;"><i class="fa fa-rotate"></i><span>360° Spin</span></button>
                 <button id="mv-btn-play" class="mv-btn" onclick="toggleMediaAutoSpin()" title="Auto rotate" style="display:none;"><i class="fa fa-play"></i></button>
-                <span class="mv-divider" id="mv-divider-spin" style="display:none;"></span>
-                <button class="mv-btn" onclick="mediaViewerZoom(-0.4)" title="Zoom out" aria-label="Zoom out"><i class="fa fa-minus"></i></button>
-                <button class="mv-btn" onclick="mediaViewerZoom(0.4)" title="Zoom in" aria-label="Zoom in"><i class="fa fa-plus"></i></button>
-                <button class="mv-btn" onclick="mediaViewerReset()" title="Reset view" aria-label="Reset"><i class="fa fa-rotate-left"></i></button>
-                <span class="mv-divider"></span>
+                <span class="mv-divider mv-toolbar-zoom" id="mv-divider-spin" style="display:none;"></span>
+                <button class="mv-btn mv-toolbar-zoom" onclick="mediaViewerZoom(-0.4)" title="Zoom out" aria-label="Zoom out"><i class="fa fa-minus"></i></button>
+                <button class="mv-btn mv-toolbar-zoom" onclick="mediaViewerZoom(0.4)" title="Zoom in" aria-label="Zoom in"><i class="fa fa-plus"></i></button>
+                <button class="mv-btn mv-toolbar-zoom" onclick="mediaViewerReset()" title="Reset view" aria-label="Reset"><i class="fa fa-rotate-left"></i></button>
+                <span class="mv-divider mv-toolbar-zoom" id="mv-divider-zoom"></span>
                 <button class="mv-btn" onclick="toggleMediaFullscreen()" title="Fullscreen" aria-label="Fullscreen"><i class="fa fa-expand"></i></button>
             </div>
         </div>
@@ -709,7 +720,15 @@ function openMediaViewer(opts = {}) {
         titleEl.textContent = mvState.title + spinSuffix;
     }
     if (loader) loader.style.display = 'none';
-    if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
+    if (guide) {
+        if (isVideo) {
+            guide.style.display = 'none';
+            mvState.guideShown = true;
+        } else {
+            guide.style.opacity = '1';
+            guide.style.display = 'flex';
+        }
+    }
     if (vidEl) { vidEl.pause(); vidEl.style.display = 'none'; }
     if (imgEl) imgEl.style.display = 'block';
 
@@ -729,6 +748,7 @@ function openMediaViewer(opts = {}) {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     updateMediaViewerHints();
+    updateMediaViewerToolbar();
     renderMediaViewerContent();
 
     if (isSpin && mvState.spinFrames.length > 0) {
@@ -764,8 +784,13 @@ function renderMediaViewerContent() {
         if (vidEl) {
             vidEl.style.display = 'block';
             vidEl.src = mvState.videoUrl;
+            vidEl.controls = true;
             vidEl.load();
+            const tryPlay = () => { vidEl.play().catch(() => {}); };
+            if (vidEl.readyState >= 2) tryPlay();
+            else vidEl.onloadeddata = tryPlay;
         }
+        updateMediaViewerHints();
         return;
     }
 
