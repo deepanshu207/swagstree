@@ -986,10 +986,76 @@ function buildDefaultStorefrontVariant(p) {
 function getSelectedVariant(p) {
     if (!p || !p.normalizedVariants) return null;
     if (!p.normalizedVariants.length) return null;
-    let match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor && v.pattern === (window.selectedPattern || ''));
-    if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize && v.color === selectedColor);
-    if (!match) match = p.normalizedVariants.find(v => v.size === selectedSize);
+    const pat = window.selectedPattern || '';
+    let match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor) && v.pattern === pat);
+    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor));
+    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize));
     return match;
+}
+
+function getDetailUniqueSizes(variants) {
+    return [...new Set((variants || []).map(v => v.size))];
+}
+
+function detailNeedsSizePicker(uniqueSizes) {
+    return uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
+}
+
+function getDetailColorOptions(p) {
+    const colors = [];
+    const seenColorKeys = new Set();
+    (p.normalizedVariants || []).filter(v => sizesMatch(v.size, selectedSize)).forEach(v => {
+        const key = getVariantColorKey(v);
+        if (!key) return;
+        const norm = normalizeColorKey(key);
+        if (seenColorKeys.has(norm)) return;
+        seenColorKeys.add(norm);
+        colors.push({ key, variant: v });
+    });
+    return colors;
+}
+
+function isValidDetailColorPick(colorKey, colors) {
+    if (!colorKey || !String(colorKey).trim()) return false;
+    return colors.some(c => colorsMatch(c.key, colorKey) || variantColorMatches(c.variant, colorKey));
+}
+
+function ensureDetailSelectionDefaults(p, opts = {}) {
+    if (!p) return;
+    if (!p.normalizedVariants || !p.normalizedVariants.length) {
+        p.normalizedVariants = normalizeVariants(p);
+    }
+    const { initialColor = null, initialSize = null } = opts;
+    const uniqueSizes = getDetailUniqueSizes(p.normalizedVariants);
+
+    if (!detailNeedsSizePicker(uniqueSizes)) {
+        selectedSize = uniqueSizes[0] || 'Standard';
+    } else if (initialSize && uniqueSizes.some(s => sizesMatch(s, initialSize))) {
+        selectedSize = uniqueSizes.find(s => sizesMatch(s, initialSize));
+    } else if (!selectedSize || !uniqueSizes.some(s => sizesMatch(s, selectedSize))) {
+        selectedSize = uniqueSizes[0];
+    }
+
+    const colors = getDetailColorOptions(p);
+    if (colors.length === 0) {
+        selectedColor = '';
+    } else if (initialColor && colors.some(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor))) {
+        selectedColor = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor)).key;
+    } else if (!isValidDetailColorPick(selectedColor, colors)) {
+        selectedColor = colors[0].key;
+    }
+
+    const patterns = [...new Set(
+        p.normalizedVariants
+            .filter(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor))
+            .map(v => v.pattern)
+            .filter(pat => pat)
+    )];
+    if (patterns.length === 0) {
+        window.selectedPattern = '';
+    } else if (!window.selectedPattern || !patterns.includes(window.selectedPattern)) {
+        window.selectedPattern = patterns[0];
+    }
 }
 
 function showDetail(id, initialColor = null, initialSize = null) {
@@ -998,47 +1064,30 @@ function showDetail(id, initialColor = null, initialSize = null) {
 
     activeProductId = id;
     p.normalizedVariants = normalizeVariants(p);
+    window.selectedPattern = '';
 
     document.getElementById('det-name').innerText = p.name;
     document.getElementById('det-desc').innerText = p.description || "Premium Quality.";
 
-    // Set up sizes
-    const uniqueSizes = [...new Set(p.normalizedVariants.map(v => v.size))];
+    ensureDetailSelectionDefaults(p, { initialColor, initialSize });
+
+    const uniqueSizes = getDetailUniqueSizes(p.normalizedVariants);
     const sizeSelector = document.getElementById('detail-size-selector');
     const sizesContainer = document.getElementById('det-sizes-container');
 
-    if (uniqueSizes.length === 0 || (uniqueSizes.length === 1 && uniqueSizes[0] === 'Standard')) {
+    if (!detailNeedsSizePicker(uniqueSizes)) {
         sizesContainer.style.display = 'none';
-        selectedSize = 'Standard';
-        if (uniqueSizes.length === 0) selectedColor = '';
     } else {
         sizesContainer.style.display = 'block';
-        if (initialSize && uniqueSizes.includes(initialSize)) {
-            selectedSize = initialSize;
-        } else {
-            selectedSize = uniqueSizes[0];
-        }
-
         sizeSelector.innerHTML = uniqueSizes.map(sz => `
-            <div class="size-chip ${sz === selectedSize ? 'active' : ''}" onclick="selectDetailSize('${sz}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
+            <div class="size-chip ${sizesMatch(sz, selectedSize) ? 'active' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
         `).join('');
     }
 
-    renderDetailColors(p, initialColor);
+    renderDetailColors(p);
     renderDetailPatterns(p);
     updateVariantUI(p);
     updateDetailURL();
-
-    // Check if 360 viewer is enabled and product has multiple images
-    const trigger360 = document.getElementById('det-360-trigger');
-    if (trigger360) {
-        const active360Img = window.getActive360Images(p);
-        if (active360Img) {
-            trigger360.style.display = 'flex';
-        } else {
-            trigger360.style.display = 'none';
-        }
-    }
 
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
@@ -1082,22 +1131,28 @@ function renderDetailColors(p, initialColor = null) {
     const colorSelector = document.getElementById('detail-color-selector');
     if (!colorsContainer || !colorSelector) return;
 
-    const colors = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize).map(v => v.color).filter(c => c))];
+    if (initialColor) {
+        const colors = getDetailColorOptions(p);
+        const hit = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor));
+        if (hit) selectedColor = hit.key;
+    } else if (!isValidDetailColorPick(selectedColor, getDetailColorOptions(p))) {
+        ensureDetailSelectionDefaults(p);
+    }
+
+    const colors = getDetailColorOptions(p);
 
     if (colors.length === 0) {
         colorsContainer.style.display = 'none';
         selectedColor = '';
     } else {
         colorsContainer.style.display = 'block';
-        if (initialColor && colors.includes(initialColor)) {
-            selectedColor = initialColor;
-        } else {
-            // Only reset color if the current selectedColor isn't available for this size
-            if (!colors.includes(selectedColor)) selectedColor = colors[0];
+        if (!isValidDetailColorPick(selectedColor, colors)) {
+            selectedColor = colors[0].key;
         }
 
-        colorSelector.innerHTML = colors.map(col => {
-            const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === col);
+        colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
+            const col = key;
+            const isActive = isValidDetailColorPick(selectedColor, [ { key: col, variant: v } ]);
             // Normalize for CSS: hex stays as-is; check customColorsMap; otherwise strip spaces
             let cleanColor = col.trim();
             if (!cleanColor.startsWith('#')) {
@@ -1116,8 +1171,8 @@ function renderDetailColors(p, initialColor = null) {
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
 
             return `
-                <div class="color-chip ${col === selectedColor ? 'active' : ''}" onclick="selectDetailColor('${col}', this)">
-                    ${colorPreview}<span>${v ? v.colorName : formatColorName(col)}</span>
+                <div class="color-chip ${isActive ? 'active' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)">
+                    ${colorPreview}<span>${v ? (v.colorName || formatColorName(col)) : formatColorName(col)}</span>
                 </div>
             `;
         }).join('');
@@ -1139,7 +1194,7 @@ function renderDetailPatterns(p) {
     if (!patternsContainer || !patternSelector) return;
 
     // Filter variants that match current size and color, then get unique patterns
-    const patterns = [...new Set(p.normalizedVariants.filter(v => v.size === selectedSize && v.color === selectedColor).map(v => v.pattern).filter(pat => pat))];
+    const patterns = [...new Set(p.normalizedVariants.filter(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor)).map(v => v.pattern).filter(pat => pat))];
 
     if (patterns.length === 0) {
         patternsContainer.style.display = 'none';
@@ -1149,7 +1204,7 @@ function renderDetailPatterns(p) {
         if (!patterns.includes(window.selectedPattern)) window.selectedPattern = patterns[0];
 
         patternSelector.innerHTML = patterns.map(pat => {
-            const v = p.normalizedVariants.find(x => x.size === selectedSize && x.color === selectedColor && x.pattern === pat);
+            const v = p.normalizedVariants.find(x => sizesMatch(x.size, selectedSize) && variantColorMatches(x, selectedColor) && x.pattern === pat);
             const hasImage = v && v.previewImage;
             // Display text logic:
             // - If patternDisplayName set: use it (like colorName for colors)
@@ -1179,108 +1234,222 @@ function renderDetailPatterns(p) {
     }
 }
 
+function normalizeColorKey(c) {
+    return String(c || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function colorsMatch(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return normalizeColorKey(a) === normalizeColorKey(b);
+}
+
+function getVariantColorKey(v) {
+    if (!v) return '';
+    if (v.color && String(v.color).trim()) return String(v.color).trim();
+    if (v.colorName && String(v.colorName).trim()) return String(v.colorName).trim();
+    return '';
+}
+
+function variantColorMatches(variant, colorKey) {
+    if (!colorKey) return true;
+    const target = normalizeColorKey(colorKey);
+    return [variant.color, variant.colorName].some(c => c && normalizeColorKey(c) === target);
+}
+
+function sizesMatch(a, b) {
+    const sa = String(a || '').trim();
+    const sb = String(b || '').trim();
+    if (!sa || sa === 'Standard') return true;
+    if (!sb || sb === 'Standard') return sa === sb || sb === 'Standard';
+    return sa.toLowerCase() === sb.toLowerCase();
+}
+
+function variantMatchesDetailSelection(variant) {
+    if (!variant || variant.isActive === false) return false;
+    if (variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true') return false;
+    if (selectedSize && selectedSize !== 'Standard' && variant.size && !sizesMatch(variant.size, selectedSize)) return false;
+    if (selectedColor && !variantColorMatches(variant, selectedColor)) return false;
+    if (window.selectedPattern && variant.pattern && variant.pattern !== window.selectedPattern) return false;
+    return true;
+}
+
+function isPlaceholderImageUrl(url) {
+    const u = String(url || '');
+    return !u || u.includes('placehold.co') || u.includes('No+Image') || u.includes('text=No');
+}
+
+function buildDetailGallerySlides(p, productMedia) {
+    const spinSet = productMedia.spinSet;
+    const pos = p.mainImagesPosition || 'end';
+
+    const sharedMain = [];
+    const sharedMainMap = [];
+    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
+        p.images.forEach(img => {
+            if (spinSet.has(img) || isPlaceholderImageUrl(img)) return;
+            if (!sharedMain.includes(img)) {
+                sharedMain.push(img);
+                sharedMainMap.push({ url: img, color: '', size: '', type: 'image', scope: 'main' });
+            }
+        });
+    }
+
+    const variantPhotos = [];
+    const variantPhotosMap = [];
+    const selectedVariant = getSelectedVariant(p);
+    const variantSources = [];
+
+    if (p.normalizedVariants && p.normalizedVariants.length > 0) {
+        p.normalizedVariants.forEach(variant => {
+            if (variantMatchesDetailSelection(variant)) variantSources.push(variant);
+        });
+    }
+    if (variantSources.length === 0 && selectedVariant) variantSources.push(selectedVariant);
+
+    variantSources.forEach(variant => {
+        (variant.images || []).forEach(img => {
+            if (isPlaceholderImageUrl(img)) return;
+            if (!variantPhotos.includes(img)) {
+                variantPhotos.push(img);
+                variantPhotosMap.push({
+                    url: img,
+                    color: getVariantColorKey(variant) || variant.color || '',
+                    size: variant.size || '',
+                    type: 'image',
+                    scope: 'variant'
+                });
+            }
+        });
+    });
+
+    let photoSlides = [];
+    let photoMap = [];
+    const usingMainFallback = variantPhotos.length === 0 && sharedMain.length > 0;
+
+    if (usingMainFallback) {
+        photoSlides = [...sharedMain];
+        photoMap = sharedMainMap.map(m => ({ ...m, isFallback: true }));
+    } else if (variantPhotos.length > 0) {
+        if (pos === 'start') {
+            photoSlides = [...sharedMain, ...variantPhotos];
+            photoMap = [...sharedMainMap, ...variantPhotosMap];
+        } else {
+            photoSlides = [...variantPhotos, ...sharedMain];
+            photoMap = [...variantPhotosMap, ...sharedMainMap];
+        }
+    } else if (!p.hideNoImagePlaceholder) {
+        const placeholderImg = 'https://placehold.co/400x400/222/FFF?text=No+Image';
+        photoSlides = [placeholderImg];
+        photoMap = [{
+            url: placeholderImg,
+            color: selectedColor || '',
+            size: selectedSize || '',
+            type: 'image',
+            scope: 'variant',
+            isPlaceholder: true
+        }];
+    }
+
+    if (productMedia.has360 && photoSlides.length === 0) {
+        const preview = productMedia.spinFrames[0];
+        photoSlides = [preview];
+        photoMap = [{ url: preview, color: '', size: '', type: 'image', is360Preview: true, scope: 'main' }];
+    }
+
+    const poster = variantPhotos[0] || sharedMain[0] || (productMedia.spinFrames && productMedia.spinFrames[0]) || '';
+    const videoSlides = [];
+    const videoMap = [];
+    const variantVideoUrls = (selectedVariant?.videos || []).filter(v => v && String(v).trim());
+    const globalVideoUrls = (p.videos || []).filter(v => v && String(v).trim());
+    const videosToShow = variantVideoUrls.length > 0 ? variantVideoUrls : globalVideoUrls;
+    const videoScope = variantVideoUrls.length > 0 ? 'variant' : 'global';
+
+    videosToShow.forEach((vidUrl, vi) => {
+        videoSlides.push(vidUrl);
+        videoMap.push({
+            url: vidUrl,
+            color: selectedColor || '',
+            size: selectedSize || '',
+            type: 'video',
+            poster,
+            videoIndex: vi,
+            scope: videoScope
+        });
+    });
+
+    if (photoMap.length === 1 && photoMap[0].isPlaceholder && videoSlides.length > 0) {
+        photoSlides = [];
+        photoMap = [];
+    }
+
+    return {
+        imagesToDisplay: [...photoSlides, ...videoSlides],
+        imageToVariantMap: [...photoMap, ...videoMap],
+        usingMainFallback,
+        hasMedia: photoSlides.length > 0 || videoSlides.length > 0
+    };
+}
+
 function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     const v = getSelectedVariant(p);
+    const productMedia = resolveProductMedia(p);
 
     // Update Price
     const priceToDisplay = (v && v.price !== null && v.price !== undefined) ? v.price : p.price;
     document.getElementById('det-price').innerText = `₹${priceToDisplay}`;
 
-    // Update Images: Gather images or placeholders for all variants and main images
-    let imagesToDisplay = [];
-    let imageToVariantMap = [];
-    const addedImages = new Set();
+    // Gallery: selected variant photos + global main images (start/end) + global product video (always last)
+    const gallery = buildDetailGallerySlides(p, productMedia);
+    let imagesToDisplay = gallery.imagesToDisplay;
+    let imageToVariantMap = gallery.imageToVariantMap;
+    window.detailGalleryUsingMainFallback = gallery.usingMainFallback;
 
-    const mainImages = [];
-    const mainImagesMap = [];
-    if (!p.hideMainDetailsCarousel && p.images && p.images.length > 0) {
-        p.images.forEach(img => {
-            if (!addedImages.has(img)) {
-                addedImages.add(img);
-                mainImages.push(img);
-                mainImagesMap.push({
-                    url: img,
-                    color: '',
-                    size: ''
-                });
-            }
-        });
-    }
+    const hasRealPhotos = galleryHasRealPhotos(imageToVariantMap);
+    const hasVideo = imageToVariantMap.some(m => m && m.type === 'video');
+    const isPlaceholderOnly = !hasRealPhotos && !hasVideo && !p.hideNoImagePlaceholder;
+    const detBox = document.getElementById('det-box');
 
-    const variantImages = [];
-    const variantImagesMap = [];
-    if (p.normalizedVariants && p.normalizedVariants.length > 0) {
-        p.normalizedVariants.forEach(variant => {
-            const shouldHide = variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true';
-            if (shouldHide) {
-                return; // Skip this variant's images and placeholder entirely
-            }
-            if (variant.images && variant.images.length > 0) {
-                variant.images.forEach(img => {
-                    if (!addedImages.has(img)) {
-                        addedImages.add(img);
-                        variantImages.push(img);
-                        variantImagesMap.push({
-                            url: img,
-                            color: variant.color || '',
-                            size: variant.size || ''
-                        });
-                    }
-                });
-            } else {
-                // Pre-generate a placeholder key to avoid duplicate placeholders for the same color/size
-                const placeholderKey = `placeholder-${variant.color || ''}-${variant.size || ''}`;
-                if (!addedImages.has(placeholderKey)) {
-                    addedImages.add(placeholderKey);
-                    const placeholderImg = "https://placehold.co/400x400/222/FFF?text=No+Image";
-                    variantImages.push(placeholderImg);
-                    variantImagesMap.push({
-                        url: placeholderImg,
-                        color: variant.color || '',
-                        size: variant.size || '',
-                        isPlaceholder: true
-                    });
-                }
-            }
-        });
-    }
-
-    // Combine based on admin-configured position (defaults to 'end')
-    const pos = p.mainImagesPosition || 'end';
-    if (pos === 'end') {
-        imagesToDisplay = [...variantImages, ...mainImages];
-        imageToVariantMap = [...variantImagesMap, ...mainImagesMap];
-    } else {
-        imagesToDisplay = [...mainImages, ...variantImages];
-        imageToVariantMap = [...mainImagesMap, ...variantImagesMap];
-    }
-
-    // Determine targetIndex based on currently selected options
-    const targetIndex = imagesToDisplay.length > 0
-        ? imageToVariantMap.findIndex(m => m.color === selectedColor && (selectedSize === 'Standard' || m.size === selectedSize))
-        : -1;
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
-        ? overrideActiveIdx
-        : (targetIndex > -1 ? targetIndex : 0);
+        ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
+        : 0;
 
-    window.detailGalleryImages = imagesToDisplay.slice();
-    window.detailGalleryActiveIndex = activeThumbIdx > -1 ? activeThumbIdx : 0;
+    window.detailGalleryImages = imagesToDisplay.filter((_, i) => {
+        const m = imageToVariantMap[i] || {};
+        return m.type !== 'video' && !m.isPlaceholder && !isPlaceholderImageUrl(m.url || imagesToDisplay[i]);
+    });
+    window.detailGallerySlideMap = imageToVariantMap;
+    window.detailGalleryActiveIndex = activeThumbIdx;
 
     // Render gallery with mapping metadata
-    const galleryHtml = imagesToDisplay.length 
+    let imageOnlyIdx = 0;
+    const galleryHtml = imagesToDisplay.length
         ? imagesToDisplay.map((img, index) => {
-            const mapInfo = imageToVariantMap[index] || { color: '', size: '' };
-            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" onclick="openProductDetailImageZoom(${index}, event)" alt="Product image ${index + 1}">`;
-        }).join('') 
-        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
+            const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
+            if (mapInfo.type === 'video') {
+                const poster = mapInfo.poster || '';
+                return `<div class="det-gallery-video" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
+                    ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
+                    <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
+                </div>`;
+            }
+            const zoomIdx = imageOnlyIdx++;
+            if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
+                return `<img src="${img}" class="det-gallery-placeholder" data-type="image" alt="No image">`;
+            }
+            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
+        }).join('')
+        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" class="det-gallery-placeholder" alt="No image">');
 
     const detGallery = document.getElementById('det-gallery');
-    const imageListString = imagesToDisplay.join(',');
+    const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
     if (detGallery) {
-        if (detGallery.getAttribute('data-loaded-images') !== imageListString) {
-            detGallery.innerHTML = galleryHtml;
-            detGallery.setAttribute('data-loaded-images', imageListString);
-        }
+        detGallery.innerHTML = galleryHtml;
+        detGallery.setAttribute('data-loaded-images', galleryCacheKey);
+        detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
+    }
+    if (detBox) {
+        detBox.classList.toggle('det-box--placeholder', isPlaceholderOnly);
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
@@ -1296,8 +1465,16 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         if (imagesToDisplay.length > 1) {
             thumbsContainer.style.display = 'flex';
             const thumbsHtml = imagesToDisplay.map((img, idx) => {
-                const mapInfo = imageToVariantMap[idx] || { color: '', size: '' };
+                const mapInfo = imageToVariantMap[idx] || { color: '', size: '', type: 'image' };
                 const borderStyle = idx === activeThumbIdx ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
+                if (mapInfo.type === 'video') {
+                    const poster = mapInfo.poster || 'https://placehold.co/45x60/111/FFD700?text=▶';
+                    return `
+                    <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; position:relative; ${borderStyle}" onclick="clickDetThumb(${idx})">
+                        <img src="${poster}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
+                        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4);"><i class="fa fa-play" style="color:var(--gold); font-size:10px;"></i></div>
+                    </div>`;
+                }
                 return `
                     <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
                         <img src="${img}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
@@ -1305,16 +1482,15 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                 `;
             }).join('');
             
-            if (thumbsContainer.getAttribute('data-loaded-images') !== imageListString) {
-                thumbsContainer.innerHTML = thumbsHtml;
-                thumbsContainer.setAttribute('data-loaded-images', imageListString);
-            } else {
-                updateActiveThumbnailBorder(activeThumbIdx);
-            }
+            thumbsContainer.innerHTML = thumbsHtml;
+            thumbsContainer.setAttribute('data-loaded-images', galleryCacheKey);
+            updateActiveThumbnailBorder(activeThumbIdx);
         } else {
             thumbsContainer.style.display = 'none';
         }
     }
+
+    updateDetailGalleryActions(activeThumbIdx > -1 ? activeThumbIdx : 0, p);
 
     // Scroll to the current selected variant's first image if we're not triggered by a scroll event
     if (scrollGallery && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
@@ -1399,7 +1575,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         const specs = [];
         if (selectedSize && selectedSize !== 'Standard') specs.push(`Size: ${selectedSize}`);
         if (selectedColor) {
-            const dispColor = (v && v.color === selectedColor && v.colorName) ? v.colorName : formatColorName(selectedColor);
+            const dispColor = (v && variantColorMatches(v, selectedColor) && v.colorName) ? v.colorName : formatColorName(selectedColor);
             specs.push(`Color: ${dispColor}`);
         }
         if (window.selectedPattern) {
@@ -1412,31 +1588,86 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         btn.innerHTML = label;
 
         btn.onclick = () => {
-            const uniqueSizes = [...new Set(p.normalizedVariants.map(v => v.size))];
-            if (uniqueSizes.length > 0 && !selectedSize) return showToast("Please select a size");
-            const availableColors = p.normalizedVariants.filter(x => x.size === selectedSize).map(x => x.color).filter(c => c);
-            if (availableColors.length > 0 && !selectedColor) return showToast("Please select a color");
+            ensureDetailSelectionDefaults(p);
+            syncSizeChips();
+            renderDetailColors(p);
+            renderDetailPatterns(p);
+
+            const uniqueSizes = getDetailUniqueSizes(p.normalizedVariants);
+            if (detailNeedsSizePicker(uniqueSizes) && !selectedSize) {
+                return showToast("Please select a size");
+            }
+            const colorOptions = getDetailColorOptions(p);
+            if (colorOptions.length > 0 && !isValidDetailColorPick(selectedColor, colorOptions)) {
+                selectedColor = colorOptions[0].key;
+            }
 
             addToBagWithSelection(p.id, selectedSize, selectedColor, window.selectedPattern || '');
-            // Don't close detail instantly, let them use the stepper
             updateVariantUI(p);
         };
     }
-    const trigger360 = document.getElementById('det-360-trigger');
-    if (trigger360) {
-        const active360Img = window.getActive360Images(p);
-        if (active360Img) {
-            trigger360.style.display = 'flex';
-        } else {
-            trigger360.style.display = 'none';
-        }
+}
+
+function galleryHasRealPhotos(map) {
+    return (map || []).some(m => m && m.type !== 'video' && !m.isPlaceholder && !isPlaceholderImageUrl(m.url));
+}
+
+function updateDetailGalleryActions(idx, productOverride) {
+    const map = window.detailGallerySlideMap || [];
+    const slide = map[idx];
+    const p = productOverride || products.find(x => x.id === activeProductId);
+    const zoomBtn = document.getElementById('det-zoom-trigger');
+    const playBtn = document.getElementById('det-play-trigger');
+    const spinBtn = document.getElementById('det-360-trigger');
+
+    window.detailGalleryActiveIndex = idx;
+
+    let zoomIdx = 0;
+    for (let i = 0; i < idx; i++) {
+        if ((map[i] || {}).type !== 'video') zoomIdx++;
+    }
+    window.detailGalleryZoomIndex = slide && slide.type !== 'video' ? zoomIdx : 0;
+
+    const hasRealPhotos = galleryHasRealPhotos(map);
+    const media = p ? resolveProductMedia(p) : null;
+    const hasSpin = !!(media && media.has360 && hasRealPhotos);
+    const isVideoSlide = !!(slide && slide.type === 'video');
+    const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && hasRealPhotos);
+
+    if (zoomBtn) {
+        zoomBtn.style.display = canZoom ? 'flex' : 'none';
+        zoomBtn.classList.toggle('det-side-left', canZoom && hasSpin);
+        zoomBtn.classList.toggle('det-side-right', canZoom && !hasSpin);
+    }
+    if (playBtn) {
+        playBtn.style.display = isVideoSlide ? 'flex' : 'none';
+    }
+    if (spinBtn) {
+        spinBtn.style.display = (hasSpin && !isVideoSlide) ? 'flex' : 'none';
     }
 
-    const zoomTrigger = document.getElementById('det-zoom-trigger');
-    if (zoomTrigger) {
-        zoomTrigger.style.display = imagesToDisplay.length > 0 ? 'inline-flex' : 'none';
+    const sideActions = document.getElementById('det-gallery-side-actions');
+    if (sideActions) {
+        const anySideAction = canZoom || isVideoSlide || (hasSpin && !isVideoSlide);
+        sideActions.style.display = anySideAction ? '' : 'none';
     }
 }
+window.updateDetailGalleryActions = updateDetailGalleryActions;
+
+function openCurrentDetailVideoAt(index, event) {
+    if (event) event.stopPropagation();
+    const map = window.detailGallerySlideMap || [];
+    const slide = map[index];
+    if (slide && slide.type === 'video' && slide.url) {
+        openProductVideo(activeProductId, slide.url);
+    }
+}
+window.openCurrentDetailVideoAt = openCurrentDetailVideoAt;
+
+function openCurrentDetailVideo() {
+    openCurrentDetailVideoAt(window.detailGalleryActiveIndex || 0);
+}
+window.openCurrentDetailVideo = openCurrentDetailVideo;
 
 function closeDetail() {
     const detView = document.getElementById('detail-view');
@@ -1594,8 +1825,8 @@ function updateDots(el) {
             if (p) {
                 let changed = false;
 
-                // Sync visible color
-                if (imgColor && imgColor !== selectedColor) {
+                // Sync visible color only when slide belongs to a different variant color
+                if (imgColor && !colorsMatch(imgColor, selectedColor)) {
                     selectedColor = imgColor;
                     changed = true;
                     // Highlight color chip
@@ -1626,6 +1857,7 @@ function updateDots(el) {
         }
         // Update thumbnail borders to show active image indicator
         updateActiveThumbnailBorder(idx);
+        updateDetailGalleryActions(idx);
     }
 }
 
@@ -1638,6 +1870,7 @@ function clickDetThumb(idx) {
         clearTimeout(window.detGalleryScrollEndTimeout);
         detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
         updateActiveThumbnailBorder(idx);
+        updateDetailGalleryActions(idx);
         
         // Also sync option selection states matching this thumbnail
         const imgColor = imgEl.getAttribute('data-color');
@@ -1645,7 +1878,7 @@ function clickDetThumb(idx) {
         const p = products.find(x => x.id === activeProductId);
         if (p) {
             let changed = false;
-            if (imgColor && imgColor !== selectedColor) {
+            if (imgColor && !colorsMatch(imgColor, selectedColor)) {
                 selectedColor = imgColor;
                 changed = true;
             }
@@ -1670,9 +1903,9 @@ function clickDetThumb(idx) {
 function syncSizeChips() {
     const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
     sizeChips.forEach(chip => {
-        const sz = chip.innerText.trim();
-        const displaySz = selectedSize === 'Standard' ? 'Free Size' : selectedSize;
-        chip.classList.toggle('active', sz === displaySz);
+        const label = chip.innerText.trim();
+        const chipSize = label === 'Free Size' ? 'Standard' : label;
+        chip.classList.toggle('active', sizesMatch(chipSize, selectedSize));
     });
 }
 window.syncSizeChips = syncSizeChips;
@@ -2735,18 +2968,58 @@ function closeFooterPage() {
         if (fallback) fallback.classList.add('active');
     }
 }
-function getActive360Images(p) {
-    const isEnabled = window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer;
-    if (!isEnabled) return null;
-
+function resolveProductMedia(p) {
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
     const v = getSelectedVariant(p);
-    if (v && v.is360 && v.images && v.images.length >= 2) {
-        return v.images;
+    const spinSet = new Set();
+    let spinFrames = null;
+    let spinCols = 1;
+    let spinRows = 1;
+    let videos = [];
+
+    function getSpinFrames(source) {
+        if (!source || !source.is360 || !is360Enabled) return null;
+        const dedicated = source.spinImages && source.spinImages.length >= 2 ? source.spinImages : null;
+        const legacy = source.images && source.images.length >= 2 ? source.images : null;
+        const frames = dedicated || legacy;
+        if (!frames) return null;
+        const cols = source.threeSixtyCols ? Number(source.threeSixtyCols) : frames.length;
+        const rows = source.threeSixtyRows ? Number(source.threeSixtyRows) : 1;
+        return { frames, cols, rows };
     }
-    if (p.is360 && p.images && p.images.length >= 2) {
-        return p.images;
+
+    const variantSpin = v ? getSpinFrames(v) : null;
+    const productSpin = getSpinFrames(p);
+
+    if (variantSpin) {
+        spinFrames = variantSpin.frames;
+        spinCols = variantSpin.cols;
+        spinRows = variantSpin.rows;
+        spinFrames.forEach(url => spinSet.add(url));
+        if (v.videos && v.videos.length) videos = [...v.videos];
+    } else if (productSpin) {
+        spinFrames = productSpin.frames;
+        spinCols = productSpin.cols;
+        spinRows = productSpin.rows;
+        spinFrames.forEach(url => spinSet.add(url));
     }
-    return null;
+
+    if (!videos.length) {
+        if (v && v.videos && v.videos.length) videos = [...v.videos];
+        else if (p.videos && p.videos.length) videos = [...p.videos];
+    }
+
+    if (spinFrames && spinCols * spinRows > spinFrames.length) {
+        spinCols = Math.max(1, Math.floor(spinFrames.length / spinRows));
+    }
+
+    return { spinFrames, spinCols, spinRows, spinSet, videos, has360: !!(spinFrames && spinFrames.length >= 2), productVideos: p.videos || [] };
+}
+window.resolveProductMedia = resolveProductMedia;
+
+function getActive360Images(p) {
+    const media = resolveProductMedia(p);
+    return media.has360 ? media.spinFrames : null;
 }
 window.getActive360Images = getActive360Images;
 
@@ -2839,6 +3112,10 @@ function openProductDetailImageZoom(index, event) {
     const images = window.detailGalleryImages || [];
     if (!images.length) return;
     window.detailGalleryActiveIndex = Math.max(0, Math.min(index || 0, images.length - 1));
+    if (typeof openGalleryZoom === 'function' && activeProductId) {
+        openGalleryZoom(activeProductId, window.detailGalleryActiveIndex);
+        return;
+    }
     openMediaZoomLightbox(images, window.detailGalleryActiveIndex);
 }
 window.openProductDetailImageZoom = openProductDetailImageZoom;
