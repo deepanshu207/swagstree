@@ -528,6 +528,7 @@ let mvState = {
     images: [],
     imageIndex: 0,
     spinFrames: [],
+    spinIndex: 0,
     spinCol: 0,
     spinRow: 0,
     spinCols: 1,
@@ -559,8 +560,47 @@ function mvIsCoarsePointer() {
     return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
 
+const MV_MODAL_DOM_VERSION = 3;
+
 function mvSpinPixelsPerFrame() {
-    return mvIsCoarsePointer() ? 92 : 40;
+    return mvIsCoarsePointer() ? 220 : 64;
+}
+
+function mvNormalizeSpinGrid() {
+    const n = mvState.spinFrames.length;
+    if (n < 1) return;
+    mvState.spinCols = n;
+    mvState.spinRows = 1;
+    mvState.spinIndex = Math.max(0, Math.min(n - 1, mvState.spinIndex || 0));
+    mvState.spinCol = mvState.spinIndex;
+    mvState.spinRow = 0;
+}
+
+function mvSetSpinIndex(idx) {
+    const n = mvState.spinFrames.length;
+    if (n < 1) return;
+    const next = ((idx % n) + n) % n;
+    if (next === mvState.spinIndex) return;
+    mvState.spinIndex = next;
+    mvState.spinCol = next;
+    mvState.spinRow = 0;
+    const imgEl = document.getElementById('mv-image');
+    if (imgEl) {
+        imgEl.style.opacity = '0.55';
+    }
+    renderMediaViewerContent();
+    if (imgEl) {
+        requestAnimationFrame(() => {
+            imgEl.style.opacity = '1';
+        });
+    }
+}
+
+function mvStepSpin(dir) {
+    if (mvState.mode !== 'spin360' || mvState.spinFrames.length < 2) return;
+    cancelAnimationFrame(mvState.momentumId);
+    mvState.spinAccumX = 0;
+    mvSetSpinIndex(mvState.spinIndex + dir);
 }
 
 function mvTouchDistance(touches) {
@@ -594,8 +634,7 @@ function updateMediaViewerHints() {
     }
     if (frameLabel) {
         if (isSpin && mvState.spinFrames.length) {
-            const idx = mvState.spinRow * mvState.spinCols + mvState.spinCol;
-            frameLabel.textContent = `Spin ${Math.min(idx + 1, mvState.spinFrames.length)} / ${mvState.spinFrames.length}`;
+            frameLabel.textContent = `Spin ${mvState.spinIndex + 1} / ${mvState.spinFrames.length}`;
             frameLabel.style.display = 'block';
         } else if (!isVideo && mvState.images.length > 1 && mvState.mode === 'gallery') {
             frameLabel.textContent = `Photo ${mvState.imageIndex + 1} / ${mvState.images.length}`;
@@ -619,7 +658,11 @@ function updateMediaViewerToolbar() {
 
 function ensureMediaViewerModal() {
     let modal = document.getElementById('media-viewer-modal');
-    if (modal && (!modal.querySelector('.mv-topbar') || !modal.querySelector('#mv-divider-zoom'))) {
+    const domOk = modal
+        && modal.getAttribute('data-mv-version') === String(MV_MODAL_DOM_VERSION)
+        && modal.querySelector('.mv-topbar')
+        && modal.querySelector('#mv-btn-step-back');
+    if (modal && !domOk) {
         modal.remove();
         modal = null;
     }
@@ -628,6 +671,7 @@ function ensureMediaViewerModal() {
     modal = document.createElement('div');
     modal.id = 'media-viewer-modal';
     modal.className = 'media-viewer-modal';
+    modal.setAttribute('data-mv-version', String(MV_MODAL_DOM_VERSION));
         modal.innerHTML = `
         <div class="mv-topbar">
             <div class="mv-topbar-text">
@@ -641,20 +685,22 @@ function ensureMediaViewerModal() {
                 <div class="spinner-360"></div>
                 <p id="mv-load-status">Loading...</p>
             </div>
+            <img id="mv-image" class="mv-image" src="" alt="" draggable="false">
+            <video id="mv-video" class="mv-video" playsinline controls style="display:none;"></video>
             <div id="mv-guide" class="mv-guide">
                 <i class="fa fa-arrows-left-right" id="mv-guide-icon"></i>
                 <p id="mv-guide-text">Swipe left or right to spin the product</p>
             </div>
-            <img id="mv-image" class="mv-image" src="" alt="" draggable="false">
-            <video id="mv-video" class="mv-video" playsinline controls style="display:none;"></video>
-            <button id="mv-prev" class="mv-nav mv-prev" onclick="mediaViewerNav(-1)" style="display:none;" aria-label="Previous"><i class="fa fa-chevron-left"></i></button>
-            <button id="mv-next" class="mv-nav mv-next" onclick="mediaViewerNav(1)" style="display:none;" aria-label="Next"><i class="fa fa-chevron-right"></i></button>
+            <button type="button" id="mv-prev" class="mv-nav mv-prev" style="display:none;" aria-label="Previous frame"><i class="fa fa-chevron-left"></i></button>
+            <button type="button" id="mv-next" class="mv-nav mv-next" style="display:none;" aria-label="Next frame"><i class="fa fa-chevron-right"></i></button>
         </div>
         <div class="mv-bottom">
             <p id="mv-frame-label" class="mv-frame-label"></p>
             <div class="mv-toolbar">
                 <button id="mv-btn-spin" class="mv-btn mv-btn-label" onclick="mediaViewerSwitchMode('spin360')" title="360° Product Spin" style="display:none;"><i class="fa fa-rotate"></i><span>360° Spin</span></button>
+                <button id="mv-btn-step-back" class="mv-btn" onclick="mvStepSpin(-1)" title="Previous frame" style="display:none;" aria-label="Previous frame"><i class="fa fa-chevron-left"></i></button>
                 <button id="mv-btn-play" class="mv-btn" onclick="toggleMediaAutoSpin()" title="Auto rotate" style="display:none;"><i class="fa fa-play"></i></button>
+                <button id="mv-btn-step-fwd" class="mv-btn" onclick="mvStepSpin(1)" title="Next frame" style="display:none;" aria-label="Next frame"><i class="fa fa-chevron-right"></i></button>
                 <span class="mv-divider mv-toolbar-zoom" id="mv-divider-spin" style="display:none;"></span>
                 <button class="mv-btn mv-toolbar-zoom" onclick="mediaViewerZoom(-0.4)" title="Zoom out" aria-label="Zoom out"><i class="fa fa-minus"></i></button>
                 <button class="mv-btn mv-toolbar-zoom" onclick="mediaViewerZoom(0.4)" title="Zoom in" aria-label="Zoom in"><i class="fa fa-plus"></i></button>
@@ -665,6 +711,26 @@ function ensureMediaViewerModal() {
         </div>
     `;
     document.body.appendChild(modal);
+
+    const bindNavBtn = (id, dir) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        const go = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            cancelAnimationFrame(mvState.momentumId);
+            mvState.isDragging = false;
+            mvState.spinAccumX = 0;
+            if (mvState.mode === 'spin360') mvStepSpin(dir);
+            else mediaViewerNav(dir);
+        };
+        btn.addEventListener('click', go);
+        btn.addEventListener('touchend', go, { passive: false });
+    };
+    bindNavBtn('mv-prev', -1);
+    bindNavBtn('mv-next', 1);
 
     const stage = document.getElementById('mv-stage');
     stage.addEventListener('mousedown', mediaViewerDragStart);
@@ -693,11 +759,10 @@ function openMediaViewer(opts = {}) {
     mvState.images = opts.images || [];
     mvState.imageIndex = opts.startIndex || 0;
     mvState.spinFrames = opts.spinFrames || [];
-    mvState.spinCols = opts.spinCols || mvState.spinFrames.length || 1;
-    mvState.spinRows = opts.spinRows || 1;
-    if (mvState.spinCols * mvState.spinRows > mvState.spinFrames.length) {
-        mvState.spinCols = Math.max(1, Math.floor(mvState.spinFrames.length / mvState.spinRows));
-    }
+    mvState.spinRows = 1;
+    mvState.spinCols = mvState.spinFrames.length || 1;
+    mvNormalizeSpinGrid();
+    mvState.spinIndex = 0;
     mvState.spinCol = 0;
     mvState.spinRow = 0;
     mvState.videoUrl = opts.videoUrl || '';
@@ -715,6 +780,8 @@ function openMediaViewer(opts = {}) {
     const guide = document.getElementById('mv-guide');
     const btnSpin = document.getElementById('mv-btn-spin');
     const btnPlay = document.getElementById('mv-btn-play');
+    const btnStepBack = document.getElementById('mv-btn-step-back');
+    const btnStepFwd = document.getElementById('mv-btn-step-fwd');
     const dividerSpin = document.getElementById('mv-divider-spin');
     const btnPrev = document.getElementById('mv-prev');
     const btnNext = document.getElementById('mv-next');
@@ -742,9 +809,14 @@ function openMediaViewer(opts = {}) {
 
     if (btnSpin) btnSpin.style.display = (hasSpin && !isSpin && !isVideo) ? 'flex' : 'none';
     if (btnPlay) btnPlay.style.display = isSpin ? 'flex' : 'none';
+    if (btnStepBack) btnStepBack.style.display = isSpin ? 'flex' : 'none';
+    if (btnStepFwd) btnStepFwd.style.display = isSpin ? 'flex' : 'none';
     if (dividerSpin) dividerSpin.style.display = (hasSpin && !isVideo) ? 'inline-block' : 'none';
 
-    const showNav = !isSpin && !isVideo && mvState.images.length > 1;
+    const showNav = !isVideo && (
+        (isSpin && mvState.spinFrames.length > 1) ||
+        (!isSpin && mvState.images.length > 1)
+    );
     if (btnPrev) btnPrev.style.display = showNav ? 'flex' : 'none';
     if (btnNext) btnNext.style.display = showNav ? 'flex' : 'none';
 
@@ -803,8 +875,8 @@ function renderMediaViewerContent() {
 
     let src = '';
     if (mvState.mode === 'spin360' && mvState.spinFrames.length) {
-        let idx = mvState.spinRow * mvState.spinCols + mvState.spinCol;
-        idx = Math.max(0, Math.min(mvState.spinFrames.length - 1, idx));
+        mvNormalizeSpinGrid();
+        const idx = Math.max(0, Math.min(mvState.spinFrames.length - 1, mvState.spinIndex));
         src = mvState.spinFrames[idx];
     } else if (mvState.images.length) {
         const idx = Math.max(0, Math.min(mvState.images.length - 1, mvState.imageIndex));
@@ -838,14 +910,20 @@ function mediaViewerReset() {
     mvState.scale = 1;
     mvState.panX = 0;
     mvState.panY = 0;
+    mvState.spinIndex = 0;
     mvState.spinCol = 0;
     mvState.spinRow = 0;
+    mvState.spinAccumX = 0;
     renderMediaViewerContent();
 }
 window.mediaViewerReset = mediaViewerReset;
 window.reset360 = mediaViewerReset;
 
 function mediaViewerNav(dir) {
+    if (mvState.mode === 'spin360' && mvState.spinFrames.length > 1) {
+        mvStepSpin(dir);
+        return;
+    }
     if (mvState.mode !== 'gallery' || !mvState.images.length) return;
     mvState.imageIndex = (mvState.imageIndex + dir + mvState.images.length) % mvState.images.length;
     mvState.scale = 1;
@@ -855,18 +933,29 @@ function mediaViewerNav(dir) {
 }
 window.mediaViewerNav = mediaViewerNav;
 
+window.mvStepSpin = mvStepSpin;
+
 function mediaViewerSwitchMode(mode) {
     if (mode === 'spin360' && mvState.spinFrames.length >= 2) {
         mvState.mode = 'spin360';
+        mvNormalizeSpinGrid();
         mvState.scale = 1;
         mvState.panX = 0;
         mvState.panY = 0;
         mvState.guideShown = false;
         const btnSpin = document.getElementById('mv-btn-spin');
         const btnPlay = document.getElementById('mv-btn-play');
+        const btnStepBack = document.getElementById('mv-btn-step-back');
+        const btnStepFwd = document.getElementById('mv-btn-step-fwd');
+        const btnPrev = document.getElementById('mv-prev');
+        const btnNext = document.getElementById('mv-next');
         const dividerSpin = document.getElementById('mv-divider-spin');
         if (btnSpin) btnSpin.style.display = 'none';
         if (btnPlay) btnPlay.style.display = 'flex';
+        if (btnStepBack) btnStepBack.style.display = 'flex';
+        if (btnStepFwd) btnStepFwd.style.display = 'flex';
+        if (btnPrev) btnPrev.style.display = mvState.spinFrames.length > 1 ? 'flex' : 'none';
+        if (btnNext) btnNext.style.display = mvState.spinFrames.length > 1 ? 'flex' : 'none';
         if (dividerSpin) dividerSpin.style.display = 'inline-block';
         const guide = document.getElementById('mv-guide');
         if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
@@ -881,6 +970,7 @@ window.mediaViewerSwitchMode = mediaViewerSwitchMode;
 
 function mediaViewerDragStart(e) {
     if (mvState.mode === 'video') return;
+    if (e.target && e.target.closest && (e.target.closest('.mv-nav') || e.target.closest('.mv-toolbar'))) return;
     cancelAnimationFrame(mvState.momentumId);
     stopMediaAutoSpin();
 
@@ -919,13 +1009,14 @@ function mediaViewerDragMove(e) {
     } else if (mvState.mode === 'spin360') {
         const deltaX = cx - mvState.lastX;
         mvState.spinAccumX += deltaX;
-        const ppf = mvSpinPixelsPerFrame();
-        const frameDelta = Math.trunc(mvState.spinAccumX / ppf);
-        if (frameDelta !== 0) {
-            mvState.spinAccumX -= frameDelta * ppf;
-            const mod = (n, m) => ((n % m) + m) % m;
-            mvState.spinCol = mod(mvState.spinCol + frameDelta, mvState.spinCols);
-            renderMediaViewerContent();
+        if (!mvIsCoarsePointer()) {
+            const ppf = mvSpinPixelsPerFrame();
+            let frameDelta = Math.trunc(mvState.spinAccumX / ppf);
+            frameDelta = Math.max(-1, Math.min(1, frameDelta));
+            if (frameDelta !== 0) {
+                mvState.spinAccumX -= frameDelta * ppf;
+                mvSetSpinIndex(mvState.spinIndex + frameDelta);
+            }
         }
     }
 
@@ -941,32 +1032,43 @@ function mediaViewerDragEnd() {
     const stage = document.getElementById('mv-stage');
     if (stage) stage.style.cursor = 'grab';
 
-    if (mvState.mode === 'spin360' && mvState.scale === 1 && Math.abs(mvState.velocityX) > (mvIsCoarsePointer() ? 8 : 5)) {
-        if (mvIsCoarsePointer()) mvState.velocityX *= 0.65;
-        applyMediaMomentum();
+    if (mvState.mode === 'spin360' && mvState.scale === 1) {
+        const ppf = mvSpinPixelsPerFrame();
+        const coarse = mvIsCoarsePointer();
+        if (coarse) {
+            if (Math.abs(mvState.spinAccumX) > ppf * 0.22) {
+                mvStepSpin(mvState.spinAccumX < 0 ? 1 : -1);
+            }
+            mvState.spinAccumX = 0;
+        } else if (Math.abs(mvState.velocityX) > 10) {
+            mvState.velocityX *= 0.35;
+            applyMediaMomentum();
+        } else if (Math.abs(dragX) > ppf * 0.3) {
+            mvStepSpin(dragX < 0 ? 1 : -1);
+        }
     } else if (mvState.mode === 'gallery' && mvState.scale === 1 && mvState.images.length > 1 && Math.abs(dragX) > 48) {
         mediaViewerNav(dragX < 0 ? 1 : -1);
     }
 }
 
 function applyMediaMomentum() {
+    if (mvIsCoarsePointer()) return;
     cancelAnimationFrame(mvState.momentumId);
     const coarse = mvIsCoarsePointer();
-    const friction = coarse ? 0.92 : 0.86;
+    const friction = coarse ? 0.9 : 0.84;
     const ppf = mvSpinPixelsPerFrame();
     let accumulated = 0;
 
     function step() {
         mvState.velocityX *= friction;
         accumulated += mvState.velocityX;
-        const colChange = Math.trunc(accumulated / ppf);
+        let colChange = Math.trunc(accumulated / ppf);
+        if (coarse) colChange = Math.max(-1, Math.min(1, colChange));
         if (colChange !== 0) {
-            const mod = (n, m) => ((n % m) + m) % m;
-            mvState.spinCol = mod(mvState.spinCol + colChange, mvState.spinCols);
+            mvSetSpinIndex(mvState.spinIndex + colChange);
             accumulated -= colChange * ppf;
-            renderMediaViewerContent();
         }
-        if (Math.abs(mvState.velocityX) > (coarse ? 0.2 : 0.35)) {
+        if (Math.abs(mvState.velocityX) > (coarse ? 0.12 : 0.25)) {
             mvState.momentumId = requestAnimationFrame(step);
         }
     }
@@ -983,9 +1085,8 @@ function toggleMediaAutoSpin() {
         let lastTime = performance.now();
         function step(ts) {
             if (!mvState.autoSpin) return;
-            if (ts - lastTime >= 140) {
-                mvState.spinCol = (mvState.spinCol + 1) % mvState.spinCols;
-                renderMediaViewerContent();
+            if (ts - lastTime >= 180) {
+                mvSetSpinIndex(mvState.spinIndex + 1);
                 lastTime = ts;
             }
             mvState.autoSpinId = requestAnimationFrame(step);
@@ -1017,6 +1118,7 @@ window.toggleFullscreen360 = toggleMediaFullscreen;
 
 function mediaViewerTouchStart(e) {
     if (mvState.mode === 'video') return;
+    if (e.target && e.target.closest && e.target.closest('.mv-nav')) return;
     if (e.touches.length === 2) {
         e.preventDefault();
         cancelAnimationFrame(mvState.momentumId);

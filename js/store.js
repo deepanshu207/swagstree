@@ -27,6 +27,9 @@ if (typeof window.displayedOrdersLimit === 'undefined') window.displayedOrdersLi
 if (typeof window.displayedAllCustomersLimit === 'undefined') window.displayedAllCustomersLimit = window.customersPageLimitSetting;
 if (typeof window.ordersUnsubscribe === 'undefined') window.ordersUnsubscribe = null;
 if (typeof window.deepLinkHandled === 'undefined') window.deepLinkHandled = false;
+if (typeof window._storeListenersAttached === 'undefined') window._storeListenersAttached = false;
+
+let _productsSnapshotUnsub = null;
 
 if (typeof formatColorName === 'undefined') {
     // We map custom/common names to hex codes for the preview bubble,
@@ -295,37 +298,132 @@ function updateDetailURL() {
 }
 
 // 1. DATA LOADING
+function isDetailViewOpen() {
+    const el = document.getElementById('detail-view');
+    return !!(el && el.style.display === 'block');
+}
+window.isDetailViewOpen = isDetailViewOpen;
+
+function renderWishlistCatalog() {
+    const wishSortEl = document.getElementById('wish-sort-logic');
+    const sort = wishSortEl ? wishSortEl.value : 'none';
+    let wishProducts = products.filter(p => wishlist.includes(p.id));
+
+    const wishSearchEl = document.getElementById('wish_search');
+    const wishQ = wishSearchEl ? wishSearchEl.value.trim().toLowerCase() : '';
+    if (wishQ) {
+        wishProducts = wishProducts.filter(p => (p.name || '').toLowerCase().includes(wishQ));
+    }
+
+    const wishCategories = window.wishFilterActiveCategories || [];
+    if (wishCategories.length) {
+        wishProducts = wishProducts.filter(p => {
+            if (typeof productMatchesCategoryFilters === 'function') {
+                return productMatchesCategoryFilters(p, wishCategories);
+            }
+            return wishCategories.some(id => (p.categoryId || '') === id);
+        });
+    }
+
+    if (sort === 'low') wishProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+    if (sort === 'high') wishProducts.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+    if (sort === 'newest') {
+        wishProducts.sort((a, b) => {
+            const timeA = getProductTimestamp(a);
+            const timeB = getProductTimestamp(b);
+            if (timeA !== timeB) return timeB - timeA;
+            return b.id.localeCompare(a.id);
+        });
+    }
+    if (sort === 'best') {
+        wishProducts.sort((a, b) => {
+            const salesA = a.salesCount || (a.popularity || (a.name.length % 5) * 12);
+            const salesB = b.salesCount || (b.popularity || (b.name.length % 5) * 12);
+            if (salesA !== salesB) return salesB - salesA;
+            return a.name.localeCompare(b.name);
+        });
+    }
+
+    renderProducts(wishProducts, 'wish-grid');
+}
+window.renderWishlistCatalog = renderWishlistCatalog;
+
+function renderHomeCatalog() {
+    if (!window.productsLoaded) {
+        renderProducts(products, 'product-grid');
+        return;
+    }
+    if (typeof applySortAndFilter === 'function') {
+        applySortAndFilter();
+    } else {
+        renderProducts(products, 'product-grid');
+    }
+}
+window.renderHomeCatalog = renderHomeCatalog;
+
+function refreshHomeGridIfVisible() {
+    const grid = document.getElementById('product-grid');
+    if (!grid || grid.innerHTML === '') return;
+    if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) return;
+    if (typeof renderHomeCatalog === 'function') renderHomeCatalog();
+    else if (typeof renderProducts === 'function') renderProducts(products, 'product-grid');
+}
+window.refreshHomeGridIfVisible = refreshHomeGridIfVisible;
+
+function handleProductsSnapshot(snap) {
+    // Ignore empty offline cache before the first real payload (prevents false "no products" / flicker)
+    if (snap.empty && snap.metadata && snap.metadata.fromCache && !window.productsLoaded) {
+        return;
+    }
+
+    products = snap.docs.map(doc => {
+        const p = { ...doc.data(), id: doc.id };
+        p.normalizedVariants = normalizeVariants(p);
+        return p;
+    });
+    window.productsLoaded = true;
+
+    renderStore();
+    renderFilters();
+    if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+    if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
+    if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
+    if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
+    if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
+    if (typeof renderAdmin === 'function') renderAdmin();
+    checkDeepLink();
+
+    if (typeof refreshCartStockCounts === 'function') refreshCartStockCounts();
+    if (typeof updateCartUI === 'function') updateCartUI();
+    if (activeProductId && typeof updateVariantUI === 'function') {
+        const openP = products.find(x => x.id === activeProductId);
+        if (openP) updateVariantUI(openP, false);
+    }
+    if (typeof openCart === 'function') {
+        const cartModal = document.getElementById('cart-modal');
+        if (cartModal && cartModal.style.display === 'flex') {
+            openCart();
+        }
+    }
+}
+
 function loadData() {
+    if (window._storeListenersAttached) return;
+    window._storeListenersAttached = true;
+
     if (typeof startFeaturesConfigListener === 'function') startFeaturesConfigListener();
     if (typeof loadProductCategories === 'function') loadProductCategories();
 
-    db.collection("products").onSnapshot(snap => {
-        products = snap.docs.map(doc => {
-            const p = { ...doc.data(), id: doc.id };
-            p.normalizedVariants = normalizeVariants(p);
-            return p;
-        });
-        window.productsLoaded = true;
-        renderStore();
-        renderFilters();
-        if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
-        if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
-        if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
-        if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
-        if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
-        if (typeof renderAdmin === "function") renderAdmin();
-        checkDeepLink(); // open shared product link if present
-        
-        // Refresh cart contents and badge to reflect any stock updates
-        if (typeof updateCartUI === 'function') updateCartUI();
-        if (typeof openCart === 'function') {
-            const cartModal = document.getElementById('cart-modal');
-            if (cartModal && cartModal.style.display === 'flex') {
-                openCart();
+    if (_productsSnapshotUnsub) _productsSnapshotUnsub();
+    _productsSnapshotUnsub = db.collection('products').onSnapshot(handleProductsSnapshot, error => {
+        console.error('Firestore products onSnapshot error:', error);
+        if (!window.productsLoaded) {
+            window.productsLoaded = true;
+            const container = document.getElementById('product-grid');
+            if (container) {
+                container.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load products. Please check your connection and refresh.</p>';
             }
         }
-    }, error => {
-        console.error("Firestore products onSnapshot error:", error);
     });
 
     db.collection("feedbacks").orderBy("timestamp", "desc").onSnapshot(snap => {
@@ -339,7 +437,7 @@ function loadData() {
     db.collection("settings").doc("diaries").onSnapshot(snap => {
         window.diariesSettings = snap.exists ? snap.data() : { placement: 'last', n: 6, showSection: true };
         if (window.productsLoaded) {
-            renderStore();
+            renderStore({ home: !isDetailViewOpen(), wishlist: true });
             renderFeedbacks();
         }
     });
@@ -378,49 +476,16 @@ function loadData() {
     });
 }
 
-function renderStore() {
-    renderProducts(products, 'product-grid');
-    
-    const wishSortEl = document.getElementById('wish-sort-logic');
-    const sort = wishSortEl ? wishSortEl.value : 'none';
-    let wishProducts = products.filter(p => wishlist.includes(p.id));
+function renderStore(options = {}) {
+    const refreshHome = options.home !== false;
+    const refreshWish = options.wishlist !== false;
 
-    const wishSearchEl = document.getElementById('wish_search');
-    const wishQ = wishSearchEl ? wishSearchEl.value.trim().toLowerCase() : '';
-    if (wishQ) {
-        wishProducts = wishProducts.filter(p => (p.name || '').toLowerCase().includes(wishQ));
+    if (refreshHome && !isDetailViewOpen()) {
+        renderHomeCatalog();
     }
-
-    const wishCategories = window.wishFilterActiveCategories || [];
-    if (wishCategories.length) {
-        wishProducts = wishProducts.filter(p => {
-            if (typeof productMatchesCategoryFilters === 'function') {
-                return productMatchesCategoryFilters(p, wishCategories);
-            }
-            return wishCategories.some(id => (p.categoryId || '') === id);
-        });
+    if (refreshWish) {
+        renderWishlistCatalog();
     }
-    
-    if (sort === 'low') wishProducts.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
-    if (sort === 'high') wishProducts.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
-    if (sort === 'newest') {
-        wishProducts.sort((a, b) => {
-            const timeA = getProductTimestamp(a);
-            const timeB = getProductTimestamp(b);
-            if (timeA !== timeB) return timeB - timeA;
-            return b.id.localeCompare(a.id);
-        });
-    }
-    if (sort === 'best') {
-        wishProducts.sort((a, b) => {
-            const salesA = a.salesCount || (a.popularity || (a.name.length % 5) * 12);
-            const salesB = b.salesCount || (b.popularity || (b.name.length % 5) * 12);
-            if (salesA !== salesB) return salesB - salesA;
-            return a.name.localeCompare(b.name);
-        });
-    }
-    
-    renderProducts(wishProducts, 'wish-grid');
     if (typeof window.initHeroCarousel === 'function') window.initHeroCarousel();
 }
 
@@ -456,13 +521,7 @@ function productCardHtml(p, options = {}) {
         displayImages = [];
     }
 
-    let isOutOfStock = false;
-    if (activeVariants.length > 0) {
-        const trackingVariants = activeVariants.filter(v => v.trackStock);
-        if (trackingVariants.length > 0 && trackingVariants.every(v => (v.stockCount || 0) <= 0)) {
-            isOutOfStock = true;
-        }
-    }
+    const isOutOfStock = typeof isProductOutOfStock === 'function' ? isProductOutOfStock(p) : false;
 
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
     const has360 = is360Enabled && (!!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360)));
@@ -538,13 +597,10 @@ function setupInfiniteScrollObserver() {
 
 function isProductOutOfStock(p) {
     const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
-    if (activeVariants.length > 0) {
-        const trackingVariants = activeVariants.filter(v => v.trackStock);
-        if (trackingVariants.length > 0 && trackingVariants.every(v => (v.stockCount || 0) <= 0)) {
-            return true;
-        }
-    }
-    return false;
+    if (activeVariants.length === 0) return false;
+    const trackingVariants = activeVariants.filter(v => v.trackStock);
+    if (trackingVariants.length === 0) return false;
+    return !trackingVariants.some(v => variantBlockHasStock(v));
 }
 window.isProductOutOfStock = isProductOutOfStock;
 
@@ -891,6 +947,109 @@ function renderProducts(items, targetId) {
 }
 
 // 3. PRODUCT DETAILS
+function buildSkuKey(size, color, colorName, pattern) {
+    const sz = String(size || 'Standard').trim().toLowerCase();
+    const col = String(color || colorName || '').trim().toLowerCase();
+    const pat = String(pattern || '').trim().toLowerCase();
+    return `${sz}|${col}|${pat}`;
+}
+window.buildSkuKey = buildSkuKey;
+
+function expandVariantBlockSkus(v) {
+    if (!v) return [];
+    const sizeValues = v.size ? v.size.split(',').map(s => s.trim()).filter(s => s) : ['Standard'];
+    const colorValues = v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : [''];
+    const colorNameValues = v.colorName ? v.colorName.split(',').map(c => c.trim()) : [];
+    let patternValues = v.pattern ? v.pattern.split(',').map(p => p.trim()).filter(p => p) : [''];
+
+    if (v.previewImages && v.previewImages.length > 0) {
+        const newPatternValues = [];
+        for (let i = 0; i < v.previewImages.length; i++) {
+            let patVal = patternValues[i] || '';
+            if (!patVal || patVal === '') {
+                const baseName = (patternValues.length > 0 && patternValues[0] !== '') ? patternValues[0] : 'Design';
+                patVal = `${baseName} ${i + 1}`;
+            }
+            newPatternValues.push(patVal);
+        }
+        patternValues = newPatternValues;
+    } else if (patternValues.length === 1 && patternValues[0] === '' && (v.previewImage || v.existingPreviewImage)) {
+        patternValues = ['Design 1'];
+    }
+    if (!patternValues.length) patternValues = [''];
+
+    const skus = [];
+    let fallbackIndex = 1;
+    sizeValues.forEach(sz => {
+        colorValues.forEach((col, colIdx) => {
+            patternValues.forEach((pat) => {
+                let finalPattern = pat || '';
+                if (!finalPattern && (v.previewImage || v.existingPreviewImage || (v.previewImages && v.previewImages.length))) {
+                    finalPattern = `Design-${fallbackIndex++}`;
+                }
+                const finalColorName = colorNameValues[colIdx] || colorNameValues[0] || col;
+                skus.push({
+                    size: sz,
+                    color: col,
+                    colorName: finalColorName,
+                    pattern: finalPattern,
+                    key: buildSkuKey(sz, col, finalColorName, finalPattern),
+                    label: [
+                        sz !== 'Standard' ? sz : '',
+                        finalColorName || col || '',
+                        finalPattern || ''
+                    ].filter(Boolean).join(' · ') || 'Default'
+                });
+            });
+        });
+    });
+    return skus;
+}
+window.expandVariantBlockSkus = expandVariantBlockSkus;
+
+function resolveSkuStockCount(variantBlock, skuKey) {
+    const fallback = typeof variantBlock.stockCount === 'number'
+        ? variantBlock.stockCount
+        : (parseInt(variantBlock.stockCount, 10) || 0);
+    if (!variantBlock.trackStock) return fallback;
+    if (variantBlock.stockBySku && Object.prototype.hasOwnProperty.call(variantBlock.stockBySku, skuKey)) {
+        return parseInt(variantBlock.stockBySku[skuKey], 10) || 0;
+    }
+    return fallback;
+}
+
+function isNormalizedVariantInStock(v) {
+    if (!v || !v.trackStock) return true;
+    const qty = typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0);
+    return qty > 0;
+}
+
+function variantBlockHasStock(v) {
+    if (!v || !v.trackStock) return true;
+    const skus = expandVariantBlockSkus(v);
+    if (!skus.length) return (parseInt(v.stockCount, 10) || 0) > 0;
+    return skus.some(sku => resolveSkuStockCount(v, sku.key) > 0);
+}
+window.variantBlockHasStock = variantBlockHasStock;
+
+function isDetailSizeInStock(p, size) {
+    const matches = (p.normalizedVariants || []).filter(v => sizesMatch(v.size, size) && variantColorMatches(v, selectedColor));
+    if (!matches.length) return true;
+    return matches.some(isNormalizedVariantInStock);
+}
+
+function isDetailColorInStock(p, colorKey) {
+    const matches = (p.normalizedVariants || []).filter(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, colorKey));
+    if (!matches.length) return true;
+    return matches.some(isNormalizedVariantInStock);
+}
+
+function isDetailPatternInStock(p, pat) {
+    const v = (p.normalizedVariants || []).find(x => sizesMatch(x.size, selectedSize) && variantColorMatches(x, selectedColor) && x.pattern === pat);
+    if (!v) return true;
+    return isNormalizedVariantInStock(v);
+}
+
 function normalizeVariants(p) {
     if (p.variants && Array.isArray(p.variants) && p.variants.length > 0) {
         const normalized = [];
@@ -937,6 +1096,9 @@ function normalizeVariants(p) {
                             finalPatternName = `Design-${fallbackIndex++}`;
                         }
 
+                        const skuKey = buildSkuKey(sz, col, finalColorName, finalPatternName);
+                        const stockCount = resolveSkuStockCount(v, skuKey);
+
                         normalized.push({
                             ...v,
                             size: sz,
@@ -945,7 +1107,9 @@ function normalizeVariants(p) {
                             pattern: finalPatternName,
                             patternDisplayName: patternDisplayName,
                             showPatternText: showPatternText,
-                            previewImage: patPreviewUrl
+                            previewImage: patPreviewUrl,
+                            stockCount,
+                            skuKey
                         });
                     });
                 });
@@ -983,15 +1147,109 @@ function buildDefaultStorefrontVariant(p) {
     };
 }
 
+function deductStockForCartItem(pData, item) {
+    if (!item || !item.trackStock || !pData || !Array.isArray(pData.variants)) return null;
+    const variants = pData.variants.map(v => ({
+        ...v,
+        stockBySku: { ...(v.stockBySku || {}) }
+    }));
+    const itemKey = buildSkuKey(
+        item.variantSize,
+        item.variantColor,
+        item.variantColorName || item.variantColor,
+        item.variantPattern
+    );
+
+    for (let i = 0; i < variants.length; i++) {
+        const v = variants[i];
+        if (!v.trackStock) continue;
+        const skus = expandVariantBlockSkus(v);
+        const matchedSku = skus.find(s => {
+            if (s.key === itemKey) return true;
+            return !!findProductVariant(
+                [{ size: s.size, color: s.color, colorName: s.colorName, pattern: s.pattern }],
+                { size: item.variantSize, color: item.variantColor, pattern: item.variantPattern },
+                { strict: true }
+            );
+        });
+        if (!matchedSku) continue;
+
+        const key = matchedSku.key;
+        const cur = resolveSkuStockCount(v, key);
+        v.stockBySku[key] = Math.max(0, cur - (parseInt(item.qty, 10) || 0));
+        if (skus.length === 1) {
+            v.stockCount = v.stockBySku[key];
+        } else if (skus.length > 1) {
+            v.stockCount = skus.reduce((sum, s) => sum + resolveSkuStockCount(v, s.key), 0);
+        }
+        variants[i] = v;
+        return variants;
+    }
+    return null;
+}
+window.deductStockForCartItem = deductStockForCartItem;
+
+function patternsMatch(a, b) {
+    const pa = String(a || '').trim();
+    const pb = String(b || '').trim();
+    if (!pa && !pb) return true;
+    if (!pa || !pb) return false;
+    return pa === pb;
+}
+
+function findProductVariant(variants, { size, color, pattern } = {}, { strict = false } = {}) {
+    const list = variants || [];
+    const pat = pattern || '';
+
+    const exact = list.find(v =>
+        sizesMatch(v.size, size) &&
+        variantColorMatches(v, color) &&
+        patternsMatch(v.pattern, pat)
+    );
+    if (exact) return exact;
+    if (strict) return null;
+
+    const sizeColor = list.find(v =>
+        sizesMatch(v.size, size) &&
+        variantColorMatches(v, color)
+    );
+    if (sizeColor) return sizeColor;
+
+    return list.find(v => sizesMatch(v.size, size)) || null;
+}
+window.findProductVariant = findProductVariant;
+
+function findCartLine(cartItems, productId, size, color, pattern) {
+    return (cartItems || []).find(item => {
+        if (item.id !== productId) return false;
+        if (!sizesMatch(item.variantSize, size)) return false;
+        if (!variantColorMatches({ color: item.variantColor, colorName: item.variantColorName || item.variantColor }, color)) return false;
+        if (!patternsMatch(item.variantPattern, pattern)) return false;
+        return true;
+    });
+}
+window.findCartLine = findCartLine;
+
 function getSelectedVariant(p) {
     if (!p || !p.normalizedVariants) return null;
     if (!p.normalizedVariants.length) return null;
-    const pat = window.selectedPattern || '';
-    let match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor) && v.pattern === pat);
-    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor));
-    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize));
-    return match;
+    return findProductVariant(p.normalizedVariants, {
+        size: selectedSize,
+        color: selectedColor,
+        pattern: window.selectedPattern || ''
+    }, { strict: false });
 }
+
+function getStrictSelectedVariant(p) {
+    if (!p || !p.normalizedVariants) return null;
+    if (!p.normalizedVariants.length) return null;
+    return findProductVariant(p.normalizedVariants, {
+        size: selectedSize,
+        color: selectedColor,
+        pattern: window.selectedPattern || ''
+    }, { strict: true });
+}
+window.getStrictSelectedVariant = getStrictSelectedVariant;
 
 function getDetailUniqueSizes(variants) {
     return [...new Set((variants || []).map(v => v.size))];
@@ -1030,10 +1288,10 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
 
     if (!detailNeedsSizePicker(uniqueSizes)) {
         selectedSize = uniqueSizes[0] || 'Standard';
-    } else if (initialSize && uniqueSizes.some(s => sizesMatch(s, initialSize))) {
-        selectedSize = uniqueSizes.find(s => sizesMatch(s, initialSize));
-    } else if (!selectedSize || !uniqueSizes.some(s => sizesMatch(s, selectedSize))) {
-        selectedSize = uniqueSizes[0];
+    } else if (initialSize && uniqueSizes.some(s => sizesEqual(s, initialSize))) {
+        selectedSize = uniqueSizes.find(s => sizesEqual(s, initialSize));
+    } else if (!selectedSize || !uniqueSizes.some(s => sizesEqual(s, selectedSize))) {
+        selectedSize = uniqueSizes.find(sz => isDetailSizeInStock(p, sz)) || uniqueSizes[0];
     }
 
     const colors = getDetailColorOptions(p);
@@ -1042,7 +1300,7 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
     } else if (initialColor && colors.some(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor))) {
         selectedColor = colors.find(c => variantColorMatches(c.variant, initialColor) || colorsMatch(c.key, initialColor)).key;
     } else if (!isValidDetailColorPick(selectedColor, colors)) {
-        selectedColor = colors[0].key;
+        selectedColor = (colors.find(c => isDetailColorInStock(p, c.key)) || colors[0]).key;
     }
 
     const patterns = [...new Set(
@@ -1054,13 +1312,16 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
     if (patterns.length === 0) {
         window.selectedPattern = '';
     } else if (!window.selectedPattern || !patterns.includes(window.selectedPattern)) {
-        window.selectedPattern = patterns[0];
+        window.selectedPattern = patterns.find(pat => isDetailPatternInStock(p, pat)) || patterns[0];
     }
 }
 
 function showDetail(id, initialColor = null, initialSize = null) {
     const p = products.find(x => x.id === id);
     if (!p) return;
+
+    const overlay = document.getElementById('deep-link-overlay');
+    if (overlay) overlay.style.display = 'none';
 
     activeProductId = id;
     p.normalizedVariants = normalizeVariants(p);
@@ -1079,9 +1340,12 @@ function showDetail(id, initialColor = null, initialSize = null) {
         sizesContainer.style.display = 'none';
     } else {
         sizesContainer.style.display = 'block';
-        sizeSelector.innerHTML = uniqueSizes.map(sz => `
-            <div class="size-chip ${sizesMatch(sz, selectedSize) ? 'active' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)">${sz === 'Standard' ? 'Free Size' : sz}</div>
-        `).join('');
+        sizeSelector.innerHTML = uniqueSizes.map(sz => {
+            const oos = !isDetailSizeInStock(p, sz);
+            return `
+            <div class="size-chip ${sizesEqual(sz, selectedSize) ? 'active' : ''} ${oos ? 'chip-oos' : ''}" onclick="selectDetailSize('${String(sz).replace(/'/g, "\\'")}', this)" title="${oos ? 'Out of stock for this size' : ''}">${sz === 'Standard' ? 'Free Size' : sz}</div>
+        `;
+        }).join('');
     }
 
     renderDetailColors(p);
@@ -1100,11 +1364,15 @@ function showDetail(id, initialColor = null, initialSize = null) {
 }
 
 function selectDetailSize(sz, el) {
+    const p = products.find(x => x.id === activeProductId);
+    if (p && !isDetailSizeInStock(p, sz)) {
+        if (typeof showToast === 'function') showToast('This size is out of stock for the selected color.');
+        return;
+    }
     selectedSize = sz;
     el.parentElement.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
-    const p = products.find(x => x.id === activeProductId);
     if (p) {
         renderDetailColors(p);
         renderDetailPatterns(p);
@@ -1114,11 +1382,15 @@ function selectDetailSize(sz, el) {
 }
 
 function selectDetailColor(col, el) {
+    const p = products.find(x => x.id === activeProductId);
+    if (p && !isDetailColorInStock(p, col)) {
+        if (typeof showToast === 'function') showToast('This color is out of stock for the selected size.');
+        return;
+    }
     selectedColor = col;
     el.parentElement.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
-    const p = products.find(x => x.id === activeProductId);
     if (p) {
         renderDetailPatterns(p);
         updateVariantUI(p);
@@ -1147,7 +1419,7 @@ function renderDetailColors(p, initialColor = null) {
     } else {
         colorsContainer.style.display = 'block';
         if (!isValidDetailColorPick(selectedColor, colors)) {
-            selectedColor = colors[0].key;
+            selectedColor = (colors.find(c => isDetailColorInStock(p, c.key)) || colors[0]).key;
         }
 
         colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
@@ -1170,8 +1442,9 @@ function renderDetailColors(p, initialColor = null) {
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
 
+            const oos = !isDetailColorInStock(p, col);
             return `
-                <div class="color-chip ${isActive ? 'active' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)">
+                <div class="color-chip ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)" title="${oos ? 'Out of stock for this color' : ''}">
                     ${colorPreview}<span>${v ? (v.colorName || formatColorName(col)) : formatColorName(col)}</span>
                 </div>
             `;
@@ -1180,11 +1453,15 @@ function renderDetailColors(p, initialColor = null) {
 }
 
 function selectDetailPattern(pat, el) {
+    const p = products.find(x => x.id === activeProductId);
+    if (p && !isDetailPatternInStock(p, pat)) {
+        if (typeof showToast === 'function') showToast('This pattern is out of stock.');
+        return;
+    }
     window.selectedPattern = pat;
     el.parentElement.querySelectorAll('.size-chip, .color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
-    const p = products.find(x => x.id === activeProductId);
     if (p) updateVariantUI(p);
 }
 
@@ -1201,7 +1478,9 @@ function renderDetailPatterns(p) {
         window.selectedPattern = '';
     } else {
         patternsContainer.style.display = 'block';
-        if (!patterns.includes(window.selectedPattern)) window.selectedPattern = patterns[0];
+        if (!patterns.includes(window.selectedPattern)) {
+            window.selectedPattern = patterns.find(pat => isDetailPatternInStock(p, pat)) || patterns[0];
+        }
 
         patternSelector.innerHTML = patterns.map(pat => {
             const v = p.normalizedVariants.find(x => sizesMatch(x.size, selectedSize) && variantColorMatches(x, selectedColor) && x.pattern === pat);
@@ -1214,11 +1493,13 @@ function renderDetailPatterns(p) {
             const displayText = v && v.patternDisplayName ? v.patternDisplayName : pat;
             const shouldShowText = !hasImage || (v && v.showPatternText);
 
+            const oos = !isDetailPatternInStock(p, pat);
+            const oosTitle = oos ? 'Out of stock' : displayText;
             if (hasImage) {
                 const imgHtml = `<img src="${v.previewImage}" style="width:28px; height:28px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); vertical-align:middle; flex-shrink:0;">`;
                 const textHtml = shouldShowText ? `<span style="font-size:11px; font-weight:600; margin-left:5px; line-height:1.2;">${displayText}</span>` : '';
                 return `
-                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${pat}', this)" title="${displayText}">
+                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
                     ${imgHtml}${textHtml}
                 </div>
                 `;
@@ -1226,7 +1507,7 @@ function renderDetailPatterns(p) {
 
             // Text-only pattern
             return `
-            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat}', this)" title="${displayText}">
+            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
                 <span>${displayText}</span>
             </div>
             `;
@@ -1257,11 +1538,20 @@ function variantColorMatches(variant, colorKey) {
     return [variant.color, variant.colorName].some(c => c && normalizeColorKey(c) === target);
 }
 
+function sizesEqual(a, b) {
+    const sa = String(a || '').trim();
+    const sb = String(b || '').trim();
+    if (!sa && !sb) return true;
+    if (sa === 'Standard' && sb === 'Standard') return true;
+    if (sa === 'Standard' || sb === 'Standard') return false;
+    return sa.toLowerCase() === sb.toLowerCase();
+}
+
 function sizesMatch(a, b) {
     const sa = String(a || '').trim();
     const sb = String(b || '').trim();
     if (!sa || sa === 'Standard') return true;
-    if (!sb || sb === 'Standard') return sa === sb || sb === 'Standard';
+    if (!sb || sb === 'Standard') return true;
     return sa.toLowerCase() === sb.toLowerCase();
 }
 
@@ -1392,7 +1682,12 @@ function buildDetailGallerySlides(p, productMedia) {
 }
 
 function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
-    const v = getSelectedVariant(p);
+    const selection = {
+        size: selectedSize,
+        color: selectedColor,
+        pattern: window.selectedPattern || ''
+    };
+    const v = getStrictSelectedVariant(p) || getSelectedVariant(p);
     const productMedia = resolveProductMedia(p);
 
     // Update Price
@@ -1443,17 +1738,24 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     const detGallery = document.getElementById('det-gallery');
     const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
+    let galleryChanged = true;
     if (detGallery) {
-        detGallery.innerHTML = galleryHtml;
-        detGallery.setAttribute('data-loaded-images', galleryCacheKey);
-        detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
+        const prevKey = detGallery.getAttribute('data-loaded-images');
+        galleryChanged = prevKey !== galleryCacheKey;
+        if (galleryChanged) {
+            detGallery.innerHTML = galleryHtml;
+            detGallery.setAttribute('data-loaded-images', galleryCacheKey);
+        }
+        if (galleryChanged || scrollGallery) {
+            detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
+        }
     }
     if (detBox) {
         detBox.classList.toggle('det-box--placeholder', isPlaceholderOnly);
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
-    if (indicatorsContainer) {
+    if (indicatorsContainer && galleryChanged) {
         indicatorsContainer.innerHTML = imagesToDisplay.length > 1 
             ? imagesToDisplay.map((_, i) => `<div class="dot ${i === activeThumbIdx ? 'active' : ''}"></div>`).join('') 
             : '';
@@ -1464,7 +1766,8 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     if (thumbsContainer) {
         if (imagesToDisplay.length > 1) {
             thumbsContainer.style.display = 'flex';
-            const thumbsHtml = imagesToDisplay.map((img, idx) => {
+            if (galleryChanged) {
+                const thumbsHtml = imagesToDisplay.map((img, idx) => {
                 const mapInfo = imageToVariantMap[idx] || { color: '', size: '', type: 'image' };
                 const borderStyle = idx === activeThumbIdx ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
                 if (mapInfo.type === 'video') {
@@ -1482,8 +1785,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                 `;
             }).join('');
             
-            thumbsContainer.innerHTML = thumbsHtml;
-            thumbsContainer.setAttribute('data-loaded-images', galleryCacheKey);
+                thumbsContainer.innerHTML = thumbsHtml;
+                thumbsContainer.setAttribute('data-loaded-images', galleryCacheKey);
+            }
             updateActiveThumbnailBorder(activeThumbIdx);
         } else {
             thumbsContainer.style.display = 'none';
@@ -1493,7 +1797,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     updateDetailGalleryActions(activeThumbIdx > -1 ? activeThumbIdx : 0, p);
 
     // Scroll to the current selected variant's first image if we're not triggered by a scroll event
-    if (scrollGallery && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
+    if (scrollGallery && galleryChanged && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
         if (activeThumbIdx > -1) {
             const imgEl = detGallery.children[activeThumbIdx];
             if (imgEl) {
@@ -1537,10 +1841,10 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     let qtyInCart = 0;
     const cartSize = v?.size || selectedSize || 'Standard';
-    const cartColor = v?.color || selectedColor || '';
+    const cartColor = v ? getVariantColorKey(v) : (selectedColor || '');
     const cartPattern = v?.pattern || window.selectedPattern || '';
     if (typeof cart !== 'undefined') {
-        const existing = cart.find(item => item.id === p.id && item.variantSize === cartSize && item.variantColor === cartColor && (item.variantPattern || '') === cartPattern);
+        const existing = findCartLine(cart, p.id, cartSize, cartColor, cartPattern);
         if (existing) qtyInCart = existing.qty;
     }
 
@@ -1673,11 +1977,14 @@ function closeDetail() {
     const detView = document.getElementById('detail-view');
     detView.style.display = 'none';
     detView.classList.remove('active-detail-flex');
+    activeProductId = null;
     window.history.replaceState({}, '', window.location.pathname);
     if (typeof closeAnnouncementImageZoom === 'function') closeAnnouncementImageZoom();
 
     if (typeof stopProductCommentsListener === 'function') stopProductCommentsListener();
     window.selectedCommentRating = 0;
+
+    if (typeof renderHomeCatalog === 'function') renderHomeCatalog();
 
     // Restore WhatsApp icon visibility when closing product detail
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
@@ -1905,7 +2212,7 @@ function syncSizeChips() {
     sizeChips.forEach(chip => {
         const label = chip.innerText.trim();
         const chipSize = label === 'Free Size' ? 'Standard' : label;
-        chip.classList.toggle('active', sizesMatch(chipSize, selectedSize));
+        chip.classList.toggle('active', sizesEqual(chipSize, selectedSize));
     });
 }
 window.syncSizeChips = syncSizeChips;
@@ -2983,9 +3290,7 @@ function resolveProductMedia(p) {
         const legacy = source.images && source.images.length >= 2 ? source.images : null;
         const frames = dedicated || legacy;
         if (!frames) return null;
-        const cols = source.threeSixtyCols ? Number(source.threeSixtyCols) : frames.length;
-        const rows = source.threeSixtyRows ? Number(source.threeSixtyRows) : 1;
-        return { frames, cols, rows };
+        return { frames, cols: frames.length, rows: 1 };
     }
 
     const variantSpin = v ? getSpinFrames(v) : null;
@@ -3009,8 +3314,9 @@ function resolveProductMedia(p) {
         else if (p.videos && p.videos.length) videos = [...p.videos];
     }
 
-    if (spinFrames && spinCols * spinRows > spinFrames.length) {
-        spinCols = Math.max(1, Math.floor(spinFrames.length / spinRows));
+    if (spinFrames && spinCols * spinRows < spinFrames.length) {
+        spinCols = spinFrames.length;
+        spinRows = 1;
     }
 
     return { spinFrames, spinCols, spinRows, spinSet, videos, has360: !!(spinFrames && spinFrames.length >= 2), productVideos: p.videos || [] };

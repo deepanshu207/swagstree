@@ -2453,9 +2453,41 @@
             </div>
             <textarea id="m-desc" placeholder="Description"></textarea>
 
-            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Product Variants <span
-                    title="Define specific prices and images for different sizes/colors"
-                    style="cursor:help; color:#aaa;">ⓘ</span></p>
+            <details class="admin-product-guide" open>
+                <summary>Quick guide — variants, media &amp; stock</summary>
+                <div class="admin-guide-body">
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--gold">Variants</span>
+                        <p>Each block is one sellable line. Comma-separate <strong>Size</strong>, <strong>Color</strong>, or <strong>Pattern</strong> to create combos (S,M × Red,Blue = 4 SKUs). Customer picks chips on the detail page — price, photos, video, 360° and stock follow that exact combo.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag">Main images</span>
+                        <p>Shared photos for <strong>home carousel</strong> + detail fallback. If a variant has no gallery photos, mains fill in. Otherwise mains append at <strong>start or end</strong> (setting below).</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--green">Variant gallery</span>
+                        <p>Full photos for this block’s size/color/pattern — shown when customer selects a matching combo.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--green">Swatches</span>
+                        <p>Small pattern/color preview images — used on pattern chips only, not the main gallery.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
+                        <p><strong>Global</strong> video plays for every selection (last in gallery). A <strong>variant</strong> video replaces global for that color/block.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--gold">360° spin</span>
+                        <p>Separate rotation frames — opens via side <strong>360°</strong> button (product spin, not Street View). Not mixed into photo carousel.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--stock">Stock</span>
+                        <p>Turn on <strong>Track Stock</strong> per block. One qty field for a single combo; a grid when multiple sizes/colors/patterns exist. Sold units deduct from that exact combo only.</p>
+                    </div>
+                </div>
+            </details>
+
+            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Product Variants</p>
             <div id="m-variants-container"
                 style="background:#121212; border: 1px solid #282828; border-radius: 12px; padding: 10px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;">
             </div>
@@ -2463,17 +2495,8 @@
                 style="width:100%; padding:10px; background:#222; color:#fff; border:1px dashed #555; border-radius:8px; cursor:pointer; font-size:12px; margin-bottom: 15px;">+
                 Add Variant</button>
 
-            <div class="admin-media-info" style="margin-bottom:12px; padding:12px; background:#141414; border:1px solid #2a2a2a; border-radius:10px; font-size:11px; color:#999; line-height:1.55;">
-                <p style="margin:0 0 8px; color:#ccc; font-weight:700; font-size:11px;">How images work</p>
-                <p style="margin:0 0 6px;"><strong style="color:var(--gold);">Main images</strong> — Global photos for home screen, size charts, lifestyle. <strong>Fallback when a variant has no photo.</strong> Append at <strong>start</strong> or <strong>end</strong> of each color’s gallery (when that color has its own photos).</p>
-                <p style="margin:0 0 6px;"><strong style="color:#64b5f6;">Variant gallery images</strong> — Photos for one size/color only. Shown when customer picks that variant.</p>
-                <p style="margin:0 0 6px;"><strong style="color:#64b5f6;">Product video (below)</strong> — Global for all colors. Always appears last in the gallery.</p>
-                <p style="margin:0;"><strong style="color:var(--gold);">360° product spin</strong> — Separate rotation photos. Swipe to rotate — not Street View.</p>
-            </div>
-
-            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Main Product Images /
-                Home Preview</p>
-            <p style="margin:-2px 0 8px; font-size:10px; color:#777; line-height:1.45;">Fallback &amp; shared photos — home screen, size charts, or appended at start/end of variant gallery when a variant has no image.</p>
+            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Main Product Images</p>
+            <p style="margin:-2px 0 8px; font-size:10px; color:#777; line-height:1.4;">Home screen + shared detail photos (see guide above).</p>
             <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
             <label
                 style="display:block; padding:10px; border-radius:8px; border:1px dashed #666; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px; margin-bottom: 15px;">
@@ -2502,8 +2525,7 @@
                 </label>
             </div>
             <div style="margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.2); border-radius:10px;">
-                <p style="font-size:10px; color:#64b5f6; margin:0 0 4px 0; text-transform:uppercase; letter-spacing:0.5px;">Global Product Video <span style="color:#666; text-transform:none;">(optional — shown for every color, always last in gallery)</span></p>
-                <p style="margin:0 0 8px; font-size:10px; color:#666; line-height:1.4;">Upload once here for all variants. Per-variant videos can be added inside each variant block.</p>
+                <p style="font-size:10px; color:#64b5f6; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Global Product Video <span style="color:#666; text-transform:none;">(optional)</span></p>
                 <div id="m-video-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
                 <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
                     <span>🎬</span> Upload Product Video
@@ -2981,7 +3003,7 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=10.6"></script>
+    <script src="js/features.js?v=10.7"></script>
     <script src="js/app.js?v=10.4"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/categories.js?v=10.6"></script>

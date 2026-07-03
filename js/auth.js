@@ -231,7 +231,7 @@ auth.onAuthStateChanged(user => {
                 ensureCheckoutMatchesCurrentUser(savedName, savedPhone);
             }
 
-            renderStore();
+            renderStore({ home: false, wishlist: true });
         });
 
         if (user.email) {
