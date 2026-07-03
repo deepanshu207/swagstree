@@ -1030,13 +1030,6 @@ function showDetail(id, initialColor = null, initialSize = null) {
     updateVariantUI(p);
     updateDetailURL();
 
-    // Check if 360 viewer is enabled
-    const trigger360 = document.getElementById('det-360-trigger');
-    if (trigger360) {
-        const media = resolveProductMedia(p);
-        trigger360.style.display = media.has360 ? 'inline-flex' : 'none';
-    }
-
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
     detView.classList.add('active-detail-flex');
@@ -1405,7 +1398,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         detBox.classList.toggle('det-box--placeholder', isPlaceholderOnly);
     }
     if (mediaBar) {
-        mediaBar.style.display = (hasRealPhotos || hasVideo) ? '' : 'none';
+        mediaBar.style.display = 'none';
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
@@ -1554,12 +1547,6 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             updateVariantUI(p);
         };
     }
-    const trigger360 = document.getElementById('det-360-trigger');
-    if (trigger360) {
-        const media = resolveProductMedia(p);
-        const hasRealPhotos = galleryHasRealPhotos(window.detailGallerySlideMap || []);
-        trigger360.style.display = (media.has360 && hasRealPhotos) ? 'inline-flex' : 'none';
-    }
 }
 
 function galleryHasRealPhotos(map) {
@@ -1607,16 +1594,30 @@ function updateDetailGalleryActions(idx, productOverride) {
         }
     }
 
+    const media = p ? resolveProductMedia(p) : null;
+    const hasSpin = !!(media && media.has360 && hasRealPhotos);
+    const isVideoSlide = !!(slide && slide.type === 'video');
+    const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && hasRealPhotos);
+
     if (zoomBtn) {
-        const canZoom = slide && slide.type !== 'video' && !slide.isPlaceholder && hasRealPhotos;
-        zoomBtn.style.display = canZoom ? 'inline-flex' : 'none';
+        zoomBtn.style.display = canZoom ? 'flex' : 'none';
+        zoomBtn.classList.toggle('det-side-left', canZoom && hasSpin);
+        zoomBtn.classList.toggle('det-side-right', canZoom && !hasSpin);
     }
     if (playBtn) {
-        playBtn.style.display = (slide && slide.type === 'video') ? 'inline-flex' : 'none';
+        playBtn.style.display = isVideoSlide ? 'flex' : 'none';
     }
-    if (spinBtn && p) {
-        const media = resolveProductMedia(p);
-        spinBtn.style.display = (media.has360 && hasRealPhotos) ? 'inline-flex' : 'none';
+    if (spinBtn) {
+        spinBtn.style.display = (hasSpin && !isVideoSlide) ? 'flex' : 'none';
+    }
+
+    const sideActions = document.getElementById('det-gallery-side-actions');
+    if (sideActions) {
+        const anySideAction = canZoom || isVideoSlide || (hasSpin && !isVideoSlide);
+        sideActions.style.display = anySideAction ? '' : 'none';
+    }
+    if (labelEl && labelEl.parentElement) {
+        labelEl.parentElement.style.display = labelEl.textContent.trim() ? '' : 'none';
     }
 }
 window.updateDetailGalleryActions = updateDetailGalleryActions;
