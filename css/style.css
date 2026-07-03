@@ -3980,18 +3980,26 @@ body.media-viewer-open .bottom-nav {
     cursor: default;
 }
 #det-box.det-box--placeholder {
-    aspect-ratio: 1 / 1;
-    max-height: min(72vw, 320px);
+    aspect-ratio: auto;
+    height: auto;
+}
+#det-box.det-box--placeholder #det-gallery {
+    height: auto;
 }
 #det-box.det-box--placeholder #det-gallery > img.det-gallery-placeholder {
+    width: 100%;
     height: auto;
-    max-height: min(72vw, 320px);
+    max-height: min(55vw, 240px);
+    display: block;
 }
 @media (min-width: 1025px) and (pointer: fine) {
     #det-box.det-box--placeholder {
         height: auto !important;
-        max-height: 340px !important;
-        aspect-ratio: 1 / 1 !important;
+        max-height: none !important;
+        aspect-ratio: auto !important;
+    }
+    #det-box.det-box--placeholder #det-gallery > img.det-gallery-placeholder {
+        max-height: 280px;
     }
 }
 
