@@ -368,10 +368,7 @@ function addToBagWithSelection(id, size, color, pattern = '') {
     saveCartToStorage();
     
     // Refresh storefront and product details
-    if (typeof renderProducts === 'function' && typeof products !== 'undefined') {
-        const grid = document.getElementById('product-grid');
-        if (grid && grid.innerHTML !== '') renderProducts(products, 'product-grid');
-    }
+    if (typeof refreshHomeGridIfVisible === 'function') refreshHomeGridIfVisible();
     if (typeof updateVariantUI === 'function' && typeof activeProductId !== 'undefined') {
         const p = typeof products !== 'undefined' ? products.find(x => x.id === activeProductId) : null;
         if (p) updateVariantUI(p);
@@ -451,10 +448,7 @@ function changeQty(idx, delta) {
     saveCartToStorage();
     
     // Attempt to refresh storefront and product details if functions exist
-    if (typeof renderProducts === 'function' && typeof products !== 'undefined') {
-        const grid = document.getElementById('product-grid');
-        if (grid && grid.innerHTML !== '') renderProducts(products, 'product-grid');
-    }
+    if (typeof refreshHomeGridIfVisible === 'function') refreshHomeGridIfVisible();
     if (typeof updateVariantUI === 'function' && typeof activeProductId !== 'undefined') {
         const p = typeof products !== 'undefined' ? products.find(x => x.id === activeProductId) : null;
         if (p) updateVariantUI(p);
@@ -1705,10 +1699,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         if (currentUser) loadOrders();
         
         // Refresh grids if possible
-        if (typeof renderProducts === 'function' && typeof products !== 'undefined') {
-            const grid = document.getElementById('product-grid');
-            if (grid && grid.innerHTML !== '') renderProducts(products, 'product-grid');
-        }
+        if (typeof refreshHomeGridIfVisible === 'function') refreshHomeGridIfVisible();
     } catch(e) {
         console.error('Order Error:', e);
         const errMsg = e && e.message ? e.message : (e && e.text ? `Failed: ${e.text}` : 'Failed to place order');

@@ -451,6 +451,17 @@ window.onload = () => {
         if (overlay) overlay.style.display = 'flex';
     }
 
+    // Start product/catalog listeners immediately — do not wait for auth (avoids stuck "Loading Products")
+    if (typeof loadData === 'function') loadData();
+
+    // Nudge if Firestore is unusually slow (keeps skeleton but updates message)
+    setTimeout(() => {
+        if (!window.productsLoaded) {
+            const msg = document.querySelector('#product-grid .premium-loader-container p');
+            if (msg) msg.textContent = 'Still loading… check your connection';
+        }
+    }, 12000);
+
     // Real-time Sync of App Features Configuration
     if (typeof startFeaturesConfigListener === 'function') {
         startFeaturesConfigListener();
