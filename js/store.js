@@ -891,6 +891,77 @@ function renderProducts(items, targetId) {
 }
 
 // 3. PRODUCT DETAILS
+function buildSkuKey(size, color, colorName, pattern) {
+    const sz = String(size || 'Standard').trim().toLowerCase();
+    const col = String(color || colorName || '').trim().toLowerCase();
+    const pat = String(pattern || '').trim().toLowerCase();
+    return `${sz}|${col}|${pat}`;
+}
+window.buildSkuKey = buildSkuKey;
+
+function expandVariantBlockSkus(v) {
+    if (!v) return [];
+    const sizeValues = v.size ? v.size.split(',').map(s => s.trim()).filter(s => s) : ['Standard'];
+    const colorValues = v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : [''];
+    const colorNameValues = v.colorName ? v.colorName.split(',').map(c => c.trim()) : [];
+    let patternValues = v.pattern ? v.pattern.split(',').map(p => p.trim()).filter(p => p) : [''];
+
+    if (v.previewImages && v.previewImages.length > 0) {
+        const newPatternValues = [];
+        for (let i = 0; i < v.previewImages.length; i++) {
+            let patVal = patternValues[i] || '';
+            if (!patVal || patVal === '') {
+                const baseName = (patternValues.length > 0 && patternValues[0] !== '') ? patternValues[0] : 'Design';
+                patVal = `${baseName} ${i + 1}`;
+            }
+            newPatternValues.push(patVal);
+        }
+        patternValues = newPatternValues;
+    } else if (patternValues.length === 1 && patternValues[0] === '' && (v.previewImage || v.existingPreviewImage)) {
+        patternValues = ['Design 1'];
+    }
+    if (!patternValues.length) patternValues = [''];
+
+    const skus = [];
+    let fallbackIndex = 1;
+    sizeValues.forEach(sz => {
+        colorValues.forEach((col, colIdx) => {
+            patternValues.forEach((pat) => {
+                let finalPattern = pat || '';
+                if (!finalPattern && (v.previewImage || v.existingPreviewImage || (v.previewImages && v.previewImages.length))) {
+                    finalPattern = `Design-${fallbackIndex++}`;
+                }
+                const finalColorName = colorNameValues[colIdx] || colorNameValues[0] || col;
+                skus.push({
+                    size: sz,
+                    color: col,
+                    colorName: finalColorName,
+                    pattern: finalPattern,
+                    key: buildSkuKey(sz, col, finalColorName, finalPattern),
+                    label: [
+                        sz !== 'Standard' ? sz : '',
+                        finalColorName || col || '',
+                        finalPattern || ''
+                    ].filter(Boolean).join(' · ') || 'Default'
+                });
+            });
+        });
+    });
+    return skus;
+}
+window.expandVariantBlockSkus = expandVariantBlockSkus;
+
+function resolveSkuStockCount(variantBlock, skuKey) {
+    const fallback = typeof variantBlock.stockCount === 'number'
+        ? variantBlock.stockCount
+        : (parseInt(variantBlock.stockCount, 10) || 0);
+    if (!variantBlock.trackStock) return fallback;
+    if (variantBlock.stockBySku && Object.prototype.hasOwnProperty.call(variantBlock.stockBySku, skuKey)) {
+        return parseInt(variantBlock.stockBySku[skuKey], 10) || 0;
+    }
+    return fallback;
+}
+
 function normalizeVariants(p) {
     if (p.variants && Array.isArray(p.variants) && p.variants.length > 0) {
         const normalized = [];
@@ -937,6 +1008,9 @@ function normalizeVariants(p) {
                             finalPatternName = `Design-${fallbackIndex++}`;
                         }
 
+                        const skuKey = buildSkuKey(sz, col, finalColorName, finalPatternName);
+                        const stockCount = resolveSkuStockCount(v, skuKey);
+
                         normalized.push({
                             ...v,
                             size: sz,
@@ -945,7 +1019,9 @@ function normalizeVariants(p) {
                             pattern: finalPatternName,
                             patternDisplayName: patternDisplayName,
                             showPatternText: showPatternText,
-                            previewImage: patPreviewUrl
+                            previewImage: patPreviewUrl,
+                            stockCount,
+                            skuKey
                         });
                     });
                 });
@@ -982,6 +1058,44 @@ function buildDefaultStorefrontVariant(p) {
         isActive: true
     };
 }
+
+function deductStockForCartItem(pData, item) {
+    if (!item || !item.trackStock || !pData || !Array.isArray(pData.variants)) return null;
+    const variants = pData.variants.map(v => ({
+        ...v,
+        stockBySku: { ...(v.stockBySku || {}) }
+    }));
+    const itemKey = buildSkuKey(
+        item.variantSize,
+        item.variantColor,
+        item.variantColorName || item.variantColor,
+        item.variantPattern
+    );
+
+    for (let i = 0; i < variants.length; i++) {
+        const v = variants[i];
+        if (!v.trackStock) continue;
+        const skus = expandVariantBlockSkus(v);
+        const matchedSku = skus.find(s => {
+            if (s.key === itemKey) return true;
+            return !!findProductVariant(
+                [{ size: s.size, color: s.color, colorName: s.colorName, pattern: s.pattern }],
+                { size: item.variantSize, color: item.variantColor, pattern: item.variantPattern },
+                { strict: true }
+            );
+        });
+        if (!matchedSku) continue;
+
+        const key = matchedSku.key;
+        const cur = resolveSkuStockCount(v, key);
+        v.stockBySku[key] = Math.max(0, cur - (parseInt(item.qty, 10) || 0));
+        if (skus.length === 1) v.stockCount = v.stockBySku[key];
+        variants[i] = v;
+        return variants;
+    }
+    return null;
+}
+window.deductStockForCartItem = deductStockForCartItem;
 
 function patternsMatch(a, b) {
     const pa = String(a || '').trim();

@@ -1522,7 +1522,12 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                     const pSnap = await pRef.get();
                     if (pSnap.exists) {
                         const pData = pSnap.data();
-                        if (pData.variants && Array.isArray(pData.variants)) {
+                        if (typeof deductStockForCartItem === 'function') {
+                            const newVariants = deductStockForCartItem(pData, item);
+                            if (newVariants) {
+                                await pRef.update({ variants: newVariants });
+                            }
+                        } else if (pData.variants && Array.isArray(pData.variants)) {
                             let updated = false;
                             const newVariants = pData.variants.map(v => {
                                 if (v.size === item.variantSize && v.color === item.variantColor && (v.pattern || '') === (item.variantPattern || '')) {
@@ -1531,8 +1536,6 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                                 }
                                 return v;
                             });
-                            
-                            // If exact match not found (e.g. no color), try size only
                             if (!updated) {
                                 newVariants.forEach((v, index) => {
                                     if (!updated && v.size === item.variantSize) {
@@ -1541,10 +1544,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                                     }
                                 });
                             }
-                            
-                            if (updated) {
-                                await pRef.update({ variants: newVariants });
-                            }
+                            if (updated) await pRef.update({ variants: newVariants });
                         }
                     }
                 } catch (err) {

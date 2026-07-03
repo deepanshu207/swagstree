@@ -58,6 +58,77 @@ const ALL_PATTERNS = [
 
 let variantBlocks = [];
 
+function ensureVariantStockMap(v) {
+    if (!v.stockBySku || typeof v.stockBySku !== 'object') v.stockBySku = {};
+}
+
+function getVariantSkuStock(v, skuKey) {
+    ensureVariantStockMap(v);
+    if (Object.prototype.hasOwnProperty.call(v.stockBySku, skuKey)) {
+        return parseInt(v.stockBySku[skuKey], 10) || 0;
+    }
+    return parseInt(v.stockCount, 10) || 0;
+}
+
+function buildVariantStockHtml(v) {
+    if (!v.trackStock) return '';
+    ensureVariantStockMap(v);
+    const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
+    if (!skus.length) return '';
+
+    const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+    if (skus.length === 1) {
+        const sku = skus[0];
+        const qty = getVariantSkuStock(v, sku.key);
+        return `
+                    <div id="v-stock-qty-container-${v.id}" style="display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column:1 / -1;">
+                        <span style="font-size:12px; color:#aaa;">Stock Qty:</span>
+                        <input type="number" min="0" placeholder="0" value="${qty}" oninput="updateVariantSkuStock('${v.id}', '${esc(sku.key)}', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="width:100%; box-sizing:border-box; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
+                    </div>`;
+    }
+
+    const rows = skus.map(sku => {
+        const qty = getVariantSkuStock(v, sku.key);
+        return `
+                        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                            <span style="flex:1; font-size:10px; color:#bbb; line-height:1.35;">${sku.label}</span>
+                            <input type="number" min="0" value="${qty}" oninput="updateVariantSkuStock('${v.id}', '${esc(sku.key)}', parseInt(this.value)||0)" style="width:76px; padding:5px 6px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:12px; font-weight:700; text-align:center;">
+                        </div>`;
+    }).join('');
+
+    return `
+                    <div id="v-stock-qty-container-${v.id}" style="display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column:1 / -1;">
+                        <span style="font-size:11px; color:#FFD700; font-weight:700;">Stock per combination</span>
+                        <span style="font-size:10px; color:#666; line-height:1.35; margin-bottom:4px;">Set quantity for each size / color / pattern in this variant block.</span>
+                        ${rows}
+                    </div>`;
+}
+
+function updateVariantSkuStock(vId, skuKey, qty) {
+    const v = variantBlocks.find(x => x.id === vId);
+    if (!v) return;
+    ensureVariantStockMap(v);
+    v.stockBySku[skuKey] = Math.max(0, qty);
+    const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
+    if (skus.length === 1) v.stockCount = v.stockBySku[skuKey];
+}
+window.updateVariantSkuStock = updateVariantSkuStock;
+
+function migrateVariantStockMaps() {
+    variantBlocks.forEach(v => {
+        if (!v.trackStock) return;
+        ensureVariantStockMap(v);
+        const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
+        skus.forEach(sku => {
+            if (!Object.prototype.hasOwnProperty.call(v.stockBySku, sku.key)) {
+                v.stockBySku[sku.key] = parseInt(v.stockCount, 10) || 0;
+            }
+        });
+        if (skus.length === 1) v.stockCount = getVariantSkuStock(v, skus[0].key);
+    });
+}
+
 function renderVariantBlocks() {
     const container = document.getElementById('m-variants-container');
     if (!container) return;
@@ -193,11 +264,7 @@ function renderVariantBlocks() {
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
                     ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();`, 'Track Stock', '#FFD700')}
-                    <div id="v-stock-qty-container-${v.id}" style="display:${v.trackStock ? 'flex' : 'none'}; flex-direction:column; align-items:stretch; gap:6px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a;">
-                        <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
-                        <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
-                        <span style="font-size:10px; color:#666; line-height:1.35;">For this size + color + pattern combo. Use separate variant blocks when stock differs (e.g. XXS Grey Pattern A vs XXS Red Pattern B).</span>
-                    </div>
+                    ${buildVariantStockHtml(v)}
 
             </div>
         </div>
@@ -234,7 +301,12 @@ function renderVariantBlocks() {
             });
 
             // Check for stock count error
-            const isStockError = v.trackStock && (v.stockCount === undefined || v.stockCount === null || isNaN(v.stockCount) || v.stockCount < 0);
+            const isStockError = v.trackStock && (typeof expandVariantBlockSkus === 'function'
+                ? expandVariantBlockSkus(v).some(sku => {
+                    const q = getVariantSkuStock(v, sku.key);
+                    return q === undefined || q === null || isNaN(q) || q < 0;
+                })
+                : (v.stockCount === undefined || v.stockCount === null || isNaN(v.stockCount) || v.stockCount < 0));
 
             // Check for price error
             const isPriceError = v.price !== '' && v.price !== null && v.price !== undefined && (isNaN(v.price) || Number(v.price) < 0);
@@ -328,6 +400,7 @@ function addVariantBlock() {
         isActive: true,
         trackStock: false,
         stockCount: 0,
+        stockBySku: {},
         is360: false,
         spinImages: [],
         videos: [],
@@ -611,6 +684,7 @@ function openEdit(id) {
             isActive: v.isActive !== false,
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
+            stockBySku: { ...(v.stockBySku || {}) },
             is360: !!v.is360,
             threeSixtyCols: v.threeSixtyCols || 1,
             threeSixtyRows: v.threeSixtyRows || 1,
@@ -619,6 +693,7 @@ function openEdit(id) {
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
+        migrateVariantStockMaps();
     } else {
         // Fallback for older products
         variantBlocks = [];
@@ -890,6 +965,8 @@ async function saveProduct() {
             })
         );
         
+        migrateVariantStockMaps();
+
         // Upload all variant images and swatches in parallel
         const parsedVariantsResult = await Promise.all(variantBlocks.map(async v => {
             const uploadedVariantImages = await Promise.all(
@@ -945,6 +1022,7 @@ async function saveProduct() {
                 isActive: v.isActive !== false,
                 trackStock: !!v.trackStock,
                 stockCount: typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0),
+                stockBySku: v.stockBySku && typeof v.stockBySku === 'object' ? { ...v.stockBySku } : {},
                 is360: !!v.is360,
                 threeSixtyCols: uploadedSpinImages.length || (v.threeSixtyCols ? Number(v.threeSixtyCols) : 1),
                 threeSixtyRows: v.threeSixtyRows ? Number(v.threeSixtyRows) : 1,
@@ -967,7 +1045,14 @@ async function saveProduct() {
                 dup.previewImages = [...new Set([...(dup.previewImages || []), ...(v.previewImages || [])])];
                 if (v.trackStock) {
                     dup.trackStock = true;
-                    dup.stockCount = (parseInt(dup.stockCount, 10) || 0) + (parseInt(v.stockCount, 10) || 0);
+                    dup.stockBySku = dup.stockBySku || {};
+                    if (v.stockBySku && typeof v.stockBySku === 'object') {
+                        Object.entries(v.stockBySku).forEach(([k, n]) => {
+                            dup.stockBySku[k] = (parseInt(dup.stockBySku[k], 10) || 0) + (parseInt(n, 10) || 0);
+                        });
+                    } else {
+                        dup.stockCount = (parseInt(dup.stockCount, 10) || 0) + (parseInt(v.stockCount, 10) || 0);
+                    }
                 }
                 if (dup.price === null || dup.price === undefined) {
                     dup.price = v.price;
@@ -1090,6 +1175,7 @@ function copyProduct(id) {
             isActive: v.isActive !== false,
             trackStock: !!v.trackStock,
             stockCount: v.stockCount || 0,
+            stockBySku: { ...(v.stockBySku || {}) },
             is360: !!v.is360,
             threeSixtyCols: v.threeSixtyCols || 1,
             threeSixtyRows: v.threeSixtyRows || 1,
@@ -1098,6 +1184,7 @@ function copyProduct(id) {
             images: [...(v.images || [])],
             previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
         }));
+        migrateVariantStockMaps();
     } else {
         // Fallback for older products
         variantBlocks = [];
