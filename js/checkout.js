@@ -254,39 +254,55 @@ function addToBag(id) {
 function getVariantDetails(p, size, color, pattern = '') {
     const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
         ? p.normalizedVariants : (typeof normalizeVariants === 'function' ? normalizeVariants(p) : []);
-    
-    let match = normVars.find(v => v.size === size && v.color === color && (v.pattern || '') === pattern);
-    if (!match) match = normVars.find(v => v.size === size && v.color === color);
-    if (!match) match = normVars.find(v => v.size === size);
-    
+
+    const strictMatch = (typeof findProductVariant === 'function')
+        ? findProductVariant(normVars, { size, color, pattern }, { strict: true })
+        : null;
+    const match = strictMatch || ((typeof findProductVariant === 'function')
+        ? findProductVariant(normVars, { size, color, pattern }, { strict: false })
+        : normVars.find(v => v.size === size && v.color === color && (v.pattern || '') === pattern));
+
+    const stockSource = strictMatch || match;
+
     if (match) {
         return {
             price: match.price !== null && match.price !== undefined ? match.price : p.price,
             image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
-            trackStock: !!match.trackStock,
-            stockCount: typeof match.stockCount === 'number' ? match.stockCount : (parseInt(match.stockCount, 10) || 0),
+            trackStock: !!(stockSource && stockSource.trackStock),
+            stockCount: stockSource ? (typeof stockSource.stockCount === 'number' ? stockSource.stockCount : (parseInt(stockSource.stockCount, 10) || 0)) : 0,
             patternImage: match.previewImage || '',
-            colorName: match.colorName || ''   // human-readable color label (e.g. "Light Pink")
+            colorName: match.colorName || '',
+            variantSize: match.size || size,
+            variantColor: typeof getVariantColorKey === 'function' ? getVariantColorKey(match) : (match.color || color),
+            variantPattern: match.pattern || pattern || ''
         };
     }
-    
+
     return {
         price: p.price,
         image: p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image',
         trackStock: false,
         stockCount: 0,
         patternImage: '',
-        colorName: ''
+        colorName: '',
+        variantSize: size,
+        variantColor: color,
+        variantPattern: pattern || ''
     };
 }
 
 function addToBagWithSelection(id, size, color, pattern = '') {
     const p = products.find(x => x.id === id);
     if(!p) return;
-    
+
     const vDetails = getVariantDetails(p, size, color, pattern);
-    
-    const existing = cart.find(item => item.id === id && item.variantSize === size && item.variantColor === color && (item.variantPattern || '') === pattern);
+    const cartSize = vDetails.variantSize || size || 'Standard';
+    const cartColor = vDetails.variantColor || color || '';
+    const cartPattern = vDetails.variantPattern || pattern || '';
+
+    const existing = (typeof findCartLine === 'function')
+        ? findCartLine(cart, id, cartSize, cartColor, cartPattern)
+        : cart.find(item => item.id === id && item.variantSize === cartSize && item.variantColor === cartColor && (item.variantPattern || '') === cartPattern);
     
     const desiredQty = existing ? existing.qty + 1 : 1;
     if (vDetails.trackStock) {
@@ -303,8 +319,11 @@ function addToBagWithSelection(id, size, color, pattern = '') {
         existing.variantColorName = vDetails.colorName || '';
         existing.trackStock = vDetails.trackStock;
         existing.stockCount = vDetails.stockCount;
+        existing.variantSize = cartSize;
+        existing.variantColor = cartColor;
+        existing.variantPattern = cartPattern;
     } else {
-        cart.push({...p, variantSize: size, variantColor: color, variantColorName: vDetails.colorName || '', variantPattern: pattern, variantPatternImage: vDetails.patternImage || '', qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
+        cart.push({...p, variantSize: cartSize, variantColor: cartColor, variantColorName: vDetails.colorName || '', variantPattern: cartPattern, variantPatternImage: vDetails.patternImage || '', qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
     }
     updateCartUI();
     saveCartToStorage();
@@ -345,7 +364,9 @@ function updateVariantCartQty(id, size, color, pattern, delta) {
         pattern = '';
     }
     
-    const idx = cart.findIndex(item => item.id === id && item.variantSize === size && item.variantColor === color && (item.variantPattern || '') === pattern);
+    const idx = (typeof findCartLine === 'function')
+        ? cart.findIndex(item => !!findCartLine([item], id, size, color, pattern))
+        : cart.findIndex(item => item.id === id && item.variantSize === size && item.variantColor === color && (item.variantPattern || '') === pattern);
     if (idx !== -1) {
         changeQty(idx, delta);
     } else if (delta > 0) {

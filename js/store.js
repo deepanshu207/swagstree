@@ -983,15 +983,67 @@ function buildDefaultStorefrontVariant(p) {
     };
 }
 
+function patternsMatch(a, b) {
+    const pa = String(a || '').trim();
+    const pb = String(b || '').trim();
+    if (!pa && !pb) return true;
+    if (!pa || !pb) return false;
+    return pa === pb;
+}
+
+function findProductVariant(variants, { size, color, pattern } = {}, { strict = false } = {}) {
+    const list = variants || [];
+    const pat = pattern || '';
+
+    const exact = list.find(v =>
+        sizesMatch(v.size, size) &&
+        variantColorMatches(v, color) &&
+        patternsMatch(v.pattern, pat)
+    );
+    if (exact) return exact;
+    if (strict) return null;
+
+    const sizeColor = list.find(v =>
+        sizesMatch(v.size, size) &&
+        variantColorMatches(v, color)
+    );
+    if (sizeColor) return sizeColor;
+
+    return list.find(v => sizesMatch(v.size, size)) || null;
+}
+window.findProductVariant = findProductVariant;
+
+function findCartLine(cartItems, productId, size, color, pattern) {
+    return (cartItems || []).find(item => {
+        if (item.id !== productId) return false;
+        if (!sizesMatch(item.variantSize, size)) return false;
+        if (!variantColorMatches({ color: item.variantColor, colorName: item.variantColorName || item.variantColor }, color)) return false;
+        if (!patternsMatch(item.variantPattern, pattern)) return false;
+        return true;
+    });
+}
+window.findCartLine = findCartLine;
+
 function getSelectedVariant(p) {
     if (!p || !p.normalizedVariants) return null;
     if (!p.normalizedVariants.length) return null;
-    const pat = window.selectedPattern || '';
-    let match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor) && v.pattern === pat);
-    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize) && variantColorMatches(v, selectedColor));
-    if (!match) match = p.normalizedVariants.find(v => sizesMatch(v.size, selectedSize));
-    return match;
+    return findProductVariant(p.normalizedVariants, {
+        size: selectedSize,
+        color: selectedColor,
+        pattern: window.selectedPattern || ''
+    }, { strict: false });
 }
+
+function getStrictSelectedVariant(p) {
+    if (!p || !p.normalizedVariants) return null;
+    if (!p.normalizedVariants.length) return null;
+    return findProductVariant(p.normalizedVariants, {
+        size: selectedSize,
+        color: selectedColor,
+        pattern: window.selectedPattern || ''
+    }, { strict: true });
+}
+window.getStrictSelectedVariant = getStrictSelectedVariant;
 
 function getDetailUniqueSizes(variants) {
     return [...new Set((variants || []).map(v => v.size))];
@@ -1401,7 +1453,12 @@ function buildDetailGallerySlides(p, productMedia) {
 }
 
 function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
-    const v = getSelectedVariant(p);
+    const selection = {
+        size: selectedSize,
+        color: selectedColor,
+        pattern: window.selectedPattern || ''
+    };
+    const v = getStrictSelectedVariant(p) || getSelectedVariant(p);
     const productMedia = resolveProductMedia(p);
 
     // Update Price
@@ -1546,10 +1603,10 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     let qtyInCart = 0;
     const cartSize = v?.size || selectedSize || 'Standard';
-    const cartColor = v?.color || selectedColor || '';
+    const cartColor = v ? getVariantColorKey(v) : (selectedColor || '');
     const cartPattern = v?.pattern || window.selectedPattern || '';
     if (typeof cart !== 'undefined') {
-        const existing = cart.find(item => item.id === p.id && item.variantSize === cartSize && item.variantColor === cartColor && (item.variantPattern || '') === cartPattern);
+        const existing = findCartLine(cart, p.id, cartSize, cartColor, cartPattern);
         if (existing) qtyInCart = existing.qty;
     }
 

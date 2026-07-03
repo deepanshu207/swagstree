@@ -193,9 +193,10 @@ function renderVariantBlocks() {
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
                     ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();`, 'Track Stock', '#FFD700')}
-                    <div id="v-stock-qty-container-${v.id}" style="display:${v.trackStock ? 'flex' : 'none'}; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a;">
+                    <div id="v-stock-qty-container-${v.id}" style="display:${v.trackStock ? 'flex' : 'none'}; flex-direction:column; align-items:stretch; gap:6px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a;">
                         <span style="font-size:12px; color:#aaa; white-space:nowrap;">Stock Qty:</span>
                         <input type="number" placeholder="0" value="${v.stockCount || 0}" oninput="updateVariant('${v.id}', 'stockCount', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="flex:1; min-width:0; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
+                        <span style="font-size:10px; color:#666; line-height:1.35;">For this size + color + pattern combo. Use separate variant blocks when stock differs (e.g. XXS Grey Pattern A vs XXS Red Pattern B).</span>
                     </div>
 
             </div>
