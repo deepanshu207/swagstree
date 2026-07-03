@@ -3979,6 +3979,21 @@ body.media-viewer-open .bottom-nav {
     object-fit: contain !important;
     cursor: default;
 }
+#det-box.det-box--placeholder {
+    aspect-ratio: 1 / 1;
+    max-height: min(72vw, 320px);
+}
+#det-box.det-box--placeholder #det-gallery > img.det-gallery-placeholder {
+    height: auto;
+    max-height: min(72vw, 320px);
+}
+@media (min-width: 1025px) and (pointer: fine) {
+    #det-box.det-box--placeholder {
+        height: auto !important;
+        max-height: 340px !important;
+        aspect-ratio: 1 / 1 !important;
+    }
+}
 
 .det-media-bar {
     padding: 10px 15px 8px;

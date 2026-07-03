@@ -1359,6 +1359,8 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     const hasRealPhotos = galleryHasRealPhotos(imageToVariantMap);
     const hasVideo = imageToVariantMap.some(m => m && m.type === 'video');
+    const isPlaceholderOnly = !hasRealPhotos && !hasVideo && !p.hideNoImagePlaceholder;
+    const detBox = document.getElementById('det-box');
     const mediaBar = document.getElementById('det-media-bar');
 
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
@@ -1398,6 +1400,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         detGallery.innerHTML = galleryHtml;
         detGallery.setAttribute('data-loaded-images', galleryCacheKey);
         detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
+    }
+    if (detBox) {
+        detBox.classList.toggle('det-box--placeholder', isPlaceholderOnly);
     }
     if (mediaBar) {
         mediaBar.style.display = (hasRealPhotos || hasVideo) ? '' : 'none';
