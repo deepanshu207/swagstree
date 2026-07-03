@@ -1131,53 +1131,24 @@ body.footer-hidden {
 .dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: 0.3s; }
 .dot.active { background: var(--gold); width: 12px; border-radius: 4px; }
 
-/* Detail gallery — mobile & tablet: fit image + actions + thumbs without scrolling */
+/* Detail gallery — mobile & tablet: cap image height so thumbs stay on screen */
 @media (max-width: 1024px) {
     #detail-view {
-        --det-header-h: 52px;
-        display: flex !important;
-        flex-direction: column;
         overflow-y: auto;
         overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
     }
-    #detail-view > div:first-child {
-        flex-shrink: 0;
-        position: sticky;
-        top: 0;
-        z-index: 12;
-        background: #000;
-    }
-    #detail-view-left-col {
-        display: flex;
-        flex-direction: column;
-        flex-shrink: 0;
-        position: sticky;
-        top: var(--det-header-h);
-        z-index: 10;
-        background: #000;
-        max-height: calc(100dvh - var(--det-header-h));
-        max-height: calc(100dvh - var(--det-header-h) - env(safe-area-inset-bottom));
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
-    }
     #det-box {
-        aspect-ratio: unset;
-        flex: 1 1 auto;
-        min-height: 0;
+        aspect-ratio: 3 / 4;
         width: 100%;
-        height: auto;
+        max-height: calc(100dvh - 52px - 200px);
+        max-height: calc(100dvh - 52px - 200px - env(safe-area-inset-bottom));
     }
     #det-box.det-box--placeholder {
-        flex: 0 0 auto;
         aspect-ratio: 1 / 1;
         max-height: min(38dvh, 260px);
-        width: 100%;
-    }
-    #det-gallery {
-        height: 100%;
     }
     #det-media-bar {
-        flex-shrink: 0;
         padding: 6px 12px 4px;
     }
     .det-media-label {
@@ -1193,21 +1164,14 @@ body.footer-hidden {
         max-width: none;
     }
     #det-thumbs {
-        flex-shrink: 0;
         gap: 8px;
-        overflow-x: auto;
         padding: 6px 12px 8px !important;
-        background: #000;
-        scrollbar-width: none;
         border-bottom: 1px solid #141414;
-    }
-    #det-thumbs::-webkit-scrollbar {
-        display: none;
     }
 }
 @media (min-width: 768px) and (max-width: 1024px) {
-    #detail-view-left-col {
-        max-height: calc(100dvh - var(--det-header-h, 52px) - env(safe-area-inset-bottom));
+    #det-box {
+        max-height: calc(100dvh - 52px - 210px);
     }
     #det-box.det-box--placeholder {
         max-height: min(42dvh, 300px);
