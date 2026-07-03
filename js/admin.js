@@ -100,7 +100,7 @@ function buildVariantStockHtml(v) {
     return `
                     <div id="v-stock-qty-container-${v.id}" style="display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column:1 / -1;">
                         <span style="font-size:11px; color:#FFD700; font-weight:700;">Stock per combination</span>
-                        <span style="font-size:10px; color:#666; line-height:1.35; margin-bottom:4px;">Set quantity for each size / color / pattern in this variant block.</span>
+                        <span style="font-size:10px; color:#666; line-height:1.35; margin-bottom:4px;">One row per buyable combo — customer stock is tracked separately for each.</span>
                         ${rows}
                     </div>`;
 }
@@ -111,22 +111,37 @@ function updateVariantSkuStock(vId, skuKey, qty) {
     ensureVariantStockMap(v);
     v.stockBySku[skuKey] = Math.max(0, qty);
     const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
-    if (skus.length === 1) v.stockCount = v.stockBySku[skuKey];
+    if (skus.length === 1) {
+        v.stockCount = v.stockBySku[skuKey];
+    } else if (skus.length > 1) {
+        v.stockCount = skus.reduce((sum, s) => sum + getVariantSkuStock(v, s.key), 0);
+    }
 }
 window.updateVariantSkuStock = updateVariantSkuStock;
 
-function migrateVariantStockMaps() {
-    variantBlocks.forEach(v => {
-        if (!v.trackStock) return;
-        ensureVariantStockMap(v);
-        const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
-        skus.forEach(sku => {
-            if (!Object.prototype.hasOwnProperty.call(v.stockBySku, sku.key)) {
-                v.stockBySku[sku.key] = parseInt(v.stockCount, 10) || 0;
-            }
-        });
-        if (skus.length === 1) v.stockCount = getVariantSkuStock(v, skus[0].key);
+function finalizeVariantStockForSave(v) {
+    if (!v.trackStock) return;
+    ensureVariantStockMap(v);
+    const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
+    const validKeys = new Set(skus.map(s => s.key));
+    Object.keys(v.stockBySku).forEach(k => {
+        if (!validKeys.has(k)) delete v.stockBySku[k];
     });
+    skus.forEach(sku => {
+        if (!Object.prototype.hasOwnProperty.call(v.stockBySku, sku.key)) {
+            v.stockBySku[sku.key] = parseInt(v.stockCount, 10) || 0;
+        }
+        v.stockBySku[sku.key] = Math.max(0, parseInt(v.stockBySku[sku.key], 10) || 0);
+    });
+    if (skus.length === 1) {
+        v.stockCount = getVariantSkuStock(v, skus[0].key);
+    } else if (skus.length > 1) {
+        v.stockCount = skus.reduce((sum, s) => sum + getVariantSkuStock(v, s.key), 0);
+    }
+}
+
+function migrateVariantStockMaps() {
+    variantBlocks.forEach(v => finalizeVariantStockForSave(v));
 }
 
 function renderVariantBlocks() {
@@ -219,7 +234,7 @@ function renderVariantBlocks() {
                 </div>
 
                 <!-- Row 4: Upload buttons -->
-                <p style="font-size:10px; color:#777; margin:0 0 6px; line-height:1.45;">Variant photos for this size/color. Main images are used when this variant has none, or appended globally at start/end of the gallery.</p>
+                <p style="font-size:10px; color:#666; margin:0 0 6px; line-height:1.4;">Gallery = detail photos · Swatches = pattern chip previews</p>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                     <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #444; background:#1a1a1a; color:#aaa; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
                         <span style="font-size:18px;">🖼️</span>
@@ -244,7 +259,7 @@ function renderVariantBlocks() {
                 </div>
                 ` : ''}
                 <div>
-                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(optional — for this color only; overrides global video)</span></p>
+                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(optional — overrides global video)</span></p>
                     <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
                     <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
                         <span>🎬</span> Upload Video

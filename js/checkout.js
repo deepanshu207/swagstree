@@ -63,8 +63,22 @@ function mergeCarts(guestCart, savedCart) {
                 limit = avail.details.stockCount;
             }
             existing.qty = Math.min(Math.max(existing.qty, gItem.qty), limit);
+            if (avail.details) {
+                existing.trackStock = avail.details.trackStock;
+                existing.stockCount = avail.details.stockCount;
+            }
         } else {
-            merged.push(gItem);
+            const avail = getCartItemAvailability(gItem);
+            if (avail.available) {
+                if (avail.details) {
+                    gItem.trackStock = avail.details.trackStock;
+                    gItem.stockCount = avail.details.stockCount;
+                    if (avail.details.trackStock) {
+                        gItem.qty = Math.min(gItem.qty, avail.details.stockCount);
+                    }
+                }
+                if (gItem.qty > 0) merged.push(gItem);
+            }
         }
     });
     return merged;
@@ -235,21 +249,46 @@ function openUpiApp(app) {
 function addToBag(id) { 
     const p = products.find(x => x.id === id);
     if(!p) return;
-    
-    // Default values if added directly from product grid
-    const size = (p.sizes && Array.isArray(p.sizes) && p.sizes.length > 0) ? p.sizes[0] : 'Standard';
-    const colorList = (p.sizeColorMap && Array.isArray(p.sizeColorMap[size])) ? p.sizeColorMap[size] : [];
-    const color = colorList.length > 0 ? colorList[0] : '';
-    
-    // We try to grab the first pattern from normalizedVariants if they exist
-    let pattern = '';
-    if (p.normalizedVariants) {
-        const matchingVariants = p.normalizedVariants.filter(v => v.size === size && v.color === color);
-        if (matchingVariants.length > 0 && matchingVariants[0].pattern) pattern = matchingVariants[0].pattern;
+
+    const normVars = p.normalizedVariants && p.normalizedVariants.length
+        ? p.normalizedVariants
+        : (typeof normalizeVariants === 'function' ? normalizeVariants(p) : []);
+    const active = normVars.filter(v => v.isActive !== false);
+    const inStock = active.filter(v => !v.trackStock || (parseInt(v.stockCount, 10) || 0) > 0);
+    const pick = inStock[0] || active[0];
+    if (!pick) {
+        return addToBagWithSelection(id, 'Standard', '', '');
     }
-    
+
+    const size = pick.size || 'Standard';
+    const color = (typeof getVariantColorKey === 'function') ? getVariantColorKey(pick) : (pick.color || '');
+    const pattern = pick.pattern || '';
     addToBagWithSelection(id, size, color, pattern);
 }
+
+function refreshCartStockCounts() {
+    if (!Array.isArray(cart) || !cart.length) return;
+    let changed = false;
+    cart.forEach(item => {
+        const p = window.products && window.products.find(x => x.id === item.id);
+        if (!p) return;
+        const details = getVariantDetails(p, item.variantSize, item.variantColor, item.variantPattern || '');
+        item.trackStock = details.trackStock;
+        item.stockCount = details.stockCount;
+        item.price = details.price;
+        if (details.trackStock && item.qty > details.stockCount) {
+            item.qty = Math.max(0, details.stockCount);
+            changed = true;
+        }
+    });
+    const before = cart.length;
+    cart = cart.filter(i => i.qty > 0);
+    if (changed || cart.length !== before) {
+        if (typeof saveCartToStorage === 'function') saveCartToStorage();
+        if (typeof updateCartUI === 'function') updateCartUI();
+    }
+}
+window.refreshCartStockCounts = refreshCartStockCounts;
 
 function getVariantDetails(p, size, color, pattern = '') {
     const normVars = p.normalizedVariants && p.normalizedVariants.length > 0
@@ -379,10 +418,23 @@ function changeQty(idx, delta) {
     const desiredQty = item.qty + delta;
     
     if (delta > 0) {
-        if (item.trackStock) {
-            if (desiredQty > item.stockCount) return showToast(`Cannot add more. Only ${item.stockCount} left in stock.`);
-        } else {
-            if (desiredQty > globalMaxCartQty) return showToast(`Maximum limit of ${globalMaxCartQty} items per order reached.`);
+        const p = window.products && window.products.find(x => x.id === item.id);
+        let stockLimit = globalMaxCartQty;
+        let trackStock = item.trackStock;
+        if (p) {
+            const details = getVariantDetails(p, item.variantSize, item.variantColor, item.variantPattern || '');
+            trackStock = details.trackStock;
+            stockLimit = details.trackStock ? details.stockCount : globalMaxCartQty;
+            item.trackStock = details.trackStock;
+            item.stockCount = details.stockCount;
+            item.price = details.price;
+        } else if (item.trackStock) {
+            stockLimit = item.stockCount;
+        }
+        if (trackStock) {
+            if (desiredQty > stockLimit) return showToast(`Cannot add more. Only ${stockLimit} left in stock.`);
+        } else if (desiredQty > globalMaxCartQty) {
+            return showToast(`Maximum limit of ${globalMaxCartQty} items per order reached.`);
         }
     }
     

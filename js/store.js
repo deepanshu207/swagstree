@@ -317,6 +317,7 @@ function loadData() {
         checkDeepLink(); // open shared product link if present
         
         // Refresh cart contents and badge to reflect any stock updates
+        if (typeof refreshCartStockCounts === 'function') refreshCartStockCounts();
         if (typeof updateCartUI === 'function') updateCartUI();
         if (typeof openCart === 'function') {
             const cartModal = document.getElementById('cart-modal');
@@ -1112,7 +1113,11 @@ function deductStockForCartItem(pData, item) {
         const key = matchedSku.key;
         const cur = resolveSkuStockCount(v, key);
         v.stockBySku[key] = Math.max(0, cur - (parseInt(item.qty, 10) || 0));
-        if (skus.length === 1) v.stockCount = v.stockBySku[key];
+        if (skus.length === 1) {
+            v.stockCount = v.stockBySku[key];
+        } else if (skus.length > 1) {
+            v.stockCount = skus.reduce((sum, s) => sum + resolveSkuStockCount(v, s.key), 0);
+        }
         variants[i] = v;
         return variants;
     }
@@ -1347,7 +1352,7 @@ function renderDetailColors(p, initialColor = null) {
     } else {
         colorsContainer.style.display = 'block';
         if (!isValidDetailColorPick(selectedColor, colors)) {
-            selectedColor = colors[0].key;
+            selectedColor = (colors.find(c => isDetailColorInStock(p, c.key)) || colors[0]).key;
         }
 
         colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
@@ -1406,7 +1411,9 @@ function renderDetailPatterns(p) {
         window.selectedPattern = '';
     } else {
         patternsContainer.style.display = 'block';
-        if (!patterns.includes(window.selectedPattern)) window.selectedPattern = patterns[0];
+        if (!patterns.includes(window.selectedPattern)) {
+            window.selectedPattern = patterns.find(pat => isDetailPatternInStock(p, pat)) || patterns[0];
+        }
 
         patternSelector.innerHTML = patterns.map(pat => {
             const v = p.normalizedVariants.find(x => sizesMatch(x.size, selectedSize) && variantColorMatches(x, selectedColor) && x.pattern === pat);
