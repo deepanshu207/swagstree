@@ -3290,9 +3290,7 @@ function resolveProductMedia(p) {
         const legacy = source.images && source.images.length >= 2 ? source.images : null;
         const frames = dedicated || legacy;
         if (!frames) return null;
-        const cols = source.threeSixtyCols ? Number(source.threeSixtyCols) : frames.length;
-        const rows = source.threeSixtyRows ? Number(source.threeSixtyRows) : 1;
-        return { frames, cols, rows };
+        return { frames, cols: frames.length, rows: 1 };
     }
 
     const variantSpin = v ? getSpinFrames(v) : null;
@@ -3316,8 +3314,9 @@ function resolveProductMedia(p) {
         else if (p.videos && p.videos.length) videos = [...p.videos];
     }
 
-    if (spinFrames && spinCols * spinRows > spinFrames.length) {
-        spinCols = Math.max(1, Math.floor(spinFrames.length / spinRows));
+    if (spinFrames && spinCols * spinRows < spinFrames.length) {
+        spinCols = spinFrames.length;
+        spinRows = 1;
     }
 
     return { spinFrames, spinCols, spinRows, spinSet, videos, has360: !!(spinFrames && spinFrames.length >= 2), productVideos: p.videos || [] };

@@ -3953,7 +3953,7 @@ body.media-viewer-open .bottom-nav {
     max-height: 100%;
     object-fit: contain;
     transform: scale(1) translate(0, 0);
-    transition: transform 0.08s ease-out;
+    transition: transform 0.08s ease-out, opacity 0.14s ease-out;
     pointer-events: none;
     user-select: none;
 }
@@ -4122,6 +4122,8 @@ body.media-viewer-open .bottom-nav {
     justify-content: center;
     backdrop-filter: blur(6px);
     transition: all 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 .mv-nav:hover { background: var(--gold); color: #000; border-color: var(--gold); }
 .mv-prev { left: max(12px, env(safe-area-inset-left)); }
