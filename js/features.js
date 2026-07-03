@@ -555,8 +555,12 @@ let mvState = {
     spinAccumX: 0
 };
 
+function mvIsCoarsePointer() {
+    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+
 function mvSpinPixelsPerFrame() {
-    return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 56 : 40;
+    return mvIsCoarsePointer() ? 92 : 40;
 }
 
 function mvTouchDistance(touches) {
@@ -937,7 +941,8 @@ function mediaViewerDragEnd() {
     const stage = document.getElementById('mv-stage');
     if (stage) stage.style.cursor = 'grab';
 
-    if (mvState.mode === 'spin360' && mvState.scale === 1 && Math.abs(mvState.velocityX) > 5) {
+    if (mvState.mode === 'spin360' && mvState.scale === 1 && Math.abs(mvState.velocityX) > (mvIsCoarsePointer() ? 8 : 5)) {
+        if (mvIsCoarsePointer()) mvState.velocityX *= 0.65;
         applyMediaMomentum();
     } else if (mvState.mode === 'gallery' && mvState.scale === 1 && mvState.images.length > 1 && Math.abs(dragX) > 48) {
         mediaViewerNav(dragX < 0 ? 1 : -1);
@@ -946,7 +951,8 @@ function mediaViewerDragEnd() {
 
 function applyMediaMomentum() {
     cancelAnimationFrame(mvState.momentumId);
-    const friction = 0.86;
+    const coarse = mvIsCoarsePointer();
+    const friction = coarse ? 0.92 : 0.86;
     const ppf = mvSpinPixelsPerFrame();
     let accumulated = 0;
 
@@ -960,7 +966,7 @@ function applyMediaMomentum() {
             accumulated -= colChange * ppf;
             renderMediaViewerContent();
         }
-        if (Math.abs(mvState.velocityX) > 0.35) {
+        if (Math.abs(mvState.velocityX) > (coarse ? 0.2 : 0.35)) {
             mvState.momentumId = requestAnimationFrame(step);
         }
     }
@@ -1030,7 +1036,9 @@ function mediaViewerTouchMove(e) {
         e.preventDefault();
         const dist = mvTouchDistance(e.touches);
         if (mvState.pinchStartDist > 0) {
-            const ratio = dist / mvState.pinchStartDist;
+            const rawRatio = dist / mvState.pinchStartDist;
+            const pinchSens = mvIsCoarsePointer() ? 0.48 : 0.85;
+            const ratio = 1 + (rawRatio - 1) * pinchSens;
             mvState.scale = Math.max(1, Math.min(4, mvState.pinchStartScale * ratio));
             if (mvState.scale === 1) { mvState.panX = 0; mvState.panY = 0; }
             updateMediaTransform();
