@@ -3980,26 +3980,27 @@ body.media-viewer-open .bottom-nav {
     cursor: default;
 }
 #det-box.det-box--placeholder {
-    aspect-ratio: auto;
-    height: auto;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    background: #222;
 }
 #det-box.det-box--placeholder #det-gallery {
-    height: auto;
+    height: 100%;
 }
 #det-box.det-box--placeholder #det-gallery > img.det-gallery-placeholder {
     width: 100%;
-    height: auto;
-    max-height: min(55vw, 240px);
+    min-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    object-fit: cover !important;
     display: block;
 }
 @media (min-width: 1025px) and (pointer: fine) {
     #det-box.det-box--placeholder {
+        width: 90% !important;
         height: auto !important;
-        max-height: none !important;
-        aspect-ratio: auto !important;
-    }
-    #det-box.det-box--placeholder #det-gallery > img.det-gallery-placeholder {
-        max-height: 280px;
+        aspect-ratio: 1 / 1 !important;
+        max-height: 400px !important;
     }
 }
 
