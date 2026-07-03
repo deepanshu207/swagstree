@@ -1290,17 +1290,6 @@ function buildDetailGallerySlides(p, productMedia) {
             photoSlides = [...variantPhotos, ...sharedMain];
             photoMap = [...variantPhotosMap, ...sharedMainMap];
         }
-    } else if (!p.hideNoImagePlaceholder) {
-        const placeholderImg = 'https://placehold.co/400x400/222/FFF?text=No+Image';
-        photoSlides = [placeholderImg];
-        photoMap = [{
-            url: placeholderImg,
-            color: selectedColor || '',
-            size: selectedSize || '',
-            type: 'image',
-            scope: 'variant',
-            isPlaceholder: true
-        }];
     }
 
     if (productMedia.has360 && photoSlides.length === 0) {
@@ -1330,16 +1319,12 @@ function buildDetailGallerySlides(p, productMedia) {
         });
     });
 
-    // Video-only gallery: skip placeholder when a global product video exists
-    if (photoMap.length === 1 && photoMap[0].isPlaceholder && videoSlides.length > 0) {
-        photoSlides = [];
-        photoMap = [];
-    }
 
     return {
         imagesToDisplay: [...photoSlides, ...videoSlides],
         imageToVariantMap: [...photoMap, ...videoMap],
-        usingMainFallback
+        usingMainFallback,
+        hasMedia: photoSlides.length > 0 || videoSlides.length > 0
     };
 }
 
@@ -1357,6 +1342,11 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     let imageToVariantMap = gallery.imageToVariantMap;
     window.detailGalleryUsingMainFallback = gallery.usingMainFallback;
 
+    const hasRealPhotos = galleryHasRealPhotos(imageToVariantMap);
+    const hasVideo = imageToVariantMap.some(m => m && m.type === 'video');
+    const detBox = document.getElementById('det-box');
+    const mediaBar = document.getElementById('det-media-bar');
+
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
         ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
         : 0;
@@ -1367,7 +1357,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     // Render gallery with mapping metadata
     let imageOnlyIdx = 0;
-    const galleryHtml = imagesToDisplay.length 
+    const galleryHtml = imagesToDisplay.length
         ? imagesToDisplay.map((img, index) => {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
             if (mapInfo.type === 'video') {
@@ -1379,8 +1369,8 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             }
             const zoomIdx = imageOnlyIdx++;
             return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
-        }).join('') 
-        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image">');
+        }).join('')
+        : (hasRealPhotos || hasVideo ? '' : '<div class="det-gallery-empty"><i class="fa fa-image"></i><span>No photo available</span></div>');
 
     const detGallery = document.getElementById('det-gallery');
     const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
@@ -1388,6 +1378,12 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         detGallery.innerHTML = galleryHtml;
         detGallery.setAttribute('data-loaded-images', galleryCacheKey);
         detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
+    }
+    if (detBox) {
+        detBox.classList.toggle('det-no-media', !hasRealPhotos && !hasVideo);
+    }
+    if (mediaBar) {
+        mediaBar.style.display = (hasRealPhotos || hasVideo) ? '' : 'none';
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
@@ -1572,7 +1568,7 @@ function updateDetailGalleryActions(idx, productOverride) {
     const colorLabel = (v && v.colorName) ? v.colorName : (selectedColor ? formatColorName(selectedColor) : '');
 
     if (labelEl) {
-        if (!slide || totalSlides === 0) {
+        if (!slide || totalSlides === 0 || !hasRealPhotos && slide.type !== 'video') {
             labelEl.textContent = '';
         } else if (slide.type === 'video') {
             labelEl.textContent = slide.scope === 'variant'
@@ -1582,8 +1578,10 @@ function updateDetailGalleryActions(idx, productOverride) {
             labelEl.textContent = `${colorLabel ? colorLabel + ' · ' : ''}Shared photo ${zoomIdx + 1} of ${imageCount} (no ${colorLabel || 'variant'} photos)`;
         } else if (slide.scope === 'main') {
             labelEl.textContent = `Shared photo ${zoomIdx + 1} of ${imageCount}${colorLabel ? ' · ' + colorLabel : ''}`;
-        } else {
+        } else if (imageCount > 0) {
             labelEl.textContent = `${colorLabel ? colorLabel + ' · ' : ''}Photo ${zoomIdx + 1} of ${imageCount}`;
+        } else {
+            labelEl.textContent = '';
         }
     }
 

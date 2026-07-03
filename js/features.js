@@ -715,6 +715,10 @@ function openMediaViewer(opts = {}) {
     const btnPrev = document.getElementById('mv-prev');
     const btnNext = document.getElementById('mv-next');
 
+    const hasSpin = mvState.spinFrames.length >= 2;
+    const isSpin = mvState.mode === 'spin360';
+    const isVideo = mvState.mode === 'video';
+
     if (titleEl) {
         const spinSuffix = mvState.mode === 'spin360' ? ' · 360° Spin' : '';
         titleEl.textContent = mvState.title + spinSuffix;
@@ -731,10 +735,6 @@ function openMediaViewer(opts = {}) {
     }
     if (vidEl) { vidEl.pause(); vidEl.style.display = 'none'; }
     if (imgEl) imgEl.style.display = 'block';
-
-    const hasSpin = mvState.spinFrames.length >= 2;
-    const isSpin = mvState.mode === 'spin360';
-    const isVideo = mvState.mode === 'video';
 
     if (btnSpin) btnSpin.style.display = (hasSpin && !isSpin && !isVideo) ? 'flex' : 'none';
     if (btnPlay) btnPlay.style.display = isSpin ? 'flex' : 'none';
