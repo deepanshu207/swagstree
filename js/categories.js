@@ -126,8 +126,66 @@ function getNextCategorySortOrder() {
 }
 
 function isAdminCategoryInlineEditing() {
-    const active = document.activeElement;
-    return !!(active && active.classList && active.classList.contains('admin-category-inline-input'));
+    return false;
+}
+
+function getAdminCategorySearchQuery() {
+    return String(window.adminCategorySearchQuery || '').trim().toLowerCase();
+}
+
+function categoryMatchesSearch(cat, query) {
+    if (!query) return true;
+    const name = String(cat?.name || '').toLowerCase();
+    const slug = String(cat?.slug || slugifyCategoryName(cat?.name)).toLowerCase();
+    return name.includes(query) || slug.includes(query);
+}
+
+window.clearAdminCategorySearch = function() {
+    window.adminCategorySearchQuery = '';
+    const input = document.getElementById('admin-category-search');
+    const clearBtn = document.getElementById('admin-category-search-clear');
+    if (input) input.value = '';
+    if (clearBtn) clearBtn.hidden = true;
+    renderAdminCategoryList();
+};
+
+function syncAdminCategoryListTools(totalCount, visibleCount) {
+    const tools = document.getElementById('admin-category-list-tools');
+    const meta = document.getElementById('admin-category-list-meta');
+    const scroll = document.getElementById('admin-category-list-scroll');
+    const showTools = totalCount >= 3;
+    if (tools) tools.hidden = !showTools;
+    if (meta) {
+        const query = getAdminCategorySearchQuery();
+        if (!totalCount) meta.textContent = '';
+        else if (query && visibleCount !== totalCount) {
+            meta.textContent = `${visibleCount} of ${totalCount}`;
+        } else {
+            meta.textContent = `${totalCount} categor${totalCount === 1 ? 'y' : 'ies'}`;
+        }
+    }
+    if (scroll) {
+        scroll.classList.toggle('admin-category-list-scroll--empty', totalCount === 0);
+        scroll.classList.toggle('admin-category-list-scroll--many', totalCount >= 8);
+    }
+}
+
+function highlightAdminCategoryRow(id) {
+    document.querySelectorAll('#admin-category-list .admin-category-row').forEach(row => {
+        row.classList.toggle('is-editing', !!id && row.dataset.categoryId === id);
+    });
+    if (!id) return;
+    const row = document.querySelector(`#admin-category-list .admin-category-row[data-category-id="${id}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function focusAdminCategoryForm() {
+    const formWrap = document.getElementById('admin-category-form-wrap');
+    const nameEl = document.getElementById('admin-category-name');
+    if (formWrap) formWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (nameEl) {
+        setTimeout(() => nameEl.focus(), 80);
+    }
 }
 
 function getActiveCategories() {
@@ -467,51 +525,76 @@ function renderAdminCategoryList() {
     section.style.display = 'block';
     renderAdminCategoryBanner();
 
-    if (isAdminCategoryInlineEditing()) return;
-
     const categories = getAllCategoriesSorted();
+    const query = getAdminCategorySearchQuery();
+    const filtered = query ? categories.filter(cat => categoryMatchesSearch(cat, query)) : categories;
 
     if (!categories.length) {
-        list.innerHTML = '<p style="margin:0; font-size:12px; color:#666;">No categories yet. Use the form below and click <strong>Add Category</strong>.</p>';
+        list.innerHTML = '<p class="admin-category-empty">No categories yet — type a name above and tap <strong>Add Category</strong>.</p>';
         updateAdminCategoryCountBadge(0);
+        syncAdminCategoryListTools(0, 0);
+        highlightAdminCategoryRow(null);
+        return;
+    }
+
+    if (!filtered.length) {
+        list.innerHTML = '<p class="admin-category-empty">No categories match your search.</p>';
+        updateAdminCategoryCountBadge(categories.length);
+        syncAdminCategoryListTools(categories.length, 0);
+        highlightAdminCategoryRow(window.editingCategoryId || null);
         return;
     }
 
     const counts = getProductCountsByCategory();
-    list.innerHTML = `
-        <div class="admin-category-list-header" aria-hidden="true">
-            <span class="admin-category-col-order">Order</span>
-            <span class="admin-category-col-name">Name</span>
-            <span class="admin-category-col-actions">Actions</span>
-        </div>` +
-        categories.map(cat => {
+    const editingId = window.editingCategoryId || '';
+    list.innerHTML = filtered.map((cat, index) => {
         const count = counts[cat.id] || 0;
         const active = cat.isActive !== false;
         const sortOrder = getCategorySortOrder(cat);
+        const globalIndex = categories.findIndex(c => c.id === cat.id);
+        const canMoveUp = globalIndex > 0;
+        const canMoveDown = globalIndex >= 0 && globalIndex < categories.length - 1;
+        const isEditing = editingId === cat.id;
         return `
-        <div class="admin-category-row" data-category-id="${cat.id}">
-            <div class="admin-category-fields">
-                <input type="number" min="0" step="1" inputmode="numeric"
-                    class="admin-category-inline-input admin-category-inline-order"
-                    value="${sortOrder}" aria-label="Order for ${escapeCategoryHtml(cat.name)}">
-                <div class="admin-category-name-wrap">
-                    <input type="text"
-                        class="admin-category-inline-input admin-category-inline-name"
-                        value="${escapeCategoryHtml(cat.name)}" aria-label="Category name">
+        <div class="admin-category-row${isEditing ? ' is-editing' : ''}${!active ? ' is-hidden-cat' : ''}" data-category-id="${cat.id}">
+            <div class="admin-category-row-main" onclick="loadCategoryIntoForm('${cat.id}')" role="button" tabindex="0" aria-label="Edit ${escapeCategoryHtml(cat.name)}">
+                <span class="admin-category-order-badge" title="Display order">${sortOrder}</span>
+                <div class="admin-category-main">
+                    <strong>${escapeCategoryHtml(cat.name)}</strong>
                     <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
                 </div>
             </div>
             <div class="admin-category-actions">
                 <span class="admin-category-status ${active ? 'is-active' : 'is-hidden'}">${active ? 'Active' : 'Hidden'}</span>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="loadCategoryIntoForm('${cat.id}')">Edit in form</button>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="toggleCategoryActive('${cat.id}')">${active ? 'Hide' : 'Show'}</button>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-danger" onclick="deleteCategory('${cat.id}')">Delete</button>
+                <div class="admin-category-icon-actions">
+                    <button type="button" class="admin-category-icon-btn" onclick="moveCategoryOrder('${cat.id}', -1)" title="Move up" ${canMoveUp ? '' : 'disabled'}><i class="fa fa-chevron-up"></i></button>
+                    <button type="button" class="admin-category-icon-btn" onclick="moveCategoryOrder('${cat.id}', 1)" title="Move down" ${canMoveDown ? '' : 'disabled'}><i class="fa fa-chevron-down"></i></button>
+                    <button type="button" class="admin-category-icon-btn admin-category-icon-btn--gold" onclick="loadCategoryIntoForm('${cat.id}')" title="Edit"><i class="fa fa-pencil"></i></button>
+                    <button type="button" class="admin-category-icon-btn" onclick="toggleCategoryActive('${cat.id}')" title="${active ? 'Hide on storefront' : 'Show on storefront'}"><i class="fa fa-${active ? 'eye-slash' : 'eye'}"></i></button>
+                    <button type="button" class="admin-category-icon-btn admin-category-icon-btn--danger" onclick="deleteCategory('${cat.id}')" title="Delete"><i class="fa fa-trash"></i></button>
+                </div>
             </div>
         </div>`;
     }).join('');
 
-    bindAdminCategoryInlineEditors();
+    bindAdminCategoryRowKeys();
     updateAdminCategoryCountBadge(categories.length);
+    syncAdminCategoryListTools(categories.length, filtered.length);
+    highlightAdminCategoryRow(editingId || null);
+}
+
+function bindAdminCategoryRowKeys() {
+    document.querySelectorAll('#admin-category-list .admin-category-row-main[role="button"]').forEach(el => {
+        if (el.dataset.rowKeyBound) return;
+        el.dataset.rowKeyBound = '1';
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                const id = el.closest('.admin-category-row')?.dataset?.categoryId;
+                if (id) loadCategoryIntoForm(id);
+            }
+        });
+    });
 }
 
 function updateAdminCategoryCountBadge(count) {
@@ -578,13 +661,25 @@ function updateCategoryFormMode() {
     if (formWrap) {
         formWrap.classList.toggle('admin-category-form-editing', isEditing);
     }
+    highlightAdminCategoryRow(isEditing ? window.editingCategoryId : null);
 }
 
 function bindCategoryFormUi() {
     const nameEl = document.getElementById('admin-category-name');
-    if (!nameEl || nameEl.dataset.categoryUiBound) return;
-    nameEl.dataset.categoryUiBound = '1';
-    nameEl.addEventListener('input', updateCategoryFormMode);
+    const searchEl = document.getElementById('admin-category-search');
+    if (nameEl && !nameEl.dataset.categoryUiBound) {
+        nameEl.dataset.categoryUiBound = '1';
+        nameEl.addEventListener('input', updateCategoryFormMode);
+    }
+    if (searchEl && !searchEl.dataset.categorySearchBound) {
+        searchEl.dataset.categorySearchBound = '1';
+        searchEl.addEventListener('input', () => {
+            window.adminCategorySearchQuery = searchEl.value || '';
+            const clearBtn = document.getElementById('admin-category-search-clear');
+            if (clearBtn) clearBtn.hidden = !window.adminCategorySearchQuery;
+            renderAdminCategoryList();
+        });
+    }
 }
 
 window.loadCategoryIntoForm = function(id) {
@@ -599,92 +694,34 @@ window.loadCategoryIntoForm = function(id) {
     if (order) order.value = String(getCategorySortOrder(cat));
     if (active) active.checked = cat.isActive !== false;
     updateCategoryFormMode();
-    const formWrap = document.getElementById('admin-category-form-wrap');
-    if (formWrap) {
-        setTimeout(() => {
-            formWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            if (name) name.focus();
-        }, 120);
-    }
+    renderAdminCategoryList();
+    focusAdminCategoryForm();
 };
 
-function bindAdminCategoryInlineEditors() {
-    document.querySelectorAll('#admin-category-list .admin-category-inline-input').forEach(el => {
-        if (el.dataset.inlineBound) return;
-        el.dataset.inlineBound = '1';
-        el.addEventListener('keydown', e => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                el.blur();
-            }
-        });
-        el.addEventListener('blur', () => {
-            const row = el.closest('.admin-category-row');
-            const id = row?.dataset?.categoryId;
-            if (id) saveCategoryInline(id);
-        });
-    });
-}
-
-async function saveCategoryInline(id) {
+window.moveCategoryOrder = async function(id, direction) {
     if (!isAdmin) return showToast('Admin only.');
-    const cat = getCategoryById(id);
-    const row = document.querySelector(`.admin-category-row[data-category-id="${id}"]`);
-    if (!cat || !row) return;
-
-    const nameEl = row.querySelector('.admin-category-inline-name');
-    const orderEl = row.querySelector('.admin-category-inline-order');
-    const name = (nameEl?.value || '').trim();
-    if (!name) {
-        showToast('Category name required.');
-        if (nameEl) nameEl.value = cat.name || '';
-        return;
-    }
-
-    const sortOrder = parseCategorySortOrder(orderEl?.value, getCategorySortOrder(cat));
-    const slug = slugifyCategoryName(name);
-    const duplicate = (window.productCategories || []).find(c =>
-        c.id !== id && String(c.slug || slugifyCategoryName(c.name)) === slug
-    );
-    if (duplicate) {
-        showToast('A category with this name already exists.');
-        if (nameEl) nameEl.value = cat.name || '';
-        if (orderEl) orderEl.value = String(getCategorySortOrder(cat));
-        return;
-    }
-
-    const unchanged = name === (cat.name || '') && sortOrder === getCategorySortOrder(cat);
-    if (unchanged) return;
-
+    const delta = Number(direction) || 0;
+    if (!delta) return;
+    const categories = getAllCategoriesSorted();
+    const idx = categories.findIndex(c => c.id === id);
+    const swapIdx = idx + delta;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= categories.length) return;
+    const current = categories[idx];
+    const swap = categories[swapIdx];
+    const currentOrder = getCategorySortOrder(current);
+    const swapOrder = getCategorySortOrder(swap);
     try {
-        await db.collection('categories').doc(id).set({
-            name,
-            slug,
-            sortOrder,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        const nameChanged = name !== (cat.name || '');
-        if (nameChanged) {
-            const linkedProducts = getProductsWithCategory(id);
-            if (linkedProducts.length) {
-                const batch = db.batch();
-                linkedProducts.forEach(p => {
-                    batch.update(db.collection('products').doc(p.id), buildCategoryFieldsFromIds(getProductCategoryIds(p)));
-                });
-                await batch.commit();
-            }
-        }
-
-        showToast(sortOrder !== getCategorySortOrder(cat) ? 'Category order saved.' : 'Category saved.');
+        const batch = db.batch();
+        const ts = firebase.firestore.FieldValue.serverTimestamp();
+        batch.set(db.collection('categories').doc(current.id), { sortOrder: swapOrder, updatedAt: ts }, { merge: true });
+        batch.set(db.collection('categories').doc(swap.id), { sortOrder: currentOrder, updatedAt: ts }, { merge: true });
+        await batch.commit();
+        showToast('Category order updated.');
     } catch (e) {
-        console.error('saveCategoryInline failed:', e);
-        showToast('Could not save category.');
-        if (nameEl) nameEl.value = cat.name || '';
-        if (orderEl) orderEl.value = String(getCategorySortOrder(cat));
+        console.error('moveCategoryOrder failed:', e);
+        showToast('Could not reorder category.');
     }
-}
-window.saveCategoryInline = saveCategoryInline;
+};
 
 function resetCategoryForm() {
     window.editingCategoryId = null;
@@ -696,11 +733,13 @@ function resetCategoryForm() {
     if (order) order.value = '0';
     if (active) active.checked = true;
     if (moreOptions) moreOptions.open = false;
+    renderAdminCategoryList();
     updateCategoryFormMode();
 }
 
 window.openCategoryForm = function() {
     resetCategoryForm();
+    focusAdminCategoryForm();
 };
 
 window.scrollToCategoryAdmin = function() {
@@ -711,8 +750,7 @@ window.scrollToCategoryAdmin = function() {
     if (section) {
         setTimeout(() => {
             section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            const nameEl = document.getElementById('admin-category-name');
-            if (nameEl) nameEl.focus();
+            focusAdminCategoryForm();
         }, 150);
     }
 };
