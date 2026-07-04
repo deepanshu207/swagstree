@@ -371,9 +371,11 @@ window.renderWishlistCatalog = renderWishlistCatalog;
 
 function renderHomeCatalog() {
     if (!window.productsLoaded) {
+        if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) return;
         renderProducts(products, 'product-grid');
         return;
     }
+    if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) return;
     if (typeof applySortAndFilter === 'function') {
         applySortAndFilter();
     } else {
@@ -398,6 +400,10 @@ function refreshHomeGridIfVisible() {
 }
 window.refreshHomeGridIfVisible = refreshHomeGridIfVisible;
 
+function paramsHasDetailId() {
+    return new URLSearchParams(window.location.search).has('id');
+}
+
 function handleProductsSnapshot(snap) {
     // Ignore empty offline cache before the first real payload (prevents false "no products" / flicker)
     if (snap.empty && snap.metadata && snap.metadata.fromCache && !window.productsLoaded) {
@@ -410,6 +416,11 @@ function handleProductsSnapshot(snap) {
         return p;
     });
     window.productsLoaded = true;
+
+    const deepOverlay = document.getElementById('deep-link-overlay');
+    if (deepOverlay && deepOverlay.style.display !== 'none' && !paramsHasDetailId()) {
+        deepOverlay.style.display = 'none';
+    }
 
     renderStore();
     ensureHomeGridHydrated();
@@ -446,12 +457,15 @@ function loadData() {
     if (_productsSnapshotUnsub) _productsSnapshotUnsub();
     _productsSnapshotUnsub = db.collection('products').onSnapshot(handleProductsSnapshot, error => {
         console.error('Firestore products onSnapshot error:', error);
+        const overlay = document.getElementById('deep-link-overlay');
+        if (overlay) overlay.style.display = 'none';
         if (!window.productsLoaded) {
             window.productsLoaded = true;
             const container = document.getElementById('product-grid');
             if (container) {
                 container.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load products. Please check your connection and refresh.</p>';
             }
+            if (typeof renderAdmin === 'function') renderAdmin();
         }
     });
 
@@ -2174,9 +2188,11 @@ function closeDetail(options = {}) {
     if (typeof stopProductCommentsListener === 'function') stopProductCommentsListener();
     window.selectedCommentRating = 0;
 
-    if (window.productsLoaded && products.length > 0) {
+    if (window.productsLoaded) {
         if (typeof applySortAndFilter === 'function') applySortAndFilter();
-        else if (typeof renderHomeCatalog === 'function') renderHomeCatalog();
+        else if (typeof renderProducts === 'function') renderProducts(products, 'product-grid');
+    } else if (typeof ensureHomeGridHydrated === 'function') {
+        ensureHomeGridHydrated();
     } else if (typeof renderHomeCatalog === 'function') {
         renderHomeCatalog();
     }

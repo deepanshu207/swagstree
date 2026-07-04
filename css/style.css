@@ -2524,6 +2524,17 @@ body {
     color: #888;
     background: rgba(255, 255, 255, 0.03);
     border: 1px dashed rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    font: inherit;
+    padding: 2px 7px;
+    border-radius: 999px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+button.admin-stock-badge--more:hover {
+    color: var(--gold);
+    border-color: rgba(255, 215, 0, 0.35);
+    background: rgba(255, 215, 0, 0.08);
 }
 
 .admin-stock-badge--variant {

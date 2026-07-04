@@ -498,7 +498,18 @@ if (typeof window.currentProductFiles === 'undefined') window.currentProductFile
 if (typeof window.editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
 if (typeof window.adminProductSearchQuery === 'undefined') window.adminProductSearchQuery = '';
 if (typeof window.adminProductFilter === 'undefined') window.adminProductFilter = 'all';
+const adminExpandedStockProductIds = new Set();
 let adminProductSnapshot = null;
+
+function adminToggleStockExpand(productId) {
+    if (adminExpandedStockProductIds.has(productId)) {
+        adminExpandedStockProductIds.delete(productId);
+    } else {
+        adminExpandedStockProductIds.add(productId);
+    }
+    renderAdmin();
+}
+window.adminToggleStockExpand = adminToggleStockExpand;
 
 function adminSerializeProductForm() {
     const fileTag = (f) => (f instanceof File ? `file:${f.name}:${f.size}` : String(f || ''));
@@ -1713,6 +1724,17 @@ function renderAdmin() {
     const loadMoreContainer = document.getElementById('admin-load-more-container');
     const countContainer = document.getElementById('admin-product-count');
     
+    if (products.length === 0 && window.productsLoaded) {
+        if (countContainer) {
+            countContainer.textContent = '0 products';
+            countContainer.style.display = 'inline-flex';
+        }
+        if (loadMoreContainer) loadMoreContainer.innerHTML = '';
+        container.innerHTML = `<div class="admin-product-empty">No products in your catalog yet. Tap <strong>+ NEW ITEM</strong> to add one.</div>`;
+        if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+        return;
+    }
+
     if (products.length === 0 && !window.productsLoaded) {
         if (countContainer) countContainer.style.display = 'none';
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
@@ -1837,10 +1859,17 @@ function renderAdmin() {
         }
 
         const maxStockBadges = 5;
+        const stockExpanded = adminExpandedStockProductIds.has(p.id);
         if (stockBadges.length) {
-            const visible = stockBadges.slice(0, maxStockBadges);
-            const extra = stockBadges.length - maxStockBadges;
-            stockHtml = `<div class="admin-product-stock">${visible.join('')}${extra > 0 ? `<span class="admin-stock-badge admin-stock-badge--more">+${extra} more</span>` : ''}</div>`;
+            const visible = stockExpanded ? stockBadges : stockBadges.slice(0, maxStockBadges);
+            const extra = stockExpanded ? 0 : stockBadges.length - maxStockBadges;
+            let moreHtml = '';
+            if (extra > 0) {
+                moreHtml = `<button type="button" class="admin-stock-badge admin-stock-badge--more" onclick="adminToggleStockExpand('${p.id}')" title="Show all stock lines">+${extra} more</button>`;
+            } else if (stockExpanded && stockBadges.length > maxStockBadges) {
+                moreHtml = `<button type="button" class="admin-stock-badge admin-stock-badge--more" onclick="adminToggleStockExpand('${p.id}')">Show less</button>`;
+            }
+            stockHtml = `<div class="admin-product-stock">${visible.join('')}${moreHtml}</div>`;
         }
 
         const catLabel = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || '');
