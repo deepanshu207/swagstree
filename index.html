@@ -2547,12 +2547,13 @@
                 </label>
             </div>
             <div id="m-spin-upload-container" style="display:none; margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(255,215,0,0.2); border-radius:10px;">
-                <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Product Spin Frames <span style="color:#666; text-transform:none;">(12–36 photos in rotation order — like Amazon product spin)</span></p>
+                <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Rotate Product <span style="color:#666; text-transform:none;">(swipe to turn — upload photos or create from video below)</span></p>
                 <div id="m-spin-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
                 <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
-                    <span>🔄</span> Upload 360° Frames
+                    <span>🔄</span> Add rotation photos
                     <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
                 </label>
+                <p style="font-size:9px; color:#666; margin:6px 0 0; line-height:1.35;">Adding photos appends to the list. Use <strong>Create rotation from video</strong> on a video card to replace all frames at once.</p>
                 <button type="button" onclick="loadDemo360Spin('base')" style="margin-top:8px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">Use demo spin (16 Vespa frames)</button>
                 <p style="font-size:9px; color:#666; margin:6px 0 0; line-height:1.35;">Demo spin: y360.at sample · Full 72-frame zip: <a href="https://www.y360.at/assets/product-photos/vespa-mint.zip" target="_blank" rel="noopener" style="color:#888;">vespa-mint.zip</a></p>
             </div>
@@ -2581,7 +2582,7 @@
             </div>
             <div style="margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.2); border-radius:10px;">
                 <p style="font-size:10px; color:#64b5f6; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Global Product Video <span style="color:#666; text-transform:none;">(optional)</span></p>
-                <p style="font-size:9.5px; color:#777; margin:0 0 8px 0; line-height:1.4;">Upload any video. By default it plays as a <strong>flat video</strong>. Tick immersive only for true 2:1 equirectangular 360° files. Use <strong>Extract frames</strong> to turn a product rotation video into classic 360° spin images.</p>
+                <p style="font-size:9.5px; color:#777; margin:0 0 8px 0; line-height:1.4;">Upload a product video, then tap <strong>Create rotation from video</strong> to build swipe-to-rotate frames. Or upload rotation photos directly in the Rotate Product section.</p>
                 <div id="m-video-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
                 <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
                     <span>🎬</span> Upload Product Video
@@ -3060,7 +3061,7 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=11.5"></script>
+    <script src="js/features.js?v=11.6"></script>
     <script src="js/app.js?v=10.5"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/categories.js?v=10.6"></script>
@@ -3070,7 +3071,7 @@
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=11.3"></script>
+    <script src="js/admin.js?v=11.4"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

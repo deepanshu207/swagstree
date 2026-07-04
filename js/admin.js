@@ -938,6 +938,39 @@ async function adminExtractFramesFromVideoUrl(url, frameCount = 16, opts = {}) {
     return files;
 }
 
+window.extractVideoFramesForSpin = extractVideoFramesForSpin;
+
+function adminApplySpinFramesFromVideo(targetId, frames, previousCount) {
+    if (targetId === 'base') {
+        const chk = document.getElementById('m-is360');
+        if (chk) chk.checked = true;
+        toggle360Badge('base', true);
+        const spinWrap = document.getElementById('m-spin-upload-container');
+        if (spinWrap) spinWrap.style.display = 'block';
+        existingSpinUrls = [...frames];
+        renderSpinPreviews('base');
+        adminScrollToSpinSection('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (!v) return;
+        v.is360 = true;
+        v.spinImages = [...frames];
+        renderVariantBlocks();
+        setTimeout(() => adminScrollToSpinSection(targetId), 80);
+    }
+    const n = frames.length;
+    if (previousCount > 0) {
+        showToast(`Rotation updated: ${n} frames from video (replaced ${previousCount} old frame${previousCount === 1 ? '' : 's'}). Save product to keep.`);
+    } else {
+        showToast(`Rotation ready: ${n} frames from video. Save product to keep.`);
+    }
+}
+
+function adminScrollToSpinSection(targetId) {
+    const el = document.getElementById(targetId === 'base' ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
     const items = targetId === 'base'
         ? (existingVideoUrls || [])
@@ -945,46 +978,33 @@ async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
     const entry = normalizeStoredVideo(items[index]);
     if (!entry) return showToast('Video not found.');
     if (!entry.url && !(entry.file instanceof File)) {
-        return showToast('Upload the video file first — saved URLs may block extraction. Re-upload the video, extract frames, then save.');
+        return showToast('Upload the video file first, then create rotation frames, then save.');
     }
+    const previousCount = targetId === 'base'
+        ? (existingSpinUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.spinImages || []).length);
     let prep;
     try {
         prep = await adminPrepareVideoSource(entry);
     } catch (e) {
         return showToast('Upload the video first.');
     }
-    showToast('Extracting spin frames from video…');
+    showToast('Creating rotation frames from video…');
     try {
         const frames = await adminExtractFramesFromVideoUrl(prep.url, frameCount, { useCrossOrigin: prep.useCrossOrigin });
-        if (!frames.length) return showToast('Could not extract frames from this video.');
-        if (targetId === 'base') {
-            const chk = document.getElementById('m-is360');
-            if (chk) chk.checked = true;
-            toggle360Badge('base', true);
-            existingSpinUrls = [...(existingSpinUrls || []), ...frames];
-            renderSpinPreviews('base');
-        } else {
-            const v = variantBlocks.find(x => x.id === targetId);
-            if (!v) return;
-            v.is360 = true;
-            v.spinImages = [...(v.spinImages || []), ...frames];
-            renderVariantBlocks();
-            showToast(`Added ${frames.length} spin frames. Save product to keep.`);
-            return;
-        }
-        showToast(`Added ${frames.length} spin frames. Save product to keep.`);
+        if (!frames.length) return showToast('Could not create frames from this video.');
+        adminApplySpinFramesFromVideo(targetId, frames, previousCount);
     } catch (e) {
         console.error('Frame extraction failed:', e);
         if (String(e.message) === 'CORS_BLOCKED') {
-            showToast('Cannot extract from this URL — re-upload the video file, extract frames, then save.');
+            showToast('Re-upload the video file, then tap Create rotation from video.');
         } else {
-            showToast('Could not extract frames from video.');
+            showToast('Could not create rotation frames from video.');
         }
     } finally {
         if (prep.revoke) URL.revokeObjectURL(prep.url);
     }
 }
-window.extractVideoFramesForSpin = extractVideoFramesForSpin;
 
 function handleFileSelect(input, vId) {
     if(!input.files || input.files.length === 0) return;
@@ -1487,13 +1507,16 @@ function renderSpinPreviews(targetId = 'base') {
     const container = document.getElementById(targetId === 'base' ? 'm-spin-preview' : `v-spin-preview-${targetId}`);
     if (!container) return;
     const items = targetId === 'base' ? (existingSpinUrls || []) : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
-    container.innerHTML = items.map((img, i) => {
+    const countHtml = items.length
+        ? `<p style="width:100%; margin:0 0 6px; font-size:10px; color:var(--gold); font-weight:600;">${items.length} rotation frame${items.length === 1 ? '' : 's'} · swipe order left → right</p>`
+        : `<p style="width:100%; margin:0 0 6px; font-size:10px; color:#666;">No rotation frames yet</p>`;
+    container.innerHTML = countHtml + items.map((img, i) => {
         const isFile = img instanceof File;
         const url = isFile ? URL.createObjectURL(img) : img;
         return `
             <div style="position:relative; width:50px; height:50px; border-radius:6px; overflow:hidden; border:1px solid var(--gold);">
                 <div style="position:absolute; top:1px; left:1px; background:var(--gold); color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
-                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                <img src="${url}" style="width:100%; height:100%; object-fit:contain; background:#111;">
                 <i class="fa fa-times" style="position:absolute; top:1px; right:1px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.6); padding:2px; border-radius:3px;" onclick="removeSpinImage('${targetId}', ${i})"></i>
             </div>`;
     }).join('');
@@ -1564,10 +1587,10 @@ function renderVideoPreviews(targetId = 'base') {
                     <input type="checkbox" ${is360 ? 'checked' : ''} style="width:auto; margin:0; accent-color:#64b5f6;" onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
                     <span>Play as immersive 360° video <span style="color:#666;">(2:1 equirectangular only)</span></span>
                 </label>
-                <button type="button" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" style="width:100%; padding:7px 8px; border-radius:7px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:10px; font-weight:700; cursor:pointer;" title="Best on a freshly uploaded file before save">
-                    Extract 16 frames → 360° product spin
+                <button type="button" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" style="width:100%; padding:7px 8px; border-radius:7px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:10px; font-weight:700; cursor:pointer;" title="Pulls 16 frames evenly from the video into Rotate Product">
+                    Create rotation from video (16 frames)
                 </button>
-                <p style="margin:0; font-size:9px; color:#666; line-height:1.35;">Tip: upload the video file, extract frames, then save. Saved cloud links may block extraction.</p>
+                <p style="margin:0; font-size:9px; color:#666; line-height:1.35;">Replaces current rotation frames · best on a freshly uploaded video file before save</p>
             </div>`;
     }).join('');
 }

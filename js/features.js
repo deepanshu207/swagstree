@@ -649,7 +649,7 @@ function updateMediaViewerHints() {
     if (modeDesc) {
         let desc = '';
         if (isSpin) {
-            desc = 'Rotate product — swipe to turn the item (like Amazon 360°)';
+            desc = 'Swipe to rotate — each frame is one step around the product';
         } else if (isPanorama) {
             const url = mvState.panoramaImages[mvState.panoramaIndex];
             const isDemo = mvIsDemoPanoramaUrl(url);
@@ -678,7 +678,7 @@ function updateMediaViewerHints() {
             frameLabel.textContent = sceneLabel;
             frameLabel.style.display = 'block';
         } else if (isSpin && mvState.spinFrames.length) {
-            frameLabel.textContent = `Rotate · ${mvState.spinIndex + 1} / ${mvState.spinFrames.length}`;
+            frameLabel.textContent = `Rotate · frame ${mvState.spinIndex + 1} of ${mvState.spinFrames.length}`;
             frameLabel.style.display = 'block';
         } else if (!isVideo && mvState.images.length > 1 && mvState.mode === 'gallery') {
             frameLabel.textContent = `Photo ${mvState.imageIndex + 1} / ${mvState.images.length}`;
