@@ -5002,23 +5002,41 @@ function openAdminSectionAccordion(contentId, iconId) {
     if (icon) icon.style.transform = 'rotate(0deg)';
 }
 
+function ensureAdminStoreToolsOpen() {
+    openAdminSectionAccordion('admin-store-tools-accordion-content', 'admin-store-tools-accordion-icon');
+}
+window.ensureAdminStoreToolsOpen = ensureAdminStoreToolsOpen;
+
+window.toggleAdminStoreToolsAccordion = function() {
+    toggleAdminSectionAccordion('admin-store-tools-accordion-content', 'admin-store-tools-accordion-icon');
+};
+
+window.openAdminStoreToolsAccordion = function() {
+    openAdminSectionAccordion('admin-store-tools-accordion-content', 'admin-store-tools-accordion-icon');
+};
+
 window.toggleAdminPromoAccordion = function() {
+    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-promo-accordion-content', 'admin-promo-accordion-icon');
 };
 
 window.toggleAdminPaginationAccordion = function() {
+    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-pagination-accordion-content', 'admin-pagination-accordion-icon');
 };
 
 window.toggleAdminFeedbackAccordion = function() {
+    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-feedback-accordion-content', 'admin-feedback-accordion-icon');
 };
 
 window.openAdminFeedbackAccordion = function() {
+    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     openAdminSectionAccordion('admin-feedback-accordion-content', 'admin-feedback-accordion-icon');
 };
 
 function toggleAnnouncementAccordion() {
+    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     const content = document.getElementById('announcement-accordion-content');
     const icon = document.getElementById('announcement-accordion-icon');
     if (!content) return;
@@ -5150,6 +5168,7 @@ async function editAnnouncementAdmin(id) {
         if (cancelBtn) cancelBtn.style.display = "block";
         
         // Open the accordion if it is currently closed
+        if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
         const content = document.getElementById('announcement-accordion-content');
         const icon = document.getElementById('announcement-accordion-icon');
         if (content && content.style.display === 'none') {

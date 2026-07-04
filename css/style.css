@@ -7198,3 +7198,39 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     }
 }
 
+.admin-primary-section__header {
+    margin-bottom: 0;
+}
+
+.admin-products-section {
+    margin-top: 4px;
+}
+
+.admin-store-tools-section {
+    margin-top: 8px;
+}
+
+.admin-store-tools-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.admin-store-tools-block {
+    border-color: #222 !important;
+    border-radius: 14px !important;
+}
+
+.admin-store-tools-block:last-child {
+    margin-bottom: 0 !important;
+}
+
+@media (max-width: 600px) {
+    .admin-store-tools-header h4 {
+        font-size: 12px !important;
+    }
+    .admin-store-tools-header p {
+        font-size: 10px !important;
+    }
+}
+
