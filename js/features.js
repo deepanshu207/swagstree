@@ -812,6 +812,15 @@ function loadPannellumAssets() {
     return pannellumLoadPromise;
 }
 
+function mvDismissGuide() {
+    mvState.guideShown = true;
+    const guide = document.getElementById('mv-guide');
+    if (guide) {
+        guide.style.opacity = '0';
+        setTimeout(() => { guide.style.display = 'none'; }, 400);
+    }
+}
+
 function destroyPanoramaViewer() {
     if (mvState.pannellumInstance) {
         try { mvState.pannellumInstance.destroy(); } catch (e) { /* ignore */ }
@@ -855,6 +864,7 @@ async function initPanoramaViewer(url) {
                 backgroundColor: [10, 10, 10],
                 onLoad: () => {
                     if (loader) loader.style.display = 'none';
+                    setTimeout(mvDismissGuide, 1200);
                     resolve();
                 },
                 onError: (msg) => {
@@ -1192,8 +1202,7 @@ function mediaViewerDragStart(e) {
 
     if (!mvState.guideShown) {
         mvState.guideShown = true;
-        const guide = document.getElementById('mv-guide');
-        if (guide) { guide.style.opacity = '0'; setTimeout(() => { guide.style.display = 'none'; }, 400); }
+        mvDismissGuide();
     }
 
     mvState.isDragging = true;

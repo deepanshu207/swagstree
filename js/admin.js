@@ -1197,6 +1197,23 @@ async function saveProduct() {
     const pr = document.getElementById('m-price').value; 
     if(!n || !pr) return showToast("Fields missing");
 
+    const spinEnabled = !!document.getElementById('m-is360')?.checked;
+    const panoEnabled = !!document.getElementById('m-is360-panorama')?.checked;
+    if (spinEnabled && (existingSpinUrls || []).length < 2) {
+        return showToast('Classic 360° spin needs at least 2 frames uploaded.');
+    }
+    if (panoEnabled && (existingPanoramaUrls || []).length < 1) {
+        return showToast('Immersive 360° needs at least 1 panorama image uploaded.');
+    }
+    for (const v of variantBlocks) {
+        if (v.is360 && (v.spinImages || []).length < 2) {
+            return showToast(`Variant "${v.size || 'Standard'}" has spin enabled but fewer than 2 frames.`);
+        }
+        if (v.is360Panorama && (v.panoramaImages || []).length < 1) {
+            return showToast(`Variant "${v.size || 'Standard'}" has immersive 360° enabled but no panorama uploaded.`);
+        }
+    }
+
     const btn = document.getElementById('m-save'); 
     btn.disabled = true; 
     btn.innerText = "Processing..."; 

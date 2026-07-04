@@ -2077,25 +2077,25 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     const hasRealPhotos = galleryHasRealPhotos(map);
     const media = p ? resolveProductMedia(p) : null;
-    const hasSpin = !!(media && (media.has360 || media.hasPanorama360) && hasRealPhotos);
+    const has360View = !!(media && (media.has360 || media.hasPanorama360) && hasRealPhotos);
     const isVideoSlide = !!(slide && slide.type === 'video');
     const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && hasRealPhotos);
 
     if (zoomBtn) {
         zoomBtn.style.display = canZoom ? 'flex' : 'none';
-        zoomBtn.classList.toggle('det-side-left', canZoom && hasSpin);
-        zoomBtn.classList.toggle('det-side-right', canZoom && !hasSpin);
+        zoomBtn.classList.toggle('det-side-left', canZoom && has360View);
+        zoomBtn.classList.toggle('det-side-right', canZoom && !has360View);
     }
     if (playBtn) {
         playBtn.style.display = isVideoSlide ? 'flex' : 'none';
     }
     if (spinBtn) {
-        spinBtn.style.display = (hasSpin && !isVideoSlide) ? 'flex' : 'none';
+        spinBtn.style.display = (has360View && !isVideoSlide) ? 'flex' : 'none';
     }
 
     const sideActions = document.getElementById('det-gallery-side-actions');
     if (sideActions) {
-        const anySideAction = canZoom || isVideoSlide || (hasSpin && !isVideoSlide);
+        const anySideAction = canZoom || isVideoSlide || (has360View && !isVideoSlide);
         sideActions.style.display = anySideAction ? '' : 'none';
     }
 }
