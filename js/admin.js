@@ -923,6 +923,12 @@ function renderAdmin() {
             }
             stockBadges.push(`<span class="${cls}">${text}</span>`);
         };
+        const pushVariantChip = (label, note = '') => {
+            const safe = String(label || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (!safe) return;
+            const text = note ? `${safe}: ${note}` : safe;
+            stockBadges.push(`<span class="admin-stock-badge admin-stock-badge--variant">${text}</span>`);
+        };
 
         if (p.trackGlobalStock || activeVariants.length > 0) {
             if (p.trackGlobalStock) {
@@ -949,6 +955,19 @@ function renderAdmin() {
                     pushStockBadge(varName, getVariantSkuStock(v, skus[0].key), true);
                 } else if (mode === 'block') {
                     pushStockBadge(varName, getVariantBlockStockCount(v), true);
+                } else if (mode === 'inherit' && p.trackGlobalStock) {
+                    if (skus.length > 1) {
+                        skus.forEach(sku => pushVariantChip(sku.label, 'global'));
+                    } else {
+                        const label = varName !== 'Standard' ? varName : nameParts.join(' · ');
+                        if (label) {
+                            pushVariantChip(label, 'global');
+                        } else if (v.price) {
+                            pushVariantChip(`₹${v.price}`, 'global');
+                        } else if ((v.images && v.images.length) || (v.previewImages && v.previewImages.length) || v.is360 || v.is360Panorama) {
+                            pushVariantChip('Variant block', 'global');
+                        }
+                    }
                 } else if (!p.trackGlobalStock) {
                     pushStockBadge(varName, 0, false);
                 }

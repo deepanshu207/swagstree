@@ -236,6 +236,9 @@ function getProductsWithCategory(categoryId) {
 function resolveProductCategoryLabel(product) {
     const norm = normalizeProductCategories(product);
     if (norm.categoryNames.length) return norm.categoryNames.join(', ');
+    if (Array.isArray(product?.categoryNames) && product.categoryNames.length) {
+        return product.categoryNames.map(n => String(n || '').trim()).filter(Boolean).join(', ');
+    }
     if (product?.categoryName) return product.categoryName;
     return '';
 }

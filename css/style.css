@@ -2435,6 +2435,12 @@ body {
     border: 1px dashed rgba(255, 255, 255, 0.15);
 }
 
+.admin-stock-badge--variant {
+    color: #9ecbff;
+    background: rgba(100, 181, 246, 0.08);
+    border: 1px solid rgba(100, 181, 246, 0.22);
+}
+
 .admin-product-actions {
     display: flex;
     gap: 14px;
