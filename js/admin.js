@@ -148,6 +148,7 @@ function adminEnsureSpin360Enabled(targetId) {
             setTimeout(() => {
                 toggleAdmin360Accordion(targetId, true);
                 syncAdmin360AccordionSummary(targetId);
+                syncAdminMediaStatus(targetId);
             }, 80);
             return;
         }
@@ -155,6 +156,63 @@ function adminEnsureSpin360Enabled(targetId) {
     }
     syncAdmin360AccordionSummary(targetId);
 }
+
+function adminEnsurePanorama360Enabled(targetId) {
+    if (targetId === 'base') {
+        const chk = document.getElementById('m-is360-panorama');
+        if (chk && !chk.checked) {
+            chk.checked = true;
+            toggle360PanoramaBadge('base', true);
+        }
+        toggleAdmin360Accordion('base', true);
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (v && !v.is360Panorama) {
+            v.is360Panorama = true;
+            renderVariantBlocks();
+            setTimeout(() => {
+                toggleAdmin360Accordion(targetId, true);
+                syncAdmin360AccordionSummary(targetId);
+                syncAdminMediaStatus(targetId);
+            }, 80);
+            return;
+        }
+        toggleAdmin360Accordion(targetId, true);
+    }
+    syncAdmin360AccordionSummary(targetId);
+    syncAdminMediaStatus(targetId);
+}
+
+function adminGetMediaStatusParts(targetId) {
+    const parts = [];
+    const gallery = targetId === 'base'
+        ? (existingImageUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.images || []).length);
+    const videos = targetId === 'base'
+        ? (existingVideoUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.videos || []).length);
+    const spins = targetId === 'base'
+        ? (existingSpinUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.spinImages || []).length);
+    const panos = targetId === 'base'
+        ? (existingPanoramaUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.panoramaImages || []).length);
+    if (gallery) parts.push(`${gallery} gallery`);
+    if (videos) parts.push(`${videos} video`);
+    if (spins) parts.push(`${spins} rotation frame${spins === 1 ? '' : 's'}`);
+    if (panos) parts.push(`${panos} panorama`);
+    return parts;
+}
+
+function syncAdminMediaStatus(targetId) {
+    const el = document.getElementById(`admin-media-status-${targetId}`);
+    if (!el) return;
+    const parts = adminGetMediaStatusParts(targetId);
+    el.textContent = parts.length
+        ? `Configured: ${parts.join(' · ')}`
+        : 'No extra media yet — gallery photos are enough for most products';
+}
+window.syncAdminMediaStatus = syncAdminMediaStatus;
 
 function useGalleryImagesAsSpinFrames(targetId, replace = true) {
     const gallery = targetId === 'base'
@@ -178,6 +236,7 @@ function useGalleryImagesAsSpinFrames(targetId, replace = true) {
         adminScrollToSpinSection(targetId);
     }
     syncAdmin360AccordionSummary(targetId);
+    syncAdminMediaStatus(targetId);
     const n = targetId === 'base' ? existingSpinUrls.length : (variantBlocks.find(x => x.id === targetId)?.spinImages || []).length;
     if (replace) {
         showToast(`Rotation frames set from gallery (${n} frame${n === 1 ? '' : 's'}${previousCount ? `, replaced ${previousCount}` : ''}). Save to keep.`);
@@ -204,6 +263,7 @@ function addGalleryImageToSpinFrames(targetId, index) {
         renderSpinPreviews(targetId);
     }
     syncAdmin360AccordionSummary(targetId);
+    syncAdminMediaStatus(targetId);
     showToast(`Gallery photo #${index + 1} added to rotation frames.`);
 }
 window.addGalleryImageToSpinFrames = addGalleryImageToSpinFrames;
@@ -790,6 +850,7 @@ function renderVariantBlocks() {
                 <!-- Variant media panel -->
                 <div class="admin-media-panel admin-media-panel--variant">
                     <p class="admin-media-panel-intro">🎯 <strong>Variant media</strong> — customers see this when they pick this size / color / pattern combo</p>
+                    <p id="admin-media-status-${v.id}" class="admin-media-status-line">No extra media yet — gallery photos are enough for most products</p>
 
                     <div class="admin-media-block">
                         ${adminMediaSectionHead('variant', 'gallery', 'Gallery photos', 'Full-size images in the product detail carousel')}
@@ -842,6 +903,7 @@ function renderVariantBlocks() {
         renderVideoPreviews(v.id);
         renderSwatchPreview(v.id);
         syncAdmin360AccordionSummary(v.id);
+        syncAdminMediaStatus(v.id);
         
         const blockEl = document.getElementById(`v-block-${v.id}`);
         if(blockEl) {
@@ -931,7 +993,7 @@ function renderSwatchPreview(vId) {
         container.innerHTML = adminMediaEmptyHint('No swatches yet — tap 👁 on any thumb to preview after upload');
         return;
     }
-    const html = `<p class="admin-media-drag-hint">Drag swatches to reorder · 👁 to preview</p>` + items.map((img, i) => {
+    const gridHtml = items.map((img, i) => {
         const isFile = img instanceof File;
         const url = adminResolveMediaUrl(img);
         return adminMediaThumbHtml({
@@ -941,18 +1003,10 @@ function renderSwatchPreview(vId) {
             size: 48, isNew: isFile, extraClass: 'admin-media-thumb--swatch'
         });
     }).join('');
-    container.innerHTML = html;
-    if (window.Sortable && container) {
-        if (container._sortable) container._sortable.destroy();
-        container._sortable = Sortable.create(container, {
-            animation: 150,
-            draggable: '.admin-media-thumb',
-            onEnd(evt) {
-                const moved = v.previewImages.splice(evt.oldIndex, 1)[0];
-                v.previewImages.splice(evt.newIndex, 0, moved);
-                renderSwatchPreview(vId);
-            }
-        });
+    container.innerHTML = `<p class="admin-media-drag-hint">Drag swatches to reorder · 👁 to preview</p><div class="admin-media-preview-grid-inner">${gridHtml}</div>`;
+    const sortTarget = container.querySelector('.admin-media-preview-grid-inner');
+    if (sortTarget) {
+        adminBindSortableThumbGrid(sortTarget, v.previewImages, () => renderSwatchPreview(vId));
     }
 }
 
@@ -1007,6 +1061,7 @@ window.handleSpinFileSelect = handleSpinFileSelect;
 function handlePanoramaFileSelect(input, vId) {
     if (!input.files || input.files.length === 0) return;
     const newFiles = Array.from(input.files);
+    adminEnsurePanorama360Enabled(vId);
     if (vId === 'base') {
         existingPanoramaUrls = [...(existingPanoramaUrls || []), ...newFiles];
         renderPanoramaPreviews('base');
@@ -1016,6 +1071,7 @@ function handlePanoramaFileSelect(input, vId) {
         v.panoramaImages = [...(v.panoramaImages || []), ...newFiles];
         renderPanoramaPreviews(vId);
     }
+    syncAdminMediaStatus(vId);
     input.value = '';
 }
 window.handlePanoramaFileSelect = handlePanoramaFileSelect;
@@ -1044,8 +1100,6 @@ function loadDemo360Video(targetId = 'base') {
         v.videos = [...(v.videos || []), entry];
         renderVariantBlocks();
     }
-    toggleAdmin360Accordion(targetId, true);
-    syncAdmin360AccordionSummary(targetId);
     showToast('Demo 360° video loaded. Preview below — optionally create rotation frames.');
 }
 window.loadDemo360Video = loadDemo360Video;
@@ -1064,7 +1118,10 @@ function loadDemo360Spin(targetId = 'base') {
         v.spinImages = [...DEMO_360_SPIN_FRAMES];
         renderVariantBlocks();
     }
-    showToast('Demo rotation loaded (16 frames, replaced any existing). Save product to keep.');
+    toggleAdmin360Accordion(targetId, true);
+    syncAdmin360AccordionSummary(targetId);
+    syncAdminMediaStatus(targetId);
+    showToast('Demo rotation loaded (16 frames). Save product to keep.');
 }
 window.loadDemo360Spin = loadDemo360Spin;
 
@@ -1082,7 +1139,10 @@ function loadDemo360Panorama(targetId = 'base') {
         v.panoramaImages = [...DEMO_360_PANORAMAS];
         renderVariantBlocks();
     }
-    showToast('Demo panoramas loaded — sample scenery only, not your product. Replace with your own 360° photo before going live.');
+    toggleAdmin360Accordion(targetId, true);
+    syncAdmin360AccordionSummary(targetId);
+    syncAdminMediaStatus(targetId);
+    showToast('Demo panoramas loaded — replace with your own 360° photo before going live.');
 }
 window.loadDemo360Panorama = loadDemo360Panorama;
 
@@ -1104,6 +1164,7 @@ function handleVideoFileSelect(input, vId) {
     }
     input.value = '';
     showToast('Video added — preview below. Optionally create rotation frames for the Rotate button.');
+    syncAdminMediaStatus(vId);
     setTimeout(() => {
         const wrap = document.getElementById(vId === 'base' ? 'm-video-preview' : `v-video-preview-${vId}`);
         const card = wrap?.querySelectorAll('.admin-video-card')[newIndex];
@@ -1319,6 +1380,7 @@ function adminApplySpinFramesFromVideo(targetId, frames, previousCount) {
 }
 
 function adminScrollToSpinSection(targetId) {
+    toggleAdmin360Accordion(targetId, true);
     const el = document.getElementById(targetId === 'base' ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -1640,6 +1702,7 @@ function openEdit(id) {
     renderPanoramaPreviews('base');
     renderVideoPreviews('base');
     syncAdmin360AccordionSummary('base');
+    syncAdminMediaStatus('base');
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
     
     // Load variants or fallback
@@ -1787,6 +1850,7 @@ function openAdd() {
     renderPanoramaPreviews('base');
     renderVideoPreviews('base');
     syncAdmin360AccordionSummary('base');
+    syncAdminMediaStatus('base');
     toggleAdmin360Accordion('base', false);
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(null);
     renderVariantBlocks();
@@ -1823,6 +1887,7 @@ function renderImagePreviews(targetId = 'base') {
         if (items.length && sortTarget) {
             adminBindSortableThumbGrid(sortTarget, existingImageUrls, () => renderImagePreviews('base'));
         }
+        syncAdminMediaStatus('base');
     } else {
         const v = variantBlocks.find(x => x.id === targetId);
         if (!v) return;
@@ -1837,6 +1902,7 @@ function renderImagePreviews(targetId = 'base') {
         if (items.length && sortTarget) {
             adminBindSortableThumbGrid(sortTarget, v.images, () => renderImagePreviews(targetId));
         }
+        syncAdminMediaStatus(targetId);
     }
 }
 
@@ -1890,6 +1956,7 @@ function renderSpinPreviews(targetId = 'base') {
     if (grid) {
         adminBindSortableThumbGrid(grid, targetId === 'base' ? existingSpinUrls : (variantBlocks.find(x => x.id === targetId)?.spinImages), () => renderSpinPreviews(targetId), '.admin-spin-thumb');
     }
+    syncAdminMediaStatus(targetId);
 }
 
 function previewAdminSpin(targetId = 'base') {
@@ -1929,6 +1996,8 @@ function renderPanoramaPreviews(targetId = 'base') {
     const scopeLabel = targetId === 'base' ? '🌐 All variants' : '🎯 This variant';
     if (!items.length) {
         container.innerHTML = adminMediaEmptyHint('No panorama yet — tap 👁 after upload to look around in preview');
+        syncAdmin360AccordionSummary(targetId);
+        syncAdminMediaStatus(targetId);
         return;
     }
     const meta = `<p class="admin-media-spin-meta">${scopeLabel} · <strong>${items.length}</strong> scene${items.length === 1 ? '' : 's'} · drag to reorder · 👁 to preview</p>`;
@@ -1950,6 +2019,7 @@ function renderPanoramaPreviews(targetId = 'base') {
         adminBindSortableThumbGrid(grid, list, () => renderPanoramaPreviews(targetId), '.admin-pano-thumb');
     }
     syncAdmin360AccordionSummary(targetId);
+    syncAdminMediaStatus(targetId);
 }
 window.renderPanoramaPreviews = renderPanoramaPreviews;
 
@@ -1986,6 +2056,7 @@ function renderVideoPreviews(targetId = 'base') {
     const scopeBadge = adminMediaScopeBadge(targetId === 'base' ? 'global' : 'variant');
     if (!items.length) {
         container.innerHTML = adminMediaEmptyHint('No video yet — tap ▶ on a video card to preview after upload');
+        syncAdminMediaStatus(targetId);
         return;
     }
     container.innerHTML = items.map((vid, i) => {
@@ -2022,9 +2093,10 @@ function renderVideoPreviews(targetId = 'base') {
                 <button type="button" class="admin-video-card__extract${extractCls}" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" title="Pulls 16 frames evenly from the video into Rotate Product">
                     <i class="fa fa-images"></i> Create rotation frames from video (16 stills)
                 </button>
-                <p class="admin-video-card__note">Shop: <strong>Video</strong> button plays this clip · <strong>Rotate</strong> button uses separate still frames above in 360° accordion.</p>
+                <p class="admin-video-card__note">Shop: <strong>Video</strong> plays this clip · <strong>Rotate</strong> uses still frames in the 360° accordion below.</p>
             </div>`;
     }).join('');
+    syncAdminMediaStatus(targetId);
 }
 window.renderVideoPreviews = renderVideoPreviews;
 
@@ -2392,7 +2464,18 @@ function copyProduct(id) {
     renderPanoramaPreviews('base');
     renderVideoPreviews('base');
     syncAdmin360AccordionSummary('base');
+    syncAdminMediaStatus('base');
     renderVariantBlocks();
+    if (p.is360 || p.is360Panorama || (p.spinImages || []).length || (p.panoramaImages || []).length) {
+        toggleAdmin360Accordion('base', true);
+    } else {
+        toggleAdmin360Accordion('base', false);
+    }
+    variantBlocks.forEach(v => {
+        if (v.is360 || v.is360Panorama || (v.spinImages || []).length || (v.panoramaImages || []).length) {
+            toggleAdmin360Accordion(v.id, true);
+        }
+    });
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex'; 
