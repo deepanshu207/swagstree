@@ -4045,6 +4045,61 @@ body.media-viewer-open .bottom-nav {
     background: #000;
 }
 
+.mv-panorama {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+}
+
+.mv-panorama .pnlm-container {
+    background: #0a0a0a !important;
+}
+
+.mv-mode-switcher {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 420px;
+    padding: 4px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.mv-mode-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: #aaa;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mv-mode-btn i {
+    font-size: 12px;
+}
+
+.mv-mode-btn.active {
+    background: rgba(212, 175, 55, 0.18);
+    color: var(--gold);
+    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.35);
+}
+
+.mv-mode-btn:not(.active):hover {
+    color: #fff;
+    background: rgba(255,255,255,0.06);
+}
+
 .mv-bottom {
     flex: 0 0 auto;
     display: flex;

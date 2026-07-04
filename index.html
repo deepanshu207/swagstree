@@ -2485,7 +2485,11 @@
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--gold">360° spin</span>
-                        <p>Separate rotation frames — opens via side <strong>360°</strong> button (product spin, not Street View). Not mixed into photo carousel.</p>
+                        <p><strong>Classic spin</strong> — upload 12–36 rotation frames (Amazon-style product turn). Opens as <strong>Product Spin</strong> in the viewer.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--blue">Immersive 360°</span>
+                        <p><strong>Google-style view</strong> — upload equirectangular panorama(s) (2:1 ratio, full sphere). Customers drag to look around all angles. Use either or both modes.</p>
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--stock">Stock</span>
@@ -2536,18 +2540,39 @@
                     onchange="toggle360Badge('base', this.checked);">
                 <label for="m-is360"
                     style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
-                    <span>Enable 360° Product Spin</span>
+                    <span>Enable 360° Product Spin (Classic)</span>
                     <span id="base-360-badge"
-                        style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360°
+                        style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">SPIN
                         ACTIVE</span>
                 </label>
             </div>
             <div id="m-spin-upload-container" style="display:none; margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(255,215,0,0.2); border-radius:10px;">
-                <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Product Spin Frames <span style="color:#666; text-transform:none;">(12–36 photos in rotation order — like Amazon product spin, not street view)</span></p>
+                <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Product Spin Frames <span style="color:#666; text-transform:none;">(12–36 photos in rotation order — like Amazon product spin)</span></p>
                 <div id="m-spin-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
                 <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
                     <span>🔄</span> Upload 360° Frames
                     <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
+                </label>
+            </div>
+            <div id="m-is360-panorama-container"
+                style="display:flex; align-items:center; gap:8px; margin-bottom:10px; justify-content:flex-start;">
+                <input type="checkbox" id="m-is360-panorama" style="width:auto; margin:0;"
+                    onchange="toggle360PanoramaBadge('base', this.checked);">
+                <label for="m-is360-panorama"
+                    style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
+                    <span>Enable Immersive 360° View (Google-style)</span>
+                    <span id="base-360-pano-badge"
+                        style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(100,181,246,0.15); color:#64b5f6; border:1px solid rgba(100,181,246,0.3); letter-spacing:0.5px;">IMMERSIVE
+                        ACTIVE</span>
+                </label>
+            </div>
+            <div id="m-panorama-upload-container" style="display:none; margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.25); border-radius:10px;">
+                <p style="font-size:10px; color:#64b5f6; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Immersive 360° Panorama <span style="color:#666; text-transform:none;">(Google Street View style — full sphere)</span></p>
+                <p style="font-size:9.5px; color:#777; margin:0 0 8px 0; line-height:1.4;">Upload equirectangular panorama image(s) with 2:1 aspect ratio (e.g. 4096×2048). Use a 360° camera export or stitched photos covering all angles. Add multiple scenes if needed.</p>
+                <div id="m-panorama-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
+                <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
+                    <span>🌐</span> Upload Panorama
+                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, 'base')">
                 </label>
             </div>
             <div style="margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.2); border-radius:10px;">
@@ -3029,17 +3054,17 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=10.7"></script>
+    <script src="js/features.js?v=10.8"></script>
     <script src="js/app.js?v=10.5"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/categories.js?v=10.6"></script>
-    <script src="js/store.js?v=10.10"></script>
+    <script src="js/store.js?v=10.11"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.5"></script>
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=10.5"></script>
+    <script src="js/admin.js?v=10.6"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

@@ -553,7 +553,10 @@ function productCardHtml(p, options = {}) {
     const isOutOfStock = typeof isProductOutOfStock === 'function' ? isProductOutOfStock(p) : false;
 
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
-    const has360 = is360Enabled && (!!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360)));
+    const has360 = is360Enabled && (
+        !!p.is360 || !!p.is360Panorama
+        || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && (v.is360 || v.is360Panorama)))
+    );
 
     let quickAddHtml = `<div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')" style="${isOutOfStock ? 'opacity:0.5; pointer-events:none;' : ''}">
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
@@ -1780,8 +1783,9 @@ function buildDetailGallerySlides(p, productMedia) {
         }];
     }
 
-    if (productMedia.has360 && photoSlides.length === 0) {
-        const preview = productMedia.spinFrames[0];
+    if ((productMedia.has360 || productMedia.hasPanorama360) && photoSlides.length === 0) {
+        const preview = (productMedia.spinFrames && productMedia.spinFrames[0])
+            || (productMedia.panoramaImages && productMedia.panoramaImages[0]);
         photoSlides = [preview];
         photoMap = [{ url: preview, color: '', size: '', type: 'image', is360Preview: true, scope: 'main' }];
     }
@@ -2073,7 +2077,7 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     const hasRealPhotos = galleryHasRealPhotos(map);
     const media = p ? resolveProductMedia(p) : null;
-    const hasSpin = !!(media && media.has360 && hasRealPhotos);
+    const hasSpin = !!(media && (media.has360 || media.hasPanorama360) && hasRealPhotos);
     const isVideoSlide = !!(slide && slide.type === 'video');
     const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && hasRealPhotos);
 
@@ -3468,6 +3472,7 @@ function resolveProductMedia(p) {
     let spinFrames = null;
     let spinCols = 1;
     let spinRows = 1;
+    let panoramaImages = null;
     let videos = [];
 
     function getSpinFrames(source) {
@@ -3479,8 +3484,16 @@ function resolveProductMedia(p) {
         return { frames, cols: frames.length, rows: 1 };
     }
 
+    function getPanoramaImages(source) {
+        if (!source || !source.is360Panorama || !is360Enabled) return null;
+        const imgs = source.panoramaImages && source.panoramaImages.length ? source.panoramaImages : null;
+        return imgs && imgs.length ? imgs : null;
+    }
+
     const variantSpin = v ? getSpinFrames(v) : null;
     const productSpin = getSpinFrames(p);
+    const variantPanorama = v ? getPanoramaImages(v) : null;
+    const productPanorama = getPanoramaImages(p);
 
     if (variantSpin) {
         spinFrames = variantSpin.frames;
@@ -3495,6 +3508,13 @@ function resolveProductMedia(p) {
         spinFrames.forEach(url => spinSet.add(url));
     }
 
+    if (variantPanorama) {
+        panoramaImages = [...variantPanorama];
+        if (v.videos && v.videos.length) videos = [...v.videos];
+    } else if (productPanorama) {
+        panoramaImages = [...productPanorama];
+    }
+
     if (!videos.length) {
         if (v && v.videos && v.videos.length) videos = [...v.videos];
         else if (p.videos && p.videos.length) videos = [...p.videos];
@@ -3505,7 +3525,17 @@ function resolveProductMedia(p) {
         spinRows = 1;
     }
 
-    return { spinFrames, spinCols, spinRows, spinSet, videos, has360: !!(spinFrames && spinFrames.length >= 2), productVideos: p.videos || [] };
+    return {
+        spinFrames,
+        spinCols,
+        spinRows,
+        spinSet,
+        panoramaImages,
+        videos,
+        has360: !!(spinFrames && spinFrames.length >= 2),
+        hasPanorama360: !!(panoramaImages && panoramaImages.length >= 1),
+        productVideos: p.videos || []
+    };
 }
 window.resolveProductMedia = resolveProductMedia;
 

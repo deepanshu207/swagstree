@@ -26,6 +26,7 @@ if (typeof window.products === 'undefined') window.products = [];
 if (typeof window.editingId === 'undefined') window.editingId = null;
 if (typeof window.existingImageUrls === 'undefined') window.existingImageUrls = [];
 if (typeof window.existingSpinUrls === 'undefined') window.existingSpinUrls = [];
+if (typeof window.existingPanoramaUrls === 'undefined') window.existingPanoramaUrls = [];
 if (typeof window.existingVideoUrls === 'undefined') window.existingVideoUrls = [];
 if (typeof window.currentProductFiles === 'undefined') window.currentProductFiles = [];
 
@@ -98,9 +99,11 @@ function mapSavedVariantToBlock(v) {
         stockCount: v.stockCount || 0,
         stockBySku: { ...(v.stockBySku || {}) },
         is360: !!v.is360,
+        is360Panorama: !!v.is360Panorama,
         threeSixtyCols: v.threeSixtyCols || 1,
         threeSixtyRows: v.threeSixtyRows || 1,
         spinImages: [...(v.spinImages || [])],
+        panoramaImages: [...(v.panoramaImages || [])],
         videos: [...(v.videos || [])],
         images: [...(v.images || [])],
         previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
@@ -319,7 +322,8 @@ function renderVariantBlocks() {
                         ${v.size && v.size !== 'Standard' ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.size}</span>` : ''}
                         ${v.pattern ? `<span style="color:#aaa; font-weight:400; font-size:11px;">· ${v.pattern}</span>` : ''}
                     </span>
-                    ${is360Enabled && v.is360 ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360° ACTIVE</span>` : ''}
+                    ${is360Enabled && v.is360 ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">SPIN</span>` : ''}
+                    ${is360Enabled && v.is360Panorama ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(100,181,246,0.15); color:#64b5f6; border:1px solid rgba(100,181,246,0.3); letter-spacing:0.5px;">IMMERSIVE</span>` : ''}
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <span id="v-active-badge-${v.id}" style="font-size:11px; padding:3px 8px; border-radius:20px; background:${v.isActive !== false ? '#1a3a1a' : '#3a1a1a'}; color:${v.isActive !== false ? '#4caf50' : '#e57373'};">
@@ -398,6 +402,17 @@ function renderVariantBlocks() {
                     </label>
                 </div>
                 ` : ''}
+                ${is360Enabled ? `
+                <div id="v-panorama-upload-${v.id}" style="display:${v.is360Panorama ? 'block' : 'none'}; margin-top:8px;">
+                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Immersive 360° Panorama <span style="color:#666; text-transform:none;">(Google-style — full sphere, 2:1 equirectangular)</span></p>
+                    <p style="font-size:9.5px; color:#777; margin:0 0 8px 0; line-height:1.4;">Upload one or more equirectangular panoramas (e.g. 4096×2048). Use a 360° camera export or stitched photos covering all angles. Customers can drag to look around.</p>
+                    <div id="v-panorama-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
+                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
+                        <span>🌐</span> Upload Panorama
+                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
+                    </label>
+                </div>
+                ` : ''}
                 <div>
                     <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(optional — overrides global video)</span></p>
                     <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
@@ -415,6 +430,7 @@ function renderVariantBlocks() {
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
                     ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked); const badge = document.getElementById('v-active-badge-${v.id}'); if(badge) { badge.style.background = this.checked ? '#1a3a1a' : '#3a1a1a'; badge.style.color = this.checked ? '#4caf50' : '#e57373'; badge.innerHTML = this.checked ? '● Active' : '○ Hidden'; }`, 'Active', '#4caf50')}
                     ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Product Spin', '#FFD700') : ''}
+                    ${is360Enabled ? toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks();`, 'Immersive 360° View', '#64b5f6') : ''}
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
@@ -434,6 +450,7 @@ function renderVariantBlocks() {
     variantBlocks.forEach((v, index) => {
         renderImagePreviews(v.id);
         renderSpinPreviews(v.id);
+        renderPanoramaPreviews(v.id);
         renderVideoPreviews(v.id);
         renderSwatchPreview(v.id);
         
@@ -568,7 +585,9 @@ function addVariantBlock() {
         stockCount: 0,
         stockBySku: {},
         is360: false,
+        is360Panorama: false,
         spinImages: [],
+        panoramaImages: [],
         videos: [],
         images: [],
         previewImages: []
@@ -591,6 +610,22 @@ function handleSpinFileSelect(input, vId) {
     input.value = '';
 }
 window.handleSpinFileSelect = handleSpinFileSelect;
+
+function handlePanoramaFileSelect(input, vId) {
+    if (!input.files || input.files.length === 0) return;
+    const newFiles = Array.from(input.files);
+    if (vId === 'base') {
+        existingPanoramaUrls = [...(existingPanoramaUrls || []), ...newFiles];
+        renderPanoramaPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === vId);
+        if (!v) return;
+        v.panoramaImages = [...(v.panoramaImages || []), ...newFiles];
+        renderPanoramaPreviews(vId);
+    }
+    input.value = '';
+}
+window.handlePanoramaFileSelect = handlePanoramaFileSelect;
 
 function handleVideoFileSelect(input, vId) {
     if (!input.files || input.files.length === 0) return;
@@ -644,6 +679,18 @@ function removeSpinImage(vId, index) {
     }
 }
 window.removeSpinImage = removeSpinImage;
+
+function removePanoramaImage(vId, index) {
+    if (vId === 'base') {
+        existingPanoramaUrls.splice(index, 1);
+        renderPanoramaPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === vId);
+        if (v && v.panoramaImages) v.panoramaImages.splice(index, 1);
+        renderPanoramaPreviews(vId);
+    }
+}
+window.removePanoramaImage = removePanoramaImage;
 
 function removeVideoItem(vId, index) {
     if (vId === 'base') {
@@ -832,6 +879,7 @@ function openEdit(id) {
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     existingImageUrls = [...(p.images || [])];
     existingSpinUrls = [...(p.spinImages || [])];
+    existingPanoramaUrls = [...(p.panoramaImages || [])];
     existingVideoUrls = [...(p.videos || [])];
     
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
@@ -844,11 +892,17 @@ function openEdit(id) {
         mainIs360.checked = !!p.is360;
         toggle360Badge('base', is360Enabled && !!p.is360);
     }
+    const mainIs360Panorama = document.getElementById('m-is360-panorama');
+    if (mainIs360Panorama) {
+        mainIs360Panorama.checked = !!p.is360Panorama;
+        toggle360PanoramaBadge('base', is360Enabled && !!p.is360Panorama);
+    }
     const baseSpinUpload = document.getElementById('m-spin-upload-container');
     if (baseSpinUpload) baseSpinUpload.style.display = (is360Enabled && p.is360) ? 'block' : 'none';
 
     renderImagePreviews('base');
     renderSpinPreviews('base');
+    renderPanoramaPreviews('base');
     renderVideoPreviews('base');
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
     
@@ -932,10 +986,21 @@ function toggle360Badge(id, checked) {
 }
 window.toggle360Badge = toggle360Badge;
 
+function toggle360PanoramaBadge(id, checked) {
+    if (id === 'base') {
+        const b = document.getElementById('base-360-pano-badge');
+        if (b) b.style.display = checked ? 'inline-block' : 'none';
+        const panoUpload = document.getElementById('m-panorama-upload-container');
+        if (panoUpload) panoUpload.style.display = checked ? 'block' : 'none';
+    }
+}
+window.toggle360PanoramaBadge = toggle360PanoramaBadge;
+
 function openAdd() { 
     editingId = null; 
     existingImageUrls = [];
     existingSpinUrls = [];
+    existingPanoramaUrls = [];
     existingVideoUrls = [];
     variantBlocks = [];
     document.getElementById('m-name').value = ""; 
@@ -957,11 +1022,17 @@ function openAdd() {
         mainIs360.checked = false;
         toggle360Badge('base', false);
     }
+    const mainIs360Panorama = document.getElementById('m-is360-panorama');
+    if (mainIs360Panorama) {
+        mainIs360Panorama.checked = false;
+        toggle360PanoramaBadge('base', false);
+    }
     const baseSpinUpload = document.getElementById('m-spin-upload-container');
     if (baseSpinUpload) baseSpinUpload.style.display = 'none';
     
     renderImagePreviews('base');
     renderSpinPreviews('base');
+    renderPanoramaPreviews('base');
     renderVideoPreviews('base');
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(null);
     renderVariantBlocks();
@@ -1067,6 +1138,23 @@ function renderSpinPreviews(targetId = 'base') {
 }
 window.renderSpinPreviews = renderSpinPreviews;
 
+function renderPanoramaPreviews(targetId = 'base') {
+    const container = document.getElementById(targetId === 'base' ? 'm-panorama-preview' : `v-panorama-preview-${targetId}`);
+    if (!container) return;
+    const items = targetId === 'base' ? (existingPanoramaUrls || []) : (variantBlocks.find(x => x.id === targetId)?.panoramaImages || []);
+    container.innerHTML = items.map((img, i) => {
+        const isFile = img instanceof File;
+        const url = isFile ? URL.createObjectURL(img) : img;
+        return `
+            <div style="position:relative; width:72px; height:36px; border-radius:6px; overflow:hidden; border:1px solid #64b5f6;">
+                <div style="position:absolute; top:1px; left:1px; background:#64b5f6; color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
+                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                <i class="fa fa-times" style="position:absolute; top:1px; right:1px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.6); padding:2px; border-radius:3px;" onclick="removePanoramaImage('${targetId}', ${i})"></i>
+            </div>`;
+    }).join('');
+}
+window.renderPanoramaPreviews = renderPanoramaPreviews;
+
 function previewAdminVideo(targetId, index) {
     const items = targetId === 'base'
         ? (existingVideoUrls || [])
@@ -1129,6 +1217,13 @@ async function saveProduct() {
             })
         );
 
+        const finalPanoramaImages = await Promise.all(
+            (existingPanoramaUrls || []).map(async img => {
+                if (img instanceof File) return await uploadToCloudinary(img);
+                return img;
+            })
+        );
+
         const finalVideos = await Promise.all(
             (existingVideoUrls || []).map(async vid => {
                 if (vid instanceof File) return await uploadToCloudinary(vid);
@@ -1149,6 +1244,13 @@ async function saveProduct() {
 
             const uploadedSpinImages = await Promise.all(
                 (v.spinImages || []).map(async img => {
+                    if (img instanceof File) return await uploadToCloudinary(img);
+                    return img;
+                })
+            );
+
+            const uploadedPanoramaImages = await Promise.all(
+                (v.panoramaImages || []).map(async img => {
                     if (img instanceof File) return await uploadToCloudinary(img);
                     return img;
                 })
@@ -1198,9 +1300,11 @@ async function saveProduct() {
                 stockCount: typeof v.stockCount === 'number' ? v.stockCount : (parseInt(v.stockCount, 10) || 0),
                 stockBySku: v.stockBySku && typeof v.stockBySku === 'object' ? { ...v.stockBySku } : {},
                 is360: !!v.is360,
+                is360Panorama: !!v.is360Panorama,
                 threeSixtyCols: uploadedSpinImages.length || (v.threeSixtyCols ? Number(v.threeSixtyCols) : 1),
                 threeSixtyRows: v.threeSixtyRows ? Number(v.threeSixtyRows) : 1,
                 spinImages: uploadedSpinImages,
+                panoramaImages: uploadedPanoramaImages,
                 videos: uploadedVideos,
                 images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
@@ -1246,6 +1350,10 @@ async function saveProduct() {
                     dup.threeSixtyCols = dup.spinImages.length || (v.threeSixtyCols ? Number(v.threeSixtyCols) : 1);
                     dup.threeSixtyRows = v.threeSixtyRows ? Number(v.threeSixtyRows) : 1;
                 }
+                if (v.is360Panorama) {
+                    dup.is360Panorama = true;
+                    dup.panoramaImages = [...new Set([...(dup.panoramaImages || []), ...(v.panoramaImages || [])])];
+                }
                 if (v.videos && v.videos.length) {
                     dup.videos = [...new Set([...(dup.videos || []), ...v.videos])];
                 }
@@ -1271,9 +1379,11 @@ async function saveProduct() {
             mainImagesPosition: document.getElementById('m-main-pos').value,
             hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
             is360: document.getElementById('m-is360').checked,
+            is360Panorama: document.getElementById('m-is360-panorama')?.checked || false,
             threeSixtyCols: finalSpinImages.length || 1,
             threeSixtyRows: 1,
             spinImages: finalSpinImages,
+            panoramaImages: finalPanoramaImages,
             videos: finalVideos,
             trackGlobalStock: globalStock.trackGlobalStock,
             globalStockCount: globalStock.globalStockCount,
@@ -1342,9 +1452,15 @@ function copyProduct(id) {
         mainIs360.checked = !!p.is360;
         toggle360Badge('base', !!p.is360);
     }
+    const mainIs360Panorama = document.getElementById('m-is360-panorama');
+    if (mainIs360Panorama) {
+        mainIs360Panorama.checked = !!p.is360Panorama;
+        toggle360PanoramaBadge('base', !!p.is360Panorama);
+    }
 
     existingImageUrls = [...(p.images || [])];
     existingSpinUrls = [...(p.spinImages || [])];
+    existingPanoramaUrls = [...(p.panoramaImages || [])];
     existingVideoUrls = [...(p.videos || [])];
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
     
@@ -1409,6 +1525,7 @@ function copyProduct(id) {
 
     renderImagePreviews('base');
     renderSpinPreviews('base');
+    renderPanoramaPreviews('base');
     renderVideoPreviews('base');
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
