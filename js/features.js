@@ -820,11 +820,19 @@ function loadPannellumAssets() {
     return pannellumLoadPromise;
 }
 
+const LEGACY_PANORAMA_URL_MAP = {
+    'assets/demo/360/panorama/cerro-toco.jpg': 'https://pannellum.org/images/cerro-toco-0.jpg',
+    'assets/demo/360/panorama/alma.jpg': 'https://raw.githubusercontent.com/mpetroff/pannellum/master/examples/examplepano.jpg',
+    'assets/demo/360/panorama/equirectangular-sw.jpg': 'https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg'
+};
+
 function mvResolveMediaUrl(url) {
     if (!url) return url;
+    const trimmed = String(url).replace(/^\//, '');
+    if (LEGACY_PANORAMA_URL_MAP[trimmed]) return LEGACY_PANORAMA_URL_MAP[trimmed];
     if (/^https?:\/\//i.test(url)) return url;
     const base = window.location.origin + '/';
-    return new URL(String(url).replace(/^\//, ''), base).href;
+    return new URL(trimmed, base).href;
 }
 window.mvResolveMediaUrl = mvResolveMediaUrl;
 
@@ -1010,8 +1018,15 @@ async function initPanoramaViewer(url) {
             if (settled) return;
             settled = true;
             clearTimeout(fallbackTimer);
+            clearTimeout(safetyHideTimer);
             fn();
         };
+        const safetyHideTimer = setTimeout(() => {
+            if (settled || !mvState.pannellumInstance) return;
+            mvHideLoader();
+            setTimeout(mvDismissGuide, 1200);
+            finish(() => resolve());
+        }, 3000);
         const fallbackTimer = setTimeout(() => {
             mvHideLoader();
             console.warn('Panorama viewer load timeout:', absoluteUrl);
