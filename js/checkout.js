@@ -66,6 +66,7 @@ function mergeCarts(guestCart, savedCart) {
             if (avail.details) {
                 existing.trackStock = avail.details.trackStock;
                 existing.stockCount = avail.details.stockCount;
+                existing.stockSource = avail.details.stockSource || existing.stockSource || 'none';
             }
         } else {
             const avail = getCartItemAvailability(gItem);
@@ -73,6 +74,7 @@ function mergeCarts(guestCart, savedCart) {
                 if (avail.details) {
                     gItem.trackStock = avail.details.trackStock;
                     gItem.stockCount = avail.details.stockCount;
+                    gItem.stockSource = avail.details.stockSource || gItem.stockSource || 'none';
                     if (avail.details.trackStock) {
                         gItem.qty = Math.min(gItem.qty, avail.details.stockCount);
                     }
@@ -275,6 +277,7 @@ function refreshCartStockCounts() {
         const details = getVariantDetails(p, item.variantSize, item.variantColor, item.variantPattern || '');
         item.trackStock = details.trackStock;
         item.stockCount = details.stockCount;
+        item.stockSource = details.stockSource || 'none';
         item.price = details.price;
         if (details.trackStock && item.qty > details.stockCount) {
             item.qty = Math.max(0, details.stockCount);
@@ -301,14 +304,15 @@ function getVariantDetails(p, size, color, pattern = '') {
         ? findProductVariant(normVars, { size, color, pattern }, { strict: false })
         : normVars.find(v => v.size === size && v.color === color && (v.pattern || '') === pattern));
 
-    const stockSource = strictMatch || match;
+    const stockMatch = strictMatch || match;
 
     if (match) {
         return {
             price: match.price !== null && match.price !== undefined ? match.price : p.price,
             image: (match.images && match.images[0]) ? match.images[0] : (p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image'),
-            trackStock: !!(stockSource && stockSource.trackStock),
-            stockCount: stockSource ? (typeof stockSource.stockCount === 'number' ? stockSource.stockCount : (parseInt(stockSource.stockCount, 10) || 0)) : 0,
+            trackStock: !!(stockMatch && stockMatch.trackStock),
+            stockCount: stockMatch ? (typeof stockMatch.stockCount === 'number' ? stockMatch.stockCount : (parseInt(stockMatch.stockCount, 10) || 0)) : 0,
+            stockSource: stockMatch?.stockSource || 'none',
             patternImage: match.previewImage || '',
             colorName: match.colorName || '',
             variantSize: match.size || size,
@@ -322,6 +326,7 @@ function getVariantDetails(p, size, color, pattern = '') {
         image: p.images && p.images[0] ? p.images[0] : 'https://placehold.co/400x400/222/FFF?text=No+Image',
         trackStock: false,
         stockCount: 0,
+        stockSource: 'none',
         patternImage: '',
         colorName: '',
         variantSize: size,
@@ -358,11 +363,12 @@ function addToBagWithSelection(id, size, color, pattern = '') {
         existing.variantColorName = vDetails.colorName || '';
         existing.trackStock = vDetails.trackStock;
         existing.stockCount = vDetails.stockCount;
+        existing.stockSource = vDetails.stockSource || 'none';
         existing.variantSize = cartSize;
         existing.variantColor = cartColor;
         existing.variantPattern = cartPattern;
     } else {
-        cart.push({...p, variantSize: cartSize, variantColor: cartColor, variantColorName: vDetails.colorName || '', variantPattern: cartPattern, variantPatternImage: vDetails.patternImage || '', qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount});
+        cart.push({...p, variantSize: cartSize, variantColor: cartColor, variantColorName: vDetails.colorName || '', variantPattern: cartPattern, variantPatternImage: vDetails.patternImage || '', qty: 1, price: vDetails.price, variantImage: vDetails.image, trackStock: vDetails.trackStock, stockCount: vDetails.stockCount, stockSource: vDetails.stockSource || 'none'});
     }
     updateCartUI();
     saveCartToStorage();
@@ -424,6 +430,7 @@ function changeQty(idx, delta) {
             stockLimit = details.trackStock ? details.stockCount : globalMaxCartQty;
             item.trackStock = details.trackStock;
             item.stockCount = details.stockCount;
+            item.stockSource = details.stockSource || 'none';
             item.price = details.price;
         } else if (item.trackStock) {
             stockLimit = item.stockCount;
