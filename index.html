@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.1">
+    <link rel="stylesheet" href="css/style.css?v=9.2">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -2463,40 +2463,62 @@
                 </div>
                 <div id="admin-product-guide-content" class="admin-product-guide-content" style="display:none;">
                 <div class="admin-guide-body">
+                    <div class="admin-guide-intro">
+                        <strong>Four media types — each does something different on the shop.</strong> Badges in the editor show <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span> vs <span class="admin-media-scope admin-media-scope--variant">🎯 This variant</span>. Tap 👁 on any thumb or ▶ on video to preview before saving.
+                    </div>
+                    <div class="admin-guide-matrix">
+                        <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
+                            <span>Type</span><span>What you upload</span><span>Customer sees</span><span>Scope</span>
+                        </div>
+                        <div class="admin-guide-matrix-row">
+                            <span class="admin-guide-tag">Gallery</span>
+                            <span>Regular product photos</span>
+                            <span>Detail carousel &amp; home</span>
+                            <span>Main or variant</span>
+                        </div>
+                        <div class="admin-guide-matrix-row">
+                            <span class="admin-guide-tag admin-guide-tag--green">Swatch</span>
+                            <span>Small pattern/color preview</span>
+                            <span>Chip thumbnail only</span>
+                            <span>Variant only</span>
+                        </div>
+                        <div class="admin-guide-matrix-row">
+                            <span class="admin-guide-tag admin-guide-tag--gold">Rotation frames</span>
+                            <span>12–36 <strong>still images</strong> (or extract from video)</span>
+                            <span><strong>Rotate</strong> button — swipe to turn</span>
+                            <span>Main or variant</span>
+                        </div>
+                        <div class="admin-guide-matrix-row">
+                            <span class="admin-guide-tag admin-guide-tag--blue">Video file</span>
+                            <span>MP4 / MOV product video</span>
+                            <span><strong>Video</strong> button — plays flat or immersive 360°</span>
+                            <span>Main or variant</span>
+                        </div>
+                        <div class="admin-guide-matrix-row">
+                            <span class="admin-guide-tag admin-guide-tag--blue">Panorama</span>
+                            <span>One wide 2:1 equirectangular image</span>
+                            <span><strong>Look Around</strong> — drag like Street View</span>
+                            <span>Main or variant</span>
+                        </div>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--gold">Important</span>
+                        <p><strong>Rotation frames ≠ video.</strong> Frames are separate photos for swipe-to-rotate. A video file always plays as video unless you extract frames from it. Variant media overrides main when the customer picks that combo.</p>
+                    </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--gold">Variants</span>
-                        <p>Each block is one sellable line. Comma-separate <strong>Size</strong>, <strong>Color</strong>, or <strong>Pattern</strong> to create combos (S,M × Red,Blue = 4 SKUs). Customer picks chips on the detail page — price, photos, video, 360° and stock follow that exact combo.</p>
+                        <p>Each block is one sellable line. Comma-separate <strong>Size</strong>, <strong>Color</strong>, or <strong>Pattern</strong> to create combos (S,M × Red,Blue = 4 SKUs). Price, photos, video, 360° and stock follow the selected combo.</p>
                     </div>
                     <div class="admin-guide-row">
-                        <span class="admin-guide-tag">Main images</span>
-                        <p>Shared photos for <strong>home carousel</strong> + detail fallback. If a variant has no gallery photos, mains fill in. Otherwise mains append at <strong>start or end</strong> (setting below).</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--green">Variant gallery</span>
-                        <p>Full photos for this block’s size/color/pattern — shown when customer selects a matching combo.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--green">Swatches</span>
-                        <p>Small pattern/color preview images — used on pattern chips only, not the main gallery.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
-                        <p><strong>Global</strong> video plays for every selection (last in gallery). A <strong>variant</strong> video replaces global for that color/block. Tick <strong>Play as immersive 360° video</strong> for equirectangular 360° footage (2:1).</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--gold">360° spin</span>
-                        <p><strong>Classic spin</strong> — upload 12–36 rotation frames (Amazon-style product turn). Opens as <strong>Product Spin</strong> in the viewer.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--blue">Immersive 360°</span>
-                        <p><strong>Google-style view</strong> — upload equirectangular panorama(s) (2:1 ratio, full sphere). Customers drag to look around all angles. Use either or both modes.</p>
+                        <span class="admin-guide-tag">Main gallery</span>
+                        <p>Product-wide photos for <strong>home carousel</strong> + detail fallback. If a variant has no gallery, mains fill in. Otherwise mains append at <strong>start or end</strong> (setting below).</p>
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--stock">Stock</span>
                         <p>Three levels — <strong>most specific wins</strong>:<br>
                         <strong>Level 1 · Product global</strong> — one pool for the entire product.<br>
-                        <strong>Level 2 · Whole variant</strong> — one pool per variant block (all sizes/colors in that block share it). Overrides product global.<br>
-                        <strong>Level 3 · Per combination</strong> — separate qty per size / color / pattern row. Overrides whole-variant.</p>
+                        <strong>Level 2 · Whole variant</strong> — one pool per variant block. Overrides global.<br>
+                        <strong>Level 3 · Per combination</strong> — separate qty per size / color / pattern row.</p>
                     </div>
                 </div>
                 </div>
@@ -2525,71 +2547,99 @@
                 style="width:100%; padding:10px; background:#222; color:#fff; border:1px dashed #555; border-radius:8px; cursor:pointer; font-size:12px; margin-bottom: 15px;">+
                 Add Variant</button>
 
-            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Main Product Images</p>
-            <p style="margin:-2px 0 8px; font-size:10px; color:#777; line-height:1.4;">Home screen + shared detail photos (see guide above).</p>
-            <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
-            <label
-                style="display:block; padding:10px; border-radius:8px; border:1px dashed #666; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px; margin-bottom: 15px;">
-                Upload Main Images
-                <input type="file" id="m-files" multiple accept="image/*" style="display:none;"
-                    onchange="handleFileSelect(this, 'base')">
-            </label>
-            <div id="m-is360-container"
-                style="display:flex; align-items:center; gap:8px; margin-bottom:10px; justify-content:flex-start;">
-                <input type="checkbox" id="m-is360" style="width:auto; margin:0;"
-                    onchange="toggle360Badge('base', this.checked);">
-                <label for="m-is360"
-                    style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
-                    <span>Enable 360° Product Spin (Classic)</span>
-                    <span id="base-360-badge"
-                        style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">SPIN
-                        ACTIVE</span>
-                </label>
+            <div class="admin-media-panel admin-media-panel--global">
+                <p class="admin-media-panel-intro">🌐 <strong>Product-wide media</strong> — shared across all variants unless a variant has its own override</p>
+
+                <div class="admin-media-block">
+                    <div class="admin-media-section-head">
+                        <div class="admin-media-section-badges">
+                            <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                            <span class="admin-media-type admin-media-type--gallery">🖼️ Gallery photo</span>
+                        </div>
+                        <p class="admin-media-section-title">Main gallery photos</p>
+                        <p class="admin-media-section-sub">Home screen carousel + shared detail photos. Tap 👁 on any thumb to preview.</p>
+                    </div>
+                    <div id="m-preview" class="admin-media-preview-grid"></div>
+                    <label class="admin-media-upload">
+                        <span class="admin-media-upload__icon">🖼️</span>
+                        <span class="admin-media-upload__text">Upload main gallery photos</span>
+                        <input type="file" id="m-files" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'base')">
+                    </label>
+                </div>
+
+                <div class="admin-media-block admin-media-block--360">
+                    <div id="m-is360-container" class="admin-media-360-toggle-row">
+                        <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked);">
+                        <label for="m-is360" class="admin-media-360-toggle-label">
+                            <span>Enable Rotate Product (spin frames)</span>
+                            <span id="base-360-badge" class="admin-media-active-badge" style="display:none;">ACTIVE</span>
+                        </label>
+                    </div>
+                    <div id="m-spin-upload-container" style="display:none;">
+                        <div class="admin-media-section-head">
+                            <div class="admin-media-section-badges">
+                                <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                                <span class="admin-media-type admin-media-type--spin">🔄 Rotation frame</span>
+                            </div>
+                            <p class="admin-media-section-title">Rotation frames</p>
+                            <p class="admin-media-section-sub">Still images — swipe to turn the product. Not the same as a video file.</p>
+                        </div>
+                        <div id="m-spin-preview" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                        <label class="admin-media-upload admin-media-upload--spin">
+                            <span class="admin-media-upload__icon">🔄</span>
+                            <span class="admin-media-upload__text">Add rotation photos</span>
+                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
+                        </label>
+                        <p class="admin-media-hint">Or use <strong>Create rotation frames from video</strong> on a video card below.</p>
+                        <button type="button" onclick="loadDemo360Spin('base')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 Vespa frames)</button>
+                    </div>
+
+                    <div id="m-is360-panorama-container" class="admin-media-360-toggle-row" style="margin-top:10px;">
+                        <input type="checkbox" id="m-is360-panorama" style="width:auto; margin:0;" onchange="toggle360PanoramaBadge('base', this.checked);">
+                        <label for="m-is360-panorama" class="admin-media-360-toggle-label">
+                            <span>Enable Look Around (panorama)</span>
+                            <span id="base-360-pano-badge" class="admin-media-active-badge admin-media-active-badge--blue" style="display:none;">ACTIVE</span>
+                        </label>
+                    </div>
+                    <div id="m-panorama-upload-container" style="display:none;">
+                        <div class="admin-media-section-head">
+                            <div class="admin-media-section-badges">
+                                <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                                <span class="admin-media-type admin-media-type--panorama">🌐 Panorama</span>
+                            </div>
+                            <p class="admin-media-section-title">Immersive panorama</p>
+                            <p class="admin-media-section-sub">2:1 equirectangular image — drag to look around. Tap 👁 to preview.</p>
+                        </div>
+                        <div id="m-panorama-preview" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
+                        <label class="admin-media-upload admin-media-upload--pano">
+                            <span class="admin-media-upload__icon">🌐</span>
+                            <span class="admin-media-upload__text">Upload panorama</span>
+                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, 'base')">
+                        </label>
+                        <button type="button" onclick="loadDemo360Panorama('base')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
+                    </div>
+                </div>
+
+                <div class="admin-media-block">
+                    <div class="admin-media-section-head">
+                        <div class="admin-media-section-badges">
+                            <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                            <span class="admin-media-type admin-media-type--video">🎬 Video file</span>
+                        </div>
+                        <p class="admin-media-section-title">Product video</p>
+                        <p class="admin-media-section-sub">Plays as flat or immersive 360° video. Tap ▶ on a card to preview. Extract frames separately for Rotate.</p>
+                    </div>
+                    <div id="m-video-preview" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
+                    <label class="admin-media-upload admin-media-upload--video">
+                        <span class="admin-media-upload__icon">🎬</span>
+                        <span class="admin-media-upload__text">Upload product video</span>
+                        <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, 'base')">
+                    </label>
+                    <button type="button" onclick="loadDemo360Video('base')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video (JFK sample)</button>
+                </div>
             </div>
-            <div id="m-spin-upload-container" style="display:none; margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(255,215,0,0.2); border-radius:10px;">
-                <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Rotate Product <span style="color:#666; text-transform:none;">(swipe to turn — upload photos or create from video below)</span></p>
-                <div id="m-spin-preview" style="display:flex; flex-direction:column; gap:0; margin-bottom:8px;"></div>
-                <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
-                    <span>🔄</span> Add rotation photos
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
-                </label>
-                <p style="font-size:9px; color:#666; margin:6px 0 0; line-height:1.35;">Adding photos appends to the list. Use <strong>Create rotation from video</strong> on a video card to replace all frames at once.</p>
-                <button type="button" onclick="loadDemo360Spin('base')" style="margin-top:8px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">Use demo spin (16 Vespa frames)</button>
-                <p style="font-size:9px; color:#666; margin:6px 0 0; line-height:1.35;">Demo spin: y360.at sample · Full 72-frame zip: <a href="https://www.y360.at/assets/product-photos/vespa-mint.zip" target="_blank" rel="noopener" style="color:#888;">vespa-mint.zip</a></p>
-            </div>
-            <div id="m-is360-panorama-container"
-                style="display:flex; align-items:center; gap:8px; margin-bottom:10px; justify-content:flex-start;">
-                <input type="checkbox" id="m-is360-panorama" style="width:auto; margin:0;"
-                    onchange="toggle360PanoramaBadge('base', this.checked);">
-                <label for="m-is360-panorama"
-                    style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
-                    <span>Enable Immersive 360° View (Google-style)</span>
-                    <span id="base-360-pano-badge"
-                        style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(100,181,246,0.15); color:#64b5f6; border:1px solid rgba(100,181,246,0.3); letter-spacing:0.5px;">IMMERSIVE
-                        ACTIVE</span>
-                </label>
-            </div>
-            <div id="m-panorama-upload-container" style="display:none; margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.25); border-radius:10px;">
-                <p style="font-size:10px; color:#64b5f6; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Immersive 360° Panorama <span style="color:#666; text-transform:none;">(Google Street View style — full sphere)</span></p>
-                <p style="font-size:9.5px; color:#777; margin:0 0 8px 0; line-height:1.4;">Upload equirectangular panorama image(s) with 2:1 aspect ratio (e.g. 4096×2048). Use a 360° camera export or stitched photos covering all angles. Add multiple scenes if needed.</p>
-                <div id="m-panorama-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
-                <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
-                    <span>🌐</span> Upload Panorama
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, 'base')">
-                </label>
-                <button type="button" onclick="loadDemo360Panorama('base')" style="margin-top:8px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo panoramas (3 scenes)</button>
-                <p style="font-size:9px; color:#666; margin:6px 0 0; line-height:1.35;">Cerro Toco, Alma &amp; Wikimedia samples (2:1 equirectangular, hosted on CDN)</p>
-            </div>
-            <div style="margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.2); border-radius:10px;">
-                <p style="font-size:10px; color:#64b5f6; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Global Product Video <span style="color:#666; text-transform:none;">(optional)</span></p>
-                <p style="font-size:9.5px; color:#777; margin:0 0 8px 0; line-height:1.4;">Upload a product video, then tap <strong>Create rotation from video</strong> to build swipe-to-rotate frames. Or upload rotation photos directly in the Rotate Product section.</p>
-                <div id="m-video-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
-                <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
-                    <span>🎬</span> Upload Product Video
-                    <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, 'base')">
-                </label>
-                <button type="button" onclick="loadDemo360Video('base')" style="margin-top:8px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo 360° video (JFK sample)</button>
-            </div>
+
+            <p style="font-size:10px; color:#666; margin:12px 0 5px; text-transform: uppercase;">Gallery display options</p>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:flex-start;">
                 <input type="checkbox" id="m-hide-main" style="width:auto; margin:0;">
                 <label for="m-hide-main" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Main Images
@@ -3071,7 +3121,7 @@
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=11.5"></script>
+    <script src="js/admin.js?v=11.6"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

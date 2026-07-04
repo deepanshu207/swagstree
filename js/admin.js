@@ -58,6 +58,125 @@ function getStoredVideoLabel(entry) {
     return n.is360 ? '360° video' : 'Saved video';
 }
 
+function adminResolveMediaUrl(item) {
+    if (!item) return '';
+    if (item instanceof File) return URL.createObjectURL(item);
+    return String(item);
+}
+
+function adminMediaScopeBadge(scope) {
+    const isVariant = scope === 'variant';
+    return `<span class="admin-media-scope ${isVariant ? 'admin-media-scope--variant' : 'admin-media-scope--global'}">${isVariant ? '🎯 This variant' : '🌐 All variants'}</span>`;
+}
+
+function adminMediaTypeBadge(type, extra) {
+    const types = {
+        gallery: { cls: 'admin-media-type--gallery', icon: '🖼️', label: 'Gallery photo' },
+        swatch: { cls: 'admin-media-type--swatch', icon: '🎨', label: 'Swatch' },
+        spin: { cls: 'admin-media-type--spin', icon: '🔄', label: 'Rotation frame' },
+        video: { cls: 'admin-media-type--video', icon: '🎬', label: 'Video file' },
+        panorama: { cls: 'admin-media-type--panorama', icon: '🌐', label: 'Panorama' }
+    };
+    const t = types[type] || types.gallery;
+    return `<span class="admin-media-type ${t.cls}">${t.icon} ${t.label}${extra ? ` · ${extra}` : ''}</span>`;
+}
+
+function adminMediaSectionHead(scope, type, title, subtitle) {
+    return `
+        <div class="admin-media-section-head">
+            <div class="admin-media-section-badges">
+                ${adminMediaScopeBadge(scope)}
+                ${adminMediaTypeBadge(type)}
+            </div>
+            <p class="admin-media-section-title">${title}</p>
+            ${subtitle ? `<p class="admin-media-section-sub">${subtitle}</p>` : ''}
+        </div>`;
+}
+
+function adminMediaEmptyHint(text) {
+    return `<p class="admin-media-empty">${text}</p>`;
+}
+
+function adminMediaThumbHtml(opts) {
+    const {
+        url, index, targetId, previewFn, onRemove, size = 60,
+        objectFit = 'cover', badge, isNew = false, extraClass = ''
+    } = opts;
+    const borderCls = isNew ? 'admin-media-thumb--new' : '';
+    return `
+        <div class="admin-media-thumb ${borderCls} ${extraClass}" data-idx="${index}" style="width:${size}px; height:${size}px;">
+            ${badge ? `<div class="admin-media-thumb__badge">${badge}</div>` : ''}
+            <img src="${url}" draggable="false" alt="" style="width:100%;height:100%;object-fit:${objectFit};">
+            <button type="button" class="admin-media-thumb__preview" onclick="event.stopPropagation(); ${previewFn}" title="Preview" aria-label="Preview">
+                <i class="fa fa-eye"></i>
+            </button>
+            ${onRemove ? `<button type="button" class="admin-media-thumb__remove" onclick="event.stopPropagation(); ${onRemove}" title="Remove" aria-label="Remove"><i class="fa fa-times"></i></button>` : ''}
+        </div>`;
+}
+
+function previewAdminGallery(targetId, index) {
+    const images = targetId === 'base'
+        ? (existingImageUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.images || []);
+    const urls = images.map(img => adminResolveMediaUrl(img)).filter(Boolean);
+    if (!urls.length) return showToast('No gallery photos to preview.');
+    if (typeof openMediaViewer !== 'function') return;
+    openMediaViewer({
+        mode: 'gallery',
+        images: urls,
+        startIndex: Math.max(0, Math.min(index || 0, urls.length - 1)),
+        title: document.getElementById('m-name')?.value || 'Gallery Preview'
+    });
+}
+window.previewAdminGallery = previewAdminGallery;
+
+function previewAdminPanorama(targetId, index) {
+    const items = targetId === 'base'
+        ? (existingPanoramaUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.panoramaImages || []);
+    const urls = items.map(img => adminResolveMediaUrl(img)).filter(Boolean);
+    if (!urls.length) return showToast('No panorama to preview.');
+    if (typeof openMediaViewer !== 'function') return;
+    openMediaViewer({
+        mode: 'panorama360',
+        panoramaImages: urls,
+        panoramaIndex: Math.max(0, Math.min(index || 0, urls.length - 1)),
+        title: document.getElementById('m-name')?.value || 'Panorama Preview'
+    });
+}
+window.previewAdminPanorama = previewAdminPanorama;
+
+function previewAdminSwatch(targetId, index) {
+    const v = variantBlocks.find(x => x.id === targetId);
+    if (!v) return;
+    const urls = (v.previewImages || []).map(img => adminResolveMediaUrl(img)).filter(Boolean);
+    if (!urls.length) return showToast('No swatch to preview.');
+    if (typeof openMediaViewer !== 'function') return;
+    openMediaViewer({
+        mode: 'gallery',
+        images: urls,
+        startIndex: Math.max(0, Math.min(index || 0, urls.length - 1)),
+        title: 'Pattern / Color Swatch'
+    });
+}
+window.previewAdminSwatch = previewAdminSwatch;
+
+function previewAdminSpinFrame(targetId, index) {
+    const items = targetId === 'base'
+        ? (existingSpinUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
+    const url = adminResolveMediaUrl(items[index]);
+    if (!url) return;
+    if (typeof openMediaViewer !== 'function') return;
+    openMediaViewer({
+        mode: 'gallery',
+        images: [url],
+        startIndex: 0,
+        title: `Rotation frame ${(index || 0) + 1}`
+    });
+}
+window.previewAdminSpinFrame = previewAdminSpinFrame;
+
 function mergeStoredVideos(listA, listB) {
     const map = new Map();
     [...(listA || []), ...(listB || [])].forEach(v => {
@@ -425,70 +544,71 @@ function renderVariantBlocks() {
                     </div>
                 </div>
 
-                <!-- Row 4: Upload buttons -->
-                <p style="font-size:10px; color:#666; margin:0 0 6px; line-height:1.4;">Gallery = detail photos · Swatches = pattern chip previews</p>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #444; background:#1a1a1a; color:#aaa; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
-                        <span style="font-size:18px;">🖼️</span>
-                        <span>Variant Gallery Images</span>
-                        <span style="font-size:9px; color:#666;">For this size/color only</span>
-                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
-                    </label>
-                    <label style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:12px 8px; border-radius:8px; border:1.5px dashed #25D366; background:#1a1a1a; color:#25D366; text-align:center; cursor:pointer; font-size:12px; line-height:1.3; min-height:52px;">
-                        <span style="font-size:18px;">🎨</span>
-                        <span>Pattern / Color Swatch(es)</span>
-                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
-                    </label>
-                </div>
-                ${is360Enabled ? `
-                <div style="margin-top:4px; padding:12px; border-radius:10px; background:#101010; border:1px solid rgba(255,215,0,0.18);">
-                    <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant 360° Media <span style="color:#666; text-transform:none;">(used when this variant is selected)</span></p>
-                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:6px; margin-bottom:10px;">
-                        ${toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Product Spin', '#FFD700')}
-                        ${toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks();`, 'Immersive 360° Panorama', '#64b5f6')}
-                    </div>
-                <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
-                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Rotate Product <span style="color:#666; text-transform:none;">(swipe to turn the item)</span></p>
-                    <div id="v-spin-preview-${v.id}" style="display:flex; flex-direction:column; margin-bottom:6px;"></div>
-                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
-                        <span>🔄</span> Add rotation photos
-                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
-                    </label>
-                    <button type="button" onclick="loadDemo360Spin('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">Use demo spin (16 frames)</button>
-                </div>
-                <div id="v-panorama-upload-${v.id}" style="display:${v.is360Panorama ? 'block' : 'none'}; margin-top:8px;">
-                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Immersive Panorama <span style="color:#666; text-transform:none;">(Google-style — 2:1 equirectangular)</span></p>
-                    <div id="v-panorama-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
-                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
-                        <span>🌐</span> Upload panorama
-                        <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
-                    </label>
-                    <button type="button" onclick="loadDemo360Panorama('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo panoramas (3 scenes)</button>
-                </div>
-                <div style="margin-top:8px;">
-                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(flat or immersive 360° — overrides global)</span></p>
-                    <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
-                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
-                        <span>🎬</span> Upload video
-                        <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
-                    </label>
-                    <button type="button" onclick="loadDemo360Video('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo 360° video</button>
-                </div>
-                </div>
-                ` : `
-                <div>
-                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(optional — overrides global video)</span></p>
-                    <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
-                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
-                        <span>🎬</span> Upload Video
-                        <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
-                    </label>
-                </div>
-                `}
+                <!-- Variant media panel -->
+                <div class="admin-media-panel admin-media-panel--variant">
+                    <p class="admin-media-panel-intro">🎯 <strong>Variant media</strong> — customers see this when they pick this size / color / pattern combo</p>
 
-                <!-- Image & Swatch previews -->
-                <div id="v-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
-                <div id="v-swatch-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
+                    <div class="admin-media-block">
+                        ${adminMediaSectionHead('variant', 'gallery', 'Gallery photos', 'Full-size images in the product detail carousel')}
+                        <div id="v-preview-${v.id}" class="admin-media-preview-grid"></div>
+                        <label class="admin-media-upload">
+                            <span class="admin-media-upload__icon">🖼️</span>
+                            <span class="admin-media-upload__text">Add gallery photos</span>
+                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, '${v.id}')">
+                        </label>
+                    </div>
+
+                    <div class="admin-media-block">
+                        ${adminMediaSectionHead('variant', 'swatch', 'Pattern / color swatches', 'Tiny previews on pattern chips — not the main gallery')}
+                        <div id="v-swatch-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--swatch"></div>
+                        <label class="admin-media-upload admin-media-upload--swatch">
+                            <span class="admin-media-upload__icon">🎨</span>
+                            <span class="admin-media-upload__text">Add swatch image(s)</span>
+                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSwatchSelect(this, '${v.id}')">
+                        </label>
+                    </div>
+
+                    <div class="admin-media-block">
+                        ${adminMediaSectionHead('variant', 'video', 'Variant video', 'Replaces product-wide video when this variant is selected · plays as flat or immersive 360°')}
+                        <div id="v-video-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
+                        <label class="admin-media-upload admin-media-upload--video">
+                            <span class="admin-media-upload__icon">🎬</span>
+                            <span class="admin-media-upload__text">Upload video</span>
+                            <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
+                        </label>
+                        ${is360Enabled ? `<button type="button" onclick="loadDemo360Video('${v.id}')" class="admin-media-demo-btn">Use demo 360° video</button>` : ''}
+                    </div>
+
+                ${is360Enabled ? `
+                    <div class="admin-media-block admin-media-block--360">
+                        <p class="admin-media-block__label">Interactive 360° (optional)</p>
+                        <div class="admin-media-360-toggles">
+                            ${toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, 'Rotate Product (spin frames)', '#FFD700')}
+                            ${toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks();`, 'Look Around (panorama)', '#64b5f6')}
+                        </div>
+                        <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
+                            ${adminMediaSectionHead('variant', 'spin', 'Rotation frames', 'Separate still images — swipe to turn the product (not a video file)')}
+                            <div id="v-spin-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                            <label class="admin-media-upload admin-media-upload--spin">
+                                <span class="admin-media-upload__icon">🔄</span>
+                                <span class="admin-media-upload__text">Add rotation photos</span>
+                                <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
+                            </label>
+                            <button type="button" onclick="loadDemo360Spin('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
+                        </div>
+                        <div id="v-panorama-upload-${v.id}" style="display:${v.is360Panorama ? 'block' : 'none'}; margin-top:10px;">
+                            ${adminMediaSectionHead('variant', 'panorama', 'Immersive panorama', 'One wide 2:1 image — drag to look around (Street View style)')}
+                            <div id="v-panorama-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
+                            <label class="admin-media-upload admin-media-upload--pano">
+                                <span class="admin-media-upload__icon">🌐</span>
+                                <span class="admin-media-upload__text">Upload panorama</span>
+                                <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
+                            </label>
+                            <button type="button" onclick="loadDemo360Panorama('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
+                        </div>
+                    </div>
+                ` : ''}
+                </div>
 
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
@@ -599,26 +719,28 @@ function renderSwatchPreview(vId) {
     if (!v) return;
     const container = document.getElementById(`v-swatch-${vId}`);
     if (!container) return;
-    
-    let html = (v.previewImages || []).map((img, i) => {
+    const items = v.previewImages || [];
+    if (!items.length) {
+        container.innerHTML = adminMediaEmptyHint('No swatches yet — tap 👁 on any thumb to preview after upload');
+        return;
+    }
+    const html = items.map((img, i) => {
         const isFile = img instanceof File;
-        const url = isFile ? URL.createObjectURL(img) : img;
-        const borderStyle = isFile ? 'border:2px dashed #25D366;' : 'border:1px solid #444;';
-        return `
-            <div style="position:relative; width:40px; height:40px; cursor:grab; ${borderStyle} border-radius:5px; overflow:hidden;">
-                <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
-                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                <div onclick="removeSwatch('${vId}', ${i})" style="position:absolute; top:-2px; right:-2px; background:rgba(255,0,0,0.8); color:white; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer; font-weight:bold; z-index:6;">&times;</div>
-            </div>`;
+        const url = adminResolveMediaUrl(img);
+        return adminMediaThumbHtml({
+            url, index: i, targetId: vId,
+            previewFn: `previewAdminSwatch('${vId}', ${i})`,
+            onRemove: `removeSwatch('${vId}', ${i})`,
+            size: 48, isNew: isFile, extraClass: 'admin-media-thumb--swatch'
+        });
     }).join('');
-    
     container.innerHTML = html;
-    
     if (window.Sortable && container) {
         if (container._sortable) container._sortable.destroy();
         container._sortable = Sortable.create(container, {
             animation: 150,
-            onEnd: function (evt) {
+            draggable: '.admin-media-thumb',
+            onEnd(evt) {
                 const moved = v.previewImages.splice(evt.oldIndex, 1)[0];
                 v.previewImages.splice(evt.newIndex, 0, moved);
                 renderSwatchPreview(vId);
@@ -1265,10 +1387,7 @@ function openEdit(id) {
     existingVideoUrls = (p.videos || []).map(normalizeStoredVideo).filter(Boolean);
     
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
-    const mainIs360Container = document.getElementById('m-is360-container');
-    if (mainIs360Container) {
-        mainIs360Container.style.display = is360Enabled ? 'flex' : 'none';
-    }
+    syncAdmin360PanelVisibility();
     const mainIs360 = document.getElementById('m-is360');
     if (mainIs360) {
         mainIs360.checked = !!p.is360;
@@ -1378,6 +1497,13 @@ function toggle360PanoramaBadge(id, checked) {
 }
 window.toggle360PanoramaBadge = toggle360PanoramaBadge;
 
+function syncAdmin360PanelVisibility() {
+    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const block = document.querySelector('.admin-media-panel--global .admin-media-block--360');
+    if (block) block.style.display = is360Enabled ? 'block' : 'none';
+}
+window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
+
 function openAdd() { 
     editingId = null; 
     existingImageUrls = [];
@@ -1395,10 +1521,7 @@ function openAdd() {
     document.getElementById('m-hide-main-placeholder').checked = false;
     
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
-    const mainIs360Container = document.getElementById('m-is360-container');
-    if (mainIs360Container) {
-        mainIs360Container.style.display = is360Enabled ? 'flex' : 'none';
-    }
+    syncAdmin360PanelVisibility();
     const mainIs360 = document.getElementById('m-is360');
     if (mainIs360) {
         mainIs360.checked = false;
@@ -1425,31 +1548,29 @@ function openAdd() {
 
 function renderImagePreviews(targetId = 'base') { 
     const container = document.getElementById(targetId === 'base' ? 'm-preview' : `v-preview-${targetId}`); 
-    if(!container) return;
-    
-    let html = '';
+    if (!container) return;
+    const buildThumb = (img, i, removeFn) => {
+        const isFile = img instanceof File;
+        const url = adminResolveMediaUrl(img);
+        return adminMediaThumbHtml({
+            url, index: i, targetId,
+            previewFn: `previewAdminGallery('${targetId}', ${i})`,
+            onRemove: removeFn,
+            size: 64, isNew: isFile, badge: i + 1,
+            extraClass: 'admin-media-thumb--gallery'
+        });
+    };
     if (targetId === 'base') {
-        html += (existingImageUrls || []).map((img, i) => {
-            const isFile = img instanceof File;
-            const url = isFile ? URL.createObjectURL(img) : img;
-            const borderStyle = isFile ? 'border:1px dashed #25D366;' : 'border:1px solid #444;';
-            return `
-                <div data-type="${isFile ? 'file' : 'url'}" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; ${borderStyle} cursor:grab;">
-                    <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
-                    <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                    <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="existingImageUrls.splice(${i},1);renderImagePreviews('base')"></i>
-                </div>
-            `;
-        }).join('');
-        container.innerHTML = html;
-
-
-
-        if (window.Sortable && container) {
+        const items = existingImageUrls || [];
+        container.innerHTML = items.length
+            ? items.map((img, i) => buildThumb(img, i, `existingImageUrls.splice(${i},1);renderImagePreviews('base')`)).join('')
+            : adminMediaEmptyHint('No main gallery photos — tap 👁 on any thumb to preview');
+        if (window.Sortable && container && items.length) {
             if (container._sortable) container._sortable.destroy();
             container._sortable = Sortable.create(container, {
                 animation: 150,
-                onEnd: function (evt) {
+                draggable: '.admin-media-thumb',
+                onEnd(evt) {
                     const movedItem = existingImageUrls.splice(evt.oldIndex, 1)[0];
                     existingImageUrls.splice(evt.newIndex, 0, movedItem);
                     renderImagePreviews('base');
@@ -1458,27 +1579,17 @@ function renderImagePreviews(targetId = 'base') {
         }
     } else {
         const v = variantBlocks.find(x => x.id === targetId);
-        if(!v) return;
-        
-        let html = (v.images || []).map((img, i) => {
-            const isFile = img instanceof File;
-            const url = isFile ? URL.createObjectURL(img) : img;
-            const borderStyle = isFile ? 'border:1px dashed #25D366;' : 'border:1px solid #444;';
-            return `
-                <div data-type="${isFile ? 'file' : 'url'}" data-idx="${i}" style="position:relative; width:60px; height:60px; border-radius:8px; overflow:hidden; ${borderStyle} cursor:grab;">
-                    <div class="sort-badge-img" style="position:absolute; top:2px; left:2px; background:var(--gold); color:#000; font-weight:bold; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; z-index:5;">${i + 1}</div>
-                    <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                    <i class="fa fa-times" style="position:absolute; top:2px; right:2px; color:var(--red); cursor:pointer; font-size:12px; background:rgba(0,0,0,0.5); padding:2px; border-radius:4px;" onclick="removeVariantImage('${targetId}', ${i})"></i>
-                </div>
-            `;
-        }).join('');
-        container.innerHTML = html;
-
-        if (window.Sortable && container) {
+        if (!v) return;
+        const items = v.images || [];
+        container.innerHTML = items.length
+            ? items.map((img, i) => buildThumb(img, i, `removeVariantImage('${targetId}', ${i})`)).join('')
+            : adminMediaEmptyHint('No variant gallery photos — falls back to main images on the shop');
+        if (window.Sortable && container && items.length) {
             if (container._sortable) container._sortable.destroy();
             container._sortable = Sortable.create(container, {
                 animation: 150,
-                onEnd: function (evt) {
+                draggable: '.admin-media-thumb',
+                onEnd(evt) {
                     const movedItem = v.images.splice(evt.oldIndex, 1)[0];
                     v.images.splice(evt.newIndex, 0, movedItem);
                     renderImagePreviews(targetId);
@@ -1507,32 +1618,32 @@ function renderSpinPreviews(targetId = 'base') {
     const container = document.getElementById(targetId === 'base' ? 'm-spin-preview' : `v-spin-preview-${targetId}`);
     if (!container) return;
     const items = targetId === 'base' ? (existingSpinUrls || []) : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
+    const scopeLabel = targetId === 'base' ? '🌐 All variants' : '🎯 This variant';
     const countHtml = items.length
-        ? `<p style="width:100%; margin:0 0 6px; font-size:10px; color:var(--gold); font-weight:600;">${items.length} rotation frame${items.length === 1 ? '' : 's'} · drag to reorder · swipe order left → right</p>`
-        : `<p style="width:100%; margin:0 0 6px; font-size:10px; color:#666;">No rotation frames yet — create from video or add photos</p>`;
+        ? `<p class="admin-media-spin-meta">${scopeLabel} · <strong>${items.length}</strong> rotation frame${items.length === 1 ? '' : 's'} · drag to reorder · 👁 to preview each frame</p>`
+        : `<p class="admin-media-spin-meta admin-media-empty">No rotation frames yet — these are <strong>still images</strong>, not a video. Upload photos or use “Create rotation from video” on a video card.</p>`;
     const helpHtml = items.length
-        ? `<p style="width:100%; margin:0 0 8px; font-size:9px; color:#777; line-height:1.4;">These frames power the <strong>Rotate</strong> button on the product page. Save product, then test on the shop.</p>`
+        ? `<p class="admin-media-spin-help">Powers the <strong>Rotate</strong> button on the shop. Save product, then test on the storefront.</p>`
         : '';
     const actionsHtml = items.length >= 2 ? `
-        <div style="width:100%; display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button type="button" onclick="previewAdminSpin('${targetId}')" style="flex:1; min-width:140px; padding:8px 10px; border-radius:8px; border:1px solid var(--gold); background:rgba(255,215,0,0.1); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">
-                <i class="fa fa-play-circle"></i> Preview rotation
+        <div class="admin-media-spin-actions">
+            <button type="button" class="admin-media-action-btn admin-media-action-btn--gold" onclick="previewAdminSpin('${targetId}')">
+                <i class="fa fa-play-circle"></i> Preview full rotation
             </button>
-            <button type="button" onclick="clearSpinFrames('${targetId}')" style="padding:8px 10px; border-radius:8px; border:1px solid #444; background:#1a1a1a; color:#aaa; font-size:11px; font-weight:600; cursor:pointer;">
-                Clear all
-            </button>
+            <button type="button" class="admin-media-action-btn" onclick="clearSpinFrames('${targetId}')">Clear all frames</button>
         </div>` : '';
     const gridHtml = items.map((img, i) => {
         const isFile = img instanceof File;
-        const url = isFile ? URL.createObjectURL(img) : img;
-        return `
-            <div class="admin-spin-thumb" data-spin-idx="${i}" style="position:relative; width:50px; height:50px; border-radius:6px; overflow:hidden; border:1px solid var(--gold); cursor:grab; touch-action:none;">
-                <div style="position:absolute; top:1px; left:1px; background:var(--gold); color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
-                <img src="${url}" draggable="false" style="width:100%; height:100%; object-fit:contain; background:#111; pointer-events:none;">
-                <i class="fa fa-times" style="position:absolute; top:1px; right:1px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.6); padding:2px; border-radius:3px; z-index:6;" onclick="event.stopPropagation(); removeSpinImage('${targetId}', ${i})"></i>
-            </div>`;
+        const url = adminResolveMediaUrl(img);
+        return adminMediaThumbHtml({
+            url, index: i, targetId,
+            previewFn: `previewAdminSpinFrame('${targetId}', ${i})`,
+            onRemove: `removeSpinImage('${targetId}', ${i})`,
+            size: 52, objectFit: 'contain', isNew: isFile,
+            badge: i + 1, extraClass: 'admin-media-thumb--spin admin-spin-thumb'
+        });
     }).join('');
-    container.innerHTML = `${countHtml}${helpHtml}<div class="admin-spin-grid" style="display:flex; gap:6px; flex-wrap:wrap; width:100%;">${gridHtml}</div>${actionsHtml}`;
+    container.innerHTML = `${countHtml}${helpHtml}<div class="admin-spin-grid admin-media-preview-grid admin-media-preview-grid--spin">${gridHtml}</div>${actionsHtml}`;
 
     const grid = container.querySelector('.admin-spin-grid');
     if (window.Sortable && grid && items.length > 1) {
@@ -1584,15 +1695,20 @@ function renderPanoramaPreviews(targetId = 'base') {
     const container = document.getElementById(targetId === 'base' ? 'm-panorama-preview' : `v-panorama-preview-${targetId}`);
     if (!container) return;
     const items = targetId === 'base' ? (existingPanoramaUrls || []) : (variantBlocks.find(x => x.id === targetId)?.panoramaImages || []);
+    if (!items.length) {
+        container.innerHTML = adminMediaEmptyHint('No panorama yet — tap 👁 after upload to look around in preview');
+        return;
+    }
     container.innerHTML = items.map((img, i) => {
         const isFile = img instanceof File;
-        const url = isFile ? URL.createObjectURL(img) : img;
-        return `
-            <div style="position:relative; width:72px; height:36px; border-radius:6px; overflow:hidden; border:1px solid #64b5f6;">
-                <div style="position:absolute; top:1px; left:1px; background:#64b5f6; color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
-                <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                <i class="fa fa-times" style="position:absolute; top:1px; right:1px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.6); padding:2px; border-radius:3px;" onclick="removePanoramaImage('${targetId}', ${i})"></i>
-            </div>`;
+        const url = adminResolveMediaUrl(img);
+        return adminMediaThumbHtml({
+            url, index: i, targetId,
+            previewFn: `previewAdminPanorama('${targetId}', ${i})`,
+            onRemove: `removePanoramaImage('${targetId}', ${i})`,
+            size: 80, objectFit: 'cover', isNew: isFile,
+            badge: i + 1, extraClass: 'admin-media-thumb--panorama'
+        });
     }).join('');
 }
 window.renderPanoramaPreviews = renderPanoramaPreviews;
@@ -1627,27 +1743,36 @@ function renderVideoPreviews(targetId = 'base') {
     const container = document.getElementById(targetId === 'base' ? 'm-video-preview' : `v-video-preview-${targetId}`);
     if (!container) return;
     const items = targetId === 'base' ? (existingVideoUrls || []) : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    const scopeBadge = adminMediaScopeBadge(targetId === 'base' ? 'global' : 'variant');
+    if (!items.length) {
+        container.innerHTML = adminMediaEmptyHint('No video yet — tap ▶ on a video card to preview after upload');
+        return;
+    }
     container.innerHTML = items.map((vid, i) => {
         const entry = normalizeStoredVideo(vid);
         if (!entry) return '';
         const label = getStoredVideoLabel(vid);
         const is360 = !!entry.is360;
         return `
-            <div style="position:relative; padding:8px 10px; border-radius:8px; border:1px solid ${is360 ? 'rgba(100,181,246,0.55)' : '#64b5f6'}; background:#1a1a1a; display:flex; flex-direction:column; gap:6px; font-size:11px; color:#64b5f6; min-width:200px;">
-                <div onclick="previewAdminVideo('${targetId}', ${i})" title="Tap to preview video" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                    <i class="fa fa-${is360 ? 'street-view' : 'play-circle'}" style="font-size:16px;"></i>
-                    <span style="flex:1;">${label}</span>
-                    <span style="font-size:9px; padding:2px 6px; border-radius:999px; background:${is360 ? 'rgba(100,181,246,0.15)' : 'rgba(255,255,255,0.06)'}; color:${is360 ? '#9ecbff' : '#aaa'}; border:1px solid ${is360 ? 'rgba(100,181,246,0.3)' : 'rgba(255,255,255,0.12)'};">${is360 ? 'Immersive 360°' : 'Flat video'}</span>
-                    <i class="fa fa-times" style="color:var(--red); cursor:pointer; font-size:11px;" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})"></i>
+            <div class="admin-video-card ${is360 ? 'admin-video-card--360' : ''}">
+                <div class="admin-video-card__head">
+                    ${scopeBadge}
+                    ${adminMediaTypeBadge('video', is360 ? 'Immersive 360°' : 'Flat playback')}
                 </div>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin:0; font-size:10px; color:#aaa;" onclick="event.stopPropagation();">
-                    <input type="checkbox" ${is360 ? 'checked' : ''} style="width:auto; margin:0; accent-color:#64b5f6;" onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
-                    <span>Play as immersive 360° video <span style="color:#666;">(2:1 equirectangular only)</span></span>
-                </label>
-                <button type="button" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" style="width:100%; padding:7px 8px; border-radius:7px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:10px; font-weight:700; cursor:pointer;" title="Pulls 16 frames evenly from the video into Rotate Product">
-                    Create rotation from video (16 frames)
+                <button type="button" class="admin-video-card__preview" onclick="previewAdminVideo('${targetId}', ${i})" title="Preview video">
+                    <i class="fa fa-${is360 ? 'street-view' : 'play-circle'}"></i>
+                    <span class="admin-video-card__label">${label}</span>
+                    <span class="admin-video-card__play-hint">Tap to preview</span>
+                    <button type="button" class="admin-video-card__remove" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})" title="Remove"><i class="fa fa-times"></i></button>
                 </button>
-                <p style="margin:0; font-size:9px; color:#666; line-height:1.35;">Replaces current rotation frames · best on a freshly uploaded video file before save</p>
+                <label class="admin-video-card__toggle" onclick="event.stopPropagation();">
+                    <input type="checkbox" ${is360 ? 'checked' : ''} onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
+                    <span>Play as immersive 360° video <em>(2:1 equirectangular only)</em></span>
+                </label>
+                <button type="button" class="admin-video-card__extract" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" title="Pulls 16 frames evenly from the video into Rotate Product">
+                    <i class="fa fa-images"></i> Create rotation frames from video (16 stills)
+                </button>
+                <p class="admin-video-card__note">Video stays as a <strong>video</strong> on the shop. Extraction builds separate <strong>rotation frames</strong> — replaces current frames.</p>
             </div>`;
     }).join('');
 }
@@ -1933,6 +2058,7 @@ function copyProduct(id) {
     document.getElementById('m-main-pos-container').style.display = p.hideMainDetailsCarousel ? 'none' : 'flex';
     document.getElementById('m-hide-main-placeholder').checked = !!p.hideNoImagePlaceholder;
     
+    syncAdmin360PanelVisibility();
     const mainIs360 = document.getElementById('m-is360');
     if (mainIs360) {
         mainIs360.checked = !!p.is360;
