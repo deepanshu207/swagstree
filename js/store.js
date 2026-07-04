@@ -596,11 +596,11 @@ function setupInfiniteScrollObserver() {
 }
 
 function isProductOutOfStock(p) {
-    const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
-    if (activeVariants.length === 0) return false;
-    const trackingVariants = activeVariants.filter(v => v.trackStock);
-    if (trackingVariants.length === 0) return false;
-    return !trackingVariants.some(v => variantBlockHasStock(v));
+    const norm = normalizeVariants(p);
+    if (!norm.length) return false;
+    const anyTracking = norm.some(v => v.trackStock);
+    if (!anyTracking) return false;
+    return !norm.some(isNormalizedVariantInStock);
 }
 window.isProductOutOfStock = isProductOutOfStock;
 
@@ -1007,11 +1007,64 @@ function expandVariantBlockSkus(v) {
 }
 window.expandVariantBlockSkus = expandVariantBlockSkus;
 
+function productTracksGlobalStock(p) {
+    return !!(p && p.trackGlobalStock);
+}
+window.productTracksGlobalStock = productTracksGlobalStock;
+
+function getGlobalStockCount(p) {
+    return productTracksGlobalStock(p) ? (parseInt(p.globalStockCount, 10) || 0) : 0;
+}
+
+/** Stock tier for a variant block: combo > block > inherit (product global) > unlimited */
+function getVariantStockMode(v) {
+    if (!v) return 'inherit';
+    if (v.trackComboStock || v.stockMode === 'combo') return 'combo';
+    if (v.trackVariantStock || v.stockMode === 'block') return 'block';
+    if (v.trackStock) {
+        const skus = expandVariantBlockSkus(v);
+        const hasSkuMap = v.stockBySku && typeof v.stockBySku === 'object' && Object.keys(v.stockBySku).length > 0;
+        if (skus.length > 1 && hasSkuMap) return 'combo';
+        return 'block';
+    }
+    return 'inherit';
+}
+window.getVariantStockMode = getVariantStockMode;
+
+function getVariantBlockStockCount(v) {
+    return parseInt(v.variantStockCount ?? v.stockCount, 10) || 0;
+}
+
+function resolveStockForSku(p, variantBlock, skuKey) {
+    const mode = getVariantStockMode(variantBlock);
+    if (mode === 'combo') {
+        return {
+            trackStock: true,
+            stockCount: resolveSkuStockCount(variantBlock, skuKey),
+            stockSource: 'combo'
+        };
+    }
+    if (mode === 'block') {
+        return {
+            trackStock: true,
+            stockCount: getVariantBlockStockCount(variantBlock),
+            stockSource: 'block'
+        };
+    }
+    if (productTracksGlobalStock(p)) {
+        return {
+            trackStock: true,
+            stockCount: getGlobalStockCount(p),
+            stockSource: 'product'
+        };
+    }
+    return { trackStock: false, stockCount: 0, stockSource: 'none' };
+}
+window.resolveStockForSku = resolveStockForSku;
+
 function resolveSkuStockCount(variantBlock, skuKey) {
-    const fallback = typeof variantBlock.stockCount === 'number'
-        ? variantBlock.stockCount
-        : (parseInt(variantBlock.stockCount, 10) || 0);
-    if (!variantBlock.trackStock) return fallback;
+    const fallback = getVariantBlockStockCount(variantBlock);
+    if (getVariantStockMode(variantBlock) !== 'combo') return fallback;
     if (variantBlock.stockBySku && Object.prototype.hasOwnProperty.call(variantBlock.stockBySku, skuKey)) {
         return parseInt(variantBlock.stockBySku[skuKey], 10) || 0;
     }
@@ -1024,11 +1077,16 @@ function isNormalizedVariantInStock(v) {
     return qty > 0;
 }
 
-function variantBlockHasStock(v) {
-    if (!v || !v.trackStock) return true;
-    const skus = expandVariantBlockSkus(v);
-    if (!skus.length) return (parseInt(v.stockCount, 10) || 0) > 0;
-    return skus.some(sku => resolveSkuStockCount(v, sku.key) > 0);
+function variantBlockHasStock(v, p) {
+    const mode = getVariantStockMode(v);
+    if (mode === 'combo') {
+        const skus = expandVariantBlockSkus(v);
+        if (!skus.length) return getVariantBlockStockCount(v) > 0;
+        return skus.some(sku => resolveSkuStockCount(v, sku.key) > 0);
+    }
+    if (mode === 'block') return getVariantBlockStockCount(v) > 0;
+    if (p && productTracksGlobalStock(p)) return getGlobalStockCount(p) > 0;
+    return true;
 }
 window.variantBlockHasStock = variantBlockHasStock;
 
@@ -1097,7 +1155,7 @@ function normalizeVariants(p) {
                         }
 
                         const skuKey = buildSkuKey(sz, col, finalColorName, finalPatternName);
-                        const stockCount = resolveSkuStockCount(v, skuKey);
+                        const stockInfo = resolveStockForSku(p, v, skuKey);
 
                         normalized.push({
                             ...v,
@@ -1108,7 +1166,9 @@ function normalizeVariants(p) {
                             patternDisplayName: patternDisplayName,
                             showPatternText: showPatternText,
                             previewImage: patPreviewUrl,
-                            stockCount,
+                            trackStock: stockInfo.trackStock,
+                            stockCount: stockInfo.stockCount,
+                            stockSource: stockInfo.stockSource,
                             skuKey
                         });
                     });
@@ -1121,48 +1181,60 @@ function normalizeVariants(p) {
     const sizes = p.sizes || [];
     const map = p.sizeColorMap || {};
     if (sizes.length === 0) return [buildDefaultStorefrontVariant(p)];
+    const hasGlobal = productTracksGlobalStock(p);
+    const globalQty = getGlobalStockCount(p);
     sizes.forEach(sz => {
         const colors = map[sz] || [];
         if (colors.length > 0) {
             colors.forEach(col => {
-                variants.push({ size: sz, color: col, pattern: '', price: null, images: [] });
+                variants.push({
+                    size: sz,
+                    color: col,
+                    pattern: '',
+                    price: null,
+                    images: [],
+                    trackStock: hasGlobal,
+                    stockCount: hasGlobal ? globalQty : 0
+                });
             });
         } else {
-            variants.push({ size: sz, color: '', pattern: '', price: null, images: [] });
+            variants.push({
+                size: sz,
+                color: '',
+                pattern: '',
+                price: null,
+                images: [],
+                trackStock: hasGlobal,
+                stockCount: hasGlobal ? globalQty : 0
+            });
         }
     });
     return variants;
 }
 
 function buildDefaultStorefrontVariant(p) {
+    const hasGlobal = productTracksGlobalStock(p);
     return {
         size: 'Standard',
         color: '',
         pattern: '',
         price: p?.price ?? null,
         images: Array.isArray(p?.images) ? p.images : [],
-        trackStock: false,
-        stockCount: 0,
+        trackStock: hasGlobal,
+        stockCount: hasGlobal ? getGlobalStockCount(p) : 0,
         isActive: true
     };
 }
 
-function deductStockForCartItem(pData, item) {
-    if (!item || !item.trackStock || !pData || !Array.isArray(pData.variants)) return null;
-    const variants = pData.variants.map(v => ({
-        ...v,
-        stockBySku: { ...(v.stockBySku || {}) }
-    }));
+function findVariantBlockForCartItem(variants, item) {
     const itemKey = buildSkuKey(
         item.variantSize,
         item.variantColor,
         item.variantColorName || item.variantColor,
         item.variantPattern
     );
-
     for (let i = 0; i < variants.length; i++) {
         const v = variants[i];
-        if (!v.trackStock) continue;
         const skus = expandVariantBlockSkus(v);
         const matchedSku = skus.find(s => {
             if (s.key === itemKey) return true;
@@ -1172,18 +1244,56 @@ function deductStockForCartItem(pData, item) {
                 { strict: true }
             );
         });
-        if (!matchedSku) continue;
+        if (matchedSku) return { index: i, variant: v, skuKey: matchedSku.key };
+    }
+    return null;
+}
 
-        const key = matchedSku.key;
-        const cur = resolveSkuStockCount(v, key);
-        v.stockBySku[key] = Math.max(0, cur - (parseInt(item.qty, 10) || 0));
-        if (skus.length === 1) {
-            v.stockCount = v.stockBySku[key];
-        } else if (skus.length > 1) {
-            v.stockCount = skus.reduce((sum, s) => sum + resolveSkuStockCount(v, s.key), 0);
+function deductStockForCartItem(pData, item) {
+    if (!item || !item.trackStock || !pData) return null;
+    const qty = parseInt(item.qty, 10) || 0;
+    const source = item.stockSource || 'product';
+
+    if (Array.isArray(pData.variants)) {
+        const variants = pData.variants.map(v => ({
+            ...v,
+            stockBySku: { ...(v.stockBySku || {}) }
+        }));
+
+        const match = findVariantBlockForCartItem(variants, item);
+        if (match) {
+            const v = variants[match.index];
+            const mode = source === 'product' ? 'inherit' : (source === 'block' ? 'block' : (source === 'combo' ? 'combo' : getVariantStockMode(v)));
+
+            if (mode === 'combo') {
+                const key = match.skuKey;
+                const cur = resolveSkuStockCount(v, key);
+                v.stockBySku[key] = Math.max(0, cur - qty);
+                const skus = expandVariantBlockSkus(v);
+                if (skus.length === 1) {
+                    v.stockCount = v.stockBySku[key];
+                    v.variantStockCount = v.stockCount;
+                } else if (skus.length > 1) {
+                    v.stockCount = skus.reduce((sum, s) => sum + resolveSkuStockCount(v, s.key), 0);
+                }
+                variants[match.index] = v;
+                return { variants };
+            }
+
+            if (mode === 'block') {
+                const cur = getVariantBlockStockCount(v);
+                const next = Math.max(0, cur - qty);
+                v.variantStockCount = next;
+                v.stockCount = next;
+                variants[match.index] = v;
+                return { variants };
+            }
         }
-        variants[i] = v;
-        return variants;
+    }
+
+    if (productTracksGlobalStock(pData)) {
+        const cur = getGlobalStockCount(pData);
+        return { globalStockCount: Math.max(0, cur - qty) };
     }
     return null;
 }
