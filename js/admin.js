@@ -99,7 +99,7 @@ function adminMediaEmptyHint(text) {
 
 function adminMediaThumbHtml(opts) {
     const {
-        url, index, targetId, previewFn, onRemove, size = 60,
+        url, index, targetId, previewFn, onRemove, spinAddFn, size = 60,
         objectFit = 'cover', badge, isNew = false, extraClass = ''
     } = opts;
     const borderCls = isNew ? 'admin-media-thumb--new' : '';
@@ -110,9 +110,139 @@ function adminMediaThumbHtml(opts) {
             <button type="button" class="admin-media-thumb__preview" onclick="event.stopPropagation(); ${previewFn}" title="Preview" aria-label="Preview">
                 <i class="fa fa-eye"></i>
             </button>
+            ${spinAddFn ? `<button type="button" class="admin-media-thumb__spin-add" onclick="event.stopPropagation(); ${spinAddFn}" title="Add to rotation frames" aria-label="Add to rotation frames"><i class="fa fa-refresh"></i></button>` : ''}
             ${onRemove ? `<button type="button" class="admin-media-thumb__remove" onclick="event.stopPropagation(); ${onRemove}" title="Remove" aria-label="Remove"><i class="fa fa-times"></i></button>` : ''}
         </div>`;
 }
+
+function adminIs360FeatureEnabled() {
+    return !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+}
+
+function adminBuildGallerySpinToolbar(targetId, imageCount) {
+    if (!adminIs360FeatureEnabled() || !imageCount) return '';
+    return `
+        <div class="admin-gallery-spin-toolbar">
+            <button type="button" class="admin-media-action-btn admin-media-action-btn--gold" onclick="useGalleryImagesAsSpinFrames('${targetId}', true)">
+                <i class="fa fa-refresh"></i> Use gallery as rotation frames
+            </button>
+            <button type="button" class="admin-media-action-btn" onclick="useGalleryImagesAsSpinFrames('${targetId}', false)">
+                <i class="fa fa-plus"></i> Append gallery to rotation
+            </button>
+        </div>`;
+}
+
+function adminEnsureSpin360Enabled(targetId) {
+    if (targetId === 'base') {
+        const chk = document.getElementById('m-is360');
+        if (chk && !chk.checked) {
+            chk.checked = true;
+            toggle360Badge('base', true);
+        }
+        toggleAdmin360Accordion('base', true);
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (v && !v.is360) {
+            v.is360 = true;
+            renderVariantBlocks();
+            setTimeout(() => {
+                toggleAdmin360Accordion(targetId, true);
+                syncAdmin360AccordionSummary(targetId);
+            }, 80);
+            return;
+        }
+        toggleAdmin360Accordion(targetId, true);
+    }
+    syncAdmin360AccordionSummary(targetId);
+}
+
+function useGalleryImagesAsSpinFrames(targetId, replace = true) {
+    const gallery = targetId === 'base'
+        ? (existingImageUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.images || []);
+    if (!gallery.length) return showToast('Add gallery photos first.');
+    const previousCount = targetId === 'base'
+        ? (existingSpinUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.spinImages || []).length);
+    adminEnsureSpin360Enabled(targetId);
+    const frames = gallery.map(img => img);
+    if (targetId === 'base') {
+        existingSpinUrls = replace ? [...frames] : [...(existingSpinUrls || []), ...frames];
+        renderSpinPreviews('base');
+        adminScrollToSpinSection('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (!v) return;
+        v.spinImages = replace ? [...frames] : [...(v.spinImages || []), ...frames];
+        renderSpinPreviews(targetId);
+        adminScrollToSpinSection(targetId);
+    }
+    syncAdmin360AccordionSummary(targetId);
+    const n = targetId === 'base' ? existingSpinUrls.length : (variantBlocks.find(x => x.id === targetId)?.spinImages || []).length;
+    if (replace) {
+        showToast(`Rotation frames set from gallery (${n} frame${n === 1 ? '' : 's'}${previousCount ? `, replaced ${previousCount}` : ''}). Save to keep.`);
+    } else {
+        showToast(`Added gallery photos to rotation (${n} total). Save to keep.`);
+    }
+}
+window.useGalleryImagesAsSpinFrames = useGalleryImagesAsSpinFrames;
+
+function addGalleryImageToSpinFrames(targetId, index) {
+    const gallery = targetId === 'base'
+        ? (existingImageUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.images || []);
+    const img = gallery[index];
+    if (!img) return;
+    adminEnsureSpin360Enabled(targetId);
+    if (targetId === 'base') {
+        existingSpinUrls = [...(existingSpinUrls || []), img];
+        renderSpinPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (!v) return;
+        v.spinImages = [...(v.spinImages || []), img];
+        renderSpinPreviews(targetId);
+    }
+    syncAdmin360AccordionSummary(targetId);
+    showToast(`Gallery photo #${index + 1} added to rotation frames.`);
+}
+window.addGalleryImageToSpinFrames = addGalleryImageToSpinFrames;
+
+function toggleAdmin360Accordion(targetId, forceOpen) {
+    const content = document.getElementById(`admin-360-accord-content-${targetId}`);
+    const accordion = document.getElementById(`admin-360-accord-${targetId}`);
+    const icon = document.getElementById(`admin-360-accord-icon-${targetId}`);
+    const header = accordion?.querySelector('.admin-media-360-accord-header');
+    if (!content || !accordion) return;
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : content.style.display === 'none';
+    content.style.display = shouldOpen ? 'block' : 'none';
+    accordion.classList.toggle('is-open', shouldOpen);
+    if (icon) icon.style.transform = shouldOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (header) header.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+}
+window.toggleAdmin360Accordion = toggleAdmin360Accordion;
+
+function syncAdmin360AccordionSummary(targetId) {
+    const el = document.getElementById(`admin-360-accord-summary-${targetId}`);
+    if (!el) return;
+    const spinCount = targetId === 'base'
+        ? (existingSpinUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.spinImages || []).length);
+    const panoCount = targetId === 'base'
+        ? (existingPanoramaUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.panoramaImages || []).length);
+    const spinOn = targetId === 'base'
+        ? !!document.getElementById('m-is360')?.checked
+        : !!(variantBlocks.find(x => x.id === targetId)?.is360);
+    const panoOn = targetId === 'base'
+        ? !!document.getElementById('m-is360-panorama')?.checked
+        : !!(variantBlocks.find(x => x.id === targetId)?.is360Panorama);
+    const parts = [];
+    if (spinOn) parts.push(`Rotate: ${spinCount} frame${spinCount === 1 ? '' : 's'}`);
+    if (panoOn) parts.push(`Panorama: ${panoCount} scene${panoCount === 1 ? '' : 's'}`);
+    el.textContent = parts.length ? parts.join(' · ') : 'Optional — spin frames & panorama';
+}
+window.syncAdmin360AccordionSummary = syncAdmin360AccordionSummary;
 
 function previewAdminGallery(targetId, index) {
     const images = targetId === 'base'
@@ -576,35 +706,44 @@ function renderVariantBlocks() {
                             <span class="admin-media-upload__text">Upload video</span>
                             <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
                         </label>
-                        ${is360Enabled ? `<button type="button" onclick="loadDemo360Video('${v.id}')" class="admin-media-demo-btn">Use demo 360° video</button>` : ''}
+                        ${is360Enabled ? `<button type="button" onclick="loadDemo360Video('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video</button>` : ''}
                     </div>
 
                 ${is360Enabled ? `
-                    <div class="admin-media-block admin-media-block--360">
-                        <p class="admin-media-block__label">Interactive 360° (optional)</p>
-                        <div class="admin-media-360-toggles">
-                            ${toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, 'Rotate Product (spin frames)', '#FFD700')}
-                            ${toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks();`, 'Look Around (panorama)', '#64b5f6')}
+                    <div class="admin-media-360-accordion" id="admin-360-accord-${v.id}">
+                        <div class="admin-media-360-accord-header" onclick="toggleAdmin360Accordion('${v.id}')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-360-accord-content-${v.id}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdmin360Accordion('${v.id}');}">
+                            <div class="admin-media-360-accord-header-text">
+                                <i class="fa fa-street-view" aria-hidden="true"></i>
+                                <span>Additional 360° features</span>
+                                <span id="admin-360-accord-summary-${v.id}" class="admin-media-360-accord-summary">Optional — spin frames &amp; panorama</span>
+                            </div>
+                            <i id="admin-360-accord-icon-${v.id}" class="fa fa-chevron-down admin-media-360-chevron" aria-hidden="true"></i>
                         </div>
-                        <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
-                            ${adminMediaSectionHead('variant', 'spin', 'Rotation frames', 'Separate still images — swipe to turn the product (not a video file)')}
-                            <div id="v-spin-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
-                            <label class="admin-media-upload admin-media-upload--spin">
-                                <span class="admin-media-upload__icon">🔄</span>
-                                <span class="admin-media-upload__text">Add rotation photos</span>
-                                <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
-                            </label>
-                            <button type="button" onclick="loadDemo360Spin('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
-                        </div>
-                        <div id="v-panorama-upload-${v.id}" style="display:${v.is360Panorama ? 'block' : 'none'}; margin-top:10px;">
-                            ${adminMediaSectionHead('variant', 'panorama', 'Immersive panorama', 'One wide 2:1 image — drag to look around (Street View style)')}
-                            <div id="v-panorama-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
-                            <label class="admin-media-upload admin-media-upload--pano">
-                                <span class="admin-media-upload__icon">🌐</span>
-                                <span class="admin-media-upload__text">Upload panorama</span>
-                                <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
-                            </label>
-                            <button type="button" onclick="loadDemo360Panorama('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
+                        <div id="admin-360-accord-content-${v.id}" class="admin-media-360-accord-content" style="display:none;">
+                            <div class="admin-media-360-toggles">
+                                ${toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${v.id}');`, 'Rotate Product (spin frames)', '#FFD700')}
+                                ${toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${v.id}');`, 'Look Around (panorama)', '#64b5f6')}
+                            </div>
+                            <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
+                                ${adminMediaSectionHead('variant', 'spin', 'Rotation frames', 'Upload your own, copy from gallery above, or extract from video')}
+                                <div id="v-spin-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                                <label class="admin-media-upload admin-media-upload--spin">
+                                    <span class="admin-media-upload__icon">🔄</span>
+                                    <span class="admin-media-upload__text">Add your own rotation photos</span>
+                                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
+                                </label>
+                                <button type="button" onclick="loadDemo360Spin('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
+                            </div>
+                            <div id="v-panorama-upload-${v.id}" style="display:${v.is360Panorama ? 'block' : 'none'}; margin-top:10px;">
+                                ${adminMediaSectionHead('variant', 'panorama', 'Immersive panorama', 'One wide 2:1 image — drag to look around (Street View style)')}
+                                <div id="v-panorama-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
+                                <label class="admin-media-upload admin-media-upload--pano">
+                                    <span class="admin-media-upload__icon">🌐</span>
+                                    <span class="admin-media-upload__text">Upload panorama</span>
+                                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
+                                </label>
+                                <button type="button" onclick="loadDemo360Panorama('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
+                            </div>
                         </div>
                     </div>
                 ` : ''}
@@ -635,6 +774,7 @@ function renderVariantBlocks() {
         renderPanoramaPreviews(v.id);
         renderVideoPreviews(v.id);
         renderSwatchPreview(v.id);
+        syncAdmin360AccordionSummary(v.id);
         
         const blockEl = document.getElementById(`v-block-${v.id}`);
         if(blockEl) {
@@ -1086,6 +1226,7 @@ function adminApplySpinFramesFromVideo(targetId, frames, previousCount) {
     } else {
         showToast(`Rotation ready: ${n} frames from video. Save product to keep.`);
     }
+    syncAdmin360AccordionSummary(targetId);
 }
 
 function adminScrollToSpinSection(targetId) {
@@ -1116,6 +1257,7 @@ async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
         const frames = await adminExtractFramesFromVideoUrl(prep.url, frameCount, { useCrossOrigin: prep.useCrossOrigin });
         if (!frames.length) return showToast('Could not create frames from this video.');
         adminApplySpinFramesFromVideo(targetId, frames, previousCount);
+        syncAdmin360AccordionSummary(targetId);
     } catch (e) {
         console.error('Frame extraction failed:', e);
         if (String(e.message) === 'CORS_BLOCKED') {
@@ -1405,6 +1547,7 @@ function openEdit(id) {
     renderSpinPreviews('base');
     renderPanoramaPreviews('base');
     renderVideoPreviews('base');
+    syncAdmin360AccordionSummary('base');
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
     
     // Load variants or fallback
@@ -1472,6 +1615,16 @@ function openEdit(id) {
 
     renderImagePreviews('base'); 
     renderVariantBlocks();
+    if (p.is360 || p.is360Panorama || (p.spinImages || []).length || (p.panoramaImages || []).length) {
+        toggleAdmin360Accordion('base', true);
+    } else {
+        toggleAdmin360Accordion('base', false);
+    }
+    variantBlocks.forEach(v => {
+        if (v.is360 || v.is360Panorama || (v.spinImages || []).length || (v.panoramaImages || []).length) {
+            toggleAdmin360Accordion(v.id, true);
+        }
+    });
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex'; 
@@ -1483,6 +1636,7 @@ function toggle360Badge(id, checked) {
         if (b) b.style.display = checked ? 'inline-block' : 'none';
         const spinUpload = document.getElementById('m-spin-upload-container');
         if (spinUpload) spinUpload.style.display = checked ? 'block' : 'none';
+        syncAdmin360AccordionSummary('base');
     }
 }
 window.toggle360Badge = toggle360Badge;
@@ -1493,13 +1647,14 @@ function toggle360PanoramaBadge(id, checked) {
         if (b) b.style.display = checked ? 'inline-block' : 'none';
         const panoUpload = document.getElementById('m-panorama-upload-container');
         if (panoUpload) panoUpload.style.display = checked ? 'block' : 'none';
+        syncAdmin360AccordionSummary('base');
     }
 }
 window.toggle360PanoramaBadge = toggle360PanoramaBadge;
 
 function syncAdmin360PanelVisibility() {
-    const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
-    const block = document.querySelector('.admin-media-panel--global .admin-media-block--360');
+    const is360Enabled = adminIs360FeatureEnabled();
+    const block = document.getElementById('admin-360-accord-base');
     if (block) block.style.display = is360Enabled ? 'block' : 'none';
 }
 window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
@@ -1539,6 +1694,8 @@ function openAdd() {
     renderSpinPreviews('base');
     renderPanoramaPreviews('base');
     renderVideoPreviews('base');
+    syncAdmin360AccordionSummary('base');
+    toggleAdmin360Accordion('base', false);
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(null);
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(null);
@@ -1549,12 +1706,14 @@ function openAdd() {
 function renderImagePreviews(targetId = 'base') { 
     const container = document.getElementById(targetId === 'base' ? 'm-preview' : `v-preview-${targetId}`); 
     if (!container) return;
+    const spinAddEnabled = adminIs360FeatureEnabled();
     const buildThumb = (img, i, removeFn) => {
         const isFile = img instanceof File;
         const url = adminResolveMediaUrl(img);
         return adminMediaThumbHtml({
             url, index: i, targetId,
             previewFn: `previewAdminGallery('${targetId}', ${i})`,
+            spinAddFn: spinAddEnabled ? `addGalleryImageToSpinFrames('${targetId}', ${i})` : null,
             onRemove: removeFn,
             size: 64, isNew: isFile, badge: i + 1,
             extraClass: 'admin-media-thumb--gallery'
@@ -1562,12 +1721,16 @@ function renderImagePreviews(targetId = 'base') {
     };
     if (targetId === 'base') {
         const items = existingImageUrls || [];
-        container.innerHTML = items.length
+        const gridHtml = items.length
             ? items.map((img, i) => buildThumb(img, i, `existingImageUrls.splice(${i},1);renderImagePreviews('base')`)).join('')
-            : adminMediaEmptyHint('No main gallery photos — tap 👁 on any thumb to preview');
-        if (window.Sortable && container && items.length) {
-            if (container._sortable) container._sortable.destroy();
-            container._sortable = Sortable.create(container, {
+            : '';
+        container.innerHTML = items.length
+            ? `<div class="admin-media-preview-grid-inner">${gridHtml}</div>${adminBuildGallerySpinToolbar('base', items.length)}`
+            : adminMediaEmptyHint('No main gallery photos — optional. Tap 👁 to preview after upload.');
+        const sortTarget = container.querySelector('.admin-media-preview-grid-inner') || container;
+        if (window.Sortable && items.length && sortTarget) {
+            if (sortTarget._sortable) sortTarget._sortable.destroy();
+            sortTarget._sortable = Sortable.create(sortTarget, {
                 animation: 150,
                 draggable: '.admin-media-thumb',
                 onEnd(evt) {
@@ -1581,12 +1744,16 @@ function renderImagePreviews(targetId = 'base') {
         const v = variantBlocks.find(x => x.id === targetId);
         if (!v) return;
         const items = v.images || [];
-        container.innerHTML = items.length
+        const gridHtml = items.length
             ? items.map((img, i) => buildThumb(img, i, `removeVariantImage('${targetId}', ${i})`)).join('')
-            : adminMediaEmptyHint('No variant gallery photos — falls back to main images on the shop');
-        if (window.Sortable && container && items.length) {
-            if (container._sortable) container._sortable.destroy();
-            container._sortable = Sortable.create(container, {
+            : '';
+        container.innerHTML = items.length
+            ? `<div class="admin-media-preview-grid-inner">${gridHtml}</div>${adminBuildGallerySpinToolbar(targetId, items.length)}`
+            : adminMediaEmptyHint('No variant gallery photos — optional, falls back to main images on the shop');
+        const sortTarget = container.querySelector('.admin-media-preview-grid-inner') || container;
+        if (window.Sortable && items.length && sortTarget) {
+            if (sortTarget._sortable) sortTarget._sortable.destroy();
+            sortTarget._sortable = Sortable.create(sortTarget, {
                 animation: 150,
                 draggable: '.admin-media-thumb',
                 onEnd(evt) {
@@ -1621,7 +1788,7 @@ function renderSpinPreviews(targetId = 'base') {
     const scopeLabel = targetId === 'base' ? '🌐 All variants' : '🎯 This variant';
     const countHtml = items.length
         ? `<p class="admin-media-spin-meta">${scopeLabel} · <strong>${items.length}</strong> rotation frame${items.length === 1 ? '' : 's'} · drag to reorder · 👁 to preview each frame</p>`
-        : `<p class="admin-media-spin-meta admin-media-empty">No rotation frames yet — these are <strong>still images</strong>, not a video. Upload photos or use “Create rotation from video” on a video card.</p>`;
+        : `<p class="admin-media-spin-meta admin-media-empty">No rotation frames yet — upload your own photos, copy from gallery, or extract from a video card.</p>`;
     const helpHtml = items.length
         ? `<p class="admin-media-spin-help">Powers the <strong>Rotate</strong> button on the shop. Save product, then test on the storefront.</p>`
         : '';
@@ -1686,6 +1853,7 @@ function clearSpinFrames(targetId = 'base') {
         if (v) v.spinImages = [];
         renderSpinPreviews(targetId);
     }
+    syncAdmin360AccordionSummary(targetId);
     showToast('Rotation frames cleared.');
 }
 window.clearSpinFrames = clearSpinFrames;
@@ -1781,26 +1949,28 @@ window.renderVideoPreviews = renderVideoPreviews;
 async function saveProduct() { 
     const n = document.getElementById('m-name').value;
     const pr = document.getElementById('m-price').value; 
-    if(!n || !pr) return showToast("Fields missing");
+    if(!n || !pr) return showToast("Name and price are required");
 
-    const spinEnabled = !!document.getElementById('m-is360')?.checked;
-    const panoEnabled = !!document.getElementById('m-is360-panorama')?.checked;
+    let spinEnabled = !!document.getElementById('m-is360')?.checked;
+    let panoEnabled = !!document.getElementById('m-is360-panorama')?.checked;
     if (spinEnabled && (existingSpinUrls || []).length < 2) {
-        return showToast('Classic 360° spin needs at least 2 frames uploaded.');
+        spinEnabled = false;
+        const chk = document.getElementById('m-is360');
+        if (chk) chk.checked = false;
+        toggle360Badge('base', false);
     }
     if (panoEnabled && (existingPanoramaUrls || []).length < 1) {
-        return showToast('Immersive 360° needs at least 1 panorama image uploaded.');
+        panoEnabled = false;
+        const chk = document.getElementById('m-is360-panorama');
+        if (chk) chk.checked = false;
+        toggle360PanoramaBadge('base', false);
     }
     for (const v of variantBlocks) {
-        if (v.is360 && (v.spinImages || []).length < 2) {
-            return showToast(`Variant "${v.size || 'Standard'}" has spin enabled but fewer than 2 frames.`);
-        }
-        if (v.is360Panorama && (v.panoramaImages || []).length < 1) {
-            return showToast(`Variant "${v.size || 'Standard'}" has immersive 360° enabled but no panorama uploaded.`);
-        }
+        if (v.is360 && (v.spinImages || []).length < 2) v.is360 = false;
+        if (v.is360Panorama && (v.panoramaImages || []).length < 1) v.is360Panorama = false;
     }
 
-    const btn = document.getElementById('m-save'); 
+    const btn = document.getElementById('m-save');
     btn.disabled = true; 
     btn.innerText = "Processing..."; 
     
@@ -1989,8 +2159,8 @@ async function saveProduct() {
             hideMainDetailsCarousel: document.getElementById('m-hide-main-details').checked,
             mainImagesPosition: document.getElementById('m-main-pos').value,
             hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
-            is360: document.getElementById('m-is360').checked,
-            is360Panorama: document.getElementById('m-is360-panorama')?.checked || false,
+            is360: spinEnabled,
+            is360Panorama: panoEnabled,
             threeSixtyCols: finalSpinImages.length || 1,
             threeSixtyRows: 1,
             spinImages: finalSpinImages,
@@ -2139,6 +2309,7 @@ function copyProduct(id) {
     renderSpinPreviews('base');
     renderPanoramaPreviews('base');
     renderVideoPreviews('base');
+    syncAdmin360AccordionSummary('base');
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
