@@ -4244,6 +4244,16 @@ body.media-viewer-open .bottom-nav {
     background: rgba(255,255,255,0.06);
 }
 
+.mv-mode-desc {
+    margin: 0;
+    padding: 0 12px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #9ecbff;
+    text-align: center;
+    max-width: 340px;
+}
+
 .mv-mode-btn--disabled,
 .mv-mode-btn:disabled {
     opacity: 0.38;

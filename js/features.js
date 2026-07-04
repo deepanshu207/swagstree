@@ -567,7 +567,7 @@ function mvIsCoarsePointer() {
     return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
 
-const MV_MODAL_DOM_VERSION = 5;
+const MV_MODAL_DOM_VERSION = 6;
 
 function mvSpinPixelsPerFrame() {
     return mvIsCoarsePointer() ? 220 : 64;
@@ -631,35 +631,54 @@ function updateMediaViewerHints() {
     }
 
     if (hintEl) {
-        if (isVideo) hintEl.textContent = 'Use the video player controls below';
-        else if (isVideo360) hintEl.textContent = 'Drag to look around · Use player controls to play/pause';
-        else if (isPanorama) hintEl.textContent = 'Drag to look around · Pinch or scroll to zoom';
-        else if (isSpin) hintEl.textContent = 'Swipe to spin · Pinch to zoom';
+        if (isVideo) hintEl.textContent = 'Normal video playback';
+        else if (isVideo360) hintEl.textContent = 'Drag to look around while the video plays';
+        else if (isPanorama) hintEl.textContent = 'Drag to look around — like Google Street View';
+        else if (isSpin) hintEl.textContent = 'Swipe left or right to rotate the product';
         else hintEl.textContent = 'Pinch or +/− to zoom';
     }
     if (guideText) {
-        if (isVideo) guideText.textContent = 'Tap play on the video player';
-        else if (isVideo360) guideText.textContent = 'Drag to explore while the 360° video plays';
-        else if (isPanorama) guideText.textContent = 'Move your finger or mouse to explore all angles';
+        if (isVideo) guideText.textContent = 'Tap play on the video';
+        else if (isVideo360) guideText.textContent = 'Move your finger to explore the 360° video';
+        else if (isPanorama) guideText.textContent = 'Move your finger to look around the scene';
         else guideText.textContent = isSpin
-            ? 'Swipe left or right to spin the product'
+            ? 'Swipe to see the product from different angles'
             : 'Pinch or tap + to zoom in';
+    }
+    const modeDesc = document.getElementById('mv-mode-desc');
+    if (modeDesc) {
+        let desc = '';
+        if (isSpin) {
+            desc = 'Rotate product — swipe to turn the item (like Amazon 360°)';
+        } else if (isPanorama) {
+            const url = mvState.panoramaImages[mvState.panoramaIndex];
+            const isDemo = mvIsDemoPanoramaUrl(url);
+            desc = isDemo
+                ? 'Demo scenery only — upload your own 360° camera photo in Admin for your product'
+                : 'Look around — full 360° room view (from a 360° camera, not product spin)';
+        } else if (isVideo) {
+            desc = 'Flat video — your normal product clip';
+        } else if (isVideo360) {
+            desc = 'Immersive 360° video — drag to look around';
+        }
+        modeDesc.textContent = desc;
+        modeDesc.style.display = desc ? 'block' : 'none';
     }
     if (frameLabel) {
         if (isVideo) {
-            frameLabel.textContent = 'Flat Video';
+            frameLabel.textContent = 'Video';
             frameLabel.style.display = 'block';
         } else if (isVideo360) {
-            frameLabel.textContent = 'Immersive 360° Video';
+            frameLabel.textContent = '360° Video';
             frameLabel.style.display = 'block';
         } else if (isPanorama && mvState.panoramaImages.length) {
             const sceneLabel = mvState.panoramaImages.length > 1
-                ? `Scene ${mvState.panoramaIndex + 1} / ${mvState.panoramaImages.length}`
-                : 'Immersive 360°';
+                ? `Look around · Scene ${mvState.panoramaIndex + 1} / ${mvState.panoramaImages.length}`
+                : 'Look around';
             frameLabel.textContent = sceneLabel;
             frameLabel.style.display = 'block';
         } else if (isSpin && mvState.spinFrames.length) {
-            frameLabel.textContent = `Spin ${mvState.spinIndex + 1} / ${mvState.spinFrames.length}`;
+            frameLabel.textContent = `Rotate · ${mvState.spinIndex + 1} / ${mvState.spinFrames.length}`;
             frameLabel.style.display = 'block';
         } else if (!isVideo && mvState.images.length > 1 && mvState.mode === 'gallery') {
             frameLabel.textContent = `Photo ${mvState.imageIndex + 1} / ${mvState.images.length}`;
@@ -697,7 +716,8 @@ function ensureMediaViewerModal() {
     const domOk = modal
         && modal.getAttribute('data-mv-version') === String(MV_MODAL_DOM_VERSION)
         && modal.querySelector('.mv-topbar')
-        && modal.querySelector('#mv-btn-step-back');
+        && modal.querySelector('#mv-btn-step-back')
+        && modal.querySelector('#mv-mode-desc');
     if (modal && !domOk) {
         modal.remove();
         modal = null;
@@ -733,9 +753,10 @@ function ensureMediaViewerModal() {
         </div>
         <div class="mv-bottom">
             <div id="mv-mode-switcher" class="mv-mode-switcher" style="display:none;">
-                <button type="button" id="mv-mode-spin" class="mv-mode-btn" onclick="mediaViewerSwitchMode('spin360')"><i class="fa fa-arrows-rotate"></i><span>Product Spin</span></button>
-                <button type="button" id="mv-mode-pano" class="mv-mode-btn" onclick="mediaViewerSwitchMode('panorama360')"><i class="fa fa-street-view"></i><span>Immersive 360°</span></button>
+                <button type="button" id="mv-mode-spin" class="mv-mode-btn" onclick="mediaViewerSwitchMode('spin360')"><i class="fa fa-arrows-rotate"></i><span>Rotate Product</span></button>
+                <button type="button" id="mv-mode-pano" class="mv-mode-btn" onclick="mediaViewerSwitchMode('panorama360')"><i class="fa fa-street-view"></i><span>Look Around</span></button>
             </div>
+            <p id="mv-mode-desc" class="mv-mode-desc" style="display:none;"></p>
             <div id="mv-video-mode-switcher" class="mv-mode-switcher" style="display:none;">
                 <button type="button" id="mv-mode-video-flat" class="mv-mode-btn" onclick="mediaViewerSwitchVideoMode('video')"><i class="fa fa-play-circle"></i><span>Flat Video</span></button>
                 <button type="button" id="mv-mode-video-360" class="mv-mode-btn" onclick="mediaViewerSwitchVideoMode('video360')"><i class="fa fa-street-view"></i><span>Immersive 360°</span></button>
@@ -836,6 +857,15 @@ const LEGACY_PANORAMA_URL_MAP = {
     'assets/demo/360/panorama/alma.jpg': 'https://raw.githubusercontent.com/mpetroff/pannellum/master/examples/examplepano.jpg',
     'assets/demo/360/panorama/equirectangular-sw.jpg': 'https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg'
 };
+
+const DEMO_PANORAMA_HINTS = ['pannellum.org', 'mpetroff/pannellum', 'wikimedia.org', 'cerro-toco', 'examplepano'];
+
+function mvIsDemoPanoramaUrl(url) {
+    const u = String(url || '').toLowerCase();
+    const trimmed = u.replace(/^\//, '');
+    if (LEGACY_PANORAMA_URL_MAP[trimmed]) return true;
+    return DEMO_PANORAMA_HINTS.some(h => u.includes(h));
+}
 
 function mvResolveMediaUrl(url) {
     if (!url) return url;
@@ -1048,6 +1078,25 @@ function destroyPanoramaViewer() {
     }
 }
 
+function mvFallbackToSpinIfAvailable() {
+    if (mvState.spinFrames.length < 2) return false;
+    destroyPanoramaViewer();
+    mvHideLoader();
+    mvState.mode = 'spin360';
+    mvState.guideShown = false;
+    const guide = document.getElementById('mv-guide');
+    if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
+    const titleEl = document.getElementById('mv-title');
+    if (titleEl) titleEl.textContent = mvState.title + ' · Rotate Product';
+    renderMediaViewerContent();
+    updateMediaViewerHints();
+    updateMediaViewerToolbar();
+    mvUpdateModeSwitcher();
+    mvUpdatePanoramaSceneNav();
+    showToast('Showing product rotation — swipe to turn the item.');
+    return true;
+}
+
 async function initPanoramaViewer(url) {
     if (!url) return;
     const absoluteUrl = mvResolveMediaUrl(url);
@@ -1093,18 +1142,20 @@ async function initPanoramaViewer(url) {
             fn();
         };
         const safetyHideTimer = setTimeout(() => {
-            if (settled || !mvState.pannellumInstance) return;
+            if (settled) return;
+            clearInterval(pollInterval);
             mvHideLoader();
             setTimeout(mvDismissGuide, 1200);
             finish(() => resolve());
-        }, 3000);
+        }, 2000);
         const fallbackTimer = setTimeout(() => {
+            clearInterval(pollInterval);
             mvHideLoader();
             console.warn('Panorama viewer load timeout:', absoluteUrl);
-            showToast('Panorama is taking too long — try another scene.');
             finish(() => reject(new Error('Panorama viewer timeout')));
-        }, 15000);
+        }, 12000);
 
+        let pollInterval = null;
         try {
             panoEl.innerHTML = '';
             mvState.pannellumInstance = window.pannellum.viewer('mv-panorama', {
@@ -1120,18 +1171,34 @@ async function initPanoramaViewer(url) {
                 maxHfov: 120,
                 backgroundColor: [10, 10, 10],
                 onLoad: () => {
+                    clearInterval(pollInterval);
                     mvHideLoader();
                     setTimeout(mvDismissGuide, 1200);
                     finish(() => resolve());
                 },
                 onError: (msg) => {
+                    clearInterval(pollInterval);
                     mvHideLoader();
                     console.error('Panorama load error:', msg, absoluteUrl);
-                    showToast('Could not load immersive 360° image.');
                     finish(() => reject(new Error(String(msg))));
                 }
             });
+            pollInterval = setInterval(() => {
+                if (settled) {
+                    clearInterval(pollInterval);
+                    return;
+                }
+                try {
+                    if (mvState.pannellumInstance && typeof mvState.pannellumInstance.isLoaded === 'function' && mvState.pannellumInstance.isLoaded()) {
+                        clearInterval(pollInterval);
+                        mvHideLoader();
+                        setTimeout(mvDismissGuide, 1200);
+                        finish(() => resolve());
+                    }
+                } catch (e) { /* ignore poll errors */ }
+            }, 150);
         } catch (e) {
+            if (pollInterval) clearInterval(pollInterval);
             mvHideLoader();
             finish(() => reject(e));
         }
@@ -1267,7 +1334,11 @@ function mvPanoramaNav(dir) {
     mvState.panoramaIndex = (mvState.panoramaIndex + dir + n) % n;
     initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).then(() => {
         updateMediaViewerHints();
-    }).catch(() => {});
+    }).catch(() => {
+        if (!mvFallbackToSpinIfAvailable()) {
+            showToast('Could not load this scene — try another or use Rotate Product.');
+        }
+    });
 }
 window.mvPanoramaNav = mvPanoramaNav;
 
@@ -1324,8 +1395,8 @@ function openMediaViewer(opts = {}) {
 
     if (titleEl) {
         let suffix = '';
-        if (isSpin) suffix = ' · Product Spin';
-        else if (isPanorama) suffix = ' · Immersive 360°';
+        if (isSpin) suffix = ' · Rotate Product';
+        else if (isPanorama) suffix = ' · Look Around';
         else if (isVideo360) suffix = ' · Immersive 360° Video';
         else if (isVideo) suffix = ' · Flat Video';
         titleEl.textContent = mvState.title + suffix;
@@ -1372,7 +1443,11 @@ function openMediaViewer(opts = {}) {
 
     if (isPanorama && hasPano) {
         mvHideLoader();
-        initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).catch(() => {});
+        initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).catch(() => {
+            if (!mvFallbackToSpinIfAvailable()) {
+                showToast('Could not load look-around view.');
+            }
+        });
     } else if ((isVideo || isVideo360) && mvState.videoUrl) {
         const prefer360 = isVideo360 || mvState.videoSavedAs360;
         mvOpenVideoViewer(prefer360).catch(() => {});
@@ -1530,12 +1605,16 @@ function mediaViewerSwitchMode(mode) {
         const guide = document.getElementById('mv-guide');
         if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
         const titleEl = document.getElementById('mv-title');
-        if (titleEl) titleEl.textContent = mvState.title + ' · Immersive 360°';
+        if (titleEl) titleEl.textContent = mvState.title + ' · Look Around';
         updateMediaViewerHints();
         updateMediaViewerToolbar();
         mvUpdateModeSwitcher();
         mvUpdatePanoramaSceneNav();
-        initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).catch(() => {});
+        initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).catch(() => {
+            if (!mvFallbackToSpinIfAvailable()) {
+                showToast('Could not load look-around view.');
+            }
+        });
         return;
     }
     if (mode === 'spin360' && mvState.spinFrames.length >= 2) {
@@ -1566,7 +1645,7 @@ function mediaViewerSwitchMode(mode) {
         const guide = document.getElementById('mv-guide');
         if (guide) { guide.style.opacity = '1'; guide.style.display = 'flex'; }
         const titleEl = document.getElementById('mv-title');
-        if (titleEl) titleEl.textContent = mvState.title + ' · Product Spin';
+        if (titleEl) titleEl.textContent = mvState.title + ' · Rotate Product';
         updateMediaViewerHints();
         updateMediaViewerToolbar();
         mvUpdateModeSwitcher();
@@ -1809,14 +1888,15 @@ function open360Viewer(prodId) {
     const hasSpin = !!(media && media.spinFrames && media.spinFrames.length >= 2);
     const hasPano = !!(media && media.panoramaImages && media.panoramaImages.length >= 1);
     if (!hasSpin && !hasPano) {
-        showToast('Add spin frames or an immersive panorama for 360° view.');
+        showToast('Add rotation photos or a look-around panorama in Admin.');
         return;
     }
     const galleryImages = (window.detailGalleryImages && window.detailGalleryImages.length)
         ? window.detailGalleryImages
         : (p.images || []);
+    const startSpin = hasSpin;
     openMediaViewer({
-        mode: hasPano && !hasSpin ? 'panorama360' : (hasSpin ? 'spin360' : 'panorama360'),
+        mode: startSpin ? 'spin360' : 'panorama360',
         spinFrames: media.spinFrames || [],
         panoramaImages: (media.panoramaImages || []).map(mvResolveMediaUrl),
         spinCols: media.spinCols,
@@ -1824,6 +1904,11 @@ function open360Viewer(prodId) {
         images: galleryImages,
         title: p.name || 'Product View'
     });
+    if (startSpin && hasPano) {
+        setTimeout(() => showToast('Swipe to rotate · tap Look Around for 360° room view'), 400);
+    } else if (startSpin) {
+        setTimeout(() => showToast('Swipe left or right to rotate the product'), 400);
+    }
 }
 window.open360Viewer = open360Viewer;
 

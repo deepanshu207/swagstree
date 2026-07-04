@@ -2097,6 +2097,15 @@ function updateDetailGalleryActions(idx, productOverride) {
     }
     if (spinBtn) {
         spinBtn.style.display = (has360View && !isVideoSlide) ? 'flex' : 'none';
+        const labelEl = spinBtn.querySelector('.det-side-label');
+        if (labelEl && media) {
+            const hasSpin = !!media.has360;
+            const hasPano = !!media.hasPanorama360;
+            if (hasSpin && hasPano) labelEl.textContent = '360°';
+            else if (hasSpin) labelEl.textContent = 'Rotate';
+            else if (hasPano) labelEl.textContent = 'Look Around';
+            else labelEl.textContent = '360°';
+        }
     }
 
     const sideActions = document.getElementById('det-gallery-side-actions');

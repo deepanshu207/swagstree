@@ -749,7 +749,7 @@ function loadDemo360Panorama(targetId = 'base') {
         v.panoramaImages = [...DEMO_360_PANORAMAS];
         renderVariantBlocks();
     }
-    showToast('Demo panoramas loaded (3 scenes). Save product to keep.');
+    showToast('Demo panoramas loaded — sample scenery only, not your product. Replace with your own 360° photo before going live.');
 }
 window.loadDemo360Panorama = loadDemo360Panorama;
 
