@@ -538,6 +538,9 @@ let mvState = {
     pannellumInstance: null,
     videojsPlayer: null,
     videoUrl: '',
+    videoSavedAs360: false,
+    videoLikelyEquirectangular: null,
+    videoAllowModeSwitch: false,
     title: '',
     scale: 1,
     panX: 0,
@@ -564,7 +567,7 @@ function mvIsCoarsePointer() {
     return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
 
-const MV_MODAL_DOM_VERSION = 4;
+const MV_MODAL_DOM_VERSION = 5;
 
 function mvSpinPixelsPerFrame() {
     return mvIsCoarsePointer() ? 220 : 64;
@@ -643,7 +646,10 @@ function updateMediaViewerHints() {
             : 'Pinch or tap + to zoom in';
     }
     if (frameLabel) {
-        if (isVideo360) {
+        if (isVideo) {
+            frameLabel.textContent = 'Flat Video';
+            frameLabel.style.display = 'block';
+        } else if (isVideo360) {
             frameLabel.textContent = 'Immersive 360° Video';
             frameLabel.style.display = 'block';
         } else if (isPanorama && mvState.panoramaImages.length) {
@@ -665,6 +671,7 @@ function updateMediaViewerHints() {
     }
     updateMediaViewerToolbar();
     mvUpdateModeSwitcher();
+    mvUpdateVideoModeSwitcher();
     mvUpdatePanoramaSceneNav();
 }
 
@@ -728,6 +735,10 @@ function ensureMediaViewerModal() {
             <div id="mv-mode-switcher" class="mv-mode-switcher" style="display:none;">
                 <button type="button" id="mv-mode-spin" class="mv-mode-btn" onclick="mediaViewerSwitchMode('spin360')"><i class="fa fa-arrows-rotate"></i><span>Product Spin</span></button>
                 <button type="button" id="mv-mode-pano" class="mv-mode-btn" onclick="mediaViewerSwitchMode('panorama360')"><i class="fa fa-street-view"></i><span>Immersive 360°</span></button>
+            </div>
+            <div id="mv-video-mode-switcher" class="mv-mode-switcher" style="display:none;">
+                <button type="button" id="mv-mode-video-flat" class="mv-mode-btn" onclick="mediaViewerSwitchVideoMode('video')"><i class="fa fa-play-circle"></i><span>Flat Video</span></button>
+                <button type="button" id="mv-mode-video-360" class="mv-mode-btn" onclick="mediaViewerSwitchVideoMode('video360')"><i class="fa fa-street-view"></i><span>Immersive 360°</span></button>
             </div>
             <p id="mv-frame-label" class="mv-frame-label"></p>
             <div class="mv-toolbar">
@@ -836,6 +847,50 @@ function mvResolveMediaUrl(url) {
 }
 window.mvResolveMediaUrl = mvResolveMediaUrl;
 
+function mvIsEquirectangularAspect(width, height) {
+    if (!width || !height) return false;
+    const ratio = width / height;
+    return ratio >= 1.75 && ratio <= 2.25;
+}
+window.mvIsEquirectangularAspect = mvIsEquirectangularAspect;
+
+function mvProbeVideoUrl(url) {
+    const absoluteUrl = mvResolveMediaUrl(url);
+    return new Promise((resolve, reject) => {
+        const vid = document.createElement('video');
+        vid.preload = 'metadata';
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.setAttribute('playsinline', '');
+        if (/^https?:\/\//i.test(absoluteUrl)) vid.crossOrigin = 'anonymous';
+        const timer = setTimeout(() => {
+            cleanup();
+            reject(new Error('Video metadata timed out'));
+        }, 15000);
+        const cleanup = () => {
+            clearTimeout(timer);
+            vid.onloadedmetadata = null;
+            vid.onerror = null;
+            vid.removeAttribute('src');
+            vid.load();
+        };
+        vid.onloadedmetadata = () => {
+            const width = vid.videoWidth;
+            const height = vid.videoHeight;
+            const ratio = height > 0 ? width / height : 0;
+            const isEquirectangular = mvIsEquirectangularAspect(width, height);
+            cleanup();
+            resolve({ width, height, ratio, isEquirectangular, url: absoluteUrl });
+        };
+        vid.onerror = () => {
+            cleanup();
+            reject(new Error('Could not read video metadata'));
+        };
+        vid.src = absoluteUrl;
+    });
+}
+window.mvProbeVideoUrl = mvProbeVideoUrl;
+
 function mvShowLoader(message = 'Loading...') {
     const loader = document.getElementById('mv-loader');
     const status = document.getElementById('mv-load-status');
@@ -926,6 +981,7 @@ function loadVideo360Assets() {
 
 async function initVideo360Viewer(url) {
     if (!url) return;
+    const absoluteUrl = mvResolveMediaUrl(url);
     await loadVideo360Assets();
     destroyPanoramaViewer();
     destroyVideo360Viewer();
@@ -940,7 +996,22 @@ async function initVideo360Viewer(url) {
     if (loader) loader.style.display = 'flex';
     if (guide) guide.style.display = 'flex';
     panoEl.style.display = 'block';
-    panoEl.innerHTML = `<video id="mv-video360-el" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline crossorigin="anonymous" style="width:100%;height:100%;"><source src="${url}" type="video/mp4"></video>`;
+    panoEl.innerHTML = '';
+    const videoEl = document.createElement('video');
+    videoEl.id = 'mv-video360-el';
+    videoEl.className = 'video-js vjs-default-skin vjs-big-play-centered';
+    videoEl.controls = true;
+    videoEl.preload = 'auto';
+    videoEl.playsInline = true;
+    videoEl.setAttribute('playsinline', '');
+    videoEl.crossOrigin = 'anonymous';
+    videoEl.style.width = '100%';
+    videoEl.style.height = '100%';
+    const sourceEl = document.createElement('source');
+    sourceEl.src = absoluteUrl;
+    sourceEl.type = 'video/mp4';
+    videoEl.appendChild(sourceEl);
+    panoEl.appendChild(videoEl);
     return new Promise((resolve, reject) => {
         try {
             mvState.videojsPlayer = window.videojs('mv-video360-el', {
@@ -1067,6 +1138,101 @@ async function initPanoramaViewer(url) {
     });
 }
 
+function mvUpdateVideoModeSwitcher() {
+    const switcher = document.getElementById('mv-video-mode-switcher');
+    const btnFlat = document.getElementById('mv-mode-video-flat');
+    const btn360 = document.getElementById('mv-mode-video-360');
+    const isVideoMode = mvState.mode === 'video' || mvState.mode === 'video360';
+    const show = isVideoMode && mvState.videoAllowModeSwitch && !!mvState.videoUrl;
+    if (switcher) switcher.style.display = show ? 'flex' : 'none';
+    if (btnFlat) btnFlat.classList.toggle('active', mvState.mode === 'video');
+    if (btn360) btn360.classList.toggle('active', mvState.mode === 'video360');
+}
+
+function mvApplyVideoViewerTitle() {
+    const titleEl = document.getElementById('mv-title');
+    if (!titleEl) return;
+    let suffix = '';
+    if (mvState.mode === 'video360') suffix = ' · Immersive 360° Video';
+    else if (mvState.mode === 'video') suffix = ' · Flat Video';
+    titleEl.textContent = mvState.title + suffix;
+}
+
+async function mvOpenVideoViewer(prefer360) {
+    const url = mvResolveMediaUrl(mvState.videoUrl);
+    let use360 = !!prefer360;
+    const guide = document.getElementById('mv-guide');
+    const imgEl = document.getElementById('mv-image');
+    const vidEl = document.getElementById('mv-video');
+    const loader = document.getElementById('mv-loader');
+
+    try {
+        const probe = await mvProbeVideoUrl(url);
+        mvState.videoLikelyEquirectangular = probe.isEquirectangular;
+        if (use360 && !probe.isEquirectangular) {
+            use360 = false;
+            showToast('Playing as flat video — file is not a 2:1 equirectangular 360° video.');
+        }
+    } catch (e) {
+        mvState.videoLikelyEquirectangular = null;
+        if (use360) {
+            console.warn('Video probe failed:', e);
+        }
+    }
+
+    mvState.mode = use360 ? 'video360' : 'video';
+    mvApplyVideoViewerTitle();
+
+    if (guide) {
+        if (use360) {
+            guide.style.opacity = '1';
+            guide.style.display = 'flex';
+            mvState.guideShown = false;
+        } else {
+            guide.style.display = 'none';
+            mvState.guideShown = true;
+        }
+    }
+    if (imgEl) imgEl.style.display = 'none';
+
+    mvUpdateVideoModeSwitcher();
+    updateMediaViewerHints();
+
+    if (use360) {
+        try {
+            await initVideo360Viewer(url);
+        } catch (e) {
+            destroyVideo360Viewer();
+            mvState.mode = 'video';
+            mvApplyVideoViewerTitle();
+            if (guide) { guide.style.display = 'none'; mvState.guideShown = true; }
+            if (loader) loader.style.display = 'none';
+            renderMediaViewerContent();
+            mvUpdateVideoModeSwitcher();
+            updateMediaViewerHints();
+            showToast('Switched to flat video — immersive 360° failed to load.');
+        }
+    } else {
+        destroyVideo360Viewer();
+        const panoEl = document.getElementById('mv-panorama');
+        if (panoEl) { panoEl.style.display = 'none'; panoEl.innerHTML = ''; }
+        if (loader) loader.style.display = 'none';
+        renderMediaViewerContent();
+    }
+}
+
+function mediaViewerSwitchVideoMode(mode) {
+    if (!mvState.videoUrl || !mvState.videoAllowModeSwitch) return;
+    if (mode !== 'video' && mode !== 'video360') return;
+    if (mode === mvState.mode) return;
+    if (mode === 'video360' && mvState.videoLikelyEquirectangular === false) {
+        const ok = window.confirm('This video is not equirectangular (2:1). Immersive 360° will look distorted. Continue anyway?');
+        if (!ok) return;
+    }
+    mvOpenVideoViewer(mode === 'video360').catch(() => {});
+}
+window.mediaViewerSwitchVideoMode = mediaViewerSwitchVideoMode;
+
 function mvUpdateModeSwitcher() {
     const switcher = document.getElementById('mv-mode-switcher');
     const btnSpin = document.getElementById('mv-mode-spin');
@@ -1117,6 +1283,9 @@ function openMediaViewer(opts = {}) {
     mvState.spinCol = 0;
     mvState.spinRow = 0;
     mvState.videoUrl = opts.videoUrl || '';
+    mvState.videoSavedAs360 = !!opts.videoSavedAs360;
+    mvState.videoLikelyEquirectangular = null;
+    mvState.videoAllowModeSwitch = !!(opts.videoUrl && (opts.mode === 'video' || opts.mode === 'video360' || opts.videoAllowModeSwitch));
     mvState.title = opts.title || 'Product View';
     mvState.scale = 1;
     mvState.panX = 0;
@@ -1150,6 +1319,7 @@ function openMediaViewer(opts = {}) {
         if (isSpin) suffix = ' · Product Spin';
         else if (isPanorama) suffix = ' · Immersive 360°';
         else if (isVideo360) suffix = ' · Immersive 360° Video';
+        else if (isVideo) suffix = ' · Flat Video';
         titleEl.textContent = mvState.title + suffix;
     }
     if (loader) loader.style.display = 'none';
@@ -1189,13 +1359,15 @@ function openMediaViewer(opts = {}) {
     updateMediaViewerHints();
     updateMediaViewerToolbar();
     mvUpdateModeSwitcher();
+    mvUpdateVideoModeSwitcher();
     mvUpdatePanoramaSceneNav();
 
     if (isPanorama && hasPano) {
         mvHideLoader();
         initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).catch(() => {});
-    } else if (isVideo360 && mvState.videoUrl) {
-        initVideo360Viewer(mvState.videoUrl).catch(() => {});
+    } else if ((isVideo || isVideo360) && mvState.videoUrl) {
+        const prefer360 = isVideo360 || mvState.videoSavedAs360;
+        mvOpenVideoViewer(prefer360).catch(() => {});
     } else {
         renderMediaViewerContent();
         if (isSpin && mvState.spinFrames.length > 0) {
@@ -1237,8 +1409,10 @@ function renderMediaViewerContent() {
         imgEl.style.display = 'none';
         if (vidEl) {
             vidEl.style.display = 'block';
-            vidEl.src = mvState.videoUrl;
+            vidEl.src = mvResolveMediaUrl(mvState.videoUrl);
             vidEl.controls = true;
+            vidEl.playsInline = true;
+            vidEl.setAttribute('playsinline', '');
             vidEl.load();
             const tryPlay = () => { vidEl.play().catch(() => {}); };
             if (vidEl.readyState >= 2) tryPlay();
@@ -1669,10 +1843,13 @@ window.openGalleryZoom = openGalleryZoom;
 function openProductVideo(prodId, videoUrl, opts = {}) {
     const p = window.products ? window.products.find(x => x.id === prodId) : null;
     if (!videoUrl) return;
-    const is360 = !!(opts && opts.is360);
+    const featureOn = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const savedAs360 = !!(opts && opts.is360) && featureOn;
     openMediaViewer({
-        mode: is360 ? 'video360' : 'video',
+        mode: savedAs360 ? 'video360' : 'video',
         videoUrl,
+        videoSavedAs360: savedAs360,
+        videoAllowModeSwitch: true,
         title: (p && p.name) ? p.name : 'Product Video'
     });
 }

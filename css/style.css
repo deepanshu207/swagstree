@@ -4589,6 +4589,24 @@ body.media-viewer-open .bottom-nav {
     padding-left: 3px;
 }
 
+.det-gallery-360-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(100, 181, 246, 0.9);
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+
 /* Typing indicator animation */
 @keyframes pulse-dot {
     0%, 100% { opacity: 0.2; }

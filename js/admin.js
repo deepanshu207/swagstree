@@ -436,28 +436,41 @@ function renderVariantBlocks() {
                     </label>
                 </div>
                 ${is360Enabled ? `
+                <div style="margin-top:4px; padding:12px; border-radius:10px; background:#101010; border:1px solid rgba(255,215,0,0.18);">
+                    <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant 360° Media <span style="color:#666; text-transform:none;">(used when this variant is selected)</span></p>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:6px; margin-bottom:10px;">
+                        ${toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Product Spin', '#FFD700')}
+                        ${toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks();`, 'Immersive 360° Panorama', '#64b5f6')}
+                    </div>
                 <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
-                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Product Spin Frames <span style="color:#666; text-transform:none;">(rotation order — product spin, not street view)</span></p>
+                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Product Spin Frames <span style="color:#666; text-transform:none;">(swipe rotation — not street view)</span></p>
                     <div id="v-spin-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
                     <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
-                        <span>🔄</span> Upload 360° Frames
+                        <span>🔄</span> Upload spin frames
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
                     </label>
                     <button type="button" onclick="loadDemo360Spin('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">Use demo spin (16 frames)</button>
                 </div>
-                ` : ''}
-                ${is360Enabled ? `
                 <div id="v-panorama-upload-${v.id}" style="display:${v.is360Panorama ? 'block' : 'none'}; margin-top:8px;">
-                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Immersive 360° Panorama <span style="color:#666; text-transform:none;">(Google-style — full sphere, 2:1 equirectangular)</span></p>
-                    <p style="font-size:9.5px; color:#777; margin:0 0 8px 0; line-height:1.4;">Upload one or more equirectangular panoramas (e.g. 4096×2048). Use a 360° camera export or stitched photos covering all angles. Customers can drag to look around.</p>
+                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Immersive Panorama <span style="color:#666; text-transform:none;">(Google-style — 2:1 equirectangular)</span></p>
                     <div id="v-panorama-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
                     <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
-                        <span>🌐</span> Upload Panorama
+                        <span>🌐</span> Upload panorama
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
                     </label>
                     <button type="button" onclick="loadDemo360Panorama('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo panoramas (3 scenes)</button>
                 </div>
-                ` : ''}
+                <div style="margin-top:8px;">
+                    <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(flat or immersive 360° — overrides global)</span></p>
+                    <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
+                    <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
+                        <span>🎬</span> Upload video
+                        <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
+                    </label>
+                    <button type="button" onclick="loadDemo360Video('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo 360° video</button>
+                </div>
+                </div>
+                ` : `
                 <div>
                     <p style="font-size:10px; color:#64b5f6; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Video <span style="color:#666; text-transform:none;">(optional — overrides global video)</span></p>
                     <div id="v-video-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
@@ -465,8 +478,8 @@ function renderVariantBlocks() {
                         <span>🎬</span> Upload Video
                         <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
                     </label>
-                    <button type="button" onclick="loadDemo360Video('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo 360° video</button>
                 </div>
+                `}
 
                 <!-- Image & Swatch previews -->
                 <div id="v-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
@@ -475,8 +488,6 @@ function renderVariantBlocks() {
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
                     ${toggle(`v-active-${v.id}`, v.isActive !== false, `updateVariant('${v.id}', 'isActive', this.checked); const badge = document.getElementById('v-active-badge-${v.id}'); if(badge) { badge.style.background = this.checked ? '#1a3a1a' : '#3a1a1a'; badge.style.color = this.checked ? '#4caf50' : '#e57373'; badge.innerHTML = this.checked ? '● Active' : '○ Hidden'; }`, 'Active', '#4caf50')}
-                    ${is360Enabled ? toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks();`, '360° Product Spin', '#FFD700') : ''}
-                    ${is360Enabled ? toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks();`, 'Immersive 360° View', '#64b5f6') : ''}
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
@@ -760,14 +771,134 @@ function toggleVideo360(targetId, index, checked) {
         : (variantBlocks.find(x => x.id === targetId)?.videos || []);
     const entry = items[index];
     if (!entry) return;
-    if (entry instanceof File) {
-        entry._is360 = !!checked;
-    } else if (typeof entry === 'object') {
-        entry.is360 = !!checked;
+    const apply = () => {
+        if (entry instanceof File) {
+            entry._is360 = !!checked;
+        } else if (typeof entry === 'object') {
+            entry.is360 = !!checked;
+        }
+        renderVideoPreviews(targetId);
+    };
+    if (!checked) {
+        apply();
+        return;
     }
-    renderVideoPreviews(targetId);
+    const normalized = normalizeStoredVideo(entry);
+    let url = normalized?.url || '';
+    let revoke = null;
+    if (normalized?.file instanceof File) {
+        url = URL.createObjectURL(normalized.file);
+        revoke = url;
+    }
+    if (!url || typeof mvProbeVideoUrl !== 'function') {
+        apply();
+        return;
+    }
+    mvProbeVideoUrl(url).then((probe) => {
+        if (!probe.isEquirectangular) {
+            const ok = window.confirm(
+                'This video does not look like a 2:1 equirectangular 360° file. Immersive mode will distort it.\n\nOK = enable immersive 360° anyway\nCancel = keep as flat video'
+            );
+            if (!ok) {
+                if (entry instanceof File) entry._is360 = false;
+                else if (typeof entry === 'object') entry.is360 = false;
+                renderVideoPreviews(targetId);
+                if (revoke) URL.revokeObjectURL(revoke);
+                return;
+            }
+        }
+        apply();
+        if (revoke) URL.revokeObjectURL(revoke);
+    }).catch(() => {
+        apply();
+        if (revoke) URL.revokeObjectURL(revoke);
+    });
 }
 window.toggleVideo360 = toggleVideo360;
+
+function adminSeekVideo(video, time) {
+    return new Promise((resolve) => {
+        const onSeeked = () => {
+            video.removeEventListener('seeked', onSeeked);
+            resolve();
+        };
+        video.addEventListener('seeked', onSeeked);
+        const safeTime = Math.min(Math.max(0, time), Math.max(0, (video.duration || 0) - 0.05));
+        video.currentTime = safeTime;
+    });
+}
+
+async function adminExtractFramesFromVideoUrl(url, frameCount = 16) {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.src = url;
+    await new Promise((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Could not load video'));
+    });
+    const duration = video.duration;
+    if (!duration || !isFinite(duration) || duration <= 0) return [];
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    const files = [];
+    for (let i = 0; i < frameCount; i++) {
+        const t = (duration * i) / frameCount;
+        await adminSeekVideo(video, t);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+        if (blob) {
+            files.push(new File([blob], `spin-frame-${String(i + 1).padStart(2, '0')}.jpg`, { type: 'image/jpeg' }));
+        }
+    }
+    video.removeAttribute('src');
+    video.load();
+    return files;
+}
+
+async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
+    const items = targetId === 'base'
+        ? (existingVideoUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    const entry = normalizeStoredVideo(items[index]);
+    if (!entry) return showToast('Video not found.');
+    let url = entry.url || '';
+    let revoke = null;
+    if (entry.file instanceof File) {
+        url = URL.createObjectURL(entry.file);
+        revoke = url;
+    }
+    if (!url) return showToast('Upload the video first.');
+    showToast('Extracting spin frames from video…');
+    try {
+        const frames = await adminExtractFramesFromVideoUrl(url, frameCount);
+        if (revoke) URL.revokeObjectURL(revoke);
+        if (!frames.length) return showToast('Could not extract frames from this video.');
+        if (targetId === 'base') {
+            const chk = document.getElementById('m-is360');
+            if (chk) chk.checked = true;
+            toggle360Badge('base', true);
+            existingSpinUrls = [...(existingSpinUrls || []), ...frames];
+            renderSpinPreviews('base');
+        } else {
+            const v = variantBlocks.find(x => x.id === targetId);
+            if (!v) return;
+            v.is360 = true;
+            v.spinImages = [...(v.spinImages || []), ...frames];
+            renderVariantBlocks();
+            return;
+        }
+        showToast(`Added ${frames.length} spin frames. Save product to keep.`);
+    } catch (e) {
+        if (revoke) URL.revokeObjectURL(revoke);
+        console.error('Frame extraction failed:', e);
+        showToast('Could not extract frames from video.');
+    }
+}
+window.extractVideoFramesForSpin = extractVideoFramesForSpin;
 
 function handleFileSelect(input, vId) {
     if(!input.files || input.files.length === 0) return;
@@ -1316,6 +1447,8 @@ function previewAdminVideo(targetId, index) {
     openMediaViewer({
         mode: entry.is360 ? 'video360' : 'video',
         videoUrl: url,
+        videoSavedAs360: !!entry.is360,
+        videoAllowModeSwitch: true,
         title: entry.is360 ? '360° Video Preview' : 'Video Preview'
     });
     if (revoke) {
@@ -1334,16 +1467,20 @@ function renderVideoPreviews(targetId = 'base') {
         const label = getStoredVideoLabel(vid);
         const is360 = !!entry.is360;
         return `
-            <div style="position:relative; padding:8px 10px; border-radius:8px; border:1px solid ${is360 ? 'rgba(100,181,246,0.55)' : '#64b5f6'}; background:#1a1a1a; display:flex; flex-direction:column; gap:6px; font-size:11px; color:#64b5f6; min-width:180px;">
+            <div style="position:relative; padding:8px 10px; border-radius:8px; border:1px solid ${is360 ? 'rgba(100,181,246,0.55)' : '#64b5f6'}; background:#1a1a1a; display:flex; flex-direction:column; gap:6px; font-size:11px; color:#64b5f6; min-width:200px;">
                 <div onclick="previewAdminVideo('${targetId}', ${i})" title="Tap to preview video" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
                     <i class="fa fa-${is360 ? 'street-view' : 'play-circle'}" style="font-size:16px;"></i>
                     <span style="flex:1;">${label}</span>
+                    <span style="font-size:9px; padding:2px 6px; border-radius:999px; background:${is360 ? 'rgba(100,181,246,0.15)' : 'rgba(255,255,255,0.06)'}; color:${is360 ? '#9ecbff' : '#aaa'}; border:1px solid ${is360 ? 'rgba(100,181,246,0.3)' : 'rgba(255,255,255,0.12)'};">${is360 ? 'Immersive 360°' : 'Flat video'}</span>
                     <i class="fa fa-times" style="color:var(--red); cursor:pointer; font-size:11px;" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})"></i>
                 </div>
                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin:0; font-size:10px; color:#aaa;" onclick="event.stopPropagation();">
                     <input type="checkbox" ${is360 ? 'checked' : ''} style="width:auto; margin:0; accent-color:#64b5f6;" onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
-                    <span>Play as immersive 360° video</span>
+                    <span>Play as immersive 360° video <span style="color:#666;">(2:1 equirectangular only)</span></span>
                 </label>
+                <button type="button" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" style="width:100%; padding:7px 8px; border-radius:7px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:10px; font-weight:700; cursor:pointer;">
+                    Extract 16 frames → 360° product spin
+                </button>
             </div>`;
     }).join('');
 }

@@ -1870,8 +1870,10 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
             if (mapInfo.type === 'video') {
                 const poster = mapInfo.poster || '';
-                return `<div class="det-gallery-video" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
+                const badge360 = mapInfo.is360Video ? '<span class="det-gallery-360-badge" title="Immersive 360° video"><i class="fa fa-street-view"></i></span>' : '';
+                return `<div class="det-gallery-video${mapInfo.is360Video ? ' det-gallery-video--360' : ''}" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
                     ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
+                    ${badge360}
                     <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
                 </div>`;
             }
