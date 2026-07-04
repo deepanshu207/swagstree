@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.4">
+    <link rel="stylesheet" href="css/style.css?v=9.5">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -2502,12 +2502,12 @@
                         </div>
                     </div>
                     <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--blue">Extra media accordion</span>
-                        <p><strong>Video, rotate &amp; panorama</strong> live in one collapsed accordion (main + each variant). Gallery stays open — that’s what most customers see first. Upload video → optional <strong>Create rotation frames</strong> on the card.</p>
+                        <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
+                        <p><strong>Always visible</strong> (not in accordion). Upload → preview clip → optional <strong>Yes, create 16 frames</strong> for Rotate. Video and rotation frames are separate on the shop.</p>
                     </div>
                     <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--gold">360° accordion</span>
-                        <p>Spin frames and panorama live under <strong>Additional 360° features</strong> (collapsed by default). Build rotation from gallery photos, your own uploads, or video extraction — main product and each variant separately.</p>
+                        <span class="admin-guide-tag admin-guide-tag--blue">360° accordion</span>
+                        <p><strong>Rotate &amp; panorama</strong> collapse under <strong>Additional 360°</strong> — only when you need them. Drag any thumb to reorder · 👁 works on saved Cloudinary images too.</p>
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--gold">Important</span>
@@ -2575,39 +2575,37 @@
                     </label>
                 </div>
 
+                <div class="admin-media-block admin-media-block--video">
+                    <div class="admin-media-section-head">
+                        <div class="admin-media-section-badges">
+                            <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                            <span class="admin-media-type admin-media-type--video">🎬 Video file</span>
+                        </div>
+                        <p class="admin-media-section-title">Product video</p>
+                        <p class="admin-media-section-sub">Default clip for all variants · shoppers tap Video on the detail page</p>
+                    </div>
+                    <div id="m-video-preview" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
+                    <label class="admin-media-upload admin-media-upload--video">
+                        <span class="admin-media-upload__icon">🎬</span>
+                        <span class="admin-media-upload__text">Upload product video</span>
+                        <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, 'base')">
+                    </label>
+                    <button type="button" onclick="loadDemo360Video('base')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video (JFK sample)</button>
+                    <p class="admin-extra-media-tip">After upload you can <strong>preview the clip</strong> and optionally <strong>create rotation frames</strong> for the Rotate button — video still plays separately.</p>
+                </div>
+
                 <div class="admin-media-360-accordion" id="admin-360-accord-base">
                     <div class="admin-media-360-accord-header" onclick="toggleAdmin360Accordion('base')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-360-accord-content-base" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdmin360Accordion('base');}">
                         <div class="admin-media-360-accord-header-text">
-                            <i class="fa fa-film" aria-hidden="true"></i>
-                            <span>Additional media — video, rotate &amp; panorama</span>
-                            <span id="admin-360-accord-summary-base" class="admin-media-360-accord-summary">Optional — video, rotate &amp; panorama</span>
+                            <i class="fa fa-street-view" aria-hidden="true"></i>
+                            <span>Additional 360° — rotate &amp; panorama</span>
+                            <span id="admin-360-accord-summary-base" class="admin-media-360-accord-summary">Optional — rotate &amp; look-around</span>
                         </div>
                         <i id="admin-360-accord-icon-base" class="fa fa-chevron-down admin-media-360-chevron" aria-hidden="true"></i>
                     </div>
                     <div id="admin-360-accord-content-base" class="admin-media-360-accord-content" style="display:none;">
-                        <p class="admin-extra-media-intro">All optional. Shoppers see separate buttons: <strong>Video</strong> (plays clip), <strong>Rotate</strong> (swipe stills), <strong>Look Around</strong> (panorama).</p>
+                        <p class="admin-extra-media-intro">Not needed for every product. <strong>Rotate</strong> = swipe stills to turn the item. <strong>Look Around</strong> = drag a 360° panorama. Copy from gallery or extract from your video above.</p>
 
-                        <div class="admin-extra-media-section">
-                            <div class="admin-media-section-head">
-                                <div class="admin-media-section-badges">
-                                    <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
-                                    <span class="admin-media-type admin-media-type--video">🎬 Video file</span>
-                                </div>
-                                <p class="admin-media-section-title">Product video</p>
-                                <p class="admin-media-section-sub">Default video for all variants · shoppers tap Video on the detail page</p>
-                            </div>
-                            <div id="m-video-preview" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
-                            <label class="admin-media-upload admin-media-upload--video">
-                                <span class="admin-media-upload__icon">🎬</span>
-                                <span class="admin-media-upload__text">Upload product video</span>
-                                <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, 'base')">
-                            </label>
-                            <button type="button" onclick="loadDemo360Video('base')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video (JFK sample)</button>
-                            <p class="admin-extra-media-tip"><strong>Tip:</strong> After upload, use <strong>Create rotation frames</strong> on the video card to also build swipe-to-rotate photos — video still plays separately.</p>
-                        </div>
-
-                        <div id="admin-extra-360-only-base">
-                        <div class="admin-extra-media-divider"></div>
                         <div class="admin-extra-media-section">
                             <div id="m-is360-container" class="admin-media-360-toggle-row">
                                 <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked);">
@@ -2623,7 +2621,7 @@
                                         <span class="admin-media-type admin-media-type--spin">🔄 Rotation frame</span>
                                     </div>
                                     <p class="admin-media-section-title">Rotation frames</p>
-                                    <p class="admin-media-section-sub">Still images — swipe to turn. Upload your own, copy from gallery, or extract from video above.</p>
+                                    <p class="admin-media-section-sub">Still images — drag to reorder · 👁 to preview · powers the Rotate button</p>
                                 </div>
                                 <div id="m-spin-preview" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
                                 <label class="admin-media-upload admin-media-upload--spin">
@@ -2631,6 +2629,7 @@
                                     <span class="admin-media-upload__text">Add your own rotation photos</span>
                                     <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
                                 </label>
+                                <button type="button" onclick="useGalleryImagesAsSpinFrames('base', true)" class="admin-media-action-btn admin-media-action-btn--gold" style="width:100%; margin-bottom:6px;">Use gallery photos as rotation frames</button>
                                 <button type="button" onclick="loadDemo360Spin('base')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 Vespa frames)</button>
                             </div>
                         </div>
@@ -2651,7 +2650,7 @@
                                         <span class="admin-media-type admin-media-type--panorama">🌐 Panorama</span>
                                     </div>
                                     <p class="admin-media-section-title">Immersive panorama</p>
-                                    <p class="admin-media-section-sub">2:1 equirectangular — drag to look around. Tap 👁 to preview.</p>
+                                    <p class="admin-media-section-sub">2:1 equirectangular — drag thumbs to reorder scenes · 👁 to preview</p>
                                 </div>
                                 <div id="m-panorama-preview" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
                                 <label class="admin-media-upload admin-media-upload--pano">
@@ -2661,7 +2660,6 @@
                                 </label>
                                 <button type="button" onclick="loadDemo360Panorama('base')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
                             </div>
-                        </div>
                         </div>
                     </div>
                 </div>
@@ -3149,7 +3147,7 @@
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=11.8"></script>
+    <script src="js/admin.js?v=11.9"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

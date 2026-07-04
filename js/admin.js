@@ -231,9 +231,6 @@ function syncAdmin360AccordionSummary(targetId) {
     const panoCount = targetId === 'base'
         ? (existingPanoramaUrls || []).length
         : ((variantBlocks.find(x => x.id === targetId)?.panoramaImages || []).length);
-    const videoCount = targetId === 'base'
-        ? (existingVideoUrls || []).length
-        : ((variantBlocks.find(x => x.id === targetId)?.videos || []).length);
     const spinOn = targetId === 'base'
         ? !!document.getElementById('m-is360')?.checked
         : !!(variantBlocks.find(x => x.id === targetId)?.is360);
@@ -241,113 +238,124 @@ function syncAdmin360AccordionSummary(targetId) {
         ? !!document.getElementById('m-is360-panorama')?.checked
         : !!(variantBlocks.find(x => x.id === targetId)?.is360Panorama);
     const parts = [];
-    if (videoCount) parts.push(`Video: ${videoCount}`);
     if (spinOn) parts.push(`Rotate: ${spinCount} frame${spinCount === 1 ? '' : 's'}`);
     if (panoOn) parts.push(`Panorama: ${panoCount} scene${panoCount === 1 ? '' : 's'}`);
-    el.textContent = parts.length ? parts.join(' · ') : 'Optional — video, rotate & panorama';
+    el.textContent = parts.length ? parts.join(' · ') : 'Optional — rotate & look-around';
 }
 window.syncAdmin360AccordionSummary = syncAdmin360AccordionSummary;
 
-function renderAdminExtraMediaAccordionHtml(targetId, scope, opts = {}) {
-    const isBase = targetId === 'base';
-    const v = opts.variant;
-    const show360 = opts.show360 !== false;
-    const toggle = renderAdminToggle;
-    const videoTitle = scope === 'variant' ? 'Variant video' : 'Product video';
-    const videoSub = scope === 'variant'
-        ? 'Overrides product-wide video when this combo is selected · shoppers tap Video on the detail page'
-        : 'Default video for all variants · shoppers tap Video on the detail page';
-    const spinVisible = isBase
-        ? 'none'
-        : (v && v.is360 ? 'block' : 'none');
-    const panoVisible = isBase
-        ? 'none'
-        : (v && v.is360Panorama ? 'block' : 'none');
+function adminBindSortableThumbGrid(container, list, renderFn, draggableSelector = '.admin-media-thumb') {
+    if (!window.Sortable || !container || !list || list.length < 2) return;
+    if (container._sortable) container._sortable.destroy();
+    container._sortable = Sortable.create(container, {
+        animation: 150,
+        draggable: draggableSelector,
+        delay: 120,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 4,
+        onEnd(evt) {
+            if (evt.oldIndex === evt.newIndex) return;
+            const moved = list.splice(evt.oldIndex, 1)[0];
+            list.splice(evt.newIndex, 0, moved);
+            renderFn();
+        }
+    });
+}
 
-    const videoBlock = `
-        <div class="admin-extra-media-section">
-            ${adminMediaSectionHead(scope, 'video', videoTitle, videoSub)}
+function renderAdminVideoBlockHtml(targetId, scope) {
+    const isBase = targetId === 'base';
+    const title = scope === 'variant' ? 'Variant video' : 'Product video';
+    const sub = scope === 'variant'
+        ? 'Overrides product-wide video for this combo · shoppers tap Video on the detail page'
+        : 'Default clip for all variants · shoppers tap Video on the detail page';
+    return `
+        <div class="admin-media-block admin-media-block--video">
+            ${adminMediaSectionHead(scope, 'video', title, sub)}
             <div id="${isBase ? 'm-video-preview' : `v-video-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
             <label class="admin-media-upload admin-media-upload--video">
                 <span class="admin-media-upload__icon">🎬</span>
                 <span class="admin-media-upload__text">Upload product video</span>
                 <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${targetId}')">
             </label>
-            ${show360 ? `<button type="button" onclick="loadDemo360Video('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video</button>` : ''}
-            <p class="admin-extra-media-tip"><strong>Tip:</strong> After upload, use <strong>Create rotation frames</strong> on the video card to also build swipe-to-rotate photos — video still plays separately.</p>
+            <button type="button" onclick="loadDemo360Video('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video</button>
+            <p class="admin-extra-media-tip">After upload you can <strong>preview the clip</strong> and optionally <strong>create rotation frames</strong> for the Rotate button — video still plays separately.</p>
         </div>`;
+}
+window.renderAdminVideoBlockHtml = renderAdminVideoBlockHtml;
 
-    const spinBlock = show360 ? `
-        <div class="admin-extra-media-divider"></div>
-        <div class="admin-extra-media-section">
-            ${isBase ? `
-            <div id="m-is360-container" class="admin-media-360-toggle-row">
-                <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked);">
-                <label for="m-is360" class="admin-media-360-toggle-label">
-                    <span>Enable Rotate Product (spin frames)</span>
-                    <span id="base-360-badge" class="admin-media-active-badge" style="display:none;">ACTIVE</span>
-                </label>
-            </div>` : `
-            <div class="admin-media-360-toggles">
-                ${toggle(`v-is360-${targetId}`, !!(v && v.is360), `updateVariant('${targetId}', 'is360', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${targetId}');`, 'Rotate Product (spin frames)', '#FFD700')}
-            </div>`}
-            <div id="${isBase ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`}" style="display:${isBase ? 'none' : spinVisible};">
-                ${adminMediaSectionHead(scope, 'spin', 'Rotation frames', 'Still images — swipe to turn the product. Upload your own, copy from gallery, or extract from video above.')}
-                <div id="${isBase ? 'm-spin-preview' : `v-spin-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
-                <label class="admin-media-upload admin-media-upload--spin">
-                    <span class="admin-media-upload__icon">🔄</span>
-                    <span class="admin-media-upload__text">Add your own rotation photos</span>
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${targetId}')">
-                </label>
-                <button type="button" onclick="loadDemo360Spin('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
-            </div>
-        </div>` : '';
-
-    const panoBlock = show360 ? `
-        <div class="admin-extra-media-divider"></div>
-        <div class="admin-extra-media-section">
-            ${isBase ? `
-            <div id="m-is360-panorama-container" class="admin-media-360-toggle-row">
-                <input type="checkbox" id="m-is360-panorama" style="width:auto; margin:0;" onchange="toggle360PanoramaBadge('base', this.checked);">
-                <label for="m-is360-panorama" class="admin-media-360-toggle-label">
-                    <span>Enable Look Around (panorama)</span>
-                    <span id="base-360-pano-badge" class="admin-media-active-badge admin-media-active-badge--blue" style="display:none;">ACTIVE</span>
-                </label>
-            </div>` : `
-            <div class="admin-media-360-toggles">
-                ${toggle(`v-is360-pano-${targetId}`, !!(v && v.is360Panorama), `updateVariant('${targetId}', 'is360Panorama', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${targetId}');`, 'Look Around (panorama)', '#64b5f6')}
-            </div>`}
-            <div id="${isBase ? 'm-panorama-upload-container' : `v-panorama-upload-${targetId}`}" style="display:${isBase ? 'none' : panoVisible}; margin-top:8px;">
-                ${adminMediaSectionHead(scope, 'panorama', 'Immersive panorama', '2:1 equirectangular — drag to look around like Street View. Tap 👁 to preview.')}
-                <div id="${isBase ? 'm-panorama-preview' : `v-panorama-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
-                <label class="admin-media-upload admin-media-upload--pano">
-                    <span class="admin-media-upload__icon">🌐</span>
-                    <span class="admin-media-upload__text">Upload panorama</span>
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${targetId}')">
-                </label>
-                <button type="button" onclick="loadDemo360Panorama('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
-            </div>
-        </div>` : '';
+function renderAdminOptional360AccordionHtml(targetId, scope, opts = {}) {
+    const isBase = targetId === 'base';
+    const v = opts.variant;
+    const show360 = opts.show360 !== false;
+    if (!show360) return '';
+    const toggle = renderAdminToggle;
+    const spinVisible = isBase ? 'none' : (v && v.is360 ? 'block' : 'none');
+    const panoVisible = isBase ? 'none' : (v && v.is360Panorama ? 'block' : 'none');
 
     return `
         <div class="admin-media-360-accordion" id="admin-360-accord-${targetId}">
             <div class="admin-media-360-accord-header" onclick="toggleAdmin360Accordion('${targetId}')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-360-accord-content-${targetId}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdmin360Accordion('${targetId}');}">
                 <div class="admin-media-360-accord-header-text">
-                    <i class="fa fa-film" aria-hidden="true"></i>
-                    <span>Additional media — video, rotate &amp; panorama</span>
-                    <span id="admin-360-accord-summary-${targetId}" class="admin-media-360-accord-summary">Optional — video, rotate &amp; panorama</span>
+                    <i class="fa fa-street-view" aria-hidden="true"></i>
+                    <span>Additional 360° — rotate &amp; panorama</span>
+                    <span id="admin-360-accord-summary-${targetId}" class="admin-media-360-accord-summary">Optional — rotate &amp; look-around</span>
                 </div>
                 <i id="admin-360-accord-icon-${targetId}" class="fa fa-chevron-down admin-media-360-chevron" aria-hidden="true"></i>
             </div>
             <div id="admin-360-accord-content-${targetId}" class="admin-media-360-accord-content" style="display:none;">
-                <p class="admin-extra-media-intro">All optional. Shoppers see separate buttons: <strong>Video</strong> (plays clip), <strong>Rotate</strong> (swipe stills), <strong>Look Around</strong> (panorama).</p>
-                ${videoBlock}
-                ${spinBlock}
-                ${panoBlock}
+                <p class="admin-extra-media-intro">Not needed for every product. <strong>Rotate</strong> = swipe stills to turn the item. <strong>Look Around</strong> = drag a 360° panorama. Copy from gallery or extract from your video above.</p>
+                <div class="admin-extra-media-section">
+                    ${isBase ? `
+                    <div id="m-is360-container" class="admin-media-360-toggle-row">
+                        <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked);">
+                        <label for="m-is360" class="admin-media-360-toggle-label">
+                            <span>Enable Rotate Product (spin frames)</span>
+                            <span id="base-360-badge" class="admin-media-active-badge" style="display:none;">ACTIVE</span>
+                        </label>
+                    </div>` : `
+                    <div class="admin-media-360-toggles">
+                        ${toggle(`v-is360-${targetId}`, !!(v && v.is360), `updateVariant('${targetId}', 'is360', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${targetId}');`, 'Rotate Product (spin frames)', '#FFD700')}
+                    </div>`}
+                    <div id="${isBase ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`}" style="display:${isBase ? 'none' : spinVisible};">
+                        ${adminMediaSectionHead(scope, 'spin', 'Rotation frames', 'Still images — drag to reorder · 👁 to preview · powers the Rotate button')}
+                        <div id="${isBase ? 'm-spin-preview' : `v-spin-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                        <label class="admin-media-upload admin-media-upload--spin">
+                            <span class="admin-media-upload__icon">🔄</span>
+                            <span class="admin-media-upload__text">Add your own rotation photos</span>
+                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${targetId}')">
+                        </label>
+                        <button type="button" onclick="useGalleryImagesAsSpinFrames('${targetId}', true)" class="admin-media-action-btn admin-media-action-btn--gold" style="width:100%; margin-bottom:6px;">Use gallery photos as rotation frames</button>
+                        <button type="button" onclick="loadDemo360Spin('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
+                    </div>
+                </div>
+                <div class="admin-extra-media-divider"></div>
+                <div class="admin-extra-media-section">
+                    ${isBase ? `
+                    <div id="m-is360-panorama-container" class="admin-media-360-toggle-row">
+                        <input type="checkbox" id="m-is360-panorama" style="width:auto; margin:0;" onchange="toggle360PanoramaBadge('base', this.checked);">
+                        <label for="m-is360-panorama" class="admin-media-360-toggle-label">
+                            <span>Enable Look Around (panorama)</span>
+                            <span id="base-360-pano-badge" class="admin-media-active-badge admin-media-active-badge--blue" style="display:none;">ACTIVE</span>
+                        </label>
+                    </div>` : `
+                    <div class="admin-media-360-toggles">
+                        ${toggle(`v-is360-pano-${targetId}`, !!(v && v.is360Panorama), `updateVariant('${targetId}', 'is360Panorama', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${targetId}');`, 'Look Around (panorama)', '#64b5f6')}
+                    </div>`}
+                    <div id="${isBase ? 'm-panorama-upload-container' : `v-panorama-upload-${targetId}`}" style="display:${isBase ? 'none' : panoVisible}; margin-top:8px;">
+                        ${adminMediaSectionHead(scope, 'panorama', 'Immersive panorama', '2:1 equirectangular — drag thumbs to reorder scenes · 👁 to preview')}
+                        <div id="${isBase ? 'm-panorama-preview' : `v-panorama-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
+                        <label class="admin-media-upload admin-media-upload--pano">
+                            <span class="admin-media-upload__icon">🌐</span>
+                            <span class="admin-media-upload__text">Upload panorama</span>
+                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${targetId}')">
+                        </label>
+                        <button type="button" onclick="loadDemo360Panorama('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
+                    </div>
+                </div>
             </div>
         </div>`;
 }
-window.renderAdminExtraMediaAccordionHtml = renderAdminExtraMediaAccordionHtml;
+window.renderAdminOptional360AccordionHtml = renderAdminOptional360AccordionHtml;
 
 function previewAdminGallery(targetId, index) {
     const images = targetId === 'base'
@@ -803,7 +811,8 @@ function renderVariantBlocks() {
                         </label>
                     </div>
 
-                    ${renderAdminExtraMediaAccordionHtml(v.id, 'variant', { variant: v, show360: is360Enabled })}
+                    ${renderAdminVideoBlockHtml(v.id, 'variant')}
+                    ${renderAdminOptional360AccordionHtml(v.id, 'variant', { variant: v, show360: is360Enabled })}
 
                 </div>
 
@@ -1037,7 +1046,7 @@ function loadDemo360Video(targetId = 'base') {
     }
     toggleAdmin360Accordion(targetId, true);
     syncAdmin360AccordionSummary(targetId);
-    showToast('Demo 360° video loaded. You can also extract rotation frames from it.');
+    showToast('Demo 360° video loaded. Preview below — optionally create rotation frames.');
 }
 window.loadDemo360Video = loadDemo360Video;
 
@@ -1093,16 +1102,23 @@ function handleVideoFileSelect(input, vId) {
         newIndex = v.videos.length - 1;
         renderVideoPreviews(vId);
     }
-    toggleAdmin360Accordion(vId, true);
-    syncAdmin360AccordionSummary(vId);
     input.value = '';
-    showToast('Video added. Scroll to the card below — tap Create rotation frames to also build swipe-to-rotate photos.');
+    showToast('Video added — preview below. Optionally create rotation frames for the Rotate button.');
     setTimeout(() => {
-        const cards = document.querySelectorAll(`#${vId === 'base' ? 'm-video-preview' : `v-video-preview-${vId}`} .admin-video-card`);
-        const card = cards[newIndex];
+        const wrap = document.getElementById(vId === 'base' ? 'm-video-preview' : `v-video-preview-${vId}`);
+        const card = wrap?.querySelectorAll('.admin-video-card')[newIndex];
         if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 120);
 }
+
+function dismissVideoFrameOffer(targetId, index) {
+    const items = targetId === 'base'
+        ? (existingVideoUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    if (items[index]) items[index]._promptFrames = false;
+    renderVideoPreviews(targetId);
+}
+window.dismissVideoFrameOffer = dismissVideoFrameOffer;
 window.handleVideoFileSelect = handleVideoFileSelect;
 
 function toggleVideo360(targetId, index, checked) {
@@ -1331,6 +1347,9 @@ async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
         if (!frames.length) return showToast('Could not create frames from this video.');
         adminApplySpinFramesFromVideo(targetId, frames, previousCount);
         syncAdmin360AccordionSummary(targetId);
+        const items = targetId === 'base' ? (existingVideoUrls || []) : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+        if (items[index]) items[index]._promptFrames = false;
+        renderVideoPreviews(targetId);
     } catch (e) {
         console.error('Frame extraction failed:', e);
         if (String(e.message) === 'CORS_BLOCKED') {
@@ -1688,13 +1707,13 @@ function openEdit(id) {
 
     renderImagePreviews('base'); 
     renderVariantBlocks();
-    if (p.is360 || p.is360Panorama || (p.spinImages || []).length || (p.panoramaImages || []).length || (p.videos || []).length) {
+    if (p.is360 || p.is360Panorama || (p.spinImages || []).length || (p.panoramaImages || []).length) {
         toggleAdmin360Accordion('base', true);
     } else {
         toggleAdmin360Accordion('base', false);
     }
     variantBlocks.forEach(v => {
-        if (v.is360 || v.is360Panorama || (v.spinImages || []).length || (v.panoramaImages || []).length || (v.videos || []).length) {
+        if (v.is360 || v.is360Panorama || (v.spinImages || []).length || (v.panoramaImages || []).length) {
             toggleAdmin360Accordion(v.id, true);
         }
     });
@@ -1727,10 +1746,8 @@ window.toggle360PanoramaBadge = toggle360PanoramaBadge;
 
 function syncAdmin360PanelVisibility() {
     const is360Enabled = adminIs360FeatureEnabled();
-    const block = document.getElementById('admin-360-accord-base');
-    if (block) block.style.display = 'block';
-    const only360 = document.getElementById('admin-extra-360-only-base');
-    if (only360) only360.style.display = is360Enabled ? 'block' : 'none';
+    const accordion = document.getElementById('admin-360-accord-base');
+    if (accordion) accordion.style.display = is360Enabled ? 'block' : 'none';
 }
 window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
 
@@ -1800,20 +1817,11 @@ function renderImagePreviews(targetId = 'base') {
             ? items.map((img, i) => buildThumb(img, i, `existingImageUrls.splice(${i},1);renderImagePreviews('base')`)).join('')
             : '';
         container.innerHTML = items.length
-            ? `<div class="admin-media-preview-grid-inner">${gridHtml}</div>${adminBuildGallerySpinToolbar('base', items.length)}`
+            ? `<p class="admin-media-drag-hint">Drag photos to reorder · 👁 preview · 🔄 add to rotation</p><div class="admin-media-preview-grid-inner">${gridHtml}</div>${adminBuildGallerySpinToolbar('base', items.length)}`
             : adminMediaEmptyHint('No main gallery photos — optional. Tap 👁 to preview after upload.');
-        const sortTarget = container.querySelector('.admin-media-preview-grid-inner') || container;
-        if (window.Sortable && items.length && sortTarget) {
-            if (sortTarget._sortable) sortTarget._sortable.destroy();
-            sortTarget._sortable = Sortable.create(sortTarget, {
-                animation: 150,
-                draggable: '.admin-media-thumb',
-                onEnd(evt) {
-                    const movedItem = existingImageUrls.splice(evt.oldIndex, 1)[0];
-                    existingImageUrls.splice(evt.newIndex, 0, movedItem);
-                    renderImagePreviews('base');
-                }
-            });
+        const sortTarget = container.querySelector('.admin-media-preview-grid-inner');
+        if (items.length && sortTarget) {
+            adminBindSortableThumbGrid(sortTarget, existingImageUrls, () => renderImagePreviews('base'));
         }
     } else {
         const v = variantBlocks.find(x => x.id === targetId);
@@ -1823,20 +1831,11 @@ function renderImagePreviews(targetId = 'base') {
             ? items.map((img, i) => buildThumb(img, i, `removeVariantImage('${targetId}', ${i})`)).join('')
             : '';
         container.innerHTML = items.length
-            ? `<div class="admin-media-preview-grid-inner">${gridHtml}</div>${adminBuildGallerySpinToolbar(targetId, items.length)}`
+            ? `<p class="admin-media-drag-hint">Drag photos to reorder · 👁 preview · 🔄 add to rotation</p><div class="admin-media-preview-grid-inner">${gridHtml}</div>${adminBuildGallerySpinToolbar(targetId, items.length)}`
             : adminMediaEmptyHint('No variant gallery photos — optional, falls back to main images on the shop');
-        const sortTarget = container.querySelector('.admin-media-preview-grid-inner') || container;
-        if (window.Sortable && items.length && sortTarget) {
-            if (sortTarget._sortable) sortTarget._sortable.destroy();
-            sortTarget._sortable = Sortable.create(sortTarget, {
-                animation: 150,
-                draggable: '.admin-media-thumb',
-                onEnd(evt) {
-                    const movedItem = v.images.splice(evt.oldIndex, 1)[0];
-                    v.images.splice(evt.newIndex, 0, movedItem);
-                    renderImagePreviews(targetId);
-                }
-            });
+        const sortTarget = container.querySelector('.admin-media-preview-grid-inner');
+        if (items.length && sortTarget) {
+            adminBindSortableThumbGrid(sortTarget, v.images, () => renderImagePreviews(targetId));
         }
     }
 }
@@ -1888,25 +1887,14 @@ function renderSpinPreviews(targetId = 'base') {
     container.innerHTML = `${countHtml}${helpHtml}<div class="admin-spin-grid admin-media-preview-grid admin-media-preview-grid--spin">${gridHtml}</div>${actionsHtml}`;
 
     const grid = container.querySelector('.admin-spin-grid');
-    if (window.Sortable && grid && items.length > 1) {
-        if (grid._sortable) grid._sortable.destroy();
-        grid._sortable = Sortable.create(grid, {
-            animation: 150,
-            draggable: '.admin-spin-thumb',
-            onEnd(evt) {
-                const list = targetId === 'base' ? existingSpinUrls : (variantBlocks.find(x => x.id === targetId)?.spinImages);
-                if (!list || evt.oldIndex === evt.newIndex) return;
-                const moved = list.splice(evt.oldIndex, 1)[0];
-                list.splice(evt.newIndex, 0, moved);
-                renderSpinPreviews(targetId);
-            }
-        });
+    if (grid) {
+        adminBindSortableThumbGrid(grid, targetId === 'base' ? existingSpinUrls : (variantBlocks.find(x => x.id === targetId)?.spinImages), () => renderSpinPreviews(targetId), '.admin-spin-thumb');
     }
 }
 
 function previewAdminSpin(targetId = 'base') {
     const items = targetId === 'base' ? (existingSpinUrls || []) : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
-    const frames = items.map(img => (img instanceof File ? URL.createObjectURL(img) : img)).filter(Boolean);
+    const frames = items.map(img => adminResolveMediaUrl(img)).filter(Boolean);
     if (frames.length < 2) return showToast('Need at least 2 rotation frames to preview.');
     if (typeof openMediaViewer !== 'function') return;
     const name = document.getElementById('m-name')?.value || 'Product Preview';
@@ -1938,11 +1926,13 @@ function renderPanoramaPreviews(targetId = 'base') {
     const container = document.getElementById(targetId === 'base' ? 'm-panorama-preview' : `v-panorama-preview-${targetId}`);
     if (!container) return;
     const items = targetId === 'base' ? (existingPanoramaUrls || []) : (variantBlocks.find(x => x.id === targetId)?.panoramaImages || []);
+    const scopeLabel = targetId === 'base' ? '🌐 All variants' : '🎯 This variant';
     if (!items.length) {
         container.innerHTML = adminMediaEmptyHint('No panorama yet — tap 👁 after upload to look around in preview');
         return;
     }
-    container.innerHTML = items.map((img, i) => {
+    const meta = `<p class="admin-media-spin-meta">${scopeLabel} · <strong>${items.length}</strong> scene${items.length === 1 ? '' : 's'} · drag to reorder · 👁 to preview</p>`;
+    const gridHtml = items.map((img, i) => {
         const isFile = img instanceof File;
         const url = adminResolveMediaUrl(img);
         return adminMediaThumbHtml({
@@ -1950,9 +1940,16 @@ function renderPanoramaPreviews(targetId = 'base') {
             previewFn: `previewAdminPanorama('${targetId}', ${i})`,
             onRemove: `removePanoramaImage('${targetId}', ${i})`,
             size: 80, objectFit: 'cover', isNew: isFile,
-            badge: i + 1, extraClass: 'admin-media-thumb--panorama'
+            badge: i + 1, extraClass: 'admin-media-thumb--panorama admin-pano-thumb'
         });
     }).join('');
+    container.innerHTML = `${meta}<div class="admin-pano-grid admin-media-preview-grid-inner">${gridHtml}</div>`;
+    const grid = container.querySelector('.admin-pano-grid');
+    const list = targetId === 'base' ? existingPanoramaUrls : (variantBlocks.find(x => x.id === targetId)?.panoramaImages);
+    if (grid) {
+        adminBindSortableThumbGrid(grid, list, () => renderPanoramaPreviews(targetId), '.admin-pano-thumb');
+    }
+    syncAdmin360AccordionSummary(targetId);
 }
 window.renderPanoramaPreviews = renderPanoramaPreviews;
 
@@ -1998,34 +1995,36 @@ function renderVideoPreviews(targetId = 'base') {
         const is360 = !!entry.is360;
         const promptFrames = !!(vid && vid._promptFrames);
         const extractCls = promptFrames ? ' admin-video-card__extract--highlight' : '';
-        const extractLabel = promptFrames
-            ? '<i class="fa fa-images"></i> Also create rotation frames from this video (16 stills)'
-            : '<i class="fa fa-images"></i> Create rotation frames from video (16 stills)';
-        if (promptFrames && vid) vid._promptFrames = false;
         return `
             <div class="admin-video-card ${is360 ? 'admin-video-card--360' : ''}${promptFrames ? ' admin-video-card--new' : ''}">
                 <div class="admin-video-card__head">
                     ${scopeBadge}
                     ${adminMediaTypeBadge('video', is360 ? 'Immersive 360°' : 'Flat playback')}
                 </div>
-                ${promptFrames ? '<p class="admin-video-card__callout">New upload — optional: build swipe-to-rotate frames from this clip</p>' : ''}
                 <button type="button" class="admin-video-card__preview" onclick="previewAdminVideo('${targetId}', ${i})" title="Preview video">
                     <i class="fa fa-${is360 ? 'street-view' : 'play-circle'}"></i>
                     <span class="admin-video-card__label">${label}</span>
                     <span class="admin-video-card__play-hint">Tap to preview</span>
                     <button type="button" class="admin-video-card__remove" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})" title="Remove"><i class="fa fa-times"></i></button>
                 </button>
+                ${promptFrames ? `
+                <div class="admin-video-frame-offer">
+                    <p>Also add swipe-to-rotate photos from this clip?</p>
+                    <div class="admin-video-frame-offer__actions">
+                        <button type="button" class="admin-media-action-btn admin-media-action-btn--gold" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)">Yes — create 16 frames</button>
+                        <button type="button" class="admin-media-action-btn" onclick="event.stopPropagation(); dismissVideoFrameOffer('${targetId}', ${i})">Not now</button>
+                    </div>
+                </div>` : ''}
                 <label class="admin-video-card__toggle" onclick="event.stopPropagation();">
                     <input type="checkbox" ${is360 ? 'checked' : ''} onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
                     <span>Play as immersive 360° video <em>(2:1 equirectangular only)</em></span>
                 </label>
                 <button type="button" class="admin-video-card__extract${extractCls}" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" title="Pulls 16 frames evenly from the video into Rotate Product">
-                    ${extractLabel}
+                    <i class="fa fa-images"></i> Create rotation frames from video (16 stills)
                 </button>
-                <p class="admin-video-card__note">On the shop: video plays on <strong>Video</strong> button. Rotation frames power the separate <strong>Rotate</strong> button.</p>
+                <p class="admin-video-card__note">Shop: <strong>Video</strong> button plays this clip · <strong>Rotate</strong> button uses separate still frames above in 360° accordion.</p>
             </div>`;
     }).join('');
-    syncAdmin360AccordionSummary(targetId);
 }
 window.renderVideoPreviews = renderVideoPreviews;
 
