@@ -1210,17 +1210,23 @@ function mvUpdateVideoModeSwitcher() {
     const btnFlat = document.getElementById('mv-mode-video-flat');
     const btn360 = document.getElementById('mv-mode-video-360');
     const isVideoMode = mvState.mode === 'video' || mvState.mode === 'video360';
-    const show = isVideoMode && mvState.videoAllowModeSwitch && !!mvState.videoUrl;
-    const canImmersive = mvState.videoLikelyEquirectangular !== false;
-    if (switcher) switcher.style.display = show ? 'flex' : 'none';
-    if (btnFlat) btnFlat.classList.toggle('active', mvState.mode === 'video');
+    const featureOn = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
+    const canImmersive = featureOn && (
+        mvState.videoSavedAs360 ||
+        mvState.videoLikelyEquirectangular === true
+    );
+    const showSwitcher = isVideoMode && !!mvState.videoUrl && mvState.videoAllowModeSwitch && canImmersive;
+    if (switcher) switcher.style.display = showSwitcher ? 'flex' : 'none';
+    if (btnFlat) {
+        btnFlat.style.display = showSwitcher ? '' : 'none';
+        btnFlat.classList.toggle('active', mvState.mode === 'video');
+    }
     if (btn360) {
+        btn360.style.display = showSwitcher ? '' : 'none';
+        btn360.disabled = false;
+        btn360.classList.remove('mv-mode-btn--disabled');
         btn360.classList.toggle('active', mvState.mode === 'video360');
-        btn360.classList.toggle('mv-mode-btn--disabled', !canImmersive);
-        btn360.disabled = !canImmersive;
-        btn360.title = canImmersive
-            ? 'Immersive 360° (2:1 equirectangular video)'
-            : 'Not available for this video — use Flat Video';
+        btn360.title = 'Immersive 360° (2:1 equirectangular video)';
     }
 }
 
@@ -1942,7 +1948,7 @@ function openProductVideo(prodId, videoUrl, opts = {}) {
         mode: savedAs360 ? 'video360' : 'video',
         videoUrl,
         videoSavedAs360: savedAs360,
-        videoAllowModeSwitch: true,
+        videoAllowModeSwitch: featureOn,
         title: (p && p.name) ? p.name : 'Product Video'
     });
 }
