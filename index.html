@@ -2512,105 +2512,146 @@
                 <div class="admin-product-guide-header" onclick="toggleProductGuideAccordion()" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-product-guide-content" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleProductGuideAccordion();}">
                     <div class="admin-product-guide-header-text">
                         <i class="fa fa-book" aria-hidden="true"></i>
-                        <span>Quick guide — variants, media &amp; stock</span>
+                        <span>Quick guide — when to use Rotate vs Look Around</span>
                     </div>
                     <i id="admin-product-guide-icon" class="fa fa-chevron-down admin-product-guide-chevron" aria-hidden="true"></i>
                 </div>
                 <div id="admin-product-guide-content" class="admin-product-guide-content" style="display:none;">
                 <div class="admin-guide-body">
-                    <div class="admin-guide-intro">
-                        <strong>Four media types — each does something different on the shop.</strong> Badges in the editor show <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span> vs <span class="admin-media-scope admin-media-scope--variant">🎯 This variant</span>. Tap 👁 on any thumb or ▶ on video to preview before saving.
-                    </div>
-                    <div class="admin-guide-matrix">
-                        <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
-                            <span>Type</span><span>What you upload</span><span>Customer sees</span><span>Scope</span>
+                    <p class="admin-guide-lead">New here? Open each section below. Only <strong>name + price</strong> are required to save — everything else is optional.</p>
+
+                    <div id="admin-guide-section-accord-media-types" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('media-types')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-media-types" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('media-types');}">
+                            <span><i class="fa fa-th-large"></i> What each media type does on the shop</span>
+                            <i id="admin-guide-section-icon-media-types" class="fa fa-chevron-down admin-guide-section-chevron"></i>
                         </div>
-                        <div class="admin-guide-matrix-row">
-                            <span class="admin-guide-tag">Gallery</span>
-                            <span>Regular product photos</span>
-                            <span>Detail carousel &amp; home</span>
-                            <span>Main or variant</span>
+                        <div id="admin-guide-section-media-types" class="admin-guide-section-content" style="display:none;">
+                            <div class="admin-guide-matrix">
+                                <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
+                                    <span>Type</span><span>You upload</span><span>Customer taps</span><span>Scope</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag">Gallery</span>
+                                    <span>Regular product photos</span>
+                                    <span>Swipe in carousel</span>
+                                    <span>Main or variant</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--green">Swatch</span>
+                                    <span>Small color/pattern thumb</span>
+                                    <span>On size/color chip</span>
+                                    <span>Variant only</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--gold">Rotation frames</span>
+                                    <span>12–72 stills (or extract from video)</span>
+                                    <span><strong>Rotate</strong> — spin the item</span>
+                                    <span>Main or variant</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
+                                    <span>MP4 / MOV clip</span>
+                                    <span><strong>Video</strong> — plays clip</span>
+                                    <span>Main or variant</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--blue">Panorama</span>
+                                    <span>One 2:1 equirectangular image</span>
+                                    <span><strong>Look Around</strong> — drag like Street View</span>
+                                    <span>Main or variant</span>
+                                </div>
+                            </div>
+                            <p class="admin-guide-note">Badges: <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span> = default for every combo · <span class="admin-media-scope admin-media-scope--variant">🎯 This variant</span> = overrides when customer picks that combo. Tap 👁 or ▶ to preview before saving.</p>
                         </div>
-                        <div class="admin-guide-matrix-row">
-                            <span class="admin-guide-tag admin-guide-tag--green">Swatch</span>
-                            <span>Small pattern/color preview</span>
-                            <span>Chip thumbnail only</span>
-                            <span>Variant only</span>
+                    </div>
+
+                    <div id="admin-guide-section-accord-extract-frames" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('extract-frames')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-extract-frames" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('extract-frames');}">
+                            <span><i class="fa fa-refresh"></i> When to use <strong>Extract frames</strong> → Rotate button</span>
+                            <i id="admin-guide-section-icon-extract-frames" class="fa fa-chevron-down admin-guide-section-chevron"></i>
                         </div>
-                        <div class="admin-guide-matrix-row">
-                            <span class="admin-guide-tag admin-guide-tag--gold">Rotation frames</span>
-                            <span>12–36 <strong>still images</strong> (or extract from video)</span>
-                            <span><strong>Rotate</strong> button — swipe to turn</span>
-                            <span>Main or variant</span>
-                        </div>
-                        <div class="admin-guide-matrix-row">
-                            <span class="admin-guide-tag admin-guide-tag--blue">Video file</span>
-                            <span>MP4 / MOV product video</span>
-                            <span><strong>Video</strong> button — plays flat or immersive 360°</span>
-                            <span>Main or variant</span>
-                        </div>
-                        <div class="admin-guide-matrix-row">
-                            <span class="admin-guide-tag admin-guide-tag--blue">Panorama</span>
-                            <span>One wide 2:1 equirectangular image</span>
-                            <span><strong>Look Around</strong> — drag like Street View</span>
-                            <span>Main or variant</span>
+                        <div id="admin-guide-section-extract-frames" class="admin-guide-section-content" style="display:none;">
+                            <p class="admin-guide-when"><strong>Use when:</strong> You have a <strong>normal flat product video</strong> (person holding item, tabletop spin, model walk) and want shoppers to <strong>swipe to turn the product</strong> like a 360° product spin.</p>
+                            <p class="admin-guide-why"><strong>Why:</strong> Extract frames pulls 16 (or Auto/Custom) still images from your video into <strong>rotation frames</strong>. On the shop this powers the <strong>Rotate</strong> button — not video playback, not Street View.</p>
+                            <p class="admin-guide-how"><strong>How:</strong> Upload video (always visible on the form) → on the video card open <strong>Create rotation frames from video</strong> → pick <strong>16 frames</strong> (default), <strong>Auto</strong>, or <strong>Custom</strong> → enable <strong>Rotate Product</strong> under Additional 360° → expand <strong>Rotation frames</strong> accordion to review thumbs → Save.</p>
+                            <p class="admin-guide-example"><strong>Example:</strong> 15-second clip of a handbag on a turntable → extract 16 frames → customer swipes to see all sides of the bag.</p>
+                            <p class="admin-guide-caution"><strong>Do not use for:</strong> Room tours, shop interiors, or “look around the scene” — that is <strong>panorama / Look Around</strong>, not rotation frames.</p>
                         </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--blue">Panorama vs video</span>
-                        <p><strong>Look Around (panorama)</strong> = one 360° room/scene photo — shoppers drag to look around like Street View. <strong>Not</strong> the same as Rotate (product spin) or flat video playback.<br>
-                        Upload a 2:1 panorama image, or from a <strong>360° equirectangular video</strong> use <strong>Extract panorama for Look Around</strong> on the video card. Flat/normal video cannot become a panorama — use rotation frames instead.</p>
+
+                    <div id="admin-guide-section-accord-panorama" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('panorama')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-panorama" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('panorama');}">
+                            <span><i class="fa fa-street-view"></i> When to use <strong>Panorama</strong> → Look Around (Street View)</span>
+                            <i id="admin-guide-section-icon-panorama" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-panorama" class="admin-guide-section-content" style="display:none;">
+                            <p class="admin-guide-when"><strong>Use when:</strong> You want a <strong>Google Street View–style experience</strong> — shoppers <strong>drag to look around a 360° scene</strong> (room, boutique interior, styled setup, outdoor space).</p>
+                            <p class="admin-guide-why"><strong>Why:</strong> Panorama is one wide <strong>2:1 equirectangular</strong> image. It immerses customers in the <strong>environment</strong>, not a product spin. On the shop they tap <strong>Look Around</strong> and drag left/right/up/down.</p>
+                            <p class="admin-guide-how"><strong>How:</strong> Under <strong>Additional 360°</strong> → enable <strong>Look Around (panorama)</strong> → upload a 2:1 panorama photo <em>or</em> from a <strong>360° equirectangular video</strong> use <strong>Extract panorama for Look Around</strong> on the video card (flat video cannot be converted).</p>
+                            <p class="admin-guide-example"><strong>Example:</strong> 360° photo of your store’s fitting room → customer drags to see mirrors, racks, and lighting — like walking through on Google Maps Street View.</p>
+                            <p class="admin-guide-caution"><strong>Do not use for:</strong> Spinning a single SKU with swipe stills — use <strong>Extract frames</strong> and <strong>Rotate</strong> instead. Panorama ≠ product rotation ≠ flat video play.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
-                        <p><strong>Always visible</strong> (not in accordion). Upload → preview clip → choose <strong>16 frames (default)</strong>, <strong>Auto</strong>, or <strong>Custom</strong> for Rotate. Video and rotation frames stay separate on the shop.</p>
+
+                    <div id="admin-guide-section-accord-video" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('video')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-video" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('video');}">
+                            <span><i class="fa fa-video"></i> Video uploads</span>
+                            <i id="admin-guide-section-icon-video" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-video" class="admin-guide-section-content" style="display:none;">
+                            <p>Video sits <strong>outside</strong> the 360° accordion — always easy to find. Upload → preview the clip on the card.</p>
+                            <p>Same video file can also feed <strong>Extract frames</strong> (Rotate) or <strong>Extract panorama</strong> (only if 2:1 immersive 360°). The clip itself still plays via the <strong>Video</strong> button on the shop.</p>
+                            <p>Immersive <strong>360° video playback</strong> (customer inside the sphere) only works for true 2:1 equirectangular files — otherwise it plays as flat video.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--blue">360° accordion</span>
-                        <p><strong>Rotate &amp; panorama</strong> collapse under <strong>Additional 360°</strong> — only when you need them. Drag any thumb to reorder · 👁 works on saved Cloudinary images too.</p>
+
+                    <div id="admin-guide-section-accord-360-panel" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('360-panel')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-360-panel" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('360-panel');}">
+                            <span><i class="fa fa-cube"></i> Additional 360° panel (Rotate &amp; panorama)</span>
+                            <i id="admin-guide-section-icon-360-panel" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-360-panel" class="admin-guide-section-content" style="display:none;">
+                            <p>Optional — collapse when you do not need it. Contains two separate features:</p>
+                            <ul class="admin-guide-list">
+                                <li><strong>Rotate Product</strong> — checkbox + <strong>Rotation frames</strong> nested accordion (thumbs hidden until you expand).</li>
+                                <li><strong>Look Around (panorama)</strong> — checkbox + upload or extract from 360° video.</li>
+                            </ul>
+                            <p>Drag thumbs to reorder · 👁 previews work on saved Cloudinary images too.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--gold">Important</span>
-                        <p><strong>Rotation frames ≠ video.</strong> Frames are separate photos for swipe-to-rotate. A video file always plays as video unless you extract frames from it. Variant media overrides main when the customer picks that combo.</p>
+
+                    <div id="admin-guide-section-accord-variants" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('variants')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-variants" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('variants');}">
+                            <span><i class="fa fa-layer-group"></i> Variants, gallery &amp; stock</span>
+                            <i id="admin-guide-section-icon-variants" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-variants" class="admin-guide-section-content" style="display:none;">
+                            <p><strong>Variants:</strong> Each block = one sellable line. Comma-separate Size, Color, or Pattern (e.g. S,M × Red,Blue = 4 SKUs). Price, photos, video, 360° and stock follow the selected combo.</p>
+                            <p><strong>Main gallery:</strong> Product-wide photos for home + detail. Variant gallery overrides when set; else mains fill in at start or end.</p>
+                            <p><strong>Stock (most specific wins):</strong></p>
+                            <ul class="admin-guide-list">
+                                <li><strong>Level 1 · Global</strong> — one qty for whole product</li>
+                                <li><strong>Level 2 · Variant block</strong> — per variant row</li>
+                                <li><strong>Level 3 · Per combo</strong> — per size/color/pattern line</li>
+                            </ul>
+                            <p>Red ⓘ on variant = fix stock/price before save. Blue ⓘ = duplicate combo merges on save.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--gold">Variants</span>
-                        <p>Each block is one sellable line. Comma-separate <strong>Size</strong>, <strong>Color</strong>, or <strong>Pattern</strong> to create combos (S,M × Red,Blue = 4 SKUs). Price, photos, video, 360° and stock follow the selected combo.</p>
+
+                    <div id="admin-guide-section-accord-admin-tools" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('admin-tools')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-admin-tools" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('admin-tools');}">
+                            <span><i class="fa fa-tools"></i> Save, product list &amp; Excel</span>
+                            <i id="admin-guide-section-icon-admin-tools" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-admin-tools" class="admin-guide-section-content" style="display:none;">
+                            <p><strong>Save:</strong> Progress bar shows upload % and extraction %. Unsaved changes prompt if you cancel.</p>
+                            <p><strong>Product list:</strong> Search name, price, category, ID. Filter dropdown for stock, no variants, missing images/category, video, rotation, panorama.</p>
+                            <p><strong>Admin screen:</strong> Categories accordion + Products list on top. Bulk Excel, promos, pagination (storefront + admin page size), and more under <strong>Store settings &amp; tools</strong> at the bottom.</p>
+                            <p><strong>Excel:</strong> Store settings → Bulk Catalog Actions. Export includes VariantsJSON, videos, spin/panorama URLs, stock. Re-import with matching <strong>ID</strong> to update.</p>
+                            <p><strong>CRUD:</strong> + NEW ITEM · pencil = edit · copy = duplicate (shares URLs until re-upload) · trash = delete with confirm.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag">Main gallery</span>
-                        <p>Product-wide photos for <strong>home carousel</strong> + detail fallback. If a variant has no gallery, mains fill in. Otherwise mains append at <strong>start or end</strong> (setting below).</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--stock">Stock</span>
-                        <p>Three levels — <strong>most specific wins</strong>:<br>
-                        <strong>Level 1 · Product global</strong> — one pool for the entire product.<br>
-                        <strong>Level 2 · Whole variant</strong> — one pool per variant block. Overrides global.<br>
-                        <strong>Level 3 · Per combination</strong> — separate qty per size / color / pattern row.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--gold">Save &amp; CRUD</span>
-                        <p><strong>Create:</strong> + NEW ITEM → fill name + price (required) → optional media &amp; variants → Save.<br>
-                        <strong>Edit:</strong> pencil icon on any row. <strong>Duplicate:</strong> copy icon (shares media URLs until you re-upload). <strong>Delete:</strong> trash icon — confirms by name.<br>
-                        Progress bar shows upload % and frame extraction %. Unsaved changes prompt if you cancel.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag">List tools</span>
-                        <p>Search by name, price, category, or ID. Use the filter dropdown for stock, variants, missing images/category, video, rotation, or panorama — things hard to type in search.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag">Admin layout</span>
-                        <p><strong>Categories</strong> accordion + <strong>Products</strong> list are on the main Admin screen. Bulk Excel, checkout rules, promos, pagination (including admin list page size), storefront content, announcements, support &amp; reviews live under <strong>Store settings &amp; tools</strong> at the bottom.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag">Excel</span>
-                        <p>Under <strong>Store settings &amp; tools → Bulk Catalog Actions</strong>. Export includes <strong>VariantsJSON</strong>, videos, spin/panorama URLs, and stock fields. Re-import with matching <strong>ID</strong> column to update existing products.</p>
-                    </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--green">Tips</span>
-                        <p>Only <strong>name + base price</strong> are required — photos optional. Red ⓘ on a variant = fix stock/price before save. Blue ⓘ = duplicate combo will merge on save.</p>
-                    </div>
-                </div>
+                </div>                </div>
                 </div>
             </div>
 

@@ -884,6 +884,20 @@ const ALL_PATTERNS = [
 
 let variantBlocks = [];
 
+function toggleAdminGuideSection(sectionId) {
+    const content = document.getElementById(`admin-guide-section-${sectionId}`);
+    const icon = document.getElementById(`admin-guide-section-icon-${sectionId}`);
+    const accordion = document.getElementById(`admin-guide-section-accord-${sectionId}`);
+    const header = accordion?.querySelector('.admin-guide-section-header');
+    if (!content || !accordion) return;
+    const shouldOpen = content.style.display === 'none' || !content.style.display;
+    content.style.display = shouldOpen ? 'block' : 'none';
+    accordion.classList.toggle('is-open', shouldOpen);
+    if (icon) icon.style.transform = shouldOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (header) header.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+}
+window.toggleAdminGuideSection = toggleAdminGuideSection;
+
 function toggleProductGuideAccordion(forceOpen) {
     const content = document.getElementById('admin-product-guide-content');
     const icon = document.getElementById('admin-product-guide-icon');
@@ -901,6 +915,14 @@ window.toggleProductGuideAccordion = toggleProductGuideAccordion;
 
 function resetProductGuideAccordion() {
     toggleProductGuideAccordion(false);
+    ['media-types', 'extract-frames', 'panorama', 'video', '360-panel', 'variants', 'admin-tools'].forEach((id) => {
+        const content = document.getElementById(`admin-guide-section-${id}`);
+        const icon = document.getElementById(`admin-guide-section-icon-${id}`);
+        const accordion = document.getElementById(`admin-guide-section-accord-${id}`);
+        if (content) content.style.display = 'none';
+        if (accordion) accordion.classList.remove('is-open');
+        if (icon) icon.style.transform = 'rotate(-90deg)';
+    });
 }
 window.resetProductGuideAccordion = resetProductGuideAccordion;
 
