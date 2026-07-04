@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.7">
+    <link rel="stylesheet" href="css/style.css?v=9.8">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -706,14 +706,23 @@
             </div>
         </div>
 
+        <div id="admin-product-toolbar" class="admin-product-toolbar">
+            <input type="search" id="admin-product-search" class="admin-product-search" placeholder="Search by name, price, category, or ID…" oninput="adminFilterProducts()" aria-label="Search products">
+            <select id="admin-product-filter" class="admin-product-filter" onchange="adminFilterProducts()" aria-label="Filter products">
+                <option value="all">All products</option>
+                <option value="oos">Out of stock</option>
+                <option value="variants">Has variants</option>
+                <option value="media">Has video / 360°</option>
+            </select>
+        </div>
+
         <!-- Bulk Operations -->
         <div
             style="margin: 0 20px 20px 20px; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:flex; gap:15px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div>
                 <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; letter-spacing:0.5px;">Bulk Catalog
                     Actions</h4>
-                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export or batch update/import products Excel
-                    (.xlsx)</p>
+                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export full catalog (variants, media, stock) or batch import/update via Excel (.xlsx)</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn-gold" style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px;"
@@ -2443,9 +2452,9 @@
     <!-- MODAL: Admin Edit Product -->
     <div id="prod-modal" class="modal">
         <div class="modal-box">
-            <h3>Product Details</h3>
-            <input id="m-name" placeholder="Name">
-            <input id="m-price" type="number" placeholder="Price">
+            <h3 id="m-modal-title">Add New Product</h3>
+            <input id="m-name" placeholder="Product name (required)" aria-required="true">
+            <input id="m-price" type="number" min="0" step="1" placeholder="Base price ₹ (required)" aria-required="true">
             <div id="m-category-container" style="margin-bottom:12px;">
                 <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:5px;">Categories</label>
                 <p style="margin:0 0 8px; font-size:10px; color:#777;">Select one or more categories for this product</p>
@@ -2527,6 +2536,24 @@
                         <strong>Level 1 · Product global</strong> — one pool for the entire product.<br>
                         <strong>Level 2 · Whole variant</strong> — one pool per variant block. Overrides global.<br>
                         <strong>Level 3 · Per combination</strong> — separate qty per size / color / pattern row.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--gold">Save &amp; CRUD</span>
+                        <p><strong>Create:</strong> + NEW ITEM → fill name + price (required) → optional media &amp; variants → Save.<br>
+                        <strong>Edit:</strong> pencil icon on any row. <strong>Duplicate:</strong> copy icon (shares media URLs until you re-upload). <strong>Delete:</strong> trash icon — confirms by name.<br>
+                        Progress bar shows upload % and frame extraction %. Unsaved changes prompt if you cancel.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag">List tools</span>
+                        <p>Search by name, price, category, or ID. Filter out-of-stock, variant products, or those with video/360°. Product count badge updates live.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag">Excel</span>
+                        <p>Export includes <strong>VariantsJSON</strong>, videos, spin/panorama URLs, and stock fields. Re-import with matching <strong>ID</strong> column to update existing products.</p>
+                    </div>
+                    <div class="admin-guide-row">
+                        <span class="admin-guide-tag admin-guide-tag--green">Tips</span>
+                        <p>Only <strong>name + base price</strong> are required — photos optional. Red ⓘ on a variant = fix stock/price before save. Blue ⓘ = duplicate combo will merge on save.</p>
                     </div>
                 </div>
                 </div>
@@ -2693,6 +2720,7 @@
                 <label for="m-hide-main-placeholder" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide
                     default placeholder for no image</label>
             </div>
+            <div id="m-validation-errors" class="admin-validation-errors" style="display:none;" role="alert"></div>
             <div id="admin-save-progress" class="admin-save-progress" style="display:none;" aria-live="polite">
                 <div class="admin-save-progress__track">
                     <div id="admin-save-progress-bar" class="admin-save-progress__bar"></div>
@@ -2700,7 +2728,7 @@
                 <p id="admin-save-progress-text" class="admin-save-progress__text">Saving…</p>
             </div>
             <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
-            <button onclick="closeModal('prod-modal')"
+            <button type="button" onclick="closeProductModal()"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
         </div>
     </div>
@@ -3154,7 +3182,7 @@
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=12.1"></script>
+    <script src="js/admin.js?v=12.2"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

@@ -496,6 +496,169 @@ function mergeStoredVideos(listA, listB) {
 if (typeof window.currentProductFiles === 'undefined') window.currentProductFiles = [];
 
 if (typeof window.editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
+if (typeof window.adminProductSearchQuery === 'undefined') window.adminProductSearchQuery = '';
+if (typeof window.adminProductFilter === 'undefined') window.adminProductFilter = 'all';
+let adminProductSnapshot = null;
+
+function adminSerializeProductForm() {
+    const fileTag = (f) => (f instanceof File ? `file:${f.name}:${f.size}` : String(f || ''));
+    return JSON.stringify({
+        name: document.getElementById('m-name')?.value || '',
+        price: document.getElementById('m-price')?.value || '',
+        desc: document.getElementById('m-desc')?.value || '',
+        hideMain: !!document.getElementById('m-hide-main')?.checked,
+        hideMainDet: !!document.getElementById('m-hide-main-details')?.checked,
+        mainPos: document.getElementById('m-main-pos')?.value || '',
+        hidePlaceholder: !!document.getElementById('m-hide-main-placeholder')?.checked,
+        is360: !!document.getElementById('m-is360')?.checked,
+        is360Pano: !!document.getElementById('m-is360-panorama')?.checked,
+        trackGlobal: !!document.getElementById('m-track-global-stock')?.checked,
+        globalQty: document.getElementById('m-global-stock-qty')?.value || '',
+        images: (existingImageUrls || []).map(fileTag),
+        spins: (existingSpinUrls || []).map(fileTag),
+        panos: (existingPanoramaUrls || []).map(fileTag),
+        videos: (existingVideoUrls || []).length,
+        variants: (variantBlocks || []).map(v => JSON.stringify({
+            size: v.size, color: v.color, pattern: v.pattern, price: v.price,
+            isActive: v.isActive, images: (v.images || []).length, spin: (v.spinImages || []).length
+        }))
+    });
+}
+
+function adminResetProductSnapshot() {
+    setTimeout(() => { adminProductSnapshot = adminSerializeProductForm(); }, 120);
+}
+
+function adminIsProductDirty() {
+    if (!adminProductSnapshot) return false;
+    return adminProductSnapshot !== adminSerializeProductForm();
+}
+
+function closeProductModal() {
+    if (adminIsProductDirty()) {
+        if (!confirm('You have unsaved changes. Close without saving?')) return;
+    }
+    adminProductSnapshot = null;
+    closeModal('prod-modal');
+}
+window.closeProductModal = closeProductModal;
+
+function adminSetModalTitle(mode) {
+    const el = document.getElementById('m-modal-title');
+    if (!el) return;
+    if (mode === 'edit') el.textContent = 'Edit Product';
+    else if (mode === 'copy') el.textContent = 'Duplicate Product';
+    else el.textContent = 'Add New Product';
+}
+
+function adminFilterProducts() {
+    const searchEl = document.getElementById('admin-product-search');
+    const filterEl = document.getElementById('admin-product-filter');
+    adminProductSearchQuery = searchEl ? searchEl.value : '';
+    adminProductFilter = filterEl ? filterEl.value : 'all';
+    editingProductsLimit = 20;
+    renderAdmin();
+}
+window.adminFilterProducts = adminFilterProducts;
+
+function adminGetFilteredProducts() {
+    let list = products || [];
+    const q = (adminProductSearchQuery || '').trim().toLowerCase();
+    if (q) {
+        list = list.filter(p => {
+            const name = (p.name || '').toLowerCase();
+            const cat = (typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || '')).toLowerCase();
+            const id = (p.id || '').toLowerCase();
+            const price = String(p.price || '');
+            return name.includes(q) || cat.includes(q) || id.includes(q) || price.includes(q);
+        });
+    }
+    if (adminProductFilter === 'oos') {
+        list = list.filter(p => typeof isProductOutOfStock === 'function' && isProductOutOfStock(p));
+    } else if (adminProductFilter === 'variants') {
+        list = list.filter(p => p.variants && p.variants.length > 0);
+    } else if (adminProductFilter === 'media') {
+        list = list.filter(p =>
+            (p.videos && p.videos.length) || p.is360 || p.is360Panorama
+            || (p.spinImages && p.spinImages.length) || (p.panoramaImages && p.panoramaImages.length)
+        );
+    }
+    return list;
+}
+
+function adminGetVariantBlockErrors(v, index) {
+    const errors = [];
+    const variantTracksStock = !!(v.trackVariantStock || v.trackComboStock || v.trackStock);
+    const isStockError = variantTracksStock && (typeof expandVariantBlockSkus === 'function'
+        ? (v.trackComboStock
+            ? expandVariantBlockSkus(v).some(sku => {
+                const q = getVariantSkuStock(v, sku.key);
+                return q === undefined || q === null || isNaN(q) || q < 0;
+            })
+            : (getVariantBlockStockCount(v) === undefined || getVariantBlockStockCount(v) === null || isNaN(getVariantBlockStockCount(v)) || getVariantBlockStockCount(v) < 0))
+        : (v.stockCount === undefined || v.stockCount === null || isNaN(v.stockCount) || v.stockCount < 0));
+    const isPriceError = v.price !== '' && v.price !== null && v.price !== undefined && (isNaN(v.price) || Number(v.price) < 0);
+    if (isStockError) errors.push(`Variant ${index + 1}: stock quantity is invalid.`);
+    if (isPriceError) errors.push(`Variant ${index + 1}: custom price is invalid.`);
+    return errors;
+}
+
+function adminValidateProductForm() {
+    const errors = [];
+    const name = document.getElementById('m-name')?.value?.trim();
+    const priceRaw = document.getElementById('m-price')?.value;
+    if (!name) errors.push('Product name is required.');
+    if (priceRaw === '' || priceRaw === null || isNaN(Number(priceRaw)) || Number(priceRaw) < 0) {
+        errors.push('Enter a valid base price (0 or more).');
+    }
+    if (document.getElementById('m-track-global-stock')?.checked) {
+        const qty = parseInt(document.getElementById('m-global-stock-qty')?.value, 10);
+        if (isNaN(qty) || qty < 0) errors.push('Global stock quantity must be 0 or more.');
+    }
+    (variantBlocks || []).forEach((v, i) => {
+        errors.push(...adminGetVariantBlockErrors(v, i));
+    });
+    return errors;
+}
+
+function adminShowValidationErrors(errors) {
+    const el = document.getElementById('m-validation-errors');
+    if (!el) return;
+    if (!errors.length) {
+        el.style.display = 'none';
+        el.innerHTML = '';
+        return;
+    }
+    el.style.display = 'block';
+    el.innerHTML = `<strong>Fix before saving:</strong><ul>${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function deleteProduct(id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return showToast('Product not found.');
+    const safeName = (p.name || 'this product').replace(/"/g, "'");
+    if (!confirm(`Delete "${safeName}"?\n\nThis removes the product from your catalog. Media files stay on Cloudinary until a superadmin purge.`)) return;
+    try {
+        await db.collection('products').doc(id).delete();
+        showToast(`Deleted "${safeName}".`);
+    } catch (e) {
+        console.error(e);
+        showToast('Could not delete product: ' + (e.message || 'Unknown error'));
+    }
+}
+window.deleteProduct = deleteProduct;
+
+function adminProductMediaBadges(p) {
+    const badges = [];
+    if (p.videos && p.videos.length) badges.push('<span class="admin-product-media-badge admin-product-media-badge--video" title="Has video">▶</span>');
+    if (p.is360 || (p.spinImages && p.spinImages.length >= 2)) badges.push('<span class="admin-product-media-badge admin-product-media-badge--spin" title="Rotate frames">↻</span>');
+    if (p.is360Panorama || (p.panoramaImages && p.panoramaImages.length)) badges.push('<span class="admin-product-media-badge admin-product-media-badge--pano" title="Panorama">◎</span>');
+    const vCount = (p.variants && p.variants.length) || 0;
+    if (vCount) badges.push(`<span class="admin-product-media-badge admin-product-media-badge--variant" title="${vCount} variant block(s)">${vCount}v</span>`);
+    return badges.length ? `<span class="admin-product-media-badges">${badges.join('')}</span>` : '';
+}
+
 
 const ALL_SIZES = [
     { id: 'XXS', label: 'XXS (Chest: 32")' },
@@ -1534,13 +1697,11 @@ function removeSwatch(vId, index) {
 
 function updateVariant(id, field, value) {
     const v = variantBlocks.find(x => x.id === id);
-    if (v) {
-        v[field] = value;
-        console.log(`[updateVariant] Variant ${id}: set ${field} =`, value);
-    }
+    if (v) v[field] = value;
 }
 
 function removeVariant(id) {
+    if (!confirm('Remove this variant block and its media settings?')) return;
     variantBlocks = variantBlocks.filter(x => x.id !== id);
     renderVariantBlocks();
 }
@@ -1564,22 +1725,33 @@ function renderAdmin() {
         return;
     }
     
-    let itemsToRender = products;
+    let itemsToRender = adminGetFilteredProducts();
+    const totalFiltered = itemsToRender.length;
+    const totalAll = products.length;
     
-    if (products.length > editingProductsLimit) {
-        itemsToRender = products.slice(0, editingProductsLimit);
+    if (countContainer) {
+        const visible = Math.min(totalFiltered, editingProductsLimit);
+        const filterNote = totalFiltered !== totalAll ? ` (filtered from ${totalAll})` : '';
+        countContainer.textContent = totalFiltered > 0
+            ? `${visible < totalFiltered ? `Showing ${visible} of ` : ''}${totalFiltered} product${totalFiltered === 1 ? '' : 's'}${filterNote}`
+            : (totalAll ? 'No matches' : '0 products');
+        countContainer.style.display = 'inline-flex';
+    }
+    
+    if (totalFiltered > editingProductsLimit) {
+        itemsToRender = itemsToRender.slice(0, editingProductsLimit);
         if (loadMoreContainer) {
-            loadMoreContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreAdminProducts()">Show More</button>`;
+            loadMoreContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreAdminProducts()">Show More (${Math.min(editingProductsLimit, totalFiltered)} / ${totalFiltered})</button>`;
         }
     } else {
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
     }
     
-    // if (countContainer) {
-    //     const visible = Math.min(products.length, editingProductsLimit);
-    //     countContainer.innerHTML = products.length > 0 ? `Showing ${visible} of ${products.length} Products` : '0 Products';
-    //     countContainer.style.display = 'inline-flex';
-    // }
+    if (!itemsToRender.length && products.length > 0) {
+        container.innerHTML = `<div class="admin-product-empty">No products match your search. <button type="button" class="admin-product-empty__clear" onclick="document.getElementById('admin-product-search').value='';document.getElementById('admin-product-filter').value='all';adminFilterProducts();">Clear filters</button></div>`;
+        if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+        return;
+    }
     
     container.innerHTML = itemsToRender.map(p => {
         let thumbUrl = 'https://placehold.co/400x400/222/FFF?text=+';
@@ -1673,6 +1845,8 @@ function renderAdmin() {
 
         const catLabel = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || '');
         const safeName = (p.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const priceLabel = `₹${Number(p.price) || 0}`;
+        const mediaBadges = adminProductMediaBadges(p);
         return `
         <div class="admin-product-row">
             <div class="admin-product-thumb-wrap">
@@ -1681,18 +1855,20 @@ function renderAdmin() {
             <div class="admin-product-body">
                 <div class="admin-product-title-row">
                     <b class="admin-product-name">${safeName}</b>
+                    <span class="admin-product-price">${priceLabel}</span>
                     ${catLabel ? `<span class="admin-product-cat">${typeof escapeCategoryHtml === 'function' ? escapeCategoryHtml(catLabel) : catLabel}</span>` : ''}
+                    ${mediaBadges}
                     ${isOutOfStock ? `<span class="admin-product-oos">Out of stock</span>` : ''}
                 </div>
                 ${stockHtml}
             </div>
             <div class="admin-product-actions">
-                <i class="fa fa-copy" title="Copy Product" onclick="copyProduct('${p.id}')"></i>
-                <i class="fa fa-edit" title="Edit" onclick="openEdit('${p.id}')"></i>
-                <i class="fa fa-trash" title="Delete" onclick="if(confirm('Delete?')) db.collection('products').doc('${p.id}').delete()"></i>
+                <i class="fa fa-copy" title="Duplicate product" onclick="copyProduct('${p.id}')"></i>
+                <i class="fa fa-edit" title="Edit product" onclick="openEdit('${p.id}')"></i>
+                <i class="fa fa-trash" title="Delete product" onclick="deleteProduct('${p.id}')"></i>
             </div>
         </div>
-    `}).join(''); 
+    `}).join('');
     if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
 }
 
@@ -1703,8 +1879,11 @@ function loadMoreAdminProducts() {
 
 function openEdit(id) { 
     editingId = id; 
-    const p = products.find(x => x.id === id); 
-    document.getElementById('m-name').value = p.name; 
+    const p = products.find(x => x.id === id);
+    if (!p) return showToast('Product not found.');
+    adminSetModalTitle('edit');
+    adminShowValidationErrors([]); 
+    document.getElementById('m-name').value = p.name;
     document.getElementById('m-price').value = p.price; 
     document.getElementById('m-desc').value = p.description || ""; 
     document.getElementById('m-hide-main').checked = !!p.hideMainCarousel;
@@ -1817,7 +1996,8 @@ function openEdit(id) {
     });
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
-    document.getElementById('prod-modal').style.display = 'flex'; 
+    document.getElementById('prod-modal').style.display = 'flex';
+    adminResetProductSnapshot();
 }
 
 function toggle360Badge(id, checked) {
@@ -1851,6 +2031,8 @@ window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
 
 function openAdd() { 
     editingId = null; 
+    adminSetModalTitle('add');
+    adminShowValidationErrors([]);
     existingImageUrls = [];
     existingSpinUrls = [];
     existingPanoramaUrls = [];
@@ -1891,7 +2073,8 @@ function openAdd() {
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(null);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
-    document.getElementById('prod-modal').style.display = 'flex'; 
+    document.getElementById('prod-modal').style.display = 'flex';
+    adminResetProductSnapshot();
 }
 
 function renderImagePreviews(targetId = 'base') { 
@@ -2246,23 +2429,40 @@ function renderVideoPreviews(targetId = 'base') {
 window.renderVideoPreviews = renderVideoPreviews;
 
 async function saveProduct() { 
-    const n = document.getElementById('m-name').value;
+    const validationErrors = adminValidateProductForm();
+    if (validationErrors.length) {
+        adminShowValidationErrors(validationErrors);
+        return showToast('Fix the errors below before saving.');
+    }
+    adminShowValidationErrors([]);
+
+    const n = document.getElementById('m-name').value.trim();
     const pr = document.getElementById('m-price').value; 
-    if(!n || !pr) return showToast("Name and price are required");
+    if(!n || pr === '') return showToast("Name and price are required");
 
     let spinEnabled = !!document.getElementById('m-is360')?.checked;
     let panoEnabled = !!document.getElementById('m-is360-panorama')?.checked;
+    let spinAutoOff = false;
+    let panoAutoOff = false;
     if (spinEnabled && (existingSpinUrls || []).length < 2) {
         spinEnabled = false;
+        spinAutoOff = true;
         const chk = document.getElementById('m-is360');
         if (chk) chk.checked = false;
         toggle360Badge('base', false);
     }
     if (panoEnabled && (existingPanoramaUrls || []).length < 1) {
         panoEnabled = false;
+        panoAutoOff = true;
         const chk = document.getElementById('m-is360-panorama');
         if (chk) chk.checked = false;
         toggle360PanoramaBadge('base', false);
+    }
+    if (spinAutoOff || panoAutoOff) {
+        const parts = [];
+        if (spinAutoOff) parts.push('Rotate (need at least 2 frames)');
+        if (panoAutoOff) parts.push('Look Around (need at least 1 panorama)');
+        showToast(`360° turned off: ${parts.join(' · ')}`);
     }
     for (const v of variantBlocks) {
         if (v.is360 && (v.spinImages || []).length < 2) v.is360 = false;
@@ -2436,6 +2636,7 @@ async function saveProduct() {
             images: resolvedMainImages,
             variants: mergedVariants,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            ...(editingId ? {} : { createdAt: firebase.firestore.FieldValue.serverTimestamp() }),
             // Fallback for older legacy UI code (using flatMap for comma separation)
             sizes: [...new Set(mergedVariants.flatMap(v => v.size ? v.size.split(',').map(s => s.trim()).filter(s => s) : []))],
             colors: [...new Set(mergedVariants.flatMap(v => v.color ? v.color.split(',').map(c => c.trim()).filter(c => c) : []))],
@@ -2463,7 +2664,8 @@ async function saveProduct() {
         }
         
         adminHideSaveProgress();
-        showToast("Saved!"); 
+        adminProductSnapshot = null;
+        showToast(editingId ? 'Product updated!' : 'Product created!');
         closeModal('prod-modal'); 
     } catch(e) { 
         adminHideSaveProgress();
@@ -2484,9 +2686,12 @@ if (isAdmin) {
 // ── Admin Copy / Import / Export ───────────────────────────────────────────
 function copyProduct(id) {
     const p = products.find(x => x.id === id);
-    if (!p) return;
+    if (!p) return showToast('Product not found.');
     
-    editingId = null; // Set to null so it creates a NEW item when saved
+    editingId = null;
+    adminSetModalTitle('copy');
+    adminShowValidationErrors([]);
+    showToast('Duplicate shares the same media URLs until you upload new files.');
     document.getElementById('m-name').value = p.name + " - Copy"; 
     document.getElementById('m-price').value = p.price; 
     document.getElementById('m-desc').value = p.description || ""; 
@@ -2592,7 +2797,8 @@ function copyProduct(id) {
     });
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
-    document.getElementById('prod-modal').style.display = 'flex'; 
+    document.getElementById('prod-modal').style.display = 'flex';
+    adminResetProductSnapshot();
 }
 
 function exportProducts() {
@@ -2607,6 +2813,14 @@ function exportProducts() {
         "Description": p.description || "",
         "Category": (typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || "")),
         "Images": (p.images && Array.isArray(p.images)) ? p.images.join(', ') : "",
+        "SpinImages": (p.spinImages && Array.isArray(p.spinImages)) ? p.spinImages.join(', ') : "",
+        "PanoramaImages": (p.panoramaImages && Array.isArray(p.panoramaImages)) ? p.panoramaImages.join(', ') : "",
+        "VideosJSON": (p.videos && p.videos.length) ? JSON.stringify(p.videos) : "",
+        "Is360": p.is360 ? 'yes' : 'no',
+        "Is360Panorama": p.is360Panorama ? 'yes' : 'no',
+        "TrackGlobalStock": p.trackGlobalStock ? 'yes' : 'no',
+        "GlobalStockCount": p.globalStockCount || 0,
+        "VariantsJSON": (p.variants && p.variants.length) ? JSON.stringify(p.variants) : "",
         "Sizes": (p.sizes && Array.isArray(p.sizes)) ? p.sizes.join(', ') : "",
         "Colors": (p.colors && Array.isArray(p.colors)) ? p.colors.join(', ') : "",
         "SizeColorMap": p.sizeColorMap ? JSON.stringify(p.sizeColorMap) : "{}"
@@ -2642,18 +2856,32 @@ async function importProducts(input) {
             const worksheet = workbook.Sheets[firstSheetName];
             const importedRows = XLSX.utils.sheet_to_json(worksheet);
             
-            showToast(`Importing ${importedRows.length} products from Excel...`);
+            showToast(`Importing ${importedRows.length} products…`);
+            adminSetSaveProgress(0, `Importing 0/${importedRows.length}…`);
             
             let updatedCount = 0;
             let createdCount = 0;
+            let rowIndex = 0;
             
             for (const row of importedRows) {
+                rowIndex++;
+                adminSetSaveProgress(Math.round((rowIndex / importedRows.length) * 100), `Importing ${rowIndex}/${importedRows.length}…`);
                 const sizeColorMapStr = row.SizeColorMap || "{}";
                 let sizeColorMapObj = {};
                 try {
                     sizeColorMapObj = JSON.parse(sizeColorMapStr);
                 } catch(e) {
                     console.warn("Invalid SizeColorMap JSON inside Excel row:", row.Name, e);
+                }
+                
+                let variants = [];
+                if (row.VariantsJSON) {
+                    try {
+                        variants = JSON.parse(row.VariantsJSON);
+                        if (!Array.isArray(variants)) variants = [];
+                    } catch (e) {
+                        console.warn('Invalid VariantsJSON for row:', row.Name, e);
+                    }
                 }
                 
                 const cleanItem = {
@@ -2664,10 +2892,27 @@ async function importProducts(input) {
                         ? resolveCategoryIdFromImportValue(row.Category)
                         : {}),
                     images: row.Images ? String(row.Images).split(',').map(u => u.trim()).filter(u => u.length > 0) : [],
+                    spinImages: row.SpinImages ? String(row.SpinImages).split(',').map(u => u.trim()).filter(u => u.length > 0) : [],
+                    panoramaImages: row.PanoramaImages ? String(row.PanoramaImages).split(',').map(u => u.trim()).filter(u => u.length > 0) : [],
+                    is360: String(row.Is360 || '').toLowerCase() === 'yes',
+                    is360Panorama: String(row.Is360Panorama || '').toLowerCase() === 'yes',
+                    trackGlobalStock: String(row.TrackGlobalStock || '').toLowerCase() === 'yes',
+                    globalStockCount: parseInt(row.GlobalStockCount, 10) || 0,
                     sizes: row.Sizes ? String(row.Sizes).split(',').map(s => s.trim()).filter(s => s.length > 0) : [],
                     colors: row.Colors ? String(row.Colors).split(',').map(c => c.trim()).filter(c => c.length > 0) : [],
-                    sizeColorMap: sizeColorMapObj
+                    sizeColorMap: sizeColorMapObj,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
+                
+                if (variants.length) cleanItem.variants = variants;
+                if (row.VideosJSON) {
+                    try {
+                        const vids = JSON.parse(row.VideosJSON);
+                        if (Array.isArray(vids)) cleanItem.videos = vids;
+                    } catch (e) {
+                        console.warn('Invalid VideosJSON for row:', row.Name, e);
+                    }
+                }
                 
                 const itemId = row.ID ? String(row.ID).trim() : null;
                 if (itemId) {
@@ -2680,13 +2925,16 @@ async function importProducts(input) {
                 }
                 
                 // Otherwise, add as a new item
+                cleanItem.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                 await db.collection("products").add(cleanItem);
                 createdCount++;
             }
             
-            showToast(`Excel Import Success: ${updatedCount} updated, ${createdCount} created!`);
+            adminHideSaveProgress();
+            showToast(`Import done: ${updatedCount} updated, ${createdCount} created.`);
             input.value = ''; // Reset input element
         } catch (err) {
+            adminHideSaveProgress();
             console.error("Excel Import Error:", err);
             showToast("Import failed: invalid Excel file format");
         }
@@ -3288,12 +3536,15 @@ async function deleteAllProducts() {
             return;
         }
 
-        const batch = db.batch();
-        snapshot.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-        showToast("All products deleted successfully!");
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += 450) {
+            const batch = db.batch();
+            docs.slice(i, i + 450).forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            adminSetSaveProgress(Math.round(((i + 450) / docs.length) * 100), `Deleting ${Math.min(i + 450, docs.length)}/${docs.length}…`);
+        }
+        adminHideSaveProgress();
+        showToast(`All ${docs.length} products deleted.`);
         if (typeof renderAdmin === "function") renderAdmin();
     } catch (error) {
         console.error("Error deleting all products:", error);
