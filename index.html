@@ -2482,10 +2482,25 @@
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--stock">Stock</span>
-                        <p>Turn on <strong>Track Stock</strong> per block. One qty field for a single combo; a grid when multiple sizes/colors/patterns exist. Sold units deduct from that exact combo only.</p>
+                        <p><strong>Global</strong> stock is one shared quantity for the whole product (all combos use the same pool). <strong>Variant</strong> stock overrides global for that block — one qty for a single combo, or a grid when multiple sizes/colors/patterns exist. Sold units deduct from the matching pool only.</p>
                     </div>
                 </div>
             </details>
+
+            <div id="m-global-stock-container" style="margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(255,179,71,0.25); border-radius:10px;">
+                <p style="font-size:10px; color:#ffb347; margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Global Product Stock <span style="color:#666; text-transform:none;">(optional)</span></p>
+                <p style="margin:0 0 10px; font-size:10px; color:#777; line-height:1.4;">One quantity shared by every combo unless a variant block below has its own <strong>Variant Stock</strong> turned on.</p>
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:12px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+                        <input type="checkbox" id="m-track-global-stock" style="width:auto; margin:0;" onchange="toggleGlobalStockUI()">
+                        <span style="font-size:12px; color:#ffb347; font-weight:600;">Track Global Stock</span>
+                    </label>
+                    <div id="m-global-stock-qty-wrap" style="display:none; flex:1; min-width:160px; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <input type="number" id="m-global-stock-qty" min="0" placeholder="0" style="width:100px; padding:6px 8px; border-radius:6px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
+                        <span style="font-size:10px; color:#666;">units left (all combos without variant stock)</span>
+                    </div>
+                </div>
+            </div>
 
             <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Product Variants</p>
             <div id="m-variants-container"
@@ -3007,13 +3022,13 @@
     <script src="js/app.js?v=10.4"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/categories.js?v=10.6"></script>
-    <script src="js/store.js?v=10.7"></script>
-    <script src="js/checkout.js?v=10.0"></script>
+    <script src="js/store.js?v=10.8"></script>
+    <script src="js/checkout.js?v=10.1"></script>
     <script src="js/auth.js?v=10.5"></script>
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.6"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=10.2"></script>
+    <script src="js/admin.js?v=10.3"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

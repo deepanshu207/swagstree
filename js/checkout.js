@@ -1569,9 +1569,13 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                     if (pSnap.exists) {
                         const pData = pSnap.data();
                         if (typeof deductStockForCartItem === 'function') {
-                            const newVariants = deductStockForCartItem(pData, item);
-                            if (newVariants) {
-                                await pRef.update({ variants: newVariants });
+                            const stockUpdate = deductStockForCartItem(pData, item);
+                            if (stockUpdate) {
+                                if (stockUpdate.variants) {
+                                    await pRef.update({ variants: stockUpdate.variants });
+                                } else if (stockUpdate.globalStockCount !== undefined) {
+                                    await pRef.update({ globalStockCount: stockUpdate.globalStockCount });
+                                }
                             }
                         } else if (pData.variants && Array.isArray(pData.variants)) {
                             let updated = false;

@@ -58,6 +58,34 @@ const ALL_PATTERNS = [
 
 let variantBlocks = [];
 
+function toggleGlobalStockUI() {
+    const on = !!document.getElementById('m-track-global-stock')?.checked;
+    const wrap = document.getElementById('m-global-stock-qty-wrap');
+    if (wrap) wrap.style.display = on ? 'flex' : 'none';
+}
+window.toggleGlobalStockUI = toggleGlobalStockUI;
+
+function hydrateGlobalStockForm(p) {
+    const trackEl = document.getElementById('m-track-global-stock');
+    const qtyEl = document.getElementById('m-global-stock-qty');
+    if (!trackEl || !qtyEl) return;
+    trackEl.checked = !!(p && p.trackGlobalStock);
+    qtyEl.value = p && p.trackGlobalStock ? (parseInt(p.globalStockCount, 10) || 0) : '';
+    toggleGlobalStockUI();
+}
+window.hydrateGlobalStockForm = hydrateGlobalStockForm;
+
+function readGlobalStockFromForm() {
+    const trackEl = document.getElementById('m-track-global-stock');
+    const qtyEl = document.getElementById('m-global-stock-qty');
+    const trackGlobalStock = !!trackEl?.checked;
+    return {
+        trackGlobalStock,
+        globalStockCount: trackGlobalStock ? Math.max(0, parseInt(qtyEl?.value, 10) || 0) : 0
+    };
+}
+window.readGlobalStockFromForm = readGlobalStockFromForm;
+
 function ensureVariantStockMap(v) {
     if (!v.stockBySku || typeof v.stockBySku !== 'object') v.stockBySku = {};
 }
@@ -82,8 +110,9 @@ function buildVariantStockHtml(v) {
         const sku = skus[0];
         const qty = getVariantSkuStock(v, sku.key);
         return `
-                    <div id="v-stock-qty-container-${v.id}" style="display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column:1 / -1;">
-                        <span style="font-size:12px; color:#aaa;">Stock Qty:</span>
+                    <div id="v-stock-qty-container-${v.id}" style="display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:8px 10px; border-radius:8px; background:#0d0d0d; border:1px solid #2a2a2a; grid-column:1 / -1;">
+                        <span style="font-size:11px; color:#FFD700; font-weight:700;">Variant stock qty</span>
+                        <span style="font-size:10px; color:#666; line-height:1.35;">Overrides global stock for this combo.</span>
                         <input type="number" min="0" placeholder="0" value="${qty}" oninput="updateVariantSkuStock('${v.id}', '${esc(sku.key)}', parseInt(this.value)||0)" onchange="renderVariantBlocks()" style="width:100%; box-sizing:border-box; padding:5px 8px; border-radius:5px; border:1px solid #444; background:#222; color:#FFD700; font-size:13px; font-weight:700; text-align:center;">
                     </div>`;
     }
@@ -98,9 +127,9 @@ function buildVariantStockHtml(v) {
     }).join('');
 
     return `
-                    <div id="v-stock-qty-container-${v.id}" style="display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:8px 10px; border-radius:8px; background:#111; border:1px solid #2a2a2a; grid-column:1 / -1;">
-                        <span style="font-size:11px; color:#FFD700; font-weight:700;">Stock per combination</span>
-                        <span style="font-size:10px; color:#666; line-height:1.35; margin-bottom:4px;">One row per buyable combo — customer stock is tracked separately for each.</span>
+                    <div id="v-stock-qty-container-${v.id}" style="display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:8px 10px; border-radius:8px; background:#0d0d0d; border:1px solid #2a2a2a; grid-column:1 / -1;">
+                        <span style="font-size:11px; color:#FFD700; font-weight:700;">Variant stock per combination</span>
+                        <span style="font-size:10px; color:#666; line-height:1.35; margin-bottom:4px;">Overrides global stock — one row per buyable combo.</span>
                         ${rows}
                     </div>`;
 }
@@ -278,8 +307,14 @@ function renderVariantBlocks() {
                     ${toggle(`v-hidedet-${v.id}`, !!v.hideDetailsGallery, `updateVariant('${v.id}', 'hideDetailsGallery', this.checked)`, 'Hide Details Images In Gallery', '#e57373')}
                     ${toggle(`v-showmain-${v.id}`, !!v.showInMainCarousel, `updateVariant('${v.id}', 'showInMainCarousel', this.checked)`, 'Show on Home Screen', '#64b5f6')}
                     ${hasSwatches ? toggle(`v-showpattext-${v.id}`, !!v.showPatternText, `updateVariant('${v.id}', 'showPatternText', this.checked)`, 'Show Pattern Text', '#25D366') : ''}
-                    ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();`, 'Track Stock', '#FFD700')}
+                </div>
+                <div style="margin-top:6px; padding:10px; border-radius:8px; background:#111; border:1px solid rgba(255,179,71,0.2);">
+                    <p style="font-size:10px; color:#ffb347; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Variant Stock <span style="color:#666; text-transform:none;">(optional — overrides global)</span></p>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:6px;">
+                    ${toggle(`v-track-${v.id}`, !!v.trackStock, `updateVariant('${v.id}', 'trackStock', this.checked); renderVariantBlocks();`, 'Track Variant Stock', '#FFD700')}
                     ${buildVariantStockHtml(v)}
+                    </div>
+                </div>
 
             </div>
         </div>
@@ -577,37 +612,43 @@ function renderAdmin() {
         }
 
         const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
-        const isOutOfStock = typeof variantBlockHasStock === 'function'
-            ? (activeVariants.length > 0 && activeVariants.some(v => v.trackStock) && !activeVariants.filter(v => v.trackStock).some(v => variantBlockHasStock(v)))
-            : false;
+        const isOutOfStock = typeof isProductOutOfStock === 'function'
+            ? isProductOutOfStock(p)
+            : (typeof variantBlockHasStock === 'function'
+                ? (activeVariants.length > 0 && activeVariants.some(v => v.trackStock) && !activeVariants.filter(v => v.trackStock).some(v => variantBlockHasStock(v)))
+                : false);
 
         let stockHtml = '';
-        if (activeVariants.length > 0) {
+        if (p.trackGlobalStock || activeVariants.length > 0) {
             stockHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;">`;
-            activeVariants.forEach(v => {
-                const renderStockBadge = (label, stock, tracking) => {
-                    let badgeColor = '#888';
-                    let badgeBg = 'rgba(255,255,255,0.05)';
-                    let border = '1px solid rgba(255,255,255,0.1)';
-                    let text = '';
-                    if (tracking) {
-                        if (stock <= 0) {
-                            badgeColor = '#ff4d4d';
-                            badgeBg = 'rgba(255, 77, 77, 0.1)';
-                            border = '1px solid rgba(255, 77, 77, 0.2)';
-                            text = `${label}: 0 Left (OOS)`;
-                        } else {
-                            badgeColor = '#FFD700';
-                            badgeBg = 'rgba(255, 215, 0, 0.05)';
-                            border = '1px solid rgba(255, 215, 0, 0.2)';
-                            text = `${label}: ${stock} Left`;
-                        }
+            const renderStockBadge = (label, stock, tracking) => {
+                let badgeColor = '#888';
+                let badgeBg = 'rgba(255,255,255,0.05)';
+                let border = '1px solid rgba(255,255,255,0.1)';
+                let text = '';
+                if (tracking) {
+                    if (stock <= 0) {
+                        badgeColor = '#ff4d4d';
+                        badgeBg = 'rgba(255, 77, 77, 0.1)';
+                        border = '1px solid rgba(255, 77, 77, 0.2)';
+                        text = `${label}: 0 Left (OOS)`;
                     } else {
-                        text = `${label}: Unlimited`;
+                        badgeColor = '#FFD700';
+                        badgeBg = 'rgba(255, 215, 0, 0.05)';
+                        border = '1px solid rgba(255, 215, 0, 0.2)';
+                        text = `${label}: ${stock} Left`;
                     }
-                    stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:normal; display:inline-block; max-width:100%; word-break:break-word;">${text}</span>`;
-                };
+                } else {
+                    text = `${label}: Unlimited`;
+                }
+                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:normal; display:inline-block; max-width:100%; word-break:break-word;">${text}</span>`;
+            };
 
+            if (p.trackGlobalStock) {
+                renderStockBadge('Global', parseInt(p.globalStockCount, 10) || 0, true);
+            }
+
+            activeVariants.forEach(v => {
                 const skus = (typeof expandVariantBlockSkus === 'function') ? expandVariantBlockSkus(v) : [];
                 if (v.trackStock && skus.length > 1) {
                     skus.forEach(sku => {
@@ -689,6 +730,7 @@ function openEdit(id) {
     renderImagePreviews('base');
     renderSpinPreviews('base');
     renderVideoPreviews('base');
+    if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
     
     // Load variants or fallback
     if (p.variants && Array.isArray(p.variants)) {
@@ -816,6 +858,7 @@ function openAdd() {
     renderImagePreviews('base');
     renderSpinPreviews('base');
     renderVideoPreviews('base');
+    if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(null);
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(null);
     document.getElementById('prod-modal').style.display = 'flex'; 
@@ -1097,6 +1140,10 @@ async function saveProduct() {
             }
         });
         
+        const globalStock = typeof readGlobalStockFromForm === 'function'
+            ? readGlobalStockFromForm()
+            : { trackGlobalStock: false, globalStockCount: 0 };
+
         const data = { 
             name: n, 
             price: Number(pr), 
@@ -1111,6 +1158,8 @@ async function saveProduct() {
             threeSixtyRows: 1,
             spinImages: finalSpinImages,
             videos: finalVideos,
+            trackGlobalStock: globalStock.trackGlobalStock,
+            globalStockCount: globalStock.globalStockCount,
             images: finalMainImages,
             variants: mergedVariants,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1259,6 +1308,7 @@ function copyProduct(id) {
     renderImagePreviews('base');
     renderSpinPreviews('base');
     renderVideoPreviews('base');
+    if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
     document.getElementById('prod-modal').style.display = 'flex'; 

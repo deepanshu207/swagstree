@@ -596,11 +596,11 @@ function setupInfiniteScrollObserver() {
 }
 
 function isProductOutOfStock(p) {
-    const activeVariants = p.variants && Array.isArray(p.variants) ? p.variants.filter(v => v.isActive !== false) : [];
-    if (activeVariants.length === 0) return false;
-    const trackingVariants = activeVariants.filter(v => v.trackStock);
-    if (trackingVariants.length === 0) return false;
-    return !trackingVariants.some(v => variantBlockHasStock(v));
+    const norm = normalizeVariants(p);
+    if (!norm.length) return false;
+    const anyTracking = norm.some(v => v.trackStock);
+    if (!anyTracking) return false;
+    return !norm.some(isNormalizedVariantInStock);
 }
 window.isProductOutOfStock = isProductOutOfStock;
 
@@ -1007,6 +1007,15 @@ function expandVariantBlockSkus(v) {
 }
 window.expandVariantBlockSkus = expandVariantBlockSkus;
 
+function productTracksGlobalStock(p) {
+    return !!(p && p.trackGlobalStock);
+}
+window.productTracksGlobalStock = productTracksGlobalStock;
+
+function getGlobalStockCount(p) {
+    return productTracksGlobalStock(p) ? (parseInt(p.globalStockCount, 10) || 0) : 0;
+}
+
 function resolveSkuStockCount(variantBlock, skuKey) {
     const fallback = typeof variantBlock.stockCount === 'number'
         ? variantBlock.stockCount
@@ -1097,7 +1106,12 @@ function normalizeVariants(p) {
                         }
 
                         const skuKey = buildSkuKey(sz, col, finalColorName, finalPatternName);
-                        const stockCount = resolveSkuStockCount(v, skuKey);
+                        const usesVariantStock = !!v.trackStock;
+                        const usesGlobalStock = !usesVariantStock && productTracksGlobalStock(p);
+                        const tracksStock = usesVariantStock || usesGlobalStock;
+                        const stockCount = usesVariantStock
+                            ? resolveSkuStockCount(v, skuKey)
+                            : (usesGlobalStock ? getGlobalStockCount(p) : 0);
 
                         normalized.push({
                             ...v,
@@ -1108,7 +1122,9 @@ function normalizeVariants(p) {
                             patternDisplayName: patternDisplayName,
                             showPatternText: showPatternText,
                             previewImage: patPreviewUrl,
+                            trackStock: tracksStock,
                             stockCount,
+                            usesGlobalStock,
                             skuKey
                         });
                     });
@@ -1121,38 +1137,54 @@ function normalizeVariants(p) {
     const sizes = p.sizes || [];
     const map = p.sizeColorMap || {};
     if (sizes.length === 0) return [buildDefaultStorefrontVariant(p)];
+    const hasGlobal = productTracksGlobalStock(p);
+    const globalQty = getGlobalStockCount(p);
     sizes.forEach(sz => {
         const colors = map[sz] || [];
         if (colors.length > 0) {
             colors.forEach(col => {
-                variants.push({ size: sz, color: col, pattern: '', price: null, images: [] });
+                variants.push({
+                    size: sz,
+                    color: col,
+                    pattern: '',
+                    price: null,
+                    images: [],
+                    trackStock: hasGlobal,
+                    stockCount: hasGlobal ? globalQty : 0
+                });
             });
         } else {
-            variants.push({ size: sz, color: '', pattern: '', price: null, images: [] });
+            variants.push({
+                size: sz,
+                color: '',
+                pattern: '',
+                price: null,
+                images: [],
+                trackStock: hasGlobal,
+                stockCount: hasGlobal ? globalQty : 0
+            });
         }
     });
     return variants;
 }
 
 function buildDefaultStorefrontVariant(p) {
+    const hasGlobal = productTracksGlobalStock(p);
     return {
         size: 'Standard',
         color: '',
         pattern: '',
         price: p?.price ?? null,
         images: Array.isArray(p?.images) ? p.images : [],
-        trackStock: false,
-        stockCount: 0,
+        trackStock: hasGlobal,
+        stockCount: hasGlobal ? getGlobalStockCount(p) : 0,
         isActive: true
     };
 }
 
 function deductStockForCartItem(pData, item) {
-    if (!item || !item.trackStock || !pData || !Array.isArray(pData.variants)) return null;
-    const variants = pData.variants.map(v => ({
-        ...v,
-        stockBySku: { ...(v.stockBySku || {}) }
-    }));
+    if (!item || !item.trackStock || !pData) return null;
+    const qty = parseInt(item.qty, 10) || 0;
     const itemKey = buildSkuKey(
         item.variantSize,
         item.variantColor,
@@ -1160,30 +1192,60 @@ function deductStockForCartItem(pData, item) {
         item.variantPattern
     );
 
-    for (let i = 0; i < variants.length; i++) {
-        const v = variants[i];
-        if (!v.trackStock) continue;
-        const skus = expandVariantBlockSkus(v);
-        const matchedSku = skus.find(s => {
-            if (s.key === itemKey) return true;
-            return !!findProductVariant(
-                [{ size: s.size, color: s.color, colorName: s.colorName, pattern: s.pattern }],
-                { size: item.variantSize, color: item.variantColor, pattern: item.variantPattern },
-                { strict: true }
-            );
-        });
-        if (!matchedSku) continue;
+    if (Array.isArray(pData.variants)) {
+        const variants = pData.variants.map(v => ({
+            ...v,
+            stockBySku: { ...(v.stockBySku || {}) }
+        }));
 
-        const key = matchedSku.key;
-        const cur = resolveSkuStockCount(v, key);
-        v.stockBySku[key] = Math.max(0, cur - (parseInt(item.qty, 10) || 0));
-        if (skus.length === 1) {
-            v.stockCount = v.stockBySku[key];
-        } else if (skus.length > 1) {
-            v.stockCount = skus.reduce((sum, s) => sum + resolveSkuStockCount(v, s.key), 0);
+        for (let i = 0; i < variants.length; i++) {
+            const v = variants[i];
+            if (!v.trackStock) continue;
+            const skus = expandVariantBlockSkus(v);
+            const matchedSku = skus.find(s => {
+                if (s.key === itemKey) return true;
+                return !!findProductVariant(
+                    [{ size: s.size, color: s.color, colorName: s.colorName, pattern: s.pattern }],
+                    { size: item.variantSize, color: item.variantColor, pattern: item.variantPattern },
+                    { strict: true }
+                );
+            });
+            if (!matchedSku) continue;
+
+            const key = matchedSku.key;
+            const cur = resolveSkuStockCount(v, key);
+            v.stockBySku[key] = Math.max(0, cur - qty);
+            if (skus.length === 1) {
+                v.stockCount = v.stockBySku[key];
+            } else if (skus.length > 1) {
+                v.stockCount = skus.reduce((sum, s) => sum + resolveSkuStockCount(v, s.key), 0);
+            }
+            variants[i] = v;
+            return { variants };
         }
-        variants[i] = v;
-        return variants;
+
+        const usesGlobalForItem = variants.some(v => {
+            if (v.trackStock) return false;
+            const skus = expandVariantBlockSkus(v);
+            return skus.some(s => {
+                if (s.key === itemKey) return true;
+                return !!findProductVariant(
+                    [{ size: s.size, color: s.color, colorName: s.colorName, pattern: s.pattern }],
+                    { size: item.variantSize, color: item.variantColor, pattern: item.variantPattern },
+                    { strict: true }
+                );
+            });
+        });
+
+        if (usesGlobalForItem && productTracksGlobalStock(pData)) {
+            const cur = getGlobalStockCount(pData);
+            return { globalStockCount: Math.max(0, cur - qty) };
+        }
+    }
+
+    if (productTracksGlobalStock(pData)) {
+        const cur = getGlobalStockCount(pData);
+        return { globalStockCount: Math.max(0, cur - qty) };
     }
     return null;
 }
