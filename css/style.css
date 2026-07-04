@@ -2377,6 +2377,31 @@ body {
     background: rgba(255,179,71,0.06);
 }
 
+.admin-order-modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 12px;
+    border: 2px solid var(--gold);
+    background: rgba(212, 175, 55, 0.15);
+    color: var(--gold);
+    font-size: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.admin-order-modal-close:hover,
+.admin-order-modal-close:focus-visible {
+    background: var(--gold);
+    color: #0d0d0d;
+    outline: none;
+    transform: scale(1.05);
+}
+
 /* Premium sticky footer */
 .filter-footer {
     position: sticky;
