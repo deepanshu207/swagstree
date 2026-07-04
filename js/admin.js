@@ -448,10 +448,10 @@ function renderVariantBlocks() {
                         ${toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks();`, 'Immersive 360° Panorama', '#64b5f6')}
                     </div>
                 <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
-                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Product Spin Frames <span style="color:#666; text-transform:none;">(swipe rotation — not street view)</span></p>
-                    <div id="v-spin-preview-${v.id}" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;"></div>
+                    <p style="font-size:10px; color:var(--gold); margin:0 0 6px 0; text-transform:uppercase; letter-spacing:0.5px;">Rotate Product <span style="color:#666; text-transform:none;">(swipe to turn the item)</span></p>
+                    <div id="v-spin-preview-${v.id}" style="display:flex; flex-direction:column; margin-bottom:6px;"></div>
                     <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
-                        <span>🔄</span> Upload spin frames
+                        <span>🔄</span> Add rotation photos
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
                     </label>
                     <button type="button" onclick="loadDemo360Spin('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">Use demo spin (16 frames)</button>
@@ -731,7 +731,7 @@ function loadDemo360Spin(targetId = 'base') {
         v.spinImages = [...DEMO_360_SPIN_FRAMES];
         renderVariantBlocks();
     }
-    showToast('Demo spin loaded: 16 Vespa frames. Save product to keep.');
+    showToast('Demo rotation loaded (16 frames, replaced any existing). Save product to keep.');
 }
 window.loadDemo360Spin = loadDemo360Spin;
 
@@ -1508,19 +1508,76 @@ function renderSpinPreviews(targetId = 'base') {
     if (!container) return;
     const items = targetId === 'base' ? (existingSpinUrls || []) : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
     const countHtml = items.length
-        ? `<p style="width:100%; margin:0 0 6px; font-size:10px; color:var(--gold); font-weight:600;">${items.length} rotation frame${items.length === 1 ? '' : 's'} · swipe order left → right</p>`
-        : `<p style="width:100%; margin:0 0 6px; font-size:10px; color:#666;">No rotation frames yet</p>`;
-    container.innerHTML = countHtml + items.map((img, i) => {
+        ? `<p style="width:100%; margin:0 0 6px; font-size:10px; color:var(--gold); font-weight:600;">${items.length} rotation frame${items.length === 1 ? '' : 's'} · drag to reorder · swipe order left → right</p>`
+        : `<p style="width:100%; margin:0 0 6px; font-size:10px; color:#666;">No rotation frames yet — create from video or add photos</p>`;
+    const helpHtml = items.length
+        ? `<p style="width:100%; margin:0 0 8px; font-size:9px; color:#777; line-height:1.4;">These frames power the <strong>Rotate</strong> button on the product page. Save product, then test on the shop.</p>`
+        : '';
+    const actionsHtml = items.length >= 2 ? `
+        <div style="width:100%; display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <button type="button" onclick="previewAdminSpin('${targetId}')" style="flex:1; min-width:140px; padding:8px 10px; border-radius:8px; border:1px solid var(--gold); background:rgba(255,215,0,0.1); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">
+                <i class="fa fa-play-circle"></i> Preview rotation
+            </button>
+            <button type="button" onclick="clearSpinFrames('${targetId}')" style="padding:8px 10px; border-radius:8px; border:1px solid #444; background:#1a1a1a; color:#aaa; font-size:11px; font-weight:600; cursor:pointer;">
+                Clear all
+            </button>
+        </div>` : '';
+    const gridHtml = items.map((img, i) => {
         const isFile = img instanceof File;
         const url = isFile ? URL.createObjectURL(img) : img;
         return `
-            <div style="position:relative; width:50px; height:50px; border-radius:6px; overflow:hidden; border:1px solid var(--gold);">
+            <div class="admin-spin-thumb" data-spin-idx="${i}" style="position:relative; width:50px; height:50px; border-radius:6px; overflow:hidden; border:1px solid var(--gold); cursor:grab; touch-action:none;">
                 <div style="position:absolute; top:1px; left:1px; background:var(--gold); color:#000; font-weight:bold; width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; z-index:5;">${i + 1}</div>
-                <img src="${url}" style="width:100%; height:100%; object-fit:contain; background:#111;">
-                <i class="fa fa-times" style="position:absolute; top:1px; right:1px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.6); padding:2px; border-radius:3px;" onclick="removeSpinImage('${targetId}', ${i})"></i>
+                <img src="${url}" draggable="false" style="width:100%; height:100%; object-fit:contain; background:#111; pointer-events:none;">
+                <i class="fa fa-times" style="position:absolute; top:1px; right:1px; color:var(--red); cursor:pointer; font-size:10px; background:rgba(0,0,0,0.6); padding:2px; border-radius:3px; z-index:6;" onclick="event.stopPropagation(); removeSpinImage('${targetId}', ${i})"></i>
             </div>`;
     }).join('');
+    container.innerHTML = `${countHtml}${helpHtml}<div class="admin-spin-grid" style="display:flex; gap:6px; flex-wrap:wrap; width:100%;">${gridHtml}</div>${actionsHtml}`;
+
+    const grid = container.querySelector('.admin-spin-grid');
+    if (window.Sortable && grid && items.length > 1) {
+        if (grid._sortable) grid._sortable.destroy();
+        grid._sortable = Sortable.create(grid, {
+            animation: 150,
+            draggable: '.admin-spin-thumb',
+            onEnd(evt) {
+                const list = targetId === 'base' ? existingSpinUrls : (variantBlocks.find(x => x.id === targetId)?.spinImages);
+                if (!list || evt.oldIndex === evt.newIndex) return;
+                const moved = list.splice(evt.oldIndex, 1)[0];
+                list.splice(evt.newIndex, 0, moved);
+                renderSpinPreviews(targetId);
+            }
+        });
+    }
 }
+
+function previewAdminSpin(targetId = 'base') {
+    const items = targetId === 'base' ? (existingSpinUrls || []) : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
+    const frames = items.map(img => (img instanceof File ? URL.createObjectURL(img) : img)).filter(Boolean);
+    if (frames.length < 2) return showToast('Need at least 2 rotation frames to preview.');
+    if (typeof openMediaViewer !== 'function') return;
+    const name = document.getElementById('m-name')?.value || 'Product Preview';
+    openMediaViewer({
+        mode: 'spin360',
+        spinFrames: frames,
+        title: name,
+        images: frames
+    });
+}
+window.previewAdminSpin = previewAdminSpin;
+
+function clearSpinFrames(targetId = 'base') {
+    if (targetId === 'base') {
+        existingSpinUrls = [];
+        renderSpinPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (v) v.spinImages = [];
+        renderSpinPreviews(targetId);
+    }
+    showToast('Rotation frames cleared.');
+}
+window.clearSpinFrames = clearSpinFrames;
 window.renderSpinPreviews = renderSpinPreviews;
 
 function renderPanoramaPreviews(targetId = 'base') {

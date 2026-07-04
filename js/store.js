@@ -1881,6 +1881,14 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
                 return `<img src="${img}" class="det-gallery-placeholder" data-type="image" alt="No image">`;
             }
+            if (mapInfo.is360Preview && activeProductId) {
+                return `<div class="det-gallery-360-preview" data-type="image" data-index="${index}" onclick="open360Viewer(activeProductId)" role="button" aria-label="Rotate product" style="position:relative; width:100%; height:100%; flex-shrink:0; scroll-snap-align:center; cursor:pointer; background:#000; display:flex; align-items:center; justify-content:center;">
+                    <img src="${img}" alt="Rotation preview" style="max-width:100%; max-height:100%; object-fit:contain; pointer-events:none;">
+                    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); border:1px solid var(--gold); color:var(--gold); padding:6px 14px; border-radius:999px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:6px; pointer-events:none;">
+                        <i class="fa fa-arrows-rotate"></i> Tap to rotate
+                    </div>
+                </div>`;
+            }
             return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
         }).join('')
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" class="det-gallery-placeholder" alt="No image">');
@@ -2083,9 +2091,10 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     const hasRealPhotos = galleryHasRealPhotos(map);
     const media = p ? resolveProductMedia(p) : null;
-    const has360View = !!(media && (media.has360 || media.hasPanorama360) && hasRealPhotos);
+    const hasSpinOrPano = !!(media && (media.has360 || media.hasPanorama360));
+    const has360View = hasSpinOrPano;
     const isVideoSlide = !!(slide && slide.type === 'video');
-    const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && hasRealPhotos);
+    const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && !slide.is360Preview && hasRealPhotos);
 
     if (zoomBtn) {
         zoomBtn.style.display = canZoom ? 'flex' : 'none';
