@@ -231,6 +231,9 @@ function syncAdmin360AccordionSummary(targetId) {
     const panoCount = targetId === 'base'
         ? (existingPanoramaUrls || []).length
         : ((variantBlocks.find(x => x.id === targetId)?.panoramaImages || []).length);
+    const videoCount = targetId === 'base'
+        ? (existingVideoUrls || []).length
+        : ((variantBlocks.find(x => x.id === targetId)?.videos || []).length);
     const spinOn = targetId === 'base'
         ? !!document.getElementById('m-is360')?.checked
         : !!(variantBlocks.find(x => x.id === targetId)?.is360);
@@ -238,11 +241,113 @@ function syncAdmin360AccordionSummary(targetId) {
         ? !!document.getElementById('m-is360-panorama')?.checked
         : !!(variantBlocks.find(x => x.id === targetId)?.is360Panorama);
     const parts = [];
+    if (videoCount) parts.push(`Video: ${videoCount}`);
     if (spinOn) parts.push(`Rotate: ${spinCount} frame${spinCount === 1 ? '' : 's'}`);
     if (panoOn) parts.push(`Panorama: ${panoCount} scene${panoCount === 1 ? '' : 's'}`);
-    el.textContent = parts.length ? parts.join(' · ') : 'Optional — spin frames & panorama';
+    el.textContent = parts.length ? parts.join(' · ') : 'Optional — video, rotate & panorama';
 }
 window.syncAdmin360AccordionSummary = syncAdmin360AccordionSummary;
+
+function renderAdminExtraMediaAccordionHtml(targetId, scope, opts = {}) {
+    const isBase = targetId === 'base';
+    const v = opts.variant;
+    const show360 = opts.show360 !== false;
+    const toggle = renderAdminToggle;
+    const videoTitle = scope === 'variant' ? 'Variant video' : 'Product video';
+    const videoSub = scope === 'variant'
+        ? 'Overrides product-wide video when this combo is selected · shoppers tap Video on the detail page'
+        : 'Default video for all variants · shoppers tap Video on the detail page';
+    const spinVisible = isBase
+        ? 'none'
+        : (v && v.is360 ? 'block' : 'none');
+    const panoVisible = isBase
+        ? 'none'
+        : (v && v.is360Panorama ? 'block' : 'none');
+
+    const videoBlock = `
+        <div class="admin-extra-media-section">
+            ${adminMediaSectionHead(scope, 'video', videoTitle, videoSub)}
+            <div id="${isBase ? 'm-video-preview' : `v-video-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
+            <label class="admin-media-upload admin-media-upload--video">
+                <span class="admin-media-upload__icon">🎬</span>
+                <span class="admin-media-upload__text">Upload product video</span>
+                <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${targetId}')">
+            </label>
+            ${show360 ? `<button type="button" onclick="loadDemo360Video('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video</button>` : ''}
+            <p class="admin-extra-media-tip"><strong>Tip:</strong> After upload, use <strong>Create rotation frames</strong> on the video card to also build swipe-to-rotate photos — video still plays separately.</p>
+        </div>`;
+
+    const spinBlock = show360 ? `
+        <div class="admin-extra-media-divider"></div>
+        <div class="admin-extra-media-section">
+            ${isBase ? `
+            <div id="m-is360-container" class="admin-media-360-toggle-row">
+                <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked);">
+                <label for="m-is360" class="admin-media-360-toggle-label">
+                    <span>Enable Rotate Product (spin frames)</span>
+                    <span id="base-360-badge" class="admin-media-active-badge" style="display:none;">ACTIVE</span>
+                </label>
+            </div>` : `
+            <div class="admin-media-360-toggles">
+                ${toggle(`v-is360-${targetId}`, !!(v && v.is360), `updateVariant('${targetId}', 'is360', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${targetId}');`, 'Rotate Product (spin frames)', '#FFD700')}
+            </div>`}
+            <div id="${isBase ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`}" style="display:${isBase ? 'none' : spinVisible};">
+                ${adminMediaSectionHead(scope, 'spin', 'Rotation frames', 'Still images — swipe to turn the product. Upload your own, copy from gallery, or extract from video above.')}
+                <div id="${isBase ? 'm-spin-preview' : `v-spin-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                <label class="admin-media-upload admin-media-upload--spin">
+                    <span class="admin-media-upload__icon">🔄</span>
+                    <span class="admin-media-upload__text">Add your own rotation photos</span>
+                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${targetId}')">
+                </label>
+                <button type="button" onclick="loadDemo360Spin('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
+            </div>
+        </div>` : '';
+
+    const panoBlock = show360 ? `
+        <div class="admin-extra-media-divider"></div>
+        <div class="admin-extra-media-section">
+            ${isBase ? `
+            <div id="m-is360-panorama-container" class="admin-media-360-toggle-row">
+                <input type="checkbox" id="m-is360-panorama" style="width:auto; margin:0;" onchange="toggle360PanoramaBadge('base', this.checked);">
+                <label for="m-is360-panorama" class="admin-media-360-toggle-label">
+                    <span>Enable Look Around (panorama)</span>
+                    <span id="base-360-pano-badge" class="admin-media-active-badge admin-media-active-badge--blue" style="display:none;">ACTIVE</span>
+                </label>
+            </div>` : `
+            <div class="admin-media-360-toggles">
+                ${toggle(`v-is360-pano-${targetId}`, !!(v && v.is360Panorama), `updateVariant('${targetId}', 'is360Panorama', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${targetId}');`, 'Look Around (panorama)', '#64b5f6')}
+            </div>`}
+            <div id="${isBase ? 'm-panorama-upload-container' : `v-panorama-upload-${targetId}`}" style="display:${isBase ? 'none' : panoVisible}; margin-top:8px;">
+                ${adminMediaSectionHead(scope, 'panorama', 'Immersive panorama', '2:1 equirectangular — drag to look around like Street View. Tap 👁 to preview.')}
+                <div id="${isBase ? 'm-panorama-preview' : `v-panorama-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
+                <label class="admin-media-upload admin-media-upload--pano">
+                    <span class="admin-media-upload__icon">🌐</span>
+                    <span class="admin-media-upload__text">Upload panorama</span>
+                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${targetId}')">
+                </label>
+                <button type="button" onclick="loadDemo360Panorama('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
+            </div>
+        </div>` : '';
+
+    return `
+        <div class="admin-media-360-accordion" id="admin-360-accord-${targetId}">
+            <div class="admin-media-360-accord-header" onclick="toggleAdmin360Accordion('${targetId}')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-360-accord-content-${targetId}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdmin360Accordion('${targetId}');}">
+                <div class="admin-media-360-accord-header-text">
+                    <i class="fa fa-film" aria-hidden="true"></i>
+                    <span>Additional media — video, rotate &amp; panorama</span>
+                    <span id="admin-360-accord-summary-${targetId}" class="admin-media-360-accord-summary">Optional — video, rotate &amp; panorama</span>
+                </div>
+                <i id="admin-360-accord-icon-${targetId}" class="fa fa-chevron-down admin-media-360-chevron" aria-hidden="true"></i>
+            </div>
+            <div id="admin-360-accord-content-${targetId}" class="admin-media-360-accord-content" style="display:none;">
+                <p class="admin-extra-media-intro">All optional. Shoppers see separate buttons: <strong>Video</strong> (plays clip), <strong>Rotate</strong> (swipe stills), <strong>Look Around</strong> (panorama).</p>
+                ${videoBlock}
+                ${spinBlock}
+                ${panoBlock}
+            </div>
+        </div>`;
+}
+window.renderAdminExtraMediaAccordionHtml = renderAdminExtraMediaAccordionHtml;
 
 function previewAdminGallery(targetId, index) {
     const images = targetId === 'base'
@@ -698,55 +803,8 @@ function renderVariantBlocks() {
                         </label>
                     </div>
 
-                    <div class="admin-media-block">
-                        ${adminMediaSectionHead('variant', 'video', 'Variant video', 'Replaces product-wide video when this variant is selected · plays as flat or immersive 360°')}
-                        <div id="v-video-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
-                        <label class="admin-media-upload admin-media-upload--video">
-                            <span class="admin-media-upload__icon">🎬</span>
-                            <span class="admin-media-upload__text">Upload video</span>
-                            <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
-                        </label>
-                        ${is360Enabled ? `<button type="button" onclick="loadDemo360Video('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video</button>` : ''}
-                    </div>
+                    ${renderAdminExtraMediaAccordionHtml(v.id, 'variant', { variant: v, show360: is360Enabled })}
 
-                ${is360Enabled ? `
-                    <div class="admin-media-360-accordion" id="admin-360-accord-${v.id}">
-                        <div class="admin-media-360-accord-header" onclick="toggleAdmin360Accordion('${v.id}')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-360-accord-content-${v.id}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdmin360Accordion('${v.id}');}">
-                            <div class="admin-media-360-accord-header-text">
-                                <i class="fa fa-street-view" aria-hidden="true"></i>
-                                <span>Additional 360° features</span>
-                                <span id="admin-360-accord-summary-${v.id}" class="admin-media-360-accord-summary">Optional — spin frames &amp; panorama</span>
-                            </div>
-                            <i id="admin-360-accord-icon-${v.id}" class="fa fa-chevron-down admin-media-360-chevron" aria-hidden="true"></i>
-                        </div>
-                        <div id="admin-360-accord-content-${v.id}" class="admin-media-360-accord-content" style="display:none;">
-                            <div class="admin-media-360-toggles">
-                                ${toggle(`v-is360-${v.id}`, !!v.is360, `updateVariant('${v.id}', 'is360', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${v.id}');`, 'Rotate Product (spin frames)', '#FFD700')}
-                                ${toggle(`v-is360-pano-${v.id}`, !!v.is360Panorama, `updateVariant('${v.id}', 'is360Panorama', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${v.id}');`, 'Look Around (panorama)', '#64b5f6')}
-                            </div>
-                            <div id="v-spin-upload-${v.id}" style="display:${v.is360 ? 'block' : 'none'};">
-                                ${adminMediaSectionHead('variant', 'spin', 'Rotation frames', 'Upload your own, copy from gallery above, or extract from video')}
-                                <div id="v-spin-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
-                                <label class="admin-media-upload admin-media-upload--spin">
-                                    <span class="admin-media-upload__icon">🔄</span>
-                                    <span class="admin-media-upload__text">Add your own rotation photos</span>
-                                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
-                                </label>
-                                <button type="button" onclick="loadDemo360Spin('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
-                            </div>
-                            <div id="v-panorama-upload-${v.id}" style="display:${v.is360Panorama ? 'block' : 'none'}; margin-top:10px;">
-                                ${adminMediaSectionHead('variant', 'panorama', 'Immersive panorama', 'One wide 2:1 image — drag to look around (Street View style)')}
-                                <div id="v-panorama-preview-${v.id}" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
-                                <label class="admin-media-upload admin-media-upload--pano">
-                                    <span class="admin-media-upload__icon">🌐</span>
-                                    <span class="admin-media-upload__text">Upload panorama</span>
-                                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
-                                </label>
-                                <button type="button" onclick="loadDemo360Panorama('${v.id}')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
-                            </div>
-                        </div>
-                    </div>
-                ` : ''}
                 </div>
 
                 <!-- Row 5: Toggle options (2-col grid on wide, 1-col on narrow) -->
@@ -967,7 +1025,7 @@ const DEMO_360_VIDEO = {
 };
 
 function loadDemo360Video(targetId = 'base') {
-    const entry = { ...DEMO_360_VIDEO };
+    const entry = { ...DEMO_360_VIDEO, _promptFrames: true };
     if (targetId === 'base') {
         existingVideoUrls = [...(existingVideoUrls || []), entry];
         renderVideoPreviews('base');
@@ -977,7 +1035,9 @@ function loadDemo360Video(targetId = 'base') {
         v.videos = [...(v.videos || []), entry];
         renderVariantBlocks();
     }
-    showToast('Demo 360° video loaded (JFK sample). Save product to keep.');
+    toggleAdmin360Accordion(targetId, true);
+    syncAdmin360AccordionSummary(targetId);
+    showToast('Demo 360° video loaded. You can also extract rotation frames from it.');
 }
 window.loadDemo360Video = loadDemo360Video;
 
@@ -1020,17 +1080,28 @@ window.loadDemo360Panorama = loadDemo360Panorama;
 function handleVideoFileSelect(input, vId) {
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
-    const entry = { file, url: '', is360: false };
+    const entry = { file, url: '', is360: false, _promptFrames: true };
+    let newIndex = 0;
     if (vId === 'base') {
         existingVideoUrls = [...(existingVideoUrls || []), entry];
+        newIndex = existingVideoUrls.length - 1;
         renderVideoPreviews('base');
     } else {
         const v = variantBlocks.find(x => x.id === vId);
         if (!v) return;
         v.videos = [...(v.videos || []), entry];
+        newIndex = v.videos.length - 1;
         renderVideoPreviews(vId);
     }
+    toggleAdmin360Accordion(vId, true);
+    syncAdmin360AccordionSummary(vId);
     input.value = '';
+    showToast('Video added. Scroll to the card below — tap Create rotation frames to also build swipe-to-rotate photos.');
+    setTimeout(() => {
+        const cards = document.querySelectorAll(`#${vId === 'base' ? 'm-video-preview' : `v-video-preview-${vId}`} .admin-video-card`);
+        const card = cards[newIndex];
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 120);
 }
 window.handleVideoFileSelect = handleVideoFileSelect;
 
@@ -1617,13 +1688,13 @@ function openEdit(id) {
 
     renderImagePreviews('base'); 
     renderVariantBlocks();
-    if (p.is360 || p.is360Panorama || (p.spinImages || []).length || (p.panoramaImages || []).length) {
+    if (p.is360 || p.is360Panorama || (p.spinImages || []).length || (p.panoramaImages || []).length || (p.videos || []).length) {
         toggleAdmin360Accordion('base', true);
     } else {
         toggleAdmin360Accordion('base', false);
     }
     variantBlocks.forEach(v => {
-        if (v.is360 || v.is360Panorama || (v.spinImages || []).length || (v.panoramaImages || []).length) {
+        if (v.is360 || v.is360Panorama || (v.spinImages || []).length || (v.panoramaImages || []).length || (v.videos || []).length) {
             toggleAdmin360Accordion(v.id, true);
         }
     });
@@ -1657,7 +1728,9 @@ window.toggle360PanoramaBadge = toggle360PanoramaBadge;
 function syncAdmin360PanelVisibility() {
     const is360Enabled = adminIs360FeatureEnabled();
     const block = document.getElementById('admin-360-accord-base');
-    if (block) block.style.display = is360Enabled ? 'block' : 'none';
+    if (block) block.style.display = 'block';
+    const only360 = document.getElementById('admin-extra-360-only-base');
+    if (only360) only360.style.display = is360Enabled ? 'block' : 'none';
 }
 window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
 
@@ -1923,12 +1996,19 @@ function renderVideoPreviews(targetId = 'base') {
         if (!entry) return '';
         const label = getStoredVideoLabel(vid);
         const is360 = !!entry.is360;
+        const promptFrames = !!(vid && vid._promptFrames);
+        const extractCls = promptFrames ? ' admin-video-card__extract--highlight' : '';
+        const extractLabel = promptFrames
+            ? '<i class="fa fa-images"></i> Also create rotation frames from this video (16 stills)'
+            : '<i class="fa fa-images"></i> Create rotation frames from video (16 stills)';
+        if (promptFrames && vid) vid._promptFrames = false;
         return `
-            <div class="admin-video-card ${is360 ? 'admin-video-card--360' : ''}">
+            <div class="admin-video-card ${is360 ? 'admin-video-card--360' : ''}${promptFrames ? ' admin-video-card--new' : ''}">
                 <div class="admin-video-card__head">
                     ${scopeBadge}
                     ${adminMediaTypeBadge('video', is360 ? 'Immersive 360°' : 'Flat playback')}
                 </div>
+                ${promptFrames ? '<p class="admin-video-card__callout">New upload — optional: build swipe-to-rotate frames from this clip</p>' : ''}
                 <button type="button" class="admin-video-card__preview" onclick="previewAdminVideo('${targetId}', ${i})" title="Preview video">
                     <i class="fa fa-${is360 ? 'street-view' : 'play-circle'}"></i>
                     <span class="admin-video-card__label">${label}</span>
@@ -1939,12 +2019,13 @@ function renderVideoPreviews(targetId = 'base') {
                     <input type="checkbox" ${is360 ? 'checked' : ''} onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
                     <span>Play as immersive 360° video <em>(2:1 equirectangular only)</em></span>
                 </label>
-                <button type="button" class="admin-video-card__extract" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" title="Pulls 16 frames evenly from the video into Rotate Product">
-                    <i class="fa fa-images"></i> Create rotation frames from video (16 stills)
+                <button type="button" class="admin-video-card__extract${extractCls}" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" title="Pulls 16 frames evenly from the video into Rotate Product">
+                    ${extractLabel}
                 </button>
-                <p class="admin-video-card__note">Video stays as a <strong>video</strong> on the shop. Extraction builds separate <strong>rotation frames</strong> — replaces current frames.</p>
+                <p class="admin-video-card__note">On the shop: video plays on <strong>Video</strong> button. Rotation frames power the separate <strong>Rotate</strong> button.</p>
             </div>`;
     }).join('');
+    syncAdmin360AccordionSummary(targetId);
 }
 window.renderVideoPreviews = renderVideoPreviews;
 
