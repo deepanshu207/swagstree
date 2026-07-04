@@ -931,7 +931,7 @@ function renderSwatchPreview(vId) {
         container.innerHTML = adminMediaEmptyHint('No swatches yet — tap 👁 on any thumb to preview after upload');
         return;
     }
-    const html = items.map((img, i) => {
+    const html = `<p class="admin-media-drag-hint">Drag swatches to reorder · 👁 to preview</p>` + items.map((img, i) => {
         const isFile = img instanceof File;
         const url = adminResolveMediaUrl(img);
         return adminMediaThumbHtml({
