@@ -2869,9 +2869,13 @@ async function updateOrderStatus(docId, newStatus, updatedItems, refundAmountVal
         }
         
         await docRef.update(updateData);
-        
-        closeModal('admin-order-details-modal');
-        showToast(`✅ Order updated: ${statusInfo.label}`);
+
+        window.editingOrderDoc = {
+            id: docId,
+            data: { ...orderData, ...updateData }
+        };
+        await showAdminOrderDetailsModal(docId);
+        showToast('✅ Order updated');
         
         const cardEl = document.getElementById(`order-card-${docId}`);
         if (cardEl) {

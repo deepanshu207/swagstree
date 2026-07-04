@@ -364,6 +364,11 @@ function navigateTo(id, el) {
         detailView.style.display = 'none';
         detailView.classList.remove('active-detail-flex');
     }
+    activeProductId = null;
+    window.activeProductId = null;
+    if (typeof stopProductCommentsListener === 'function') stopProductCommentsListener();
+    const deepOverlay = document.getElementById('deep-link-overlay');
+    if (deepOverlay) deepOverlay.style.display = 'none';
     window.history.replaceState({}, '', window.location.pathname);
     
     // Sync active state between desktop and mobile nav strictly
@@ -400,6 +405,8 @@ function navigateTo(id, el) {
 
     if (id === 'home') {
         if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+        if (typeof renderHomeCatalog === 'function') renderHomeCatalog();
+        else if (typeof ensureHomeGridHydrated === 'function') ensureHomeGridHydrated();
         requestAnimationFrame(() => {
             if (typeof resetStorefrontScroll === 'function') resetStorefrontScroll();
             if (typeof renderFooter === 'function') renderFooter('home');

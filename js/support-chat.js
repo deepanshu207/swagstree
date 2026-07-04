@@ -33,7 +33,7 @@ window.adminSupportInboxState = window.adminSupportInboxState || {
     activeTab: 'registered',
     search: '',
     page: 1,
-    pageSize: 10
+    pageSize: 5
 };
 
 const STAFF_ADMIN_EMAILS = ['admin@swagstree.com', 'superadmin@swagstree.com'];
@@ -459,7 +459,7 @@ window.onAdminSupportInboxSearch = function(value) {
 
 window.goAdminSupportInboxPage = function(page) {
     const filtered = getFilteredSupportInboxThreads();
-    const pageSize = window.adminSupportInboxState.pageSize || 10;
+    const pageSize = window.adminSupportInboxState.pageSize || 5;
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     const nextPage = Math.min(Math.max(1, page), totalPages);
     window.adminSupportInboxState.page = nextPage;
@@ -2092,20 +2092,25 @@ function renderAdminSupportInboxListItem(t) {
 function renderAdminSupportInboxPagination(totalItems, page, pageSize) {
     const pagination = document.getElementById('admin-support-inbox-pagination');
     if (!pagination) return;
-    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    if (totalItems <= pageSize) {
-        const totalAll = getSupportInboxThreads(false).length;
-        pagination.innerHTML = totalItems
-            ? `<span class="admin-support-inbox-page-info">${totalItems} conversation${totalItems === 1 ? '' : 's'}${totalAll !== totalItems ? ` · ${totalAll} total in inbox` : ''}</span>`
-            : '';
+    if (!totalItems) {
+        pagination.innerHTML = '';
         return;
     }
+
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const totalAll = getSupportInboxThreads(false).length;
+    const tabLabel = window.adminSupportInboxState.activeTab === 'guests' ? 'guest' : 'registered';
+    const extraTotal = totalAll !== totalItems ? ` · ${totalAll} total in inbox` : '';
+
     pagination.innerHTML = `
-        <button type="button" class="admin-support-inbox-page-btn" ${page <= 1 ? 'disabled' : ''} onclick="goAdminSupportInboxPage(${page - 1})">
+        <button type="button" class="admin-support-inbox-page-btn" ${page <= 1 ? 'disabled' : ''} onclick="goAdminSupportInboxPage(${page - 1})" aria-label="Previous page">
             <i class="fa fa-chevron-left"></i> Prev
         </button>
-        <span class="admin-support-inbox-page-info">Page ${page} of ${totalPages} · ${totalItems} total</span>
-        <button type="button" class="admin-support-inbox-page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="goAdminSupportInboxPage(${page + 1})">
+        <span class="admin-support-inbox-page-info">
+            Page ${page} of ${totalPages}<br>
+            ${totalItems} ${tabLabel} conversation${totalItems === 1 ? '' : 's'}${extraTotal}
+        </span>
+        <button type="button" class="admin-support-inbox-page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="goAdminSupportInboxPage(${page + 1})" aria-label="Next page">
             Next <i class="fa fa-chevron-right"></i>
         </button>`;
 }
@@ -2140,7 +2145,7 @@ function renderAdminSupportInbox() {
     updateAdminSupportInboxTabCounts();
 
     const filtered = getFilteredSupportInboxThreads();
-    const pageSize = window.adminSupportInboxState.pageSize || 10;
+    const pageSize = window.adminSupportInboxState.pageSize || 5;
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     if ((window.adminSupportInboxState.page || 1) > totalPages) {
         window.adminSupportInboxState.page = totalPages;
@@ -2288,7 +2293,7 @@ window.cleanupSupportChatListeners = function() {
     }
     window.supportThreadsCache = [];
     window.supportUserEmailCache = {};
-    window.adminSupportInboxState = { activeTab: 'registered', search: '', page: 1, pageSize: 10 };
+    window.adminSupportInboxState = { activeTab: 'registered', search: '', page: 1, pageSize: 5 };
     const searchEl = document.getElementById('admin-support-inbox-search');
     if (searchEl) searchEl.value = '';
     window.supportChatState.activeThreadId = null;

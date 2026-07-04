@@ -58,6 +58,26 @@ const ALL_PATTERNS = [
 
 let variantBlocks = [];
 
+function toggleProductGuideAccordion(forceOpen) {
+    const content = document.getElementById('admin-product-guide-content');
+    const icon = document.getElementById('admin-product-guide-icon');
+    const accordion = document.getElementById('admin-product-guide-accordion');
+    const header = accordion?.querySelector('.admin-product-guide-header');
+    if (!content || !accordion) return;
+
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : content.style.display === 'none';
+    content.style.display = shouldOpen ? 'block' : 'none';
+    accordion.classList.toggle('is-open', shouldOpen);
+    if (icon) icon.style.transform = shouldOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (header) header.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+}
+window.toggleProductGuideAccordion = toggleProductGuideAccordion;
+
+function resetProductGuideAccordion() {
+    toggleProductGuideAccordion(false);
+}
+window.resetProductGuideAccordion = resetProductGuideAccordion;
+
 function mapSavedVariantToBlock(v) {
     const block = {
         id: 'v_' + Math.random().toString(36).substr(2, 9),
@@ -898,6 +918,7 @@ function openEdit(id) {
     renderImagePreviews('base'); 
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
+    if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -945,6 +966,7 @@ function openAdd() {
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(null);
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(null);
+    if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
@@ -1390,6 +1412,7 @@ function copyProduct(id) {
     renderVideoPreviews('base');
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
+    if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex'; 
 }
 
