@@ -536,6 +536,7 @@ let mvState = {
     panoramaImages: [],
     panoramaIndex: 0,
     pannellumInstance: null,
+    videojsPlayer: null,
     videoUrl: '',
     title: '',
     scale: 1,
@@ -618,28 +619,34 @@ function updateMediaViewerHints() {
     const frameLabel = document.getElementById('mv-frame-label');
     const guideIcon = document.getElementById('mv-guide-icon');
     const isVideo = mvState.mode === 'video';
+    const isVideo360 = mvState.mode === 'video360';
     const isSpin = mvState.mode === 'spin360';
     const isPanorama = mvState.mode === 'panorama360';
 
     if (guideIcon) {
-        guideIcon.className = isPanorama ? 'fa fa-street-view' : (isSpin ? 'fa fa-arrows-left-right' : (isVideo ? 'fa fa-play' : 'fa fa-magnifying-glass-plus'));
+        guideIcon.className = isVideo360 || isPanorama ? 'fa fa-street-view' : (isSpin ? 'fa fa-arrows-left-right' : (isVideo ? 'fa fa-play' : 'fa fa-magnifying-glass-plus'));
     }
 
     if (hintEl) {
         if (isVideo) hintEl.textContent = 'Use the video player controls below';
+        else if (isVideo360) hintEl.textContent = 'Drag to look around · Use player controls to play/pause';
         else if (isPanorama) hintEl.textContent = 'Drag to look around · Pinch or scroll to zoom';
         else if (isSpin) hintEl.textContent = 'Swipe to spin · Pinch to zoom';
         else hintEl.textContent = 'Pinch or +/− to zoom';
     }
     if (guideText) {
         if (isVideo) guideText.textContent = 'Tap play on the video player';
+        else if (isVideo360) guideText.textContent = 'Drag to explore while the 360° video plays';
         else if (isPanorama) guideText.textContent = 'Move your finger or mouse to explore all angles';
         else guideText.textContent = isSpin
             ? 'Swipe left or right to spin the product'
             : 'Pinch or tap + to zoom in';
     }
     if (frameLabel) {
-        if (isPanorama && mvState.panoramaImages.length) {
+        if (isVideo360) {
+            frameLabel.textContent = 'Immersive 360° Video';
+            frameLabel.style.display = 'block';
+        } else if (isPanorama && mvState.panoramaImages.length) {
             const sceneLabel = mvState.panoramaImages.length > 1
                 ? `Scene ${mvState.panoramaIndex + 1} / ${mvState.panoramaImages.length}`
                 : 'Immersive 360°';
@@ -663,12 +670,13 @@ function updateMediaViewerHints() {
 
 function updateMediaViewerToolbar() {
     const isVideo = mvState.mode === 'video';
+    const isVideo360 = mvState.mode === 'video360';
     const isPanorama = mvState.mode === 'panorama360';
     document.querySelectorAll('.mv-toolbar-zoom').forEach(el => {
-        el.style.display = (isVideo || isPanorama) ? 'none' : '';
+        el.style.display = (isVideo || isVideo360 || isPanorama) ? 'none' : '';
     });
     const dividerZoom = document.getElementById('mv-divider-zoom');
-    if (dividerZoom) dividerZoom.style.display = (isVideo || isPanorama) ? 'none' : '';
+    if (dividerZoom) dividerZoom.style.display = (isVideo || isVideo360 || isPanorama) ? 'none' : '';
     const spinTools = ['mv-btn-play', 'mv-btn-step-back', 'mv-btn-step-fwd', 'mv-divider-spin'];
     spinTools.forEach(id => {
         const el = document.getElementById(id);
@@ -771,7 +779,7 @@ function ensureMediaViewerModal() {
     stage.addEventListener('touchend', mediaViewerTouchEnd);
     stage.addEventListener('touchcancel', mediaViewerTouchEnd);
     stage.addEventListener('wheel', e => {
-        if (mvState.mode === 'video' || mvState.mode === 'panorama360') return;
+        if (mvState.mode === 'video' || mvState.mode === 'video360' || mvState.mode === 'panorama360') return;
         e.preventDefault();
         mediaViewerZoom(e.deltaY < 0 ? 0.15 : -0.15);
     }, { passive: false });
@@ -819,6 +827,112 @@ function mvDismissGuide() {
         guide.style.opacity = '0';
         setTimeout(() => { guide.style.display = 'none'; }, 400);
     }
+}
+
+function destroyVideo360Viewer() {
+    if (mvState.videojsPlayer) {
+        try { mvState.videojsPlayer.dispose(); } catch (e) { /* ignore */ }
+        mvState.videojsPlayer = null;
+    }
+    const panoEl = document.getElementById('mv-panorama');
+    if (panoEl) {
+        panoEl.innerHTML = '';
+        if (mvState.mode === 'video360') panoEl.style.display = 'none';
+    }
+}
+
+let video360LoadPromise = null;
+
+function loadVideo360Assets() {
+    if (window.videojs && window._video360PluginLoaded) {
+        return loadPannellumAssets();
+    }
+    if (video360LoadPromise) return video360LoadPromise;
+    video360LoadPromise = loadPannellumAssets().then(() => new Promise((resolve, reject) => {
+        if (!document.getElementById('videojs-css')) {
+            const link = document.createElement('link');
+            link.id = 'videojs-css';
+            link.rel = 'stylesheet';
+            link.href = 'https://vjs.zencdn.net/7.21.1/video-js.css';
+            document.head.appendChild(link);
+        }
+        const finishPlugin = () => {
+            if (window._video360PluginLoaded) {
+                resolve();
+                return;
+            }
+            let plugin = document.getElementById('videojs-pannellum-plugin-js');
+            if (!plugin) {
+                plugin = document.createElement('script');
+                plugin.id = 'videojs-pannellum-plugin-js';
+                plugin.src = 'js/videojs-pannellum-plugin.js?v=1.0';
+                plugin.onload = () => { window._video360PluginLoaded = true; resolve(); };
+                plugin.onerror = () => reject(new Error('Failed to load 360 video plugin'));
+                document.body.appendChild(plugin);
+            } else {
+                plugin.addEventListener('load', () => { window._video360PluginLoaded = true; resolve(); }, { once: true });
+                plugin.addEventListener('error', () => reject(new Error('Failed to load 360 video plugin')), { once: true });
+            }
+        };
+        if (window.videojs) {
+            finishPlugin();
+            return;
+        }
+        let script = document.getElementById('videojs-js');
+        if (!script) {
+            script = document.createElement('script');
+            script.id = 'videojs-js';
+            script.src = 'https://vjs.zencdn.net/7.21.1/video.min.js';
+            script.onload = finishPlugin;
+            script.onerror = () => reject(new Error('Failed to load video player'));
+            document.body.appendChild(script);
+        } else {
+            script.addEventListener('load', finishPlugin, { once: true });
+            script.addEventListener('error', () => reject(new Error('Failed to load video player')), { once: true });
+        }
+    }));
+    return video360LoadPromise;
+}
+
+async function initVideo360Viewer(url) {
+    if (!url) return;
+    await loadVideo360Assets();
+    destroyPanoramaViewer();
+    destroyVideo360Viewer();
+    const imgEl = document.getElementById('mv-image');
+    const vidEl = document.getElementById('mv-video');
+    const panoEl = document.getElementById('mv-panorama');
+    const loader = document.getElementById('mv-loader');
+    const guide = document.getElementById('mv-guide');
+    if (imgEl) imgEl.style.display = 'none';
+    if (vidEl) { vidEl.pause(); vidEl.style.display = 'none'; vidEl.removeAttribute('src'); }
+    if (!panoEl) return;
+    if (loader) loader.style.display = 'flex';
+    if (guide) guide.style.display = 'flex';
+    panoEl.style.display = 'block';
+    panoEl.innerHTML = `<video id="mv-video360-el" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" playsinline crossorigin="anonymous" style="width:100%;height:100%;"><source src="${url}" type="video/mp4"></video>`;
+    return new Promise((resolve, reject) => {
+        try {
+            mvState.videojsPlayer = window.videojs('mv-video360-el', {
+                plugins: {
+                    pannellum: {
+                        hfov: 100,
+                        minHfov: 50,
+                        maxHfov: 120
+                    }
+                }
+            }, () => {
+                if (loader) loader.style.display = 'none';
+                setTimeout(mvDismissGuide, 1200);
+                resolve();
+            });
+        } catch (e) {
+            if (loader) loader.style.display = 'none';
+            console.error('360 video init error:', e);
+            showToast('Could not load immersive 360° video.');
+            reject(e);
+        }
+    });
 }
 
 function destroyPanoramaViewer() {
@@ -916,6 +1030,7 @@ function openMediaViewer(opts = {}) {
     stopMediaAutoSpin();
     cancelAnimationFrame(mvState.momentumId);
     destroyPanoramaViewer();
+    destroyVideo360Viewer();
 
     mvState.mode = opts.mode || 'gallery';
     mvState.images = opts.images || [];
@@ -955,12 +1070,14 @@ function openMediaViewer(opts = {}) {
     const hasPano = mvState.panoramaImages.length >= 1;
     const isSpin = mvState.mode === 'spin360';
     const isPanorama = mvState.mode === 'panorama360';
+    const isVideo360 = mvState.mode === 'video360';
     const isVideo = mvState.mode === 'video';
 
     if (titleEl) {
         let suffix = '';
         if (isSpin) suffix = ' · Product Spin';
         else if (isPanorama) suffix = ' · Immersive 360°';
+        else if (isVideo360) suffix = ' · Immersive 360° Video';
         titleEl.textContent = mvState.title + suffix;
     }
     if (loader) loader.style.display = 'none';
@@ -968,22 +1085,26 @@ function openMediaViewer(opts = {}) {
         if (isVideo) {
             guide.style.display = 'none';
             mvState.guideShown = true;
+        } else if (isVideo360) {
+            guide.style.opacity = '1';
+            guide.style.display = 'flex';
+            mvState.guideShown = false;
         } else {
             guide.style.opacity = '1';
             guide.style.display = 'flex';
         }
     }
     if (vidEl) { vidEl.pause(); vidEl.style.display = 'none'; }
-    if (imgEl && !isPanorama) imgEl.style.display = 'block';
+    if (imgEl && !isPanorama && !isVideo360) imgEl.style.display = 'block';
 
-    if (btnSpin) btnSpin.style.display = (hasSpin && !isSpin && !isPanorama && !isVideo) ? 'flex' : 'none';
-    if (btnPano) btnPano.style.display = (hasPano && !isSpin && !isPanorama && !isVideo) ? 'flex' : 'none';
+    if (btnSpin) btnSpin.style.display = (hasSpin && !isSpin && !isPanorama && !isVideo && !isVideo360) ? 'flex' : 'none';
+    if (btnPano) btnPano.style.display = (hasPano && !isSpin && !isPanorama && !isVideo && !isVideo360) ? 'flex' : 'none';
     if (btnPlay) btnPlay.style.display = isSpin ? 'flex' : 'none';
     if (btnStepBack) btnStepBack.style.display = isSpin ? 'flex' : 'none';
     if (btnStepFwd) btnStepFwd.style.display = isSpin ? 'flex' : 'none';
     if (dividerSpin) dividerSpin.style.display = ((hasSpin || hasPano) && !isVideo && !isPanorama) ? 'inline-block' : 'none';
 
-    const showNav = !isVideo && !isPanorama && (
+    const showNav = !isVideo && !isVideo360 && !isPanorama && (
         (isSpin && mvState.spinFrames.length > 1) ||
         (!isSpin && mvState.images.length > 1)
     );
@@ -1000,6 +1121,8 @@ function openMediaViewer(opts = {}) {
 
     if (isPanorama && hasPano) {
         initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).catch(() => {});
+    } else if (isVideo360 && mvState.videoUrl) {
+        initVideo360Viewer(mvState.videoUrl).catch(() => {});
     } else {
         renderMediaViewerContent();
         if (isSpin && mvState.spinFrames.length > 0) {
@@ -1031,7 +1154,7 @@ function renderMediaViewerContent() {
     const vidEl = document.getElementById('mv-video');
     if (!imgEl) return;
 
-    if (mvState.mode === 'panorama360') {
+    if (mvState.mode === 'panorama360' || mvState.mode === 'video360') {
         return;
     }
 
@@ -1075,7 +1198,7 @@ function updateMediaTransform() {
 }
 
 function mediaViewerZoom(delta) {
-    if (mvState.mode === 'video' || mvState.mode === 'panorama360') return;
+    if (mvState.mode === 'video' || mvState.mode === 'video360' || mvState.mode === 'panorama360') return;
     cancelAnimationFrame(mvState.momentumId);
     mvState.scale = Math.max(1, Math.min(4, mvState.scale + delta));
     if (mvState.scale === 1) { mvState.panX = 0; mvState.panY = 0; }
@@ -1158,6 +1281,7 @@ function mediaViewerSwitchMode(mode) {
     }
     if (mode === 'spin360' && mvState.spinFrames.length >= 2) {
         destroyPanoramaViewer();
+        destroyVideo360Viewer();
         mvState.mode = 'spin360';
         mvNormalizeSpinGrid();
         mvState.scale = 1;
@@ -1195,7 +1319,7 @@ function mediaViewerSwitchMode(mode) {
 window.mediaViewerSwitchMode = mediaViewerSwitchMode;
 
 function mediaViewerDragStart(e) {
-    if (mvState.mode === 'video' || mvState.mode === 'panorama360') return;
+    if (mvState.mode === 'video' || mvState.mode === 'video360' || mvState.mode === 'panorama360') return;
     if (e.target && e.target.closest && (e.target.closest('.mv-nav') || e.target.closest('.mv-toolbar'))) return;
     cancelAnimationFrame(mvState.momentumId);
     stopMediaAutoSpin();
@@ -1342,7 +1466,7 @@ window.toggleMediaFullscreen = toggleMediaFullscreen;
 window.toggleFullscreen360 = toggleMediaFullscreen;
 
 function mediaViewerTouchStart(e) {
-    if (mvState.mode === 'video' || mvState.mode === 'panorama360') return;
+    if (mvState.mode === 'video' || mvState.mode === 'video360' || mvState.mode === 'panorama360') return;
     if (e.target && e.target.closest && e.target.closest('.mv-nav')) return;
     if (e.touches.length === 2) {
         e.preventDefault();
@@ -1358,7 +1482,7 @@ function mediaViewerTouchStart(e) {
 }
 
 function mediaViewerTouchMove(e) {
-    if (mvState.mode === 'video' || mvState.mode === 'panorama360') return;
+    if (mvState.mode === 'video' || mvState.mode === 'video360' || mvState.mode === 'panorama360') return;
     if (mvState.isPinching && e.touches.length === 2) {
         e.preventDefault();
         const dist = mvTouchDistance(e.touches);
@@ -1386,7 +1510,7 @@ function mediaViewerTouchEnd(e) {
     }
     const moved = Math.hypot(mvState.lastX - mvState.startX, mvState.lastY - mvState.startY);
     mediaViewerDragEnd();
-    if (mvState.mode !== 'video' && moved < 12 && e && e.changedTouches && e.changedTouches.length === 1) {
+    if (mvState.mode !== 'video' && mvState.mode !== 'video360' && moved < 12 && e && e.changedTouches && e.changedTouches.length === 1) {
         const now = Date.now();
         if (now - mvState.lastTapAt < 300) {
             if (mvState.scale > 1) mediaViewerReset();
@@ -1406,6 +1530,7 @@ function closeMediaViewer() {
     stopMediaAutoSpin();
     cancelAnimationFrame(mvState.momentumId);
     destroyPanoramaViewer();
+    destroyVideo360Viewer();
     const vidEl = document.getElementById('mv-video');
     if (vidEl) { vidEl.pause(); vidEl.src = ''; }
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -1464,11 +1589,12 @@ function openGalleryZoom(prodId, startIndex) {
 }
 window.openGalleryZoom = openGalleryZoom;
 
-function openProductVideo(prodId, videoUrl) {
+function openProductVideo(prodId, videoUrl, opts = {}) {
     const p = window.products ? window.products.find(x => x.id === prodId) : null;
     if (!videoUrl) return;
+    const is360 = !!(opts && opts.is360);
     openMediaViewer({
-        mode: 'video',
+        mode: is360 ? 'video360' : 'video',
         videoUrl,
         title: (p && p.name) ? p.name : 'Product Video'
     });

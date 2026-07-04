@@ -28,6 +28,49 @@ if (typeof window.existingImageUrls === 'undefined') window.existingImageUrls = 
 if (typeof window.existingSpinUrls === 'undefined') window.existingSpinUrls = [];
 if (typeof window.existingPanoramaUrls === 'undefined') window.existingPanoramaUrls = [];
 if (typeof window.existingVideoUrls === 'undefined') window.existingVideoUrls = [];
+
+function normalizeStoredVideo(v) {
+    if (!v) return null;
+    if (typeof v === 'string') {
+        const url = v.trim();
+        return url ? { url, is360: false } : null;
+    }
+    if (v instanceof File) {
+        return { file: v, url: '', is360: !!v._is360 };
+    }
+    const url = String(v.url || '').trim();
+    if (!url && !(v.file instanceof File)) return null;
+    return {
+        url,
+        is360: !!v.is360,
+        file: v.file instanceof File ? v.file : undefined
+    };
+}
+window.normalizeStoredVideo = normalizeStoredVideo;
+
+function getStoredVideoLabel(entry) {
+    const n = normalizeStoredVideo(entry);
+    if (!n) return 'Video';
+    if (n.file instanceof File) {
+        const name = n.file.name;
+        return name.length > 18 ? name.substring(0, 18) + '…' : name;
+    }
+    return n.is360 ? '360° video' : 'Saved video';
+}
+
+function mergeStoredVideos(listA, listB) {
+    const map = new Map();
+    [...(listA || []), ...(listB || [])].forEach(v => {
+        const n = normalizeStoredVideo(v);
+        if (!n) return;
+        const key = n.url || (n.file ? `file:${n.file.name}:${n.file.size}` : '');
+        if (!key) return;
+        const prev = map.get(key);
+        map.set(key, prev ? { ...prev, is360: prev.is360 || n.is360, file: prev.file || n.file } : n);
+    });
+    return [...map.values()];
+}
+
 if (typeof window.currentProductFiles === 'undefined') window.currentProductFiles = [];
 
 if (typeof window.editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
@@ -104,7 +147,7 @@ function mapSavedVariantToBlock(v) {
         threeSixtyRows: v.threeSixtyRows || 1,
         spinImages: [...(v.spinImages || [])],
         panoramaImages: [...(v.panoramaImages || [])],
-        videos: [...(v.videos || [])],
+        videos: (v.videos || []).map(normalizeStoredVideo).filter(Boolean),
         images: [...(v.images || [])],
         previewImages: v.previewImages || (v.previewImage ? [v.previewImage] : [])
     };
@@ -412,7 +455,7 @@ function renderVariantBlocks() {
                         <span>🌐</span> Upload Panorama
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
                     </label>
-                    <button type="button" onclick="loadDemo360Panorama('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo panoramas (2 scenes)</button>
+                    <button type="button" onclick="loadDemo360Panorama('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo panoramas (3 scenes)</button>
                 </div>
                 ` : ''}
                 <div>
@@ -422,6 +465,7 @@ function renderVariantBlocks() {
                         <span>🎬</span> Upload Video
                         <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, '${v.id}')">
                     </label>
+                    <button type="button" onclick="loadDemo360Video('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo 360° video</button>
                 </div>
 
                 <!-- Image & Swatch previews -->
@@ -634,8 +678,28 @@ const DEMO_360_SPIN_FRAMES = Array.from({ length: 16 }, (_, i) =>
 );
 const DEMO_360_PANORAMAS = [
     'assets/demo/360/panorama/cerro-toco.jpg',
+    'assets/demo/360/panorama/alma.jpg',
     'assets/demo/360/panorama/equirectangular-sw.jpg'
 ];
+const DEMO_360_VIDEO = {
+    url: 'https://pannellum.org/images/video/jfk.mp4',
+    is360: true
+};
+
+function loadDemo360Video(targetId = 'base') {
+    const entry = { ...DEMO_360_VIDEO };
+    if (targetId === 'base') {
+        existingVideoUrls = [...(existingVideoUrls || []), entry];
+        renderVideoPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (!v) return;
+        v.videos = [...(v.videos || []), entry];
+        renderVariantBlocks();
+    }
+    showToast('Demo 360° video loaded (JFK sample). Save product to keep.');
+}
+window.loadDemo360Video = loadDemo360Video;
 
 function loadDemo360Spin(targetId = 'base') {
     if (targetId === 'base') {
@@ -669,25 +733,41 @@ function loadDemo360Panorama(targetId = 'base') {
         v.panoramaImages = [...DEMO_360_PANORAMAS];
         renderVariantBlocks();
     }
-    showToast('Demo panoramas loaded (2 scenes). Save product to keep.');
+    showToast('Demo panoramas loaded (3 scenes). Save product to keep.');
 }
 window.loadDemo360Panorama = loadDemo360Panorama;
 
 function handleVideoFileSelect(input, vId) {
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
+    const entry = { file, url: '', is360: false };
     if (vId === 'base') {
-        existingVideoUrls = [...(existingVideoUrls || []), file];
+        existingVideoUrls = [...(existingVideoUrls || []), entry];
         renderVideoPreviews('base');
     } else {
         const v = variantBlocks.find(x => x.id === vId);
         if (!v) return;
-        v.videos = [...(v.videos || []), file];
+        v.videos = [...(v.videos || []), entry];
         renderVideoPreviews(vId);
     }
     input.value = '';
 }
 window.handleVideoFileSelect = handleVideoFileSelect;
+
+function toggleVideo360(targetId, index, checked) {
+    const items = targetId === 'base'
+        ? (existingVideoUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    const entry = items[index];
+    if (!entry) return;
+    if (entry instanceof File) {
+        entry._is360 = !!checked;
+    } else if (typeof entry === 'object') {
+        entry.is360 = !!checked;
+    }
+    renderVideoPreviews(targetId);
+}
+window.toggleVideo360 = toggleVideo360;
 
 function handleFileSelect(input, vId) {
     if(!input.files || input.files.length === 0) return;
@@ -926,7 +1006,7 @@ function openEdit(id) {
     existingImageUrls = [...(p.images || [])];
     existingSpinUrls = [...(p.spinImages || [])];
     existingPanoramaUrls = [...(p.panoramaImages || [])];
-    existingVideoUrls = [...(p.videos || [])];
+    existingVideoUrls = (p.videos || []).map(normalizeStoredVideo).filter(Boolean);
     
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
     const mainIs360Container = document.getElementById('m-is360-container');
@@ -1205,16 +1285,20 @@ function previewAdminVideo(targetId, index) {
     const items = targetId === 'base'
         ? (existingVideoUrls || [])
         : (variantBlocks.find(x => x.id === targetId)?.videos || []);
-    const vid = items[index];
-    if (!vid) return;
-    let url = typeof vid === 'string' ? vid : '';
+    const entry = normalizeStoredVideo(items[index]);
+    if (!entry) return;
+    let url = entry.url;
     let revoke = null;
-    if (vid instanceof File) {
-        url = URL.createObjectURL(vid);
+    if (entry.file instanceof File) {
+        url = URL.createObjectURL(entry.file);
         revoke = url;
     }
     if (!url || typeof openMediaViewer !== 'function') return;
-    openMediaViewer({ mode: 'video', videoUrl: url, title: 'Video Preview' });
+    openMediaViewer({
+        mode: entry.is360 ? 'video360' : 'video',
+        videoUrl: url,
+        title: entry.is360 ? '360° Video Preview' : 'Video Preview'
+    });
     if (revoke) {
         setTimeout(() => URL.revokeObjectURL(revoke), 60000);
     }
@@ -1226,13 +1310,21 @@ function renderVideoPreviews(targetId = 'base') {
     if (!container) return;
     const items = targetId === 'base' ? (existingVideoUrls || []) : (variantBlocks.find(x => x.id === targetId)?.videos || []);
     container.innerHTML = items.map((vid, i) => {
-        const isFile = vid instanceof File;
-        const label = isFile ? vid.name.substring(0, 16) + (vid.name.length > 16 ? '…' : '') : 'Saved video';
+        const entry = normalizeStoredVideo(vid);
+        if (!entry) return '';
+        const label = getStoredVideoLabel(vid);
+        const is360 = !!entry.is360;
         return `
-            <div onclick="previewAdminVideo('${targetId}', ${i})" title="Tap to preview video" style="position:relative; padding:8px 12px; border-radius:8px; border:1px solid #64b5f6; background:#1a1a1a; display:flex; align-items:center; gap:8px; font-size:11px; color:#64b5f6; cursor:pointer;">
-                <i class="fa fa-play-circle" style="font-size:16px;"></i>
-                <span>${label}</span>
-                <i class="fa fa-times" style="color:var(--red); cursor:pointer; font-size:11px; margin-left:auto;" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})"></i>
+            <div style="position:relative; padding:8px 10px; border-radius:8px; border:1px solid ${is360 ? 'rgba(100,181,246,0.55)' : '#64b5f6'}; background:#1a1a1a; display:flex; flex-direction:column; gap:6px; font-size:11px; color:#64b5f6; min-width:180px;">
+                <div onclick="previewAdminVideo('${targetId}', ${i})" title="Tap to preview video" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <i class="fa fa-${is360 ? 'street-view' : 'play-circle'}" style="font-size:16px;"></i>
+                    <span style="flex:1;">${label}</span>
+                    <i class="fa fa-times" style="color:var(--red); cursor:pointer; font-size:11px;" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})"></i>
+                </div>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin:0; font-size:10px; color:#aaa;" onclick="event.stopPropagation();">
+                    <input type="checkbox" ${is360 ? 'checked' : ''} style="width:auto; margin:0; accent-color:#64b5f6;" onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
+                    <span>Play as immersive 360° video</span>
+                </label>
             </div>`;
     }).join('');
 }
@@ -1288,11 +1380,15 @@ async function saveProduct() {
         );
 
         const finalVideos = await Promise.all(
-            (existingVideoUrls || []).map(async vid => {
-                if (vid instanceof File) return await uploadToCloudinary(vid);
-                return vid;
+            (existingVideoUrls || []).map(async entry => {
+                const n = normalizeStoredVideo(entry);
+                if (!n) return null;
+                let url = n.url;
+                if (n.file instanceof File) url = await uploadToCloudinary(n.file);
+                if (!url) return null;
+                return { url, is360: !!n.is360 };
             })
-        );
+        ).then(list => list.filter(Boolean));
         
         migrateVariantStockMaps();
 
@@ -1320,11 +1416,15 @@ async function saveProduct() {
             );
 
             const uploadedVideos = await Promise.all(
-                (v.videos || []).map(async vid => {
-                    if (vid instanceof File) return await uploadToCloudinary(vid);
-                    return vid;
+                (v.videos || []).map(async entry => {
+                    const n = normalizeStoredVideo(entry);
+                    if (!n) return null;
+                    let url = n.url;
+                    if (n.file instanceof File) url = await uploadToCloudinary(n.file);
+                    if (!url) return null;
+                    return { url, is360: !!n.is360 };
                 })
-            );
+            ).then(list => list.filter(Boolean));
             
             const uploadedPreviewUrls = await Promise.all(
                 (v.previewImages || []).map(async img => {
@@ -1418,7 +1518,7 @@ async function saveProduct() {
                     dup.panoramaImages = [...new Set([...(dup.panoramaImages || []), ...(v.panoramaImages || [])])];
                 }
                 if (v.videos && v.videos.length) {
-                    dup.videos = [...new Set([...(dup.videos || []), ...v.videos])];
+                    dup.videos = mergeStoredVideos(dup.videos, v.videos);
                 }
                 if (v.hideDetailsGallery) dup.hideDetailsGallery = true;
                 if (v.showInMainCarousel) dup.showInMainCarousel = true;
@@ -1524,7 +1624,7 @@ function copyProduct(id) {
     existingImageUrls = [...(p.images || [])];
     existingSpinUrls = [...(p.spinImages || [])];
     existingPanoramaUrls = [...(p.panoramaImages || [])];
-    existingVideoUrls = [...(p.videos || [])];
+    existingVideoUrls = (p.videos || []).map(normalizeStoredVideo).filter(Boolean);
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
     
     // Load variants or fallback

@@ -4053,6 +4053,11 @@ body.media-viewer-open .bottom-nav {
     z-index: 2;
 }
 
+.mv-panorama .video-js {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 .mv-panorama .pnlm-container {
     background: #0a0a0a !important;
 }

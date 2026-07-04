@@ -1793,18 +1793,22 @@ function buildDetailGallerySlides(p, productMedia) {
     const poster = variantPhotos[0] || sharedMain[0] || (productMedia.spinFrames && productMedia.spinFrames[0]) || '';
     const videoSlides = [];
     const videoMap = [];
-    const variantVideoUrls = (selectedVariant?.videos || []).filter(v => v && String(v).trim());
-    const globalVideoUrls = (p.videos || []).filter(v => v && String(v).trim());
-    const videosToShow = variantVideoUrls.length > 0 ? variantVideoUrls : globalVideoUrls;
-    const videoScope = variantVideoUrls.length > 0 ? 'variant' : 'global';
+    const normalizeVid = (v) => (typeof window.normalizeStoredVideo === 'function'
+        ? window.normalizeStoredVideo(v)
+        : (typeof v === 'string' && v.trim() ? { url: v.trim(), is360: false } : (v && v.url ? { url: String(v.url).trim(), is360: !!v.is360 } : null)));
+    const variantVideos = (selectedVariant?.videos || []).map(normalizeVid).filter(v => v && v.url);
+    const globalVideos = (p.videos || []).map(normalizeVid).filter(v => v && v.url);
+    const videosToShow = variantVideos.length > 0 ? variantVideos : globalVideos;
+    const videoScope = variantVideos.length > 0 ? 'variant' : 'global';
 
-    videosToShow.forEach((vidUrl, vi) => {
-        videoSlides.push(vidUrl);
+    videosToShow.forEach((vidEntry, vi) => {
+        videoSlides.push(vidEntry.url);
         videoMap.push({
-            url: vidUrl,
+            url: vidEntry.url,
             color: selectedColor || '',
             size: selectedSize || '',
             type: 'video',
+            is360Video: !!vidEntry.is360,
             poster,
             videoIndex: vi,
             scope: videoScope
@@ -2106,7 +2110,7 @@ function openCurrentDetailVideoAt(index, event) {
     const map = window.detailGallerySlideMap || [];
     const slide = map[index];
     if (slide && slide.type === 'video' && slide.url) {
-        openProductVideo(activeProductId, slide.url);
+        openProductVideo(activeProductId, slide.url, { is360: !!slide.is360Video });
     }
 }
 window.openCurrentDetailVideoAt = openCurrentDetailVideoAt;
