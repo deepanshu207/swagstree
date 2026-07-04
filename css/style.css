@@ -3190,6 +3190,18 @@ button.admin-stock-badge--more:hover {
 
 .admin-video-card__toggle em { color: #666; font-style: normal; }
 
+.admin-video-card__extract--pano {
+    margin-top: 6px;
+    border-color: rgba(100,181,246,0.35);
+    color: #9ecbff;
+}
+
+.admin-video-card__extract--pano em {
+    color: #666;
+    font-style: normal;
+    font-size: 10px;
+}
+
 .admin-video-card__extract {
     width: 100%;
     padding: 8px;

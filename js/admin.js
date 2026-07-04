@@ -550,6 +550,7 @@ function closeProductModal() {
         if (!confirm('You have unsaved changes. Close without saving?')) return;
     }
     adminProductSnapshot = null;
+    if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
     closeModal('prod-modal');
 }
 window.closeProductModal = closeProductModal;
@@ -1505,7 +1506,9 @@ async function adminExtractFramesFromVideoUrl(url, frameCount = 16, opts = {}) {
     const ctx = canvas.getContext('2d');
     const files = [];
     for (let i = 0; i < frameCount; i++) {
-        const t = frameCount <= 1 ? 0 : (duration * i) / (frameCount - 1);
+        const t = frameCount <= 1
+            ? Math.max(0, duration * 0.5)
+            : (duration * i) / (frameCount - 1);
         await adminSeekVideo(video, t);
         try {
             ctx.drawImage(video, 0, 0, w, h);
@@ -1632,6 +1635,94 @@ function extractVideoFramesCustom(targetId, index) {
     extractVideoFramesForSpin(targetId, index, raw);
 }
 window.extractVideoFramesCustom = extractVideoFramesCustom;
+
+async function adminVideoIsEquirectangular(entry, prepUrl, useCrossOrigin) {
+    if (entry?.is360) return true;
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    if (useCrossOrigin) video.crossOrigin = 'anonymous';
+    video.src = prepUrl;
+    try {
+        await adminWaitVideoReady(video);
+        const w = video.videoWidth || 0;
+        const h = video.videoHeight || 0;
+        if (!w || !h) return false;
+        const ratio = w / h;
+        return ratio >= 1.85 && ratio <= 2.15;
+    } finally {
+        video.removeAttribute('src');
+        video.load();
+    }
+}
+
+function adminApplyPanoramaFromVideo(targetId, frameFile, replace = false) {
+    adminEnsurePanorama360Enabled(targetId);
+    if (targetId === 'base') {
+        existingPanoramaUrls = replace ? [frameFile] : [...(existingPanoramaUrls || []), frameFile];
+        renderPanoramaPreviews('base');
+        toggleAdmin360Accordion('base', true);
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (!v) return;
+        v.is360Panorama = true;
+        v.panoramaImages = replace ? [frameFile] : [...(v.panoramaImages || []), frameFile];
+        renderVariantBlocks();
+        setTimeout(() => toggleAdmin360Accordion(targetId, true), 80);
+    }
+    syncAdmin360AccordionSummary(targetId);
+    syncAdminMediaStatus(targetId);
+}
+
+async function extractPanoramaFromVideo(targetId, index) {
+    const items = targetId === 'base'
+        ? (existingVideoUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    const entry = normalizeStoredVideo(items[index]);
+    if (!entry) return showToast('Video not found.');
+    if (!entry.url && !(entry.file instanceof File)) {
+        return showToast('Upload the video first, then extract a panorama still.');
+    }
+    let prep;
+    try {
+        prep = await adminPrepareVideoSource(entry);
+    } catch (e) {
+        return showToast('Upload the video first.');
+    }
+    try {
+        adminSetSaveProgress(0, 'Checking video format…');
+        const is360Video = await adminVideoIsEquirectangular(entry, prep.url, prep.useCrossOrigin);
+        if (!is360Video) {
+            adminHideSaveProgress();
+            return showToast('Panorama needs a 360° equirectangular video (2:1). For flat video use rotation frames instead.');
+        }
+        adminSetSaveProgress(20, 'Extracting panorama still…');
+        const frames = await adminExtractFramesFromVideoUrl(prep.url, 1, {
+            useCrossOrigin: prep.useCrossOrigin,
+            onProgress(pct) {
+                adminSetSaveProgress(20 + Math.round(pct * 0.75), `Extracting panorama still… ${pct}%`);
+            }
+        });
+        adminHideSaveProgress();
+        if (!frames.length) return showToast('Could not extract panorama from this video.');
+        adminApplyPanoramaFromVideo(targetId, frames[0]);
+        if (items[index]) items[index]._promptFrames = false;
+        renderVideoPreviews(targetId);
+        showToast('Panorama still added for Look Around. Save product to keep.');
+    } catch (e) {
+        adminHideSaveProgress();
+        console.error('Panorama extract failed:', e);
+        if (String(e.message) === 'CORS_BLOCKED') {
+            showToast('Re-upload the video file, then extract panorama.');
+        } else {
+            showToast('Could not extract panorama from video.');
+        }
+    } finally {
+        if (prep?.revoke) URL.revokeObjectURL(prep.url);
+    }
+}
+window.extractPanoramaFromVideo = extractPanoramaFromVideo;
 
 function handleFileSelect(input, vId) {
     if(!input.files || input.files.length === 0) return;
@@ -2450,7 +2541,10 @@ function renderVideoPreviews(targetId = 'base') {
                     <summary class="admin-video-card__extract${extractCls}"><i class="fa fa-images"></i> Create rotation frames from video</summary>
                     ${adminFrameExtractControlsHtml(targetId, i, true)}
                 </details>
-                <p class="admin-video-card__note">Shop: <strong>Video</strong> plays this clip · <strong>Rotate</strong> uses still frames in the 360° accordion below.</p>
+                <button type="button" class="admin-video-card__extract admin-video-card__extract--pano" onclick="event.stopPropagation(); extractPanoramaFromVideo('${targetId}', ${i})" title="Requires 2:1 immersive 360° video">
+                    <i class="fa fa-street-view"></i> Extract panorama for Look Around <em>(360° video only)</em>
+                </button>
+                <p class="admin-video-card__note">Shop: <strong>Video</strong> plays this clip · <strong>Rotate</strong> = swipe stills · <strong>Look Around</strong> = drag a 360° scene (panorama image, not flat video).</p>
             </div>`;
     }).join('');
     syncAdminMediaStatus(targetId);
@@ -2967,6 +3061,11 @@ async function importProducts(input) {
             console.error("Excel Import Error:", err);
             showToast("Import failed: invalid Excel file format");
         }
+    };
+    reader.onerror = () => {
+        adminHideSaveProgress();
+        showToast('Could not read import file.');
+        input.value = '';
     };
     reader.readAsArrayBuffer(file);
 }

@@ -404,6 +404,38 @@ function paramsHasDetailId() {
     return new URLSearchParams(window.location.search).has('id');
 }
 
+function isGridStuckOnInitialLoader(gridId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return false;
+    return !!grid.querySelector('.premium-loader-container') && !grid.querySelector('.card');
+}
+
+function settleStuckGridLoader(gridId, fallbackHtml) {
+    if (!isGridStuckOnInitialLoader(gridId)) return;
+    const grid = document.getElementById(gridId);
+    if (grid) grid.innerHTML = fallbackHtml;
+}
+
+function settleCatalogLoad(options = {}) {
+    const message = options.message || 'Products are taking longer than usual. Check your connection and refresh.';
+    window.productsLoaded = true;
+    const overlay = document.getElementById('deep-link-overlay');
+    if (overlay) overlay.style.display = 'none';
+    const stuckMsg = `<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">${message}</p>`;
+    settleStuckGridLoader('product-grid', stuckMsg);
+    settleStuckGridLoader('wish-grid', '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load wishlist. Check your connection and refresh.</p>');
+    if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) {
+        if (typeof renderAdmin === 'function') renderAdmin();
+        return;
+    }
+    if (typeof ensureHomeGridHydrated === 'function') ensureHomeGridHydrated();
+    else if (typeof applySortAndFilter === 'function') applySortAndFilter();
+    else if (typeof renderProducts === 'function') renderProducts(products, 'product-grid');
+    if (typeof renderWishlistCatalog === 'function') renderWishlistCatalog();
+    if (typeof renderAdmin === 'function') renderAdmin();
+}
+window.settleCatalogLoad = settleCatalogLoad;
+
 function handleProductsSnapshot(snap) {
     // Ignore empty offline cache before the first real payload (prevents false "no products" / flicker)
     if (snap.empty && snap.metadata && snap.metadata.fromCache && !window.productsLoaded) {
@@ -457,16 +489,7 @@ function loadData() {
     if (_productsSnapshotUnsub) _productsSnapshotUnsub();
     _productsSnapshotUnsub = db.collection('products').onSnapshot(handleProductsSnapshot, error => {
         console.error('Firestore products onSnapshot error:', error);
-        const overlay = document.getElementById('deep-link-overlay');
-        if (overlay) overlay.style.display = 'none';
-        if (!window.productsLoaded) {
-            window.productsLoaded = true;
-            const container = document.getElementById('product-grid');
-            if (container) {
-                container.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load products. Please check your connection and refresh.</p>';
-            }
-            if (typeof renderAdmin === 'function') renderAdmin();
-        }
+        settleCatalogLoad({ message: 'Could not load products. Please check your connection and refresh.' });
     });
 
     db.collection("feedbacks").orderBy("timestamp", "desc").onSnapshot(snap => {

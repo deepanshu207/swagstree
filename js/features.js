@@ -1043,6 +1043,17 @@ async function initVideo360Viewer(url) {
     videoEl.appendChild(sourceEl);
     panoEl.appendChild(videoEl);
     return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (fn) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(safetyTimer);
+            fn();
+        };
+        const safetyTimer = setTimeout(() => {
+            if (loader) loader.style.display = 'none';
+            finish(() => reject(new Error('360 video load timeout')));
+        }, 18000);
         try {
             mvState.videojsPlayer = window.videojs('mv-video360-el', {
                 plugins: {
@@ -1055,13 +1066,13 @@ async function initVideo360Viewer(url) {
             }, () => {
                 if (loader) loader.style.display = 'none';
                 setTimeout(mvDismissGuide, 1200);
-                resolve();
+                finish(() => resolve());
             });
         } catch (e) {
             if (loader) loader.style.display = 'none';
             console.error('360 video init error:', e);
             showToast('Could not load immersive 360° video.');
-            reject(e);
+            finish(() => reject(e));
         }
     });
 }
@@ -1471,16 +1482,23 @@ function preloadMediaFrames(urls) {
     mvShowLoader('Loading spin frames...');
     let loaded = 0;
     const total = urls.length;
+    const safetyTimer = setTimeout(() => {
+        if (mvState.mode === 'spin360') mvHideLoader();
+    }, 20000);
+    const finishOne = () => {
+        loaded++;
+        const status = document.getElementById('mv-load-status');
+        if (status && mvState.mode === 'spin360') {
+            status.textContent = `Loading ${Math.round((loaded / total) * 100)}%`;
+        }
+        if (loaded >= total && mvState.mode === 'spin360') {
+            clearTimeout(safetyTimer);
+            mvHideLoader();
+        }
+    };
     urls.forEach(url => {
         const img = new Image();
-        img.onload = img.onerror = () => {
-            loaded++;
-            const status = document.getElementById('mv-load-status');
-            if (status && mvState.mode === 'spin360') {
-                status.textContent = `Loading ${Math.round((loaded / total) * 100)}%`;
-            }
-            if (loaded >= total && mvState.mode === 'spin360') mvHideLoader();
-        };
+        img.onload = img.onerror = finishOne;
         img.src = mvResolveMediaUrl(url);
     });
 }
@@ -1873,6 +1891,7 @@ function closeMediaViewer() {
     document.body.style.overflow = '';
     stopMediaAutoSpin();
     cancelAnimationFrame(mvState.momentumId);
+    mvHideLoader();
     destroyPanoramaViewer();
     destroyVideo360Viewer();
     const vidEl = document.getElementById('mv-video');

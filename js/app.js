@@ -474,14 +474,7 @@ window.onload = () => {
     // Never leave storefront/admin stuck on infinite loader if Firestore never responds
     setTimeout(() => {
         if (window.productsLoaded) return;
-        window.productsLoaded = true;
-        const overlay = document.getElementById('deep-link-overlay');
-        if (overlay) overlay.style.display = 'none';
-        const grid = document.getElementById('product-grid');
-        if (grid && grid.querySelector('.premium-loader-container') && !grid.querySelector('.card')) {
-            grid.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Products are taking longer than usual. Pull to refresh or check your connection.</p>';
-        }
-        if (typeof renderAdmin === 'function') renderAdmin();
+        settleCatalogLoad();
     }, 22000);
 
     // Real-time Sync of App Features Configuration
