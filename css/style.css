@@ -4244,6 +4244,16 @@ body.media-viewer-open .bottom-nav {
     background: rgba(255,255,255,0.06);
 }
 
+.mv-mode-btn--disabled,
+.mv-mode-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+    color: #666 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
 .mv-bottom {
     flex: 0 0 auto;
     display: flex;

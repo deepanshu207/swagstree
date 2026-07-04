@@ -1144,9 +1144,17 @@ function mvUpdateVideoModeSwitcher() {
     const btn360 = document.getElementById('mv-mode-video-360');
     const isVideoMode = mvState.mode === 'video' || mvState.mode === 'video360';
     const show = isVideoMode && mvState.videoAllowModeSwitch && !!mvState.videoUrl;
+    const canImmersive = mvState.videoLikelyEquirectangular !== false;
     if (switcher) switcher.style.display = show ? 'flex' : 'none';
     if (btnFlat) btnFlat.classList.toggle('active', mvState.mode === 'video');
-    if (btn360) btn360.classList.toggle('active', mvState.mode === 'video360');
+    if (btn360) {
+        btn360.classList.toggle('active', mvState.mode === 'video360');
+        btn360.classList.toggle('mv-mode-btn--disabled', !canImmersive);
+        btn360.disabled = !canImmersive;
+        btn360.title = canImmersive
+            ? 'Immersive 360° (2:1 equirectangular video)'
+            : 'Not available for this video — use Flat Video';
+    }
 }
 
 function mvApplyVideoViewerTitle() {
@@ -1226,8 +1234,8 @@ function mediaViewerSwitchVideoMode(mode) {
     if (mode !== 'video' && mode !== 'video360') return;
     if (mode === mvState.mode) return;
     if (mode === 'video360' && mvState.videoLikelyEquirectangular === false) {
-        const ok = window.confirm('This video is not equirectangular (2:1). Immersive 360° will look distorted. Continue anyway?');
-        if (!ok) return;
+        showToast('This video is not 2:1 equirectangular — use Flat Video.');
+        return;
     }
     mvOpenVideoViewer(mode === 'video360').catch(() => {});
 }

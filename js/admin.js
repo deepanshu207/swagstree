@@ -348,6 +348,10 @@ function renderVariantBlocks() {
     
     container.innerHTML = variantBlocks.map((v, idx) => {
         const hasSwatches = v.previewImages && v.previewImages.length > 0;
+        const has360Video = (v.videos || []).some(vid => {
+            const n = normalizeStoredVideo(vid);
+            return !!(n && n.is360);
+        });
         const colorPreviewStyle = v.color ? `background:${v.color.trim()}; display:inline-block; width:14px; height:14px; border-radius:50%; border:1px solid #666; vertical-align:middle; margin-right:4px; flex-shrink:0;` : 'display:none;';
 
         const toggle = renderAdminToggle;
@@ -367,6 +371,7 @@ function renderVariantBlocks() {
                     </span>
                     ${is360Enabled && v.is360 ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">SPIN</span>` : ''}
                     ${is360Enabled && v.is360Panorama ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(100,181,246,0.15); color:#64b5f6; border:1px solid rgba(100,181,246,0.3); letter-spacing:0.5px;">IMMERSIVE</span>` : ''}
+                    ${has360Video ? `<span style="margin-left: 6px; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(100,181,246,0.15); color:#64b5f6; border:1px solid rgba(100,181,246,0.3); letter-spacing:0.5px;">360° VIDEO</span>` : ''}
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
                     <span id="v-active-badge-${v.id}" style="font-size:11px; padding:3px 8px; border-radius:20px; background:${v.isActive !== false ? '#1a3a1a' : '#3a1a1a'}; color:${v.isActive !== false ? '#4caf50' : '#e57373'};">
@@ -796,16 +801,12 @@ function toggleVideo360(targetId, index, checked) {
     }
     mvProbeVideoUrl(url).then((probe) => {
         if (!probe.isEquirectangular) {
-            const ok = window.confirm(
-                'This video does not look like a 2:1 equirectangular 360° file. Immersive mode will distort it.\n\nOK = enable immersive 360° anyway\nCancel = keep as flat video'
-            );
-            if (!ok) {
-                if (entry instanceof File) entry._is360 = false;
-                else if (typeof entry === 'object') entry.is360 = false;
-                renderVideoPreviews(targetId);
-                if (revoke) URL.revokeObjectURL(revoke);
-                return;
-            }
+            showToast('Kept as flat video — immersive 360° needs a 2:1 equirectangular file.');
+            if (entry instanceof File) entry._is360 = false;
+            else if (typeof entry === 'object') entry.is360 = false;
+            renderVideoPreviews(targetId);
+            if (revoke) URL.revokeObjectURL(revoke);
+            return;
         }
         apply();
         if (revoke) URL.revokeObjectURL(revoke);
@@ -816,44 +817,122 @@ function toggleVideo360(targetId, index, checked) {
 }
 window.toggleVideo360 = toggleVideo360;
 
+async function adminPrepareVideoSource(entry) {
+    if (entry?.file instanceof File) {
+        return { url: URL.createObjectURL(entry.file), revoke: true, useCrossOrigin: false };
+    }
+    let url = entry?.url || '';
+    if (!url) throw new Error('No video URL');
+    if (url.startsWith('blob:') || url.startsWith('data:')) {
+        return { url, revoke: false, useCrossOrigin: false };
+    }
+    const absolute = typeof mvResolveMediaUrl === 'function' ? mvResolveMediaUrl(url) : url;
+    try {
+        const resp = await fetch(absolute, { mode: 'cors', credentials: 'omit' });
+        if (!resp.ok) throw new Error('fetch failed');
+        const blob = await resp.blob();
+        if (!blob || !blob.size) throw new Error('empty blob');
+        return { url: URL.createObjectURL(blob), revoke: true, useCrossOrigin: false };
+    } catch (e) {
+        console.warn('Video fetch for extraction failed, trying direct URL:', e);
+        return { url: absolute, revoke: false, useCrossOrigin: true };
+    }
+}
+
+function adminWaitVideoReady(video) {
+    return new Promise((resolve, reject) => {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+            resolve();
+            return;
+        }
+        const timer = setTimeout(() => {
+            cleanup();
+            if (video.readyState >= 1 && video.videoWidth > 0) resolve();
+            else reject(new Error('Video load timed out'));
+        }, 25000);
+        const cleanup = () => {
+            clearTimeout(timer);
+            video.removeEventListener('loadeddata', onReady);
+            video.removeEventListener('error', onErr);
+        };
+        const onReady = () => { cleanup(); resolve(); };
+        const onErr = () => { cleanup(); reject(new Error('Could not load video')); };
+        video.addEventListener('loadeddata', onReady, { once: true });
+        video.addEventListener('error', onErr, { once: true });
+    });
+}
+
 function adminSeekVideo(video, time) {
     return new Promise((resolve) => {
+        if (!video.duration || !isFinite(video.duration)) {
+            resolve();
+            return;
+        }
+        const target = Math.min(Math.max(0, time), Math.max(0, video.duration - 0.05));
+        if (Math.abs(video.currentTime - target) < 0.05) {
+            resolve();
+            return;
+        }
+        const timer = setTimeout(() => {
+            video.removeEventListener('seeked', onSeeked);
+            resolve();
+        }, 5000);
         const onSeeked = () => {
+            clearTimeout(timer);
             video.removeEventListener('seeked', onSeeked);
             resolve();
         };
         video.addEventListener('seeked', onSeeked);
-        const safeTime = Math.min(Math.max(0, time), Math.max(0, (video.duration || 0) - 0.05));
-        video.currentTime = safeTime;
+        try {
+            video.currentTime = target;
+        } catch (e) {
+            clearTimeout(timer);
+            resolve();
+        }
     });
 }
 
-async function adminExtractFramesFromVideoUrl(url, frameCount = 16) {
+async function adminExtractFramesFromVideoUrl(url, frameCount = 16, opts = {}) {
     const video = document.createElement('video');
     video.muted = true;
     video.playsInline = true;
+    video.setAttribute('playsinline', '');
     video.preload = 'auto';
+    if (opts.useCrossOrigin) video.crossOrigin = 'anonymous';
     video.src = url;
-    await new Promise((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
-        video.onerror = () => reject(new Error('Could not load video'));
-    });
+    await adminWaitVideoReady(video);
     const duration = video.duration;
-    if (!duration || !isFinite(duration) || duration <= 0) return [];
+    if (!duration || !isFinite(duration) || duration <= 0) {
+        throw new Error('Could not read video duration');
+    }
+    const maxW = 1920;
+    let w = video.videoWidth || 1280;
+    let h = video.videoHeight || 720;
+    if (!w || !h) throw new Error('Could not read video dimensions');
+    if (w > maxW) {
+        h = Math.round(h * (maxW / w));
+        w = maxW;
+    }
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     const files = [];
     for (let i = 0; i < frameCount; i++) {
-        const t = (duration * i) / frameCount;
+        const t = frameCount <= 1 ? 0 : (duration * i) / (frameCount - 1);
         await adminSeekVideo(video, t);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.88));
-        if (blob) {
-            files.push(new File([blob], `spin-frame-${String(i + 1).padStart(2, '0')}.jpg`, { type: 'image/jpeg' }));
+        try {
+            ctx.drawImage(video, 0, 0, w, h);
+        } catch (e) {
+            throw new Error('CORS_BLOCKED');
         }
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+        if (!blob) {
+            throw new Error('CORS_BLOCKED');
+        }
+        files.push(new File([blob], `spin-frame-${String(i + 1).padStart(2, '0')}.jpg`, { type: 'image/jpeg' }));
     }
+    video.pause();
     video.removeAttribute('src');
     video.load();
     return files;
@@ -865,17 +944,18 @@ async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
         : (variantBlocks.find(x => x.id === targetId)?.videos || []);
     const entry = normalizeStoredVideo(items[index]);
     if (!entry) return showToast('Video not found.');
-    let url = entry.url || '';
-    let revoke = null;
-    if (entry.file instanceof File) {
-        url = URL.createObjectURL(entry.file);
-        revoke = url;
+    if (!entry.url && !(entry.file instanceof File)) {
+        return showToast('Upload the video file first — saved URLs may block extraction. Re-upload the video, extract frames, then save.');
     }
-    if (!url) return showToast('Upload the video first.');
+    let prep;
+    try {
+        prep = await adminPrepareVideoSource(entry);
+    } catch (e) {
+        return showToast('Upload the video first.');
+    }
     showToast('Extracting spin frames from video…');
     try {
-        const frames = await adminExtractFramesFromVideoUrl(url, frameCount);
-        if (revoke) URL.revokeObjectURL(revoke);
+        const frames = await adminExtractFramesFromVideoUrl(prep.url, frameCount, { useCrossOrigin: prep.useCrossOrigin });
         if (!frames.length) return showToast('Could not extract frames from this video.');
         if (targetId === 'base') {
             const chk = document.getElementById('m-is360');
@@ -889,13 +969,19 @@ async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
             v.is360 = true;
             v.spinImages = [...(v.spinImages || []), ...frames];
             renderVariantBlocks();
+            showToast(`Added ${frames.length} spin frames. Save product to keep.`);
             return;
         }
         showToast(`Added ${frames.length} spin frames. Save product to keep.`);
     } catch (e) {
-        if (revoke) URL.revokeObjectURL(revoke);
         console.error('Frame extraction failed:', e);
-        showToast('Could not extract frames from video.');
+        if (String(e.message) === 'CORS_BLOCKED') {
+            showToast('Cannot extract from this URL — re-upload the video file, extract frames, then save.');
+        } else {
+            showToast('Could not extract frames from video.');
+        }
+    } finally {
+        if (prep.revoke) URL.revokeObjectURL(prep.url);
     }
 }
 window.extractVideoFramesForSpin = extractVideoFramesForSpin;
@@ -1478,9 +1564,10 @@ function renderVideoPreviews(targetId = 'base') {
                     <input type="checkbox" ${is360 ? 'checked' : ''} style="width:auto; margin:0; accent-color:#64b5f6;" onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
                     <span>Play as immersive 360° video <span style="color:#666;">(2:1 equirectangular only)</span></span>
                 </label>
-                <button type="button" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" style="width:100%; padding:7px 8px; border-radius:7px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:10px; font-weight:700; cursor:pointer;">
+                <button type="button" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" style="width:100%; padding:7px 8px; border-radius:7px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:10px; font-weight:700; cursor:pointer;" title="Best on a freshly uploaded file before save">
                     Extract 16 frames → 360° product spin
                 </button>
+                <p style="margin:0; font-size:9px; color:#666; line-height:1.35;">Tip: upload the video file, extract frames, then save. Saved cloud links may block extraction.</p>
             </div>`;
     }).join('');
 }
