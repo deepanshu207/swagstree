@@ -922,6 +922,7 @@ function addVariantBlock() {
 function handleSpinFileSelect(input, vId) {
     if (!input.files || input.files.length === 0) return;
     const newFiles = Array.from(input.files);
+    adminEnsureSpin360Enabled(vId);
     if (vId === 'base') {
         existingSpinUrls = [...(existingSpinUrls || []), ...newFiles];
         renderSpinPreviews('base');
@@ -931,6 +932,7 @@ function handleSpinFileSelect(input, vId) {
         v.spinImages = [...(v.spinImages || []), ...newFiles];
         renderSpinPreviews(vId);
     }
+    syncAdmin360AccordionSummary(vId);
     input.value = '';
 }
 window.handleSpinFileSelect = handleSpinFileSelect;
