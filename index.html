@@ -2553,6 +2553,8 @@
                     <span>🔄</span> Upload 360° Frames
                     <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
                 </label>
+                <button type="button" onclick="loadDemo360Spin('base')" style="margin-top:8px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">Use demo spin (16 Vespa frames)</button>
+                <p style="font-size:9px; color:#666; margin:6px 0 0; line-height:1.35;">Demo spin: y360.at sample · Full 72-frame zip: <a href="https://www.y360.at/assets/product-photos/vespa-mint.zip" target="_blank" rel="noopener" style="color:#888;">vespa-mint.zip</a></p>
             </div>
             <div id="m-is360-panorama-container"
                 style="display:flex; align-items:center; gap:8px; margin-bottom:10px; justify-content:flex-start;">
@@ -2574,6 +2576,8 @@
                     <span>🌐</span> Upload Panorama
                     <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, 'base')">
                 </label>
+                <button type="button" onclick="loadDemo360Panorama('base')" style="margin-top:8px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo panoramas (2 scenes)</button>
+                <p style="font-size:9px; color:#666; margin:6px 0 0; line-height:1.35;">Scenes: Cerro Toco 4096×2048 (Ricoh Theta) + Wikimedia equirectangular sample</p>
             </div>
             <div style="margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.2); border-radius:10px;">
                 <p style="font-size:10px; color:#64b5f6; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Global Product Video <span style="color:#666; text-transform:none;">(optional)</span></p>
@@ -3064,7 +3068,7 @@
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=10.7"></script>
+    <script src="js/admin.js?v=10.8"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

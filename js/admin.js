@@ -400,6 +400,7 @@ function renderVariantBlocks() {
                         <span>🔄</span> Upload 360° Frames
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${v.id}')">
                     </label>
+                    <button type="button" onclick="loadDemo360Spin('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,215,0,0.35); background:rgba(255,215,0,0.08); color:var(--gold); font-size:11px; font-weight:700; cursor:pointer;">Use demo spin (16 frames)</button>
                 </div>
                 ` : ''}
                 ${is360Enabled ? `
@@ -411,6 +412,7 @@ function renderVariantBlocks() {
                         <span>🌐</span> Upload Panorama
                         <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, '${v.id}')">
                     </label>
+                    <button type="button" onclick="loadDemo360Panorama('${v.id}')" style="margin-top:6px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(100,181,246,0.35); background:rgba(100,181,246,0.08); color:#64b5f6; font-size:11px; font-weight:700; cursor:pointer;">Use demo panoramas (2 scenes)</button>
                 </div>
                 ` : ''}
                 <div>
@@ -626,6 +628,50 @@ function handlePanoramaFileSelect(input, vId) {
     input.value = '';
 }
 window.handlePanoramaFileSelect = handlePanoramaFileSelect;
+
+const DEMO_360_SPIN_FRAMES = Array.from({ length: 16 }, (_, i) =>
+    `assets/demo/360/spin/${String(i + 1).padStart(2, '0')}.jpg`
+);
+const DEMO_360_PANORAMAS = [
+    'assets/demo/360/panorama/cerro-toco.jpg',
+    'assets/demo/360/panorama/equirectangular-sw.jpg'
+];
+
+function loadDemo360Spin(targetId = 'base') {
+    if (targetId === 'base') {
+        const chk = document.getElementById('m-is360');
+        if (chk) chk.checked = true;
+        toggle360Badge('base', true);
+        existingSpinUrls = [...DEMO_360_SPIN_FRAMES];
+        renderSpinPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (!v) return;
+        v.is360 = true;
+        v.spinImages = [...DEMO_360_SPIN_FRAMES];
+        renderVariantBlocks();
+    }
+    showToast('Demo spin loaded: 16 Vespa frames. Save product to keep.');
+}
+window.loadDemo360Spin = loadDemo360Spin;
+
+function loadDemo360Panorama(targetId = 'base') {
+    if (targetId === 'base') {
+        const chk = document.getElementById('m-is360-panorama');
+        if (chk) chk.checked = true;
+        toggle360PanoramaBadge('base', true);
+        existingPanoramaUrls = [...DEMO_360_PANORAMAS];
+        renderPanoramaPreviews('base');
+    } else {
+        const v = variantBlocks.find(x => x.id === targetId);
+        if (!v) return;
+        v.is360Panorama = true;
+        v.panoramaImages = [...DEMO_360_PANORAMAS];
+        renderVariantBlocks();
+    }
+    showToast('Demo panoramas loaded (2 scenes). Save product to keep.');
+}
+window.loadDemo360Panorama = loadDemo360Panorama;
 
 function handleVideoFileSelect(input, vId) {
     if (!input.files || input.files.length === 0) return;
