@@ -282,6 +282,64 @@ function toggleAdmin360Accordion(targetId, forceOpen) {
 }
 window.toggleAdmin360Accordion = toggleAdmin360Accordion;
 
+function syncAdminSpinFramesAccordionSummary(targetId) {
+    const el = document.getElementById(`admin-spin-accord-summary-${targetId}`);
+    if (!el) return;
+    const items = targetId === 'base'
+        ? (existingSpinUrls || [])
+        : ((variantBlocks.find(x => x.id === targetId)?.spinImages || []));
+    if (!items.length) {
+        el.textContent = 'No frames yet — tap to upload or copy from gallery';
+        return;
+    }
+    el.textContent = `${items.length} rotation frame${items.length === 1 ? '' : 's'} · tap to preview, reorder, or upload`;
+}
+window.syncAdminSpinFramesAccordionSummary = syncAdminSpinFramesAccordionSummary;
+
+function toggleAdminSpinFramesAccordion(targetId, forceOpen) {
+    const content = document.getElementById(`admin-spin-accord-content-${targetId}`);
+    const accordion = document.getElementById(`admin-spin-accord-${targetId}`);
+    const icon = document.getElementById(`admin-spin-accord-icon-${targetId}`);
+    const header = accordion?.querySelector('.admin-spin-frames-accord-header');
+    if (!content || !accordion) return;
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : content.style.display === 'none';
+    content.style.display = shouldOpen ? 'block' : 'none';
+    accordion.classList.toggle('is-open', shouldOpen);
+    if (icon) icon.style.transform = shouldOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (header) header.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+}
+window.toggleAdminSpinFramesAccordion = toggleAdminSpinFramesAccordion;
+
+function adminSpinFramesSectionHtml(targetId, scope, visibleStyle = 'none') {
+    const isBase = targetId === 'base';
+    const containerId = isBase ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`;
+    const previewId = isBase ? 'm-spin-preview' : `v-spin-preview-${targetId}`;
+    return `
+                    <div id="${containerId}" style="display:${visibleStyle};">
+                        <div class="admin-spin-frames-accordion" id="admin-spin-accord-${targetId}">
+                            <div class="admin-spin-frames-accord-header" onclick="toggleAdminSpinFramesAccordion('${targetId}')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-spin-accord-content-${targetId}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminSpinFramesAccordion('${targetId}');}">
+                                <div class="admin-spin-frames-accord-header-text">
+                                    <span class="admin-spin-frames-accord-title"><i class="fa fa-refresh" aria-hidden="true"></i> Rotation frames</span>
+                                    <span id="admin-spin-accord-summary-${targetId}" class="admin-spin-frames-accord-summary">Tap to manage spin photos</span>
+                                </div>
+                                <i id="admin-spin-accord-icon-${targetId}" class="fa fa-chevron-down admin-spin-frames-chevron" aria-hidden="true"></i>
+                            </div>
+                            <div id="admin-spin-accord-content-${targetId}" class="admin-spin-frames-accord-content" style="display:none;">
+                                <p class="admin-media-section-sub admin-spin-frames-accord-intro">Still images — drag to reorder · 👁 to preview · powers the <strong>Rotate</strong> button on the shop</p>
+                                <div id="${previewId}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                                <label class="admin-media-upload admin-media-upload--spin">
+                                    <span class="admin-media-upload__icon">🔄</span>
+                                    <span class="admin-media-upload__text">Add your own rotation photos</span>
+                                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${targetId}')">
+                                </label>
+                                <button type="button" onclick="useGalleryImagesAsSpinFrames('${targetId}', true)" class="admin-media-action-btn admin-media-action-btn--gold" style="width:100%; margin-bottom:6px;">Use gallery photos as rotation frames</button>
+                                <button type="button" onclick="loadDemo360Spin('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 Vespa frames)</button>
+                            </div>
+                        </div>
+                    </div>`;
+}
+window.adminSpinFramesSectionHtml = adminSpinFramesSectionHtml;
+
 function syncAdmin360AccordionSummary(targetId) {
     const el = document.getElementById(`admin-360-accord-summary-${targetId}`);
     if (!el) return;
@@ -376,17 +434,7 @@ function renderAdminOptional360AccordionHtml(targetId, scope, opts = {}) {
                     <div class="admin-media-360-toggles">
                         ${toggle(`v-is360-${targetId}`, !!(v && v.is360), `updateVariant('${targetId}', 'is360', this.checked); renderVariantBlocks(); syncAdmin360AccordionSummary('${targetId}');`, 'Rotate Product (spin frames)', '#FFD700')}
                     </div>`}
-                    <div id="${isBase ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`}" style="display:${isBase ? 'none' : spinVisible};">
-                        ${adminMediaSectionHead(scope, 'spin', 'Rotation frames', 'Still images — drag to reorder · 👁 to preview · powers the Rotate button')}
-                        <div id="${isBase ? 'm-spin-preview' : `v-spin-preview-${targetId}`}" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
-                        <label class="admin-media-upload admin-media-upload--spin">
-                            <span class="admin-media-upload__icon">🔄</span>
-                            <span class="admin-media-upload__text">Add your own rotation photos</span>
-                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, '${targetId}')">
-                        </label>
-                        <button type="button" onclick="useGalleryImagesAsSpinFrames('${targetId}', true)" class="admin-media-action-btn admin-media-action-btn--gold" style="width:100%; margin-bottom:6px;">Use gallery photos as rotation frames</button>
-                        <button type="button" onclick="loadDemo360Spin('${targetId}')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 frames)</button>
-                    </div>
+                    ${adminSpinFramesSectionHtml(targetId, scope, isBase ? 'none' : spinVisible)}
                 </div>
                 <div class="admin-extra-media-divider"></div>
                 <div class="admin-extra-media-section">
@@ -627,6 +675,62 @@ function adminFilterProducts() {
 }
 window.adminFilterProducts = adminFilterProducts;
 
+function adminProductHasVariants(p) {
+    return !!(p.variants && Array.isArray(p.variants) && p.variants.length > 0);
+}
+
+function adminProductHasGalleryImages(p) {
+    if (p.images && p.images.length) return true;
+    if (!adminProductHasVariants(p)) return false;
+    return p.variants.some(v => v.images && v.images.length);
+}
+
+function adminProductHasCategory(p) {
+    if (typeof getProductCategoryIds === 'function') {
+        return getProductCategoryIds(p).length > 0;
+    }
+    return !!(p.categoryId || p.categoryName || (p.categoryIds && p.categoryIds.length));
+}
+
+function adminProductHasAnyMedia(p) {
+    if (adminProductHasGalleryImages(p)) return true;
+    if (p.videos && p.videos.length) return true;
+    if (p.is360 || p.is360Panorama) return true;
+    if (p.spinImages && p.spinImages.length) return true;
+    if (p.panoramaImages && p.panoramaImages.length) return true;
+    if (adminProductHasVariants(p)) {
+        return p.variants.some(v =>
+            (v.videos && v.videos.length) || v.is360 || v.is360Panorama
+            || (v.spinImages && v.spinImages.length) || (v.panoramaImages && v.panoramaImages.length)
+        );
+    }
+    return false;
+}
+
+function adminProductHasVideo(p) {
+    if (p.videos && p.videos.length) return true;
+    if (adminProductHasVariants(p)) {
+        return p.variants.some(v => v.videos && v.videos.length);
+    }
+    return false;
+}
+
+function adminProductHasSpin(p) {
+    if (p.is360 || (p.spinImages && p.spinImages.length)) return true;
+    if (adminProductHasVariants(p)) {
+        return p.variants.some(v => v.is360 || (v.spinImages && v.spinImages.length));
+    }
+    return false;
+}
+
+function adminProductHasPanorama(p) {
+    if (p.is360Panorama || (p.panoramaImages && p.panoramaImages.length)) return true;
+    if (adminProductHasVariants(p)) {
+        return p.variants.some(v => v.is360Panorama || (v.panoramaImages && v.panoramaImages.length));
+    }
+    return false;
+}
+
 function adminGetFilteredProducts() {
     let list = products || [];
     const q = (adminProductSearchQuery || '').trim().toLowerCase();
@@ -639,15 +743,42 @@ function adminGetFilteredProducts() {
             return name.includes(q) || cat.includes(q) || id.includes(q) || price.includes(q);
         });
     }
-    if (adminProductFilter === 'oos') {
-        list = list.filter(p => typeof isProductOutOfStock === 'function' && isProductOutOfStock(p));
-    } else if (adminProductFilter === 'variants') {
-        list = list.filter(p => p.variants && p.variants.length > 0);
-    } else if (adminProductFilter === 'media') {
-        list = list.filter(p =>
-            (p.videos && p.videos.length) || p.is360 || p.is360Panorama
-            || (p.spinImages && p.spinImages.length) || (p.panoramaImages && p.panoramaImages.length)
-        );
+    switch (adminProductFilter) {
+        case 'oos':
+            list = list.filter(p => typeof isProductOutOfStock === 'function' && isProductOutOfStock(p));
+            break;
+        case 'in_stock':
+            list = list.filter(p => !(typeof isProductOutOfStock === 'function' && isProductOutOfStock(p)));
+            break;
+        case 'no_variants':
+            list = list.filter(p => !adminProductHasVariants(p));
+            break;
+        case 'variants':
+            list = list.filter(adminProductHasVariants);
+            break;
+        case 'no_images':
+            list = list.filter(p => !adminProductHasGalleryImages(p));
+            break;
+        case 'no_category':
+            list = list.filter(p => !adminProductHasCategory(p));
+            break;
+        case 'no_media':
+            list = list.filter(p => !adminProductHasAnyMedia(p));
+            break;
+        case 'media':
+            list = list.filter(adminProductHasAnyMedia);
+            break;
+        case 'has_video':
+            list = list.filter(adminProductHasVideo);
+            break;
+        case 'has_spin':
+            list = list.filter(adminProductHasSpin);
+            break;
+        case 'has_panorama':
+            list = list.filter(adminProductHasPanorama);
+            break;
+        default:
+            break;
     }
     return list;
 }
@@ -1617,6 +1748,7 @@ function adminScrollToSpinSection(targetId) {
     toggleAdmin360Accordion(targetId, true);
     const el = document.getElementById(targetId === 'base' ? 'm-spin-upload-container' : `v-spin-upload-${targetId}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    syncAdminSpinFramesAccordionSummary(targetId);
 }
 
 async function extractVideoFramesForSpin(targetId, index, frameMode = ADMIN_DEFAULT_FRAME_COUNT) {
@@ -2433,13 +2565,9 @@ function renderSpinPreviews(targetId = 'base') {
     const container = document.getElementById(targetId === 'base' ? 'm-spin-preview' : `v-spin-preview-${targetId}`);
     if (!container) return;
     const items = targetId === 'base' ? (existingSpinUrls || []) : (variantBlocks.find(x => x.id === targetId)?.spinImages || []);
-    const scopeLabel = targetId === 'base' ? '🌐 All variants' : '🎯 This variant';
-    const countHtml = items.length
-        ? `<p class="admin-media-spin-meta">${scopeLabel} · <strong>${items.length}</strong> rotation frame${items.length === 1 ? '' : 's'} · drag to reorder · 👁 to preview each frame</p>`
-        : `<p class="admin-media-spin-meta admin-media-empty">No rotation frames yet — upload your own photos, copy from gallery, or extract from a video card.</p>`;
     const helpHtml = items.length
         ? `<p class="admin-media-spin-help">Powers the <strong>Rotate</strong> button on the shop. Save product, then test on the storefront.</p>`
-        : '';
+        : `<p class="admin-media-spin-meta admin-media-empty">No rotation frames yet — upload photos, copy from gallery, or extract from a video card.</p>`;
     const actionsHtml = items.length >= 2 ? `
         <div class="admin-media-spin-actions">
             <button type="button" class="admin-media-action-btn admin-media-action-btn--gold" onclick="previewAdminSpin('${targetId}')">
@@ -2458,12 +2586,13 @@ function renderSpinPreviews(targetId = 'base') {
             badge: i + 1, extraClass: 'admin-media-thumb--spin admin-spin-thumb'
         });
     }).join('');
-    container.innerHTML = `${countHtml}${helpHtml}<div class="admin-spin-grid admin-media-preview-grid admin-media-preview-grid--spin">${gridHtml}</div>${actionsHtml}`;
+    container.innerHTML = `${helpHtml}<div class="admin-spin-grid admin-media-preview-grid admin-media-preview-grid--spin">${gridHtml}</div>${actionsHtml}`;
 
     const grid = container.querySelector('.admin-spin-grid');
     if (grid) {
         adminBindSortableThumbGrid(grid, targetId === 'base' ? existingSpinUrls : (variantBlocks.find(x => x.id === targetId)?.spinImages), () => renderSpinPreviews(targetId), '.admin-spin-thumb');
     }
+    syncAdminSpinFramesAccordionSummary(targetId);
     syncAdminMediaStatus(targetId);
 }
 

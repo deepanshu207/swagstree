@@ -3339,6 +3339,74 @@ button.admin-stock-badge--more:hover {
     border-top: 1px solid #222;
 }
 
+.admin-spin-frames-accordion {
+    margin-top: 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 215, 0, 0.18);
+    background: #121212;
+    overflow: hidden;
+}
+
+.admin-spin-frames-accord-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.admin-spin-frames-accord-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+
+.admin-spin-frames-accord-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #eee;
+}
+
+.admin-spin-frames-accord-title i {
+    color: var(--gold);
+    font-size: 12px;
+}
+
+.admin-spin-frames-accord-summary {
+    font-size: 10px;
+    color: #888;
+    line-height: 1.35;
+}
+
+.admin-spin-frames-chevron {
+    color: #888;
+    font-size: 11px;
+    transition: transform 0.2s ease;
+    transform: rotate(-90deg);
+    flex-shrink: 0;
+}
+
+.admin-spin-frames-accordion.is-open .admin-spin-frames-chevron {
+    transform: rotate(0deg);
+}
+
+.admin-spin-frames-accord-content {
+    padding: 0 12px 12px;
+    border-top: 1px solid #222;
+}
+
+.admin-spin-frames-accord-intro {
+    margin: 10px 0 8px;
+}
+
 .admin-gallery-spin-toolbar {
     display: flex;
     flex-wrap: wrap;

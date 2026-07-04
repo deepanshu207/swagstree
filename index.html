@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.12">
+    <link rel="stylesheet" href="css/style.css?v=9.13">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -710,9 +710,17 @@
             <input type="search" id="admin-product-search" class="admin-product-search" placeholder="Search by name, price, category, or ID…" oninput="adminFilterProducts()" aria-label="Search products">
             <select id="admin-product-filter" class="admin-product-filter" onchange="adminFilterProducts()" aria-label="Filter products">
                 <option value="all">All products</option>
+                <option value="in_stock">In stock</option>
                 <option value="oos">Out of stock</option>
+                <option value="no_variants">No variants (simple)</option>
                 <option value="variants">Has variants</option>
+                <option value="no_images">No gallery images</option>
+                <option value="no_category">No category assigned</option>
+                <option value="no_media">No video / 360°</option>
                 <option value="media">Has video / 360°</option>
+                <option value="has_video">Has video</option>
+                <option value="has_spin">Has rotation frames</option>
+                <option value="has_panorama">Has panorama</option>
             </select>
         </div>
 
@@ -2588,7 +2596,7 @@
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag">List tools</span>
-                        <p>Search by name, price, category, or ID. Filter out-of-stock, variant products, or those with video/360°. Product count badge updates live.</p>
+                        <p>Search by name, price, category, or ID. Use the filter dropdown for stock, variants, missing images/category, video, rotation, or panorama — things hard to type in search.</p>
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag">Admin layout</span>
@@ -2690,22 +2698,26 @@
                                 </label>
                             </div>
                             <div id="m-spin-upload-container" style="display:none;">
-                                <div class="admin-media-section-head">
-                                    <div class="admin-media-section-badges">
-                                        <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
-                                        <span class="admin-media-type admin-media-type--spin">🔄 Rotation frame</span>
+                                <div class="admin-spin-frames-accordion" id="admin-spin-accord-base">
+                                    <div class="admin-spin-frames-accord-header" onclick="toggleAdminSpinFramesAccordion('base')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-spin-accord-content-base" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminSpinFramesAccordion('base');}">
+                                        <div class="admin-spin-frames-accord-header-text">
+                                            <span class="admin-spin-frames-accord-title"><i class="fa fa-refresh" aria-hidden="true"></i> Rotation frames</span>
+                                            <span id="admin-spin-accord-summary-base" class="admin-spin-frames-accord-summary">Tap to manage spin photos</span>
+                                        </div>
+                                        <i id="admin-spin-accord-icon-base" class="fa fa-chevron-down admin-spin-frames-chevron" aria-hidden="true"></i>
                                     </div>
-                                    <p class="admin-media-section-title">Rotation frames</p>
-                                    <p class="admin-media-section-sub">Still images — drag to reorder · 👁 to preview · powers the Rotate button</p>
+                                    <div id="admin-spin-accord-content-base" class="admin-spin-frames-accord-content" style="display:none;">
+                                        <p class="admin-media-section-sub admin-spin-frames-accord-intro">Still images — drag to reorder · 👁 to preview · powers the <strong>Rotate</strong> button on the shop</p>
+                                        <div id="m-spin-preview" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                                        <label class="admin-media-upload admin-media-upload--spin">
+                                            <span class="admin-media-upload__icon">🔄</span>
+                                            <span class="admin-media-upload__text">Add your own rotation photos</span>
+                                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
+                                        </label>
+                                        <button type="button" onclick="useGalleryImagesAsSpinFrames('base', true)" class="admin-media-action-btn admin-media-action-btn--gold" style="width:100%; margin-bottom:6px;">Use gallery photos as rotation frames</button>
+                                        <button type="button" onclick="loadDemo360Spin('base')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 Vespa frames)</button>
+                                    </div>
                                 </div>
-                                <div id="m-spin-preview" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
-                                <label class="admin-media-upload admin-media-upload--spin">
-                                    <span class="admin-media-upload__icon">🔄</span>
-                                    <span class="admin-media-upload__text">Add your own rotation photos</span>
-                                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
-                                </label>
-                                <button type="button" onclick="useGalleryImagesAsSpinFrames('base', true)" class="admin-media-action-btn admin-media-action-btn--gold" style="width:100%; margin-bottom:6px;">Use gallery photos as rotation frames</button>
-                                <button type="button" onclick="loadDemo360Spin('base')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 Vespa frames)</button>
                             </div>
                         </div>
 
@@ -3229,7 +3241,7 @@
     <script src="js/comments.js?v=10.3"></script>
     <script src="js/support-chat.js?v=10.8"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=12.6"></script>
+    <script src="js/admin.js?v=12.7"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
