@@ -188,6 +188,111 @@ function focusAdminCategoryForm() {
     }
 }
 
+function serializeCategoryFormState() {
+    const nameEl = document.getElementById('admin-category-name');
+    const orderEl = document.getElementById('admin-category-order');
+    const activeEl = document.getElementById('admin-category-active');
+    return {
+        editingCategoryId: window.editingCategoryId || null,
+        name: (nameEl?.value || '').trim(),
+        sortOrder: orderEl?.value ?? '0',
+        isActive: activeEl ? !!activeEl.checked : true
+    };
+}
+
+function getCategoryFormBaseline() {
+    if (window.editingCategoryId) {
+        const cat = getCategoryById(window.editingCategoryId);
+        if (!cat) return { editingCategoryId: null, name: '', sortOrder: '0', isActive: true };
+        return {
+            editingCategoryId: window.editingCategoryId,
+            name: cat.name || '',
+            sortOrder: String(getCategorySortOrder(cat)),
+            isActive: cat.isActive !== false
+        };
+    }
+    return { editingCategoryId: null, name: '', sortOrder: '0', isActive: true };
+}
+
+function isCategoryFormDirty() {
+    const current = serializeCategoryFormState();
+    const baseline = getCategoryFormBaseline();
+    return JSON.stringify(current) !== JSON.stringify(baseline);
+}
+window.isCategoryFormDirty = isCategoryFormDirty;
+
+function applyCategoryFormState(state) {
+    if (!state) return;
+    window.editingCategoryId = state.editingCategoryId || null;
+    const name = document.getElementById('admin-category-name');
+    const order = document.getElementById('admin-category-order');
+    const active = document.getElementById('admin-category-active');
+    const moreOptions = document.getElementById('admin-category-more-options');
+    if (name) name.value = state.name || '';
+    if (order) order.value = String(state.sortOrder ?? '0');
+    if (active) active.checked = state.isActive !== false;
+    if (moreOptions) moreOptions.open = !!window.editingCategoryId;
+    updateCategoryFormMode();
+    renderAdminCategoryList();
+}
+
+function persistCategoryDraft() {
+    if (!canManageProductCategories()) return;
+    if (!isCategoryFormDirty()) {
+        const existing = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
+        if (existing?.type === 'category') adminDraftClear();
+        return;
+    }
+    const state = serializeCategoryFormState();
+    const draft = {
+        v: 1,
+        type: 'category',
+        updatedAt: Date.now(),
+        entityId: state.editingCategoryId,
+        label: state.name || (state.editingCategoryId ? 'Category edit' : 'New category'),
+        form: state
+    };
+    if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
+    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
+}
+window.persistCategoryDraft = persistCategoryDraft;
+
+function discardCategoryDraft(silent) {
+    const baseline = getCategoryFormBaseline();
+    applyCategoryFormState(baseline);
+    if (typeof adminDraftClear === 'function') adminDraftClear();
+    if (!silent) showToast('Category draft discarded.');
+}
+window.discardCategoryDraft = discardCategoryDraft;
+
+function tryOfferCategoryDraftRestore() {
+    if (!canManageProductCategories()) return;
+    const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
+    if (!draft || draft.type !== 'category' || !draft.form) return;
+    if (isCategoryFormDirty()) return;
+    applyCategoryFormState(draft.form);
+    openAdminCategoryAccordion();
+    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
+    showToast('Recovered unsaved category draft.');
+}
+
+function loadCategoryIntoFormInternal(id) {
+    const cat = getCategoryById(id);
+    if (!cat) return;
+    openAdminCategoryAccordion();
+    window.editingCategoryId = id;
+    const name = document.getElementById('admin-category-name');
+    const order = document.getElementById('admin-category-order');
+    const active = document.getElementById('admin-category-active');
+    if (name) name.value = cat.name || '';
+    if (order) order.value = String(getCategorySortOrder(cat));
+    if (active) active.checked = cat.isActive !== false;
+    updateCategoryFormMode();
+    renderAdminCategoryList();
+    focusAdminCategoryForm();
+    if (typeof adminDraftClear === 'function') adminDraftClear();
+}
+
 function getActiveCategories() {
     return (window.productCategories || [])
         .filter(c => c.isActive !== false)
@@ -616,17 +721,22 @@ function openAdminCategoryAccordion() {
     if (icon) icon.style.transform = 'rotate(0deg)';
 }
 
-window.toggleAdminCategoryAccordion = function() {
+window.toggleAdminCategoryAccordion = async function() {
     const content = document.getElementById('admin-category-accordion-content');
     const icon = document.getElementById('admin-category-accordion-icon');
     if (!content) return;
 
     if (content.style.display === 'none' || !content.style.display) {
         openAdminCategoryAccordion();
-    } else {
-        content.style.display = 'none';
-        if (icon) icon.style.transform = 'rotate(-90deg)';
+        tryOfferCategoryDraftRestore();
+        return;
     }
+    if (typeof adminGuardCategoryLeave === 'function') {
+        const ok = await adminGuardCategoryLeave('Save category changes before closing?', () => {});
+        if (!ok) return;
+    }
+    content.style.display = 'none';
+    if (icon) icon.style.transform = 'rotate(-90deg)';
 };
 
 function updateCategoryFormMode() {
@@ -662,14 +772,30 @@ function updateCategoryFormMode() {
         formWrap.classList.toggle('admin-category-form-editing', isEditing);
     }
     highlightAdminCategoryRow(isEditing ? window.editingCategoryId : null);
+    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
 }
 
 function bindCategoryFormUi() {
     const nameEl = document.getElementById('admin-category-name');
+    const orderEl = document.getElementById('admin-category-order');
+    const activeEl = document.getElementById('admin-category-active');
     const searchEl = document.getElementById('admin-category-search');
+    const onChange = () => {
+        updateCategoryFormMode();
+        if (typeof adminScheduleCategoryDraftSave === 'function') adminScheduleCategoryDraftSave();
+    };
     if (nameEl && !nameEl.dataset.categoryUiBound) {
         nameEl.dataset.categoryUiBound = '1';
-        nameEl.addEventListener('input', updateCategoryFormMode);
+        nameEl.addEventListener('input', onChange);
+    }
+    if (orderEl && !orderEl.dataset.categoryUiBound) {
+        orderEl.dataset.categoryUiBound = '1';
+        orderEl.addEventListener('input', onChange);
+        orderEl.addEventListener('change', onChange);
+    }
+    if (activeEl && !activeEl.dataset.categoryUiBound) {
+        activeEl.dataset.categoryUiBound = '1';
+        activeEl.addEventListener('change', onChange);
     }
     if (searchEl && !searchEl.dataset.categorySearchBound) {
         searchEl.dataset.categorySearchBound = '1';
@@ -682,20 +808,14 @@ function bindCategoryFormUi() {
     }
 }
 
-window.loadCategoryIntoForm = function(id) {
-    const cat = getCategoryById(id);
-    if (!cat) return;
-    openAdminCategoryAccordion();
-    window.editingCategoryId = id;
-    const name = document.getElementById('admin-category-name');
-    const order = document.getElementById('admin-category-order');
-    const active = document.getElementById('admin-category-active');
-    if (name) name.value = cat.name || '';
-    if (order) order.value = String(getCategorySortOrder(cat));
-    if (active) active.checked = cat.isActive !== false;
-    updateCategoryFormMode();
-    renderAdminCategoryList();
-    focusAdminCategoryForm();
+window.loadCategoryIntoForm = async function(id) {
+    if (window.editingCategoryId === id && !isCategoryFormDirty()) return;
+    const load = () => loadCategoryIntoFormInternal(id);
+    if (typeof adminGuardCategoryLeave === 'function' && isCategoryFormDirty()) {
+        await adminGuardCategoryLeave('Save changes before switching category?', load);
+        return;
+    }
+    load();
 };
 
 window.moveCategoryOrder = async function(id, direction) {
@@ -723,7 +843,7 @@ window.moveCategoryOrder = async function(id, direction) {
     }
 };
 
-function resetCategoryForm() {
+function resetCategoryFormInternal() {
     window.editingCategoryId = null;
     const name = document.getElementById('admin-category-name');
     const order = document.getElementById('admin-category-order');
@@ -735,10 +855,20 @@ function resetCategoryForm() {
     if (moreOptions) moreOptions.open = false;
     renderAdminCategoryList();
     updateCategoryFormMode();
+    if (typeof adminDraftClear === 'function') adminDraftClear();
 }
 
-window.openCategoryForm = function() {
-    resetCategoryForm();
+function resetCategoryForm() {
+    resetCategoryFormInternal();
+}
+
+window.openCategoryForm = async function() {
+    if (typeof adminGuardCategoryLeave === 'function' && isCategoryFormDirty()) {
+        const ok = await adminGuardCategoryLeave('Save changes before clearing the form?', () => resetCategoryFormInternal());
+        if (!ok) return;
+    } else {
+        resetCategoryFormInternal();
+    }
     focusAdminCategoryForm();
 };
 
@@ -811,6 +941,7 @@ window.saveCategory = async function() {
             showToast('Category added.');
         }
         resetCategoryForm();
+        if (typeof adminDraftClear === 'function') adminDraftClear();
     } catch (e) {
         console.error('saveCategory failed:', e);
         showToast('Could not save category.');

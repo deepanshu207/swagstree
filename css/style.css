@@ -7601,6 +7601,86 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0 !important;
     font-size: 12px !important;
 }
+.admin-category-form-actions:not(:has(button:not([hidden]))) {
+    display: none;
+    margin: 0;
+}
+.admin-draft-banner {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 215, 0, 0.07);
+    border: 1px solid rgba(255, 215, 0, 0.22);
+}
+.admin-draft-banner--modal {
+    margin-bottom: 14px;
+}
+.admin-draft-banner__text {
+    flex: 1;
+    min-width: 180px;
+    font-size: 12px;
+    color: #ccc;
+    line-height: 1.45;
+}
+.admin-draft-banner__text strong {
+    color: var(--gold);
+}
+.admin-draft-age {
+    color: #777;
+    font-size: 11px;
+}
+.admin-draft-banner__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.admin-draft-btn-approve {
+    width: auto !important;
+    padding: 8px 14px !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+}
+.admin-draft-btn-reject {
+    width: auto !important;
+    padding: 8px 14px !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+}
+.admin-unsaved-modal-box {
+    max-width: 360px;
+    width: 92%;
+    padding: 18px;
+}
+.admin-unsaved-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.admin-unsaved-actions .btn-gold,
+.admin-unsaved-actions .admin-category-btn-muted {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    font-size: 13px !important;
+}
+.admin-unsaved-btn-cancel {
+    width: 100%;
+    padding: 10px;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+}
+.admin-unsaved-btn-cancel:hover {
+    color: #ccc;
+}
 .admin-video-extract-section {
     margin-top: 10px;
     padding-top: 10px;

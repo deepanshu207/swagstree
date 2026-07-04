@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.17">
+    <link rel="stylesheet" href="css/style.css?v=9.18">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -746,6 +746,14 @@
             <div id="admin-category-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
                 <div id="admin-category-storefront-banner" style="display:none; margin-bottom:12px;"></div>
+
+                <div id="admin-category-draft-banner" class="admin-draft-banner" hidden>
+                    <div class="admin-draft-banner__text" id="admin-category-draft-text"></div>
+                    <div class="admin-draft-banner__actions">
+                        <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminApproveCategoryDraft()">Approve &amp; save</button>
+                        <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminRejectCategoryDraft()">Reject draft</button>
+                    </div>
+                </div>
 
                 <div class="admin-category-toolbar">
                     <div id="admin-category-form-wrap" class="admin-category-form-wrap">
@@ -2516,6 +2524,13 @@
     <div id="prod-modal" class="modal">
         <div class="modal-box">
             <h3 id="m-modal-title">Add New Product</h3>
+            <div id="admin-product-draft-banner" class="admin-draft-banner admin-draft-banner--modal" hidden>
+                <div class="admin-draft-banner__text" id="admin-product-draft-text"></div>
+                <div class="admin-draft-banner__actions">
+                    <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminApproveProductDraft()">Approve &amp; save</button>
+                    <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminRejectProductDraft()">Reject draft</button>
+                </div>
+            </div>
             <input id="m-name" placeholder="Product name (required)" aria-required="true">
             <input id="m-price" type="number" min="0" step="1" placeholder="Base price ₹ (required)" aria-required="true">
             <div id="m-category-container" style="margin-bottom:12px;">
@@ -3287,19 +3302,33 @@
         </div>
     </div>
 
+    <!-- Modal: Unsaved admin changes -->
+    <div id="admin-unsaved-modal" class="modal" style="display:none; z-index:10050;">
+        <div class="modal-box admin-unsaved-modal-box">
+            <h3 style="margin:0 0 8px; font-size:15px; color:#fff;">Unsaved changes</h3>
+            <p id="admin-unsaved-message" style="margin:0 0 16px; font-size:13px; color:#aaa; line-height:1.45;"></p>
+            <div class="admin-unsaved-actions">
+                <button type="button" class="btn-gold admin-unsaved-btn-save" onclick="adminUnsavedResolve('save')">Save</button>
+                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-unsaved-btn-discard" onclick="adminUnsavedResolve('discard')">Discard</button>
+                <button type="button" class="admin-unsaved-btn-cancel" onclick="adminUnsavedResolve('cancel')">Keep editing</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="js/features.js?v=11.8"></script>
-    <script src="js/app.js?v=10.6"></script>
+    <script src="js/app.js?v=10.7"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/categories.js?v=10.10"></script>
+    <script src="js/admin-drafts.js?v=1.0"></script>
+    <script src="js/categories.js?v=10.11"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.5"></script>
     <script src="js/comments.js?v=10.3"></script>
     <script src="js/support-chat.js?v=10.8"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=12.9"></script>
+    <script src="js/admin.js?v=13.0"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

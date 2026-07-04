@@ -615,6 +615,10 @@ window.adminToggleStockExpand = adminToggleStockExpand;
 
 function adminSerializeProductForm() {
     const fileTag = (f) => (f instanceof File ? `file:${f.name}:${f.size}` : String(f || ''));
+    const categoryContainer = document.getElementById('m-category-checkboxes');
+    const categoryIds = categoryContainer
+        ? [...categoryContainer.querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value).sort()
+        : [];
     return JSON.stringify({
         name: document.getElementById('m-name')?.value || '',
         price: document.getElementById('m-price')?.value || '',
@@ -627,15 +631,223 @@ function adminSerializeProductForm() {
         is360Pano: !!document.getElementById('m-is360-panorama')?.checked,
         trackGlobal: !!document.getElementById('m-track-global-stock')?.checked,
         globalQty: document.getElementById('m-global-stock-qty')?.value || '',
+        categoryIds,
         images: (existingImageUrls || []).map(fileTag),
         spins: (existingSpinUrls || []).map(fileTag),
         panos: (existingPanoramaUrls || []).map(fileTag),
-        videos: (existingVideoUrls || []).length,
+        videos: (existingVideoUrls || []).map(v => {
+            const n = normalizeStoredVideo(v);
+            return n?.file instanceof File ? `file:${n.file.name}` : String(n?.url || '');
+        }),
         variants: (variantBlocks || []).map(v => JSON.stringify({
             size: v.size, color: v.color, pattern: v.pattern, price: v.price,
-            isActive: v.isActive, images: (v.images || []).length, spin: (v.spinImages || []).length
+            isActive: v.isActive, images: (v.images || []).map(fileTag).length,
+            spin: (v.spinImages || []).length
         }))
     });
+}
+
+function adminUrlOnlyMedia(item) {
+    if (typeof item === 'string' && item.trim()) return item.trim();
+    if (item && typeof item === 'object' && item.url) return item.url;
+    return null;
+}
+
+function adminHasPendingUploadFiles() {
+    const check = (arr) => (arr || []).some(x => x instanceof File);
+    if (check(existingImageUrls) || check(existingSpinUrls) || check(existingPanoramaUrls)) return true;
+    if ((existingVideoUrls || []).some(v => normalizeStoredVideo(v)?.file instanceof File)) return true;
+    return (variantBlocks || []).some(v =>
+        check(v.images) || check(v.spinImages) || check(v.panoramaImages) ||
+        (v.videos || []).some(vid => normalizeStoredVideo(vid)?.file instanceof File)
+    );
+}
+
+function adminSerializeVideosForDraft(arr) {
+    return (arr || []).map(v => {
+        const n = normalizeStoredVideo(v);
+        if (!n) return null;
+        if (n.file instanceof File) return { pendingFile: true, name: n.file.name, is360: !!n.is360 };
+        if (n.url) return { url: n.url, is360: !!n.is360 };
+        return null;
+    }).filter(Boolean);
+}
+
+function adminBuildProductDraftPayload() {
+    const categoryContainer = document.getElementById('m-category-checkboxes');
+    const categoryIds = categoryContainer
+        ? [...categoryContainer.querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value)
+        : [];
+    return {
+        editingId: editingId || null,
+        name: document.getElementById('m-name')?.value || '',
+        price: document.getElementById('m-price')?.value || '',
+        desc: document.getElementById('m-desc')?.value || '',
+        hideMain: !!document.getElementById('m-hide-main')?.checked,
+        hideMainDet: !!document.getElementById('m-hide-main-details')?.checked,
+        mainPos: document.getElementById('m-main-pos')?.value || 'end',
+        hidePlaceholder: !!document.getElementById('m-hide-main-placeholder')?.checked,
+        is360: !!document.getElementById('m-is360')?.checked,
+        is360Pano: !!document.getElementById('m-is360-panorama')?.checked,
+        trackGlobal: !!document.getElementById('m-track-global-stock')?.checked,
+        globalQty: document.getElementById('m-global-stock-qty')?.value || '',
+        categoryIds,
+        images: (existingImageUrls || []).map(adminUrlOnlyMedia).filter(Boolean),
+        spins: (existingSpinUrls || []).map(adminUrlOnlyMedia).filter(Boolean),
+        panos: (existingPanoramaUrls || []).map(adminUrlOnlyMedia).filter(Boolean),
+        videos: adminSerializeVideosForDraft(existingVideoUrls),
+        variants: (variantBlocks || []).map(v => ({
+            size: v.size || 'Standard',
+            color: v.color || '',
+            colorName: v.colorName || '',
+            pattern: v.pattern || '',
+            patternName: v.patternName || '',
+            showPatternText: !!v.showPatternText,
+            price: v.price ?? null,
+            hideDetailsGallery: !!v.hideDetailsGallery,
+            showInMainCarousel: !!v.showInMainCarousel,
+            isActive: v.isActive !== false,
+            trackVariantStock: !!v.trackVariantStock,
+            trackComboStock: !!v.trackComboStock,
+            variantStockCount: v.variantStockCount ?? 0,
+            trackStock: !!v.trackStock,
+            stockCount: v.stockCount || 0,
+            stockBySku: { ...(v.stockBySku || {}) },
+            is360: !!v.is360,
+            is360Panorama: !!v.is360Panorama,
+            threeSixtyCols: v.threeSixtyCols || 1,
+            threeSixtyRows: v.threeSixtyRows || 1,
+            images: (v.images || []).map(adminUrlOnlyMedia).filter(Boolean),
+            spinImages: (v.spinImages || []).map(adminUrlOnlyMedia).filter(Boolean),
+            panoramaImages: (v.panoramaImages || []).map(adminUrlOnlyMedia).filter(Boolean),
+            videos: adminSerializeVideosForDraft(v.videos),
+            previewImages: (v.previewImages || []).map(adminUrlOnlyMedia).filter(Boolean)
+        })),
+        hasPendingFiles: adminHasPendingUploadFiles()
+    };
+}
+
+function adminMapDraftVariantToBlock(v) {
+    const block = mapSavedVariantToBlock({
+        ...v,
+        images: v.images || [],
+        spinImages: v.spinImages || [],
+        panoramaImages: v.panoramaImages || [],
+        videos: (v.videos || []).filter(x => x && x.url).map(x => ({ url: x.url, is360: !!x.is360 })),
+        previewImages: v.previewImages || []
+    });
+    block.id = 'v_' + Math.random().toString(36).substr(2, 9);
+    return block;
+}
+
+function applyProductDraftForm(form) {
+    if (!form) return;
+    editingId = form.editingId || null;
+    adminSetModalTitle(form.editingId ? 'edit' : 'add');
+    adminShowValidationErrors([]);
+    document.getElementById('m-name').value = form.name || '';
+    document.getElementById('m-price').value = form.price || '';
+    document.getElementById('m-desc').value = form.desc || '';
+    document.getElementById('m-hide-main').checked = !!form.hideMain;
+    document.getElementById('m-hide-main-details').checked = !!form.hideMainDet;
+    document.getElementById('m-main-pos').value = form.mainPos || 'end';
+    document.getElementById('m-main-pos-container').style.display = form.hideMainDet ? 'none' : 'flex';
+    document.getElementById('m-hide-main-placeholder').checked = !!form.hidePlaceholder;
+    existingImageUrls = [...(form.images || [])];
+    existingSpinUrls = [...(form.spins || [])];
+    existingPanoramaUrls = [...(form.panos || [])];
+    existingVideoUrls = (form.videos || []).filter(v => v && v.url).map(v => ({ url: v.url, is360: !!v.is360 }));
+    variantBlocks = (form.variants || []).map(adminMapDraftVariantToBlock);
+    syncAdmin360PanelVisibility();
+    const mainIs360 = document.getElementById('m-is360');
+    if (mainIs360) {
+        mainIs360.checked = !!form.is360;
+        toggle360Badge('base', !!form.is360);
+    }
+    const mainIs360Panorama = document.getElementById('m-is360-panorama');
+    if (mainIs360Panorama) {
+        mainIs360Panorama.checked = !!form.is360Pano;
+        toggle360PanoramaBadge('base', !!form.is360Pano);
+    }
+    if (typeof hydrateGlobalStockForm === 'function') {
+        hydrateGlobalStockForm({
+            trackGlobalStock: !!form.trackGlobal,
+            globalStockCount: parseInt(form.globalQty, 10) || 0
+        });
+    }
+    const trackChk = document.getElementById('m-track-global-stock');
+    const qtyEl = document.getElementById('m-global-stock-qty');
+    if (trackChk) trackChk.checked = !!form.trackGlobal;
+    if (qtyEl) qtyEl.value = form.globalQty || '0';
+    if (typeof toggleGlobalStockUI === 'function') toggleGlobalStockUI();
+    renderImagePreviews('base');
+    renderSpinPreviews('base');
+    renderPanoramaPreviews('base');
+    renderVideoPreviews('base');
+    renderVariantBlocks();
+    if (typeof renderProductCategoryCheckboxes === 'function') {
+        renderProductCategoryCheckboxes(form.categoryIds || []);
+    }
+    syncAdmin360AccordionSummary('base');
+    syncAdminMediaStatus('base');
+    adminResetProductSnapshot();
+}
+
+function persistProductDraft() {
+    const modal = document.getElementById('prod-modal');
+    if (!modal || modal.style.display !== 'flex') return;
+    if (!adminIsProductDirty()) {
+        const existing = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
+        if (existing?.type === 'product' && typeof adminDraftClear === 'function') adminDraftClear();
+        return;
+    }
+    const form = adminBuildProductDraftPayload();
+    const draft = {
+        v: 1,
+        type: 'product',
+        updatedAt: Date.now(),
+        entityId: form.editingId,
+        label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
+        form
+    };
+    if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
+    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
+}
+window.persistProductDraft = persistProductDraft;
+
+function discardProductDraft(silent) {
+    adminProductSnapshot = null;
+    if (typeof adminDraftClear === 'function') adminDraftClear();
+    if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
+    closeModal('prod-modal');
+    if (!silent) showToast('Product draft discarded.');
+}
+window.discardProductDraft = discardProductDraft;
+
+function adminBindProductDraftListeners() {
+    const modal = document.getElementById('prod-modal');
+    if (!modal || modal.dataset.draftBound) return;
+    modal.dataset.draftBound = '1';
+    modal.addEventListener('input', () => {
+        if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
+    });
+    modal.addEventListener('change', () => {
+        if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
+    });
+}
+
+function adminTryRestoreProductDraft() {
+    const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
+    if (!draft || draft.type !== 'product' || !draft.form) return false;
+    document.getElementById('prod-modal').style.display = 'flex';
+    applyProductDraftForm(draft.form);
+    if (draft.form.hasPendingFiles) {
+        showToast('Draft restored — re-upload any files that were not saved.');
+    } else {
+        showToast('Recovered unsaved product draft.');
+    }
+    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
+    return true;
 }
 
 function adminResetProductSnapshot() {
@@ -647,7 +859,15 @@ function adminIsProductDirty() {
     return adminProductSnapshot !== adminSerializeProductForm();
 }
 
-function closeProductModal() {
+async function closeProductModal() {
+    if (typeof adminGuardProductLeave === 'function') {
+        await adminGuardProductLeave('Save product changes before closing?', () => {
+            adminProductSnapshot = null;
+            if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
+            closeModal('prod-modal');
+        });
+        return;
+    }
     if (adminIsProductDirty()) {
         if (!confirm('You have unsaved changes. Close without saving?')) return;
     }
@@ -1553,6 +1773,7 @@ function handleVideoFileSelect(input, vId) {
         const card = wrap?.querySelectorAll('.admin-video-card')[newIndex];
         if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 120);
+    if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
 }
 
 function dismissVideoFrameOffer(targetId, index) {
@@ -1951,6 +2172,7 @@ function handleFileSelect(input, vId) {
     }
     renderImagePreviews(vId);
     input.value = '';
+    if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
 }
 
 function handleSwatchSelect(input, vId) {
@@ -2216,7 +2438,15 @@ window.loadMoreAdminProducts = function() {
     goAdminProductsPage((window.adminProductsPage || 1) + 1);
 };
 
-function openEdit(id) { 
+function openEdit(id) {
+    if (typeof adminDraftRead === 'function') {
+        const draft = adminDraftRead();
+        if (draft?.type === 'product' && draft.form?.editingId === id) {
+            adminTryRestoreProductDraft();
+            adminBindProductDraftListeners();
+            return;
+        }
+    }
     editingId = id; 
     const p = products.find(x => x.id === id);
     if (!p) return showToast('Product not found.');
@@ -2337,6 +2567,7 @@ function openEdit(id) {
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex';
     adminResetProductSnapshot();
+    adminBindProductDraftListeners();
 }
 
 function toggle360Badge(id, checked) {
@@ -2368,7 +2599,13 @@ function syncAdmin360PanelVisibility() {
 }
 window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
 
-function openAdd() { 
+function openAdd() {
+    const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
+    if (draft?.type === 'product' && !draft.form?.editingId) {
+        adminTryRestoreProductDraft();
+        adminBindProductDraftListeners();
+        return;
+    }
     editingId = null; 
     adminSetModalTitle('add');
     adminShowValidationErrors([]);
@@ -2414,6 +2651,7 @@ function openAdd() {
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex';
     adminResetProductSnapshot();
+    adminBindProductDraftListeners();
 }
 
 function renderImagePreviews(targetId = 'base') { 
@@ -3063,6 +3301,7 @@ async function saveProduct() {
         
         adminHideSaveProgress();
         adminProductSnapshot = null;
+        if (typeof adminDraftClear === 'function') adminDraftClear();
         showToast(editingId ? 'Product updated!' : 'Product created!');
         closeModal('prod-modal'); 
     } catch(e) { 

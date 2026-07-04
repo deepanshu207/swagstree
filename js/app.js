@@ -321,7 +321,7 @@ function updateWhatsAppVisibility() {
 }
 
 // 4. NAVIGATION SYSTEM
-function navigateTo(id, el) { 
+function navigateToCore(id, el) { 
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active')); 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); 
     document.getElementById(id + '-view').classList.add('active'); 
@@ -440,6 +440,14 @@ function navigateTo(id, el) {
 
     // Update WhatsApp floating icon visibility based on current tab and user role
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+}
+
+function navigateTo(id, el) {
+    if (typeof adminTryNavigateAway === 'function') {
+        adminTryNavigateAway(id, () => navigateToCore(id, el));
+        return;
+    }
+    navigateToCore(id, el);
 }
 window.navigateTo = navigateTo;
 
