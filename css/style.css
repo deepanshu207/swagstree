@@ -2318,6 +2318,135 @@ body {
     transform: rotate(90deg);
 }
 
+/* Admin product list rows */
+.admin-product-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: #111;
+    padding: 12px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+    border: 1px solid #222;
+}
+
+.admin-product-thumb-wrap {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.admin-product-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+}
+
+.admin-product-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.admin-product-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.admin-product-name {
+    font-size: 14px;
+    line-height: 1.25;
+    color: #fff;
+    word-break: break-word;
+}
+
+.admin-product-cat {
+    font-size: 9px;
+    color: var(--gold);
+    background: rgba(255,215,0,0.08);
+    border: 1px solid rgba(255,215,0,0.2);
+    padding: 2px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.admin-product-oos {
+    font-size: 9px;
+    font-weight: 800;
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
+    border: 1px solid rgba(255, 77, 77, 0.25);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.admin-product-stock {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.admin-stock-badge {
+    font-size: 9px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-weight: 600;
+    line-height: 1.25;
+    display: inline-block;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.admin-stock-badge--tracked {
+    color: #ffd700;
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.22);
+}
+
+.admin-stock-badge--unlimited {
+    color: #aaa;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-stock-badge--oos {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.1);
+    border: 1px solid rgba(255, 77, 77, 0.22);
+}
+
+.admin-stock-badge--more {
+    color: #888;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.admin-product-actions {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.admin-product-actions .fa-copy { color: #aaa; cursor: pointer; }
+.admin-product-actions .fa-edit { color: var(--gold); cursor: pointer; }
+.admin-product-actions .fa-trash { color: var(--red); cursor: pointer; }
+
 .admin-guide-body {
     padding: 0 12px 10px;
     display: flex;
@@ -4050,7 +4179,7 @@ body.media-viewer-open .bottom-nav {
     inset: 0;
     width: 100%;
     height: 100%;
-    z-index: 2;
+    z-index: 6;
 }
 
 .mv-panorama .video-js {
@@ -4059,6 +4188,10 @@ body.media-viewer-open .bottom-nav {
 }
 
 .mv-panorama .pnlm-container {
+    background: #0a0a0a !important;
+}
+
+.mv-panorama .pnlm-render-container {
     background: #0a0a0a !important;
 }
 

@@ -820,6 +820,28 @@ function loadPannellumAssets() {
     return pannellumLoadPromise;
 }
 
+function mvResolveMediaUrl(url) {
+    if (!url) return url;
+    if (/^https?:\/\//i.test(url)) return url;
+    const base = window.location.origin + '/';
+    return new URL(String(url).replace(/^\//, ''), base).href;
+}
+window.mvResolveMediaUrl = mvResolveMediaUrl;
+
+function mvShowLoader(message = 'Loading...') {
+    const loader = document.getElementById('mv-loader');
+    const status = document.getElementById('mv-load-status');
+    if (loader) loader.style.display = 'flex';
+    if (status) status.textContent = message;
+}
+
+function mvHideLoader() {
+    const loader = document.getElementById('mv-loader');
+    const status = document.getElementById('mv-load-status');
+    if (loader) loader.style.display = 'none';
+    if (status) status.textContent = 'Loading...';
+}
+
 function mvDismissGuide() {
     mvState.guideShown = true;
     const guide = document.getElementById('mv-guide');
@@ -949,24 +971,59 @@ function destroyPanoramaViewer() {
 
 async function initPanoramaViewer(url) {
     if (!url) return;
+    const absoluteUrl = mvResolveMediaUrl(url);
     await loadPannellumAssets();
     destroyPanoramaViewer();
+    destroyVideo360Viewer();
     const imgEl = document.getElementById('mv-image');
     const vidEl = document.getElementById('mv-video');
     const panoEl = document.getElementById('mv-panorama');
-    const loader = document.getElementById('mv-loader');
     const guide = document.getElementById('mv-guide');
     if (imgEl) imgEl.style.display = 'none';
     if (vidEl) { vidEl.style.display = 'none'; vidEl.pause(); }
     if (!panoEl) return;
-    if (loader) loader.style.display = 'flex';
+
+    mvShowLoader('Loading panorama...');
     if (guide) guide.style.display = 'flex';
     panoEl.style.display = 'block';
+
+    try {
+        await new Promise((resolve, reject) => {
+            const img = new Image();
+            const timer = setTimeout(() => reject(new Error('Panorama image timed out')), 20000);
+            img.onload = () => { clearTimeout(timer); resolve(); };
+            img.onerror = () => { clearTimeout(timer); reject(new Error('Panorama image failed to load')); };
+            img.src = absoluteUrl;
+        });
+    } catch (e) {
+        mvHideLoader();
+        console.error('Panorama preload error:', e, absoluteUrl);
+        showToast('Could not load immersive 360° image.');
+        throw e;
+    }
+
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
     return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (fn) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(fallbackTimer);
+            fn();
+        };
+        const fallbackTimer = setTimeout(() => {
+            mvHideLoader();
+            console.warn('Panorama viewer load timeout:', absoluteUrl);
+            showToast('Panorama is taking too long — try another scene.');
+            finish(() => reject(new Error('Panorama viewer timeout')));
+        }, 15000);
+
         try {
+            panoEl.innerHTML = '';
             mvState.pannellumInstance = window.pannellum.viewer('mv-panorama', {
                 type: 'equirectangular',
-                panorama: url,
+                panorama: absoluteUrl,
                 autoLoad: true,
                 showControls: false,
                 mouseZoom: true,
@@ -977,20 +1034,20 @@ async function initPanoramaViewer(url) {
                 maxHfov: 120,
                 backgroundColor: [10, 10, 10],
                 onLoad: () => {
-                    if (loader) loader.style.display = 'none';
+                    mvHideLoader();
                     setTimeout(mvDismissGuide, 1200);
-                    resolve();
+                    finish(() => resolve());
                 },
                 onError: (msg) => {
-                    if (loader) loader.style.display = 'none';
-                    console.error('Panorama load error:', msg);
+                    mvHideLoader();
+                    console.error('Panorama load error:', msg, absoluteUrl);
                     showToast('Could not load immersive 360° image.');
-                    reject(new Error(String(msg)));
+                    finish(() => reject(new Error(String(msg))));
                 }
             });
         } catch (e) {
-            if (loader) loader.style.display = 'none';
-            reject(e);
+            mvHideLoader();
+            finish(() => reject(e));
         }
     });
 }
@@ -1036,7 +1093,7 @@ function openMediaViewer(opts = {}) {
     mvState.images = opts.images || [];
     mvState.imageIndex = opts.startIndex || 0;
     mvState.spinFrames = opts.spinFrames || [];
-    mvState.panoramaImages = opts.panoramaImages || [];
+    mvState.panoramaImages = (opts.panoramaImages || []).map(u => mvResolveMediaUrl(u));
     mvState.panoramaIndex = opts.panoramaIndex || 0;
     mvState.spinRows = 1;
     mvState.spinCols = mvState.spinFrames.length || 1;
@@ -1120,6 +1177,7 @@ function openMediaViewer(opts = {}) {
     mvUpdatePanoramaSceneNav();
 
     if (isPanorama && hasPano) {
+        mvHideLoader();
         initPanoramaViewer(mvState.panoramaImages[mvState.panoramaIndex]).catch(() => {});
     } else if (isVideo360 && mvState.videoUrl) {
         initVideo360Viewer(mvState.videoUrl).catch(() => {});
@@ -1133,19 +1191,21 @@ function openMediaViewer(opts = {}) {
 window.openMediaViewer = openMediaViewer;
 
 function preloadMediaFrames(urls) {
-    const loader = document.getElementById('mv-loader');
-    const status = document.getElementById('mv-load-status');
-    if (loader) loader.style.display = 'flex';
+    if (mvState.mode !== 'spin360') return;
+    mvShowLoader('Loading spin frames...');
     let loaded = 0;
     const total = urls.length;
     urls.forEach(url => {
         const img = new Image();
         img.onload = img.onerror = () => {
             loaded++;
-            if (status) status.textContent = `Loading ${Math.round((loaded / total) * 100)}%`;
-            if (loaded >= total && loader) loader.style.display = 'none';
+            const status = document.getElementById('mv-load-status');
+            if (status && mvState.mode === 'spin360') {
+                status.textContent = `Loading ${Math.round((loaded / total) * 100)}%`;
+            }
+            if (loaded >= total && mvState.mode === 'spin360') mvHideLoader();
         };
-        img.src = url;
+        img.src = mvResolveMediaUrl(url);
     });
 }
 
@@ -1250,6 +1310,8 @@ function mediaViewerSwitchMode(mode) {
     if (mode === 'panorama360' && mvState.panoramaImages.length >= 1) {
         stopMediaAutoSpin();
         cancelAnimationFrame(mvState.momentumId);
+        mvHideLoader();
+        destroyVideo360Viewer();
         mvState.mode = 'panorama360';
         mvState.guideShown = false;
         const btnSpin = document.getElementById('mv-btn-spin');
@@ -1557,9 +1619,9 @@ function open360Viewer(prodId) {
         ? window.detailGalleryImages
         : (p.images || []);
     openMediaViewer({
-        mode: hasSpin ? 'spin360' : 'panorama360',
+        mode: hasPano && !hasSpin ? 'panorama360' : (hasSpin ? 'spin360' : 'panorama360'),
         spinFrames: media.spinFrames || [],
-        panoramaImages: media.panoramaImages || [],
+        panoramaImages: (media.panoramaImages || []).map(mvResolveMediaUrl),
         spinCols: media.spinCols,
         spinRows: media.spinRows,
         images: galleryImages,

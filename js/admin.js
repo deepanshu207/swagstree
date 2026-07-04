@@ -677,9 +677,9 @@ const DEMO_360_SPIN_FRAMES = Array.from({ length: 16 }, (_, i) =>
     `assets/demo/360/spin/${String(i + 1).padStart(2, '0')}.jpg`
 );
 const DEMO_360_PANORAMAS = [
-    'assets/demo/360/panorama/cerro-toco.jpg',
-    'assets/demo/360/panorama/alma.jpg',
-    'assets/demo/360/panorama/equirectangular-sw.jpg'
+    'https://pannellum.org/images/cerro-toco-0.jpg',
+    'https://raw.githubusercontent.com/mpetroff/pannellum/master/examples/examplepano.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg'
 ];
 const DEMO_360_VIDEO = {
     url: 'https://pannellum.org/images/video/jfk.mp4',
@@ -908,33 +908,25 @@ function renderAdmin() {
                 : false);
 
         let stockHtml = '';
-        if (p.trackGlobalStock || activeVariants.length > 0) {
-            stockHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;">`;
-            const renderStockBadge = (label, stock, tracking) => {
-                let badgeColor = '#888';
-                let badgeBg = 'rgba(255,255,255,0.05)';
-                let border = '1px solid rgba(255,255,255,0.1)';
-                let text = '';
-                if (tracking) {
-                    if (stock <= 0) {
-                        badgeColor = '#ff4d4d';
-                        badgeBg = 'rgba(255, 77, 77, 0.1)';
-                        border = '1px solid rgba(255, 77, 77, 0.2)';
-                        text = `${label}: 0 Left (OOS)`;
-                    } else {
-                        badgeColor = '#FFD700';
-                        badgeBg = 'rgba(255, 215, 0, 0.05)';
-                        border = '1px solid rgba(255, 215, 0, 0.2)';
-                        text = `${label}: ${stock} Left`;
-                    }
+        const stockBadges = [];
+        const pushStockBadge = (label, stock, tracking) => {
+            let cls = 'admin-stock-badge admin-stock-badge--unlimited';
+            let text = `${label}: Unlimited`;
+            if (tracking) {
+                if (stock <= 0) {
+                    cls = 'admin-stock-badge admin-stock-badge--oos';
+                    text = `${label}: 0 left`;
                 } else {
-                    text = `${label}: Unlimited`;
+                    cls = 'admin-stock-badge admin-stock-badge--tracked';
+                    text = `${label}: ${stock} left`;
                 }
-                stockHtml += `<span style="font-size:10px; padding:2px 6px; border-radius:4px; color:${badgeColor}; background:${badgeBg}; border:${border}; font-weight:600; text-transform:uppercase; white-space:normal; display:inline-block; max-width:100%; word-break:break-word;">${text}</span>`;
-            };
+            }
+            stockBadges.push(`<span class="${cls}">${text}</span>`);
+        };
 
+        if (p.trackGlobalStock || activeVariants.length > 0) {
             if (p.trackGlobalStock) {
-                renderStockBadge('Product global', parseInt(p.globalStockCount, 10) || 0, true);
+                pushStockBadge('Global stock', parseInt(p.globalStockCount, 10) || 0, true);
             }
 
             activeVariants.forEach(v => {
@@ -947,40 +939,48 @@ function renderAdmin() {
                 else if (v.color) nameParts.push(v.color);
                 if (v.patternName) nameParts.push(v.patternName);
                 else if (v.pattern) nameParts.push(v.pattern);
-                const varName = (skus.length === 1 ? skus[0].label : nameParts.join(' / ')) || 'Standard';
+                const varName = (skus.length === 1 ? skus[0].label : nameParts.join(' · ')) || 'Standard';
 
                 if (mode === 'combo' && skus.length > 1) {
                     skus.forEach(sku => {
-                        const stock = getVariantSkuStock(v, sku.key);
-                        renderStockBadge(sku.label, stock, true);
+                        pushStockBadge(sku.label, getVariantSkuStock(v, sku.key), true);
                     });
                 } else if (mode === 'combo' && skus.length === 1) {
-                    renderStockBadge(varName, getVariantSkuStock(v, skus[0].key), true);
+                    pushStockBadge(varName, getVariantSkuStock(v, skus[0].key), true);
                 } else if (mode === 'block') {
-                    renderStockBadge(`${varName} (block)`, getVariantBlockStockCount(v), true);
+                    pushStockBadge(varName, getVariantBlockStockCount(v), true);
                 } else if (!p.trackGlobalStock) {
-                    renderStockBadge(varName, 0, false);
+                    pushStockBadge(varName, 0, false);
                 }
             });
-            stockHtml += `</div>`;
+        }
+
+        const maxStockBadges = 5;
+        if (stockBadges.length) {
+            const visible = stockBadges.slice(0, maxStockBadges);
+            const extra = stockBadges.length - maxStockBadges;
+            stockHtml = `<div class="admin-product-stock">${visible.join('')}${extra > 0 ? `<span class="admin-stock-badge admin-stock-badge--more">+${extra} more</span>` : ''}</div>`;
         }
 
         const catLabel = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : (p.categoryName || '');
+        const safeName = (p.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         return `
-        <div style="display:flex; align-items:center; gap:12px; background:#111; padding:12px; border-radius:15px; margin-bottom:12px; border:1px solid #222">
-            <img src="${thumbUrl}" style="width:40px;height:40px;border-radius:5px;object-fit:cover">
-            <div style="flex:1; display:flex; flex-direction:column; gap:4px; min-width:0;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                    <b>${p.name}</b>
-                    ${catLabel ? `<span style="font-size:10px; color:var(--gold); background:rgba(255,215,0,0.08); border:1px solid rgba(255,215,0,0.2); padding:2px 8px; border-radius:999px;">${typeof escapeCategoryHtml === 'function' ? escapeCategoryHtml(catLabel) : catLabel}</span>` : ''}
-                    ${isOutOfStock ? `<span style="background:rgba(255, 77, 77, 0.15); color:#ff4d4d; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; border:1px solid rgba(255, 77, 77, 0.3); letter-spacing:0.5px; text-transform:uppercase; display:inline-block;">OUT OF STOCK</span>` : ''}
+        <div class="admin-product-row">
+            <div class="admin-product-thumb-wrap">
+                <img src="${thumbUrl}" class="admin-product-thumb" alt="" loading="lazy">
+            </div>
+            <div class="admin-product-body">
+                <div class="admin-product-title-row">
+                    <b class="admin-product-name">${safeName}</b>
+                    ${catLabel ? `<span class="admin-product-cat">${typeof escapeCategoryHtml === 'function' ? escapeCategoryHtml(catLabel) : catLabel}</span>` : ''}
+                    ${isOutOfStock ? `<span class="admin-product-oos">Out of stock</span>` : ''}
                 </div>
                 ${stockHtml}
             </div>
-            <div style="display:flex; gap:15px; align-items:center;">
-                <i class="fa fa-copy" style="color:#aaa; cursor:pointer;" title="Copy Product" onclick="copyProduct('${p.id}')"></i>
-                <i class="fa fa-edit" style="color:var(--gold); cursor:pointer" onclick="openEdit('${p.id}')"></i>
-                <i class="fa fa-trash" style="color:var(--red); cursor:pointer" onclick="if(confirm('Delete?')) db.collection('products').doc('${p.id}').delete()"></i>
+            <div class="admin-product-actions">
+                <i class="fa fa-copy" title="Copy Product" onclick="copyProduct('${p.id}')"></i>
+                <i class="fa fa-edit" title="Edit" onclick="openEdit('${p.id}')"></i>
+                <i class="fa fa-trash" title="Delete" onclick="if(confirm('Delete?')) db.collection('products').doc('${p.id}').delete()"></i>
             </div>
         </div>
     `}).join(''); 
