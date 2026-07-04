@@ -495,7 +495,61 @@ function mergeStoredVideos(listA, listB) {
 
 if (typeof window.currentProductFiles === 'undefined') window.currentProductFiles = [];
 
-if (typeof window.editingProductsLimit === 'undefined') window.editingProductsLimit = 20;
+if (typeof window.adminProductsPageLimitSetting === 'undefined') window.adminProductsPageLimitSetting = 20;
+if (typeof window.adminProductsPage === 'undefined') window.adminProductsPage = 1;
+
+function getAdminProductsPageSize() {
+    const n = parseInt(window.adminProductsPageLimitSetting, 10);
+    return (!n || n < 1) ? 20 : n;
+}
+
+function renderAdminProductsPagination(totalFiltered) {
+    const container = document.getElementById('admin-load-more-container');
+    if (!container) return;
+    const pageSize = getAdminProductsPageSize();
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+    let page = window.adminProductsPage || 1;
+    if (page > totalPages) {
+        page = totalPages;
+        window.adminProductsPage = page;
+    }
+    if (!totalFiltered) {
+        container.innerHTML = '';
+        return;
+    }
+    if (totalPages <= 1) {
+        container.innerHTML = `
+            <div class="admin-products-pagination admin-products-pagination--single">
+                <span class="admin-products-page-info">${totalFiltered} product${totalFiltered === 1 ? '' : 's'}</span>
+            </div>`;
+        return;
+    }
+    const start = (page - 1) * pageSize + 1;
+    const end = Math.min(page * pageSize, totalFiltered);
+    container.innerHTML = `
+        <div class="admin-products-pagination">
+            <button type="button" class="admin-products-page-btn" ${page <= 1 ? 'disabled' : ''} onclick="goAdminProductsPage(${page - 1})" aria-label="Previous page">
+                <i class="fa fa-chevron-left"></i> Prev
+            </button>
+            <span class="admin-products-page-info">
+                Page ${page} of ${totalPages}<br>
+                Showing ${start}–${end} of ${totalFiltered} product${totalFiltered === 1 ? '' : 's'}
+            </span>
+            <button type="button" class="admin-products-page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="goAdminProductsPage(${page + 1})" aria-label="Next page">
+                Next <i class="fa fa-chevron-right"></i>
+            </button>
+        </div>`;
+}
+
+function goAdminProductsPage(page) {
+    const totalFiltered = adminGetFilteredProducts().length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / getAdminProductsPageSize()));
+    window.adminProductsPage = Math.max(1, Math.min(totalPages, page));
+    renderAdmin();
+    const anchor = document.getElementById('admin-products-section') || document.getElementById('admin-list');
+    if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.goAdminProductsPage = goAdminProductsPage;
 if (typeof window.adminProductSearchQuery === 'undefined') window.adminProductSearchQuery = '';
 if (typeof window.adminProductFilter === 'undefined') window.adminProductFilter = 'all';
 const adminExpandedStockProductIds = new Set();
@@ -568,7 +622,7 @@ function adminFilterProducts() {
     const filterEl = document.getElementById('admin-product-filter');
     adminProductSearchQuery = searchEl ? searchEl.value : '';
     adminProductFilter = filterEl ? filterEl.value : 'all';
-    editingProductsLimit = 20;
+    window.adminProductsPage = 1;
     renderAdmin();
 }
 window.adminFilterProducts = adminFilterProducts;
@@ -1841,27 +1895,33 @@ function renderAdmin() {
     let itemsToRender = adminGetFilteredProducts();
     const totalFiltered = itemsToRender.length;
     const totalAll = products.length;
+    const pageSize = getAdminProductsPageSize();
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+    if ((window.adminProductsPage || 1) > totalPages) window.adminProductsPage = totalPages;
+    const page = window.adminProductsPage || 1;
+    const pageStart = (page - 1) * pageSize;
     
     if (countContainer) {
-        const visible = Math.min(totalFiltered, editingProductsLimit);
         const filterNote = totalFiltered !== totalAll ? ` (filtered from ${totalAll})` : '';
-        countContainer.textContent = totalFiltered > 0
-            ? `${visible < totalFiltered ? `Showing ${visible} of ` : ''}${totalFiltered} product${totalFiltered === 1 ? '' : 's'}${filterNote}`
-            : (totalAll ? 'No matches' : '0 products');
+        if (!totalFiltered) {
+            countContainer.textContent = totalAll ? 'No matches' : '0 products';
+        } else if (totalPages > 1) {
+            const visibleEnd = Math.min(pageStart + pageSize, totalFiltered);
+            countContainer.textContent = `Page ${page}/${totalPages} · ${pageStart + 1}–${visibleEnd} of ${totalFiltered}${filterNote}`;
+        } else {
+            countContainer.textContent = `${totalFiltered} product${totalFiltered === 1 ? '' : 's'}${filterNote}`;
+        }
         countContainer.style.display = 'inline-flex';
     }
     
-    if (totalFiltered > editingProductsLimit) {
-        itemsToRender = itemsToRender.slice(0, editingProductsLimit);
-        if (loadMoreContainer) {
-            loadMoreContainer.innerHTML = `<button class="btn-gold" style="width:auto; min-width:180px; margin:auto;" onclick="loadMoreAdminProducts()">Show More (${Math.min(editingProductsLimit, totalFiltered)} / ${totalFiltered})</button>`;
-        }
-    } else {
-        if (loadMoreContainer) loadMoreContainer.innerHTML = '';
+    if (totalFiltered > pageSize) {
+        itemsToRender = itemsToRender.slice(pageStart, pageStart + pageSize);
     }
+    renderAdminProductsPagination(totalFiltered);
     
     if (!itemsToRender.length && products.length > 0) {
         container.innerHTML = `<div class="admin-product-empty">No products match your search. <button type="button" class="admin-product-empty__clear" onclick="document.getElementById('admin-product-search').value='';document.getElementById('admin-product-filter').value='all';adminFilterProducts();">Clear filters</button></div>`;
+        if (loadMoreContainer) loadMoreContainer.innerHTML = '';
         if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
         return;
     }
@@ -1992,10 +2052,9 @@ function renderAdmin() {
     if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
 }
 
-function loadMoreAdminProducts() {
-    editingProductsLimit += 20;
-    renderAdmin();
-}
+window.loadMoreAdminProducts = function() {
+    goAdminProductsPage((window.adminProductsPage || 1) + 1);
+};
 
 function openEdit(id) { 
     editingId = id; 
@@ -3139,7 +3198,7 @@ window.loadPaginationSettings = async function() {
         if (snap.exists) {
             const data = snap.data();
             
-            // Products limit
+            // Storefront products limit
             if (typeof data.limit !== 'undefined') {
                 const val = data.limit;
                 const inp = document.getElementById('admin-products-page-limit');
@@ -3147,6 +3206,15 @@ window.loadPaginationSettings = async function() {
                 if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
                 if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
                 if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+            }
+
+            // Admin catalog list limit
+            const adminVal = typeof data.adminProductsLimit !== 'undefined' ? data.adminProductsLimit : data.limit;
+            if (typeof adminVal !== 'undefined') {
+                const val = adminVal;
+                const inpAdmin = document.getElementById('admin-editing-products-page-limit');
+                if (inpAdmin) inpAdmin.value = val;
+                window.adminProductsPageLimitSetting = val;
             }
             
             // Orders limit
@@ -3178,6 +3246,7 @@ window.loadPaginationSettings = async function() {
 
 window.savePaginationSettings = async function() {
     const inp = document.getElementById('admin-products-page-limit');
+    const inpAdmin = document.getElementById('admin-editing-products-page-limit');
     const inpOrders = document.getElementById('admin-orders-page-limit');
     const inpCustomers = document.getElementById('admin-customers-page-limit');
     
@@ -3186,6 +3255,13 @@ window.savePaginationSettings = async function() {
         val = parseInt(inp.value, 10);
         if (isNaN(val) || val < 1) val = 20;
         inp.value = val;
+    }
+
+    let valAdmin = 20;
+    if (inpAdmin) {
+        valAdmin = parseInt(inpAdmin.value, 10);
+        if (isNaN(valAdmin) || valAdmin < 1) valAdmin = 20;
+        inpAdmin.value = valAdmin;
     }
     
     let valOrders = 20;
@@ -3203,12 +3279,14 @@ window.savePaginationSettings = async function() {
     }
     
     try {
-        const payload = { limit: val, ordersLimit: valOrders, customersLimit: valCustomers };
+        const payload = { limit: val, adminProductsLimit: valAdmin, ordersLimit: valOrders, customersLimit: valCustomers };
         await db.collection('settings').doc('pagination').set(payload, { merge: true });
         
         if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
         if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
         if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
+        window.adminProductsPageLimitSetting = valAdmin;
+        window.adminProductsPage = 1;
         
         if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = valOrders;
         if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = valOrders;
@@ -3222,6 +3300,7 @@ window.savePaginationSettings = async function() {
         if (typeof loadOrders === 'function') loadOrders();
         if (typeof filterSuperCustomers === 'function') filterSuperCustomers();
         if (typeof filterAllCustomers === 'function') filterAllCustomers();
+        if (typeof renderAdmin === 'function') renderAdmin();
     } catch(e) {
         console.error('savePaginationSettings error:', e);
         showToast('Failed to save pagination settings');

@@ -527,14 +527,23 @@ function updateAdminCategoryCountBadge(count) {
 
 function openAdminCategoryAccordion() {
     const content = document.getElementById('admin-category-accordion-content');
+    const icon = document.getElementById('admin-category-accordion-icon');
     if (!content) return;
     content.style.display = 'flex';
+    if (icon) icon.style.transform = 'rotate(0deg)';
 }
 
 window.toggleAdminCategoryAccordion = function() {
     const content = document.getElementById('admin-category-accordion-content');
+    const icon = document.getElementById('admin-category-accordion-icon');
     if (!content) return;
-    content.style.display = content.style.display === 'none' ? 'flex' : 'none';
+
+    if (content.style.display === 'none' || !content.style.display) {
+        openAdminCategoryAccordion();
+    } else {
+        content.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(-90deg)';
+    }
 };
 
 function updateCategoryFormMode() {
@@ -829,7 +838,6 @@ function loadProductCategories() {
             : [];
         renderProductCategoryCheckboxes(selected);
         renderAdminCategoryList();
-        openAdminCategoryAccordion();
         renderHomeCategoryBar();
         renderWishCategoryBar();
         renderCategoryFilterChips();

@@ -7225,6 +7225,52 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin-bottom: 0 !important;
 }
 
+.admin-products-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 4px 20px 0;
+}
+
+.admin-products-pagination--single {
+    justify-content: center;
+}
+
+.admin-products-page-btn {
+    border: 1px solid #333;
+    background: #151515;
+    color: #ccc;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 72px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.admin-products-page-btn:not(:disabled):hover {
+    border-color: rgba(255, 215, 0, 0.35);
+    color: var(--gold);
+}
+
+.admin-products-page-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.admin-products-page-info {
+    font-size: 11px;
+    color: #888;
+    text-align: center;
+    line-height: 1.45;
+}
+
 @media (max-width: 600px) {
     .admin-store-tools-header h4 {
         font-size: 12px !important;
