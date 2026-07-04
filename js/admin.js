@@ -1317,7 +1317,7 @@ async function adminExtractFramesFromVideoUrl(url, frameCount = 16, opts = {}) {
     if (!duration || !isFinite(duration) || duration <= 0) {
         throw new Error('Could not read video duration');
     }
-    const maxW = 1920;
+    const maxW = 1280;
     let w = video.videoWidth || 1280;
     let h = video.videoHeight || 720;
     if (!w || !h) throw new Error('Could not read video dimensions');
@@ -1338,11 +1338,14 @@ async function adminExtractFramesFromVideoUrl(url, frameCount = 16, opts = {}) {
         } catch (e) {
             throw new Error('CORS_BLOCKED');
         }
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
         if (!blob) {
             throw new Error('CORS_BLOCKED');
         }
         files.push(new File([blob], `spin-frame-${String(i + 1).padStart(2, '0')}.jpg`, { type: 'image/jpeg' }));
+        if (typeof opts.onProgress === 'function') {
+            opts.onProgress(Math.round(((i + 1) / frameCount) * 100), i + 1, frameCount);
+        }
     }
     video.pause();
     video.removeAttribute('src');
@@ -1385,7 +1388,7 @@ function adminScrollToSpinSection(targetId) {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
+async function extractVideoFramesForSpin(targetId, index, frameMode = ADMIN_DEFAULT_FRAME_COUNT) {
     const items = targetId === 'base'
         ? (existingVideoUrls || [])
         : (variantBlocks.find(x => x.id === targetId)?.videos || []);
@@ -1403,26 +1406,58 @@ async function extractVideoFramesForSpin(targetId, index, frameCount = 16) {
     } catch (e) {
         return showToast('Upload the video first.');
     }
-    showToast('Creating rotation frames from video…');
+    let frameCount = ADMIN_DEFAULT_FRAME_COUNT;
     try {
-        const frames = await adminExtractFramesFromVideoUrl(prep.url, frameCount, { useCrossOrigin: prep.useCrossOrigin });
+        if (frameMode === 'auto') {
+            adminSetSaveProgress(0, 'Analyzing video length…');
+            const probeVideo = document.createElement('video');
+            probeVideo.muted = true;
+            probeVideo.playsInline = true;
+            probeVideo.preload = 'auto';
+            if (prep.useCrossOrigin) probeVideo.crossOrigin = 'anonymous';
+            probeVideo.src = prep.url;
+            await adminWaitVideoReady(probeVideo);
+            frameCount = adminAutoFrameCount(probeVideo.duration);
+            probeVideo.removeAttribute('src');
+            probeVideo.load();
+        } else {
+            frameCount = adminClampFrameCount(frameMode);
+        }
+        adminSetSaveProgress(0, `Creating ${frameCount} rotation frames… 0%`);
+        const frames = await adminExtractFramesFromVideoUrl(prep.url, frameCount, {
+            useCrossOrigin: prep.useCrossOrigin,
+            onProgress(pct, done, total) {
+                adminSetSaveProgress(pct, `Creating rotation frames… ${done}/${total} (${pct}%)`);
+            }
+        });
+        adminHideSaveProgress();
         if (!frames.length) return showToast('Could not create frames from this video.');
         adminApplySpinFramesFromVideo(targetId, frames, previousCount);
         syncAdmin360AccordionSummary(targetId);
-        const items = targetId === 'base' ? (existingVideoUrls || []) : (variantBlocks.find(x => x.id === targetId)?.videos || []);
         if (items[index]) items[index]._promptFrames = false;
         renderVideoPreviews(targetId);
     } catch (e) {
+        adminHideSaveProgress();
         console.error('Frame extraction failed:', e);
         if (String(e.message) === 'CORS_BLOCKED') {
-            showToast('Re-upload the video file, then tap Create rotation from video.');
+            showToast('Re-upload the video file, then create rotation frames.');
         } else {
             showToast('Could not create rotation frames from video.');
         }
     } finally {
-        if (prep.revoke) URL.revokeObjectURL(prep.url);
+        if (prep?.revoke) URL.revokeObjectURL(prep.url);
     }
 }
+
+function extractVideoFramesCustom(targetId, index) {
+    const input = document.getElementById(`admin-frame-custom-${targetId}-${index}`);
+    const raw = parseInt(input?.value, 10);
+    if (!raw || raw < ADMIN_MIN_FRAME_COUNT || raw > ADMIN_MAX_FRAME_COUNT) {
+        return showToast(`Enter ${ADMIN_MIN_FRAME_COUNT}–${ADMIN_MAX_FRAME_COUNT} frames.`);
+    }
+    extractVideoFramesForSpin(targetId, index, raw);
+}
+window.extractVideoFramesCustom = extractVideoFramesCustom;
 
 function handleFileSelect(input, vId) {
     if(!input.files || input.files.length === 0) return;
@@ -1906,19 +1941,130 @@ function renderImagePreviews(targetId = 'base') {
     }
 }
 
-// Global helper to upload a file to Cloudinary (images + videos)
-async function uploadToCloudinary(file) {
+// Global helper to upload a file to Cloudinary (images + videos) with optional per-file progress
+function uploadToCloudinary(file, onProgress) {
     const isVideo = file.type && file.type.startsWith('video/');
     const resourceType = isVideo ? 'video' : 'image';
     const fd = new FormData();
-    fd.append("file", file);
-    fd.append("upload_preset", PRESET);
-    const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`, { method: "POST", body: fd });
-    const d = await r.json();
-    if (!d.secure_url) {
-        throw new Error(d.error ? d.error.message : "Cloudinary upload failed");
-    }
-    return d.secure_url;
+    fd.append('file', file);
+    fd.append('upload_preset', PRESET);
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
+        if (xhr.upload && typeof onProgress === 'function') {
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(e.loaded / e.total);
+            };
+        }
+        xhr.onload = () => {
+            try {
+                const d = JSON.parse(xhr.responseText || '{}');
+                if (d.secure_url) resolve(d.secure_url);
+                else reject(new Error(d.error ? d.error.message : 'Cloudinary upload failed'));
+            } catch (e) {
+                reject(new Error('Cloudinary upload failed'));
+            }
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.send(fd);
+    });
+}
+
+const ADMIN_DEFAULT_FRAME_COUNT = 16;
+const ADMIN_MIN_FRAME_COUNT = 8;
+const ADMIN_MAX_FRAME_COUNT = 72;
+
+function adminClampFrameCount(n) {
+    const v = parseInt(n, 10);
+    if (!v || !isFinite(v)) return ADMIN_DEFAULT_FRAME_COUNT;
+    return Math.min(ADMIN_MAX_FRAME_COUNT, Math.max(ADMIN_MIN_FRAME_COUNT, v));
+}
+
+function adminAutoFrameCount(duration) {
+    if (!duration || !isFinite(duration) || duration <= 0) return ADMIN_DEFAULT_FRAME_COUNT;
+    const raw = Math.round(duration * 2);
+    const snapped = Math.min(ADMIN_MAX_FRAME_COUNT, Math.max(ADMIN_MIN_FRAME_COUNT, raw));
+    return snapped % 2 === 0 ? snapped : Math.min(ADMIN_MAX_FRAME_COUNT, snapped + 1);
+}
+
+function adminSetSaveProgress(percent, label) {
+    const wrap = document.getElementById('admin-save-progress');
+    const bar = document.getElementById('admin-save-progress-bar');
+    const text = document.getElementById('admin-save-progress-text');
+    if (wrap) wrap.style.display = 'block';
+    if (bar) bar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    if (text) text.textContent = label || '';
+}
+
+function adminHideSaveProgress() {
+    const wrap = document.getElementById('admin-save-progress');
+    if (wrap) wrap.style.display = 'none';
+    const bar = document.getElementById('admin-save-progress-bar');
+    if (bar) bar.style.width = '0%';
+    const text = document.getElementById('admin-save-progress-text');
+    if (text) text.textContent = '';
+}
+
+async function adminUploadManyFiles(files, onProgress) {
+    if (!files.length) return [];
+    const fileProgress = new Array(files.length).fill(0);
+    let completed = 0;
+    const report = () => {
+        if (!onProgress) return;
+        const sum = fileProgress.reduce((a, b) => a + b, 0);
+        const pct = Math.round((sum / files.length) * 100);
+        onProgress(pct, completed, files.length);
+    };
+    return Promise.all(files.map((file, i) =>
+        uploadToCloudinary(file, (p) => {
+            fileProgress[i] = p;
+            report();
+        }).then(url => {
+            fileProgress[i] = 1;
+            completed++;
+            report();
+            return url;
+        })
+    ));
+}
+
+function adminCreateUploadBatch() {
+    const files = [];
+    return {
+        add(item) {
+            if (item instanceof File) {
+                const index = files.length;
+                files.push(item);
+                return { __uploadIndex: index };
+            }
+            return item;
+        },
+        async run(onProgress) {
+            const urls = files.length ? await adminUploadManyFiles(files, onProgress) : [];
+            return (ref) => {
+                if (ref && typeof ref === 'object' && ref.__uploadIndex !== undefined) {
+                    return urls[ref.__uploadIndex];
+                }
+                return ref;
+            };
+        }
+    };
+}
+
+function adminFrameExtractControlsHtml(targetId, index, compact = false) {
+    const inputId = `admin-frame-custom-${targetId}-${index}`;
+    return `
+        <div class="admin-video-frame-tools${compact ? ' admin-video-frame-tools--compact' : ''}">
+            <div class="admin-video-frame-tools__row">
+                <button type="button" class="admin-media-action-btn admin-media-action-btn--gold" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${index}, ${ADMIN_DEFAULT_FRAME_COUNT})">${ADMIN_DEFAULT_FRAME_COUNT} frames</button>
+                <button type="button" class="admin-media-action-btn" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${index}, 'auto')">Auto</button>
+            </div>
+            <div class="admin-video-frame-tools__custom">
+                <input type="number" id="${inputId}" class="admin-frame-custom-input" min="${ADMIN_MIN_FRAME_COUNT}" max="${ADMIN_MAX_FRAME_COUNT}" value="24" aria-label="Custom frame count" onclick="event.stopPropagation();">
+                <button type="button" class="admin-media-action-btn" onclick="event.stopPropagation(); extractVideoFramesCustom('${targetId}', ${index})">Custom</button>
+            </div>
+            <p class="admin-video-frame-tools__hint">Default ${ADMIN_DEFAULT_FRAME_COUNT} · Auto fits clip length (${ADMIN_MIN_FRAME_COUNT}–${ADMIN_MAX_FRAME_COUNT}) · works with long videos</p>
+        </div>`;
 }
 
 function renderSpinPreviews(targetId = 'base') {
@@ -2081,18 +2227,17 @@ function renderVideoPreviews(targetId = 'base') {
                 ${promptFrames ? `
                 <div class="admin-video-frame-offer">
                     <p>Also add swipe-to-rotate photos from this clip?</p>
-                    <div class="admin-video-frame-offer__actions">
-                        <button type="button" class="admin-media-action-btn admin-media-action-btn--gold" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)">Yes — create 16 frames</button>
-                        <button type="button" class="admin-media-action-btn" onclick="event.stopPropagation(); dismissVideoFrameOffer('${targetId}', ${i})">Not now</button>
-                    </div>
+                    ${adminFrameExtractControlsHtml(targetId, i)}
+                    <button type="button" class="admin-media-action-btn admin-video-frame-offer__dismiss" onclick="event.stopPropagation(); dismissVideoFrameOffer('${targetId}', ${i})">Not now</button>
                 </div>` : ''}
                 <label class="admin-video-card__toggle" onclick="event.stopPropagation();">
                     <input type="checkbox" ${is360 ? 'checked' : ''} onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
                     <span>Play as immersive 360° video <em>(2:1 equirectangular only)</em></span>
                 </label>
-                <button type="button" class="admin-video-card__extract${extractCls}" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${i}, 16)" title="Pulls 16 frames evenly from the video into Rotate Product">
-                    <i class="fa fa-images"></i> Create rotation frames from video (16 stills)
-                </button>
+                <details class="admin-video-card__extract-panel" onclick="event.stopPropagation();">
+                    <summary class="admin-video-card__extract${extractCls}"><i class="fa fa-images"></i> Create rotation frames from video</summary>
+                    ${adminFrameExtractControlsHtml(targetId, i, true)}
+                </details>
                 <p class="admin-video-card__note">Shop: <strong>Video</strong> plays this clip · <strong>Rotate</strong> uses still frames in the 360° accordion below.</p>
             </div>`;
     }).join('');
@@ -2126,97 +2271,46 @@ async function saveProduct() {
 
     const btn = document.getElementById('m-save');
     btn.disabled = true; 
-    btn.innerText = "Processing..."; 
+    btn.innerText = "Saving..."; 
     
     try { 
-        // Upload all base images in parallel (interleaved support)
-        const finalMainImages = await Promise.all(
-            existingImageUrls.map(async img => {
-                if (img instanceof File) return await uploadToCloudinary(img);
-                return img;
-            })
-        );
+        const batch = adminCreateUploadBatch();
+        const finalMainImages = (existingImageUrls || []).map(img => batch.add(img));
+        const finalSpinImages = (existingSpinUrls || []).map(img => batch.add(img));
+        const finalPanoramaImages = (existingPanoramaUrls || []).map(img => batch.add(img));
+        const finalVideos = (existingVideoUrls || []).map(entry => {
+            const n = normalizeStoredVideo(entry);
+            if (!n) return null;
+            const url = n.file instanceof File ? batch.add(n.file) : n.url;
+            if (!url) return null;
+            return { url, is360: !!n.is360 };
+        }).filter(Boolean);
 
-        const finalSpinImages = await Promise.all(
-            (existingSpinUrls || []).map(async img => {
-                if (img instanceof File) return await uploadToCloudinary(img);
-                return img;
-            })
-        );
-
-        const finalPanoramaImages = await Promise.all(
-            (existingPanoramaUrls || []).map(async img => {
-                if (img instanceof File) return await uploadToCloudinary(img);
-                return img;
-            })
-        );
-
-        const finalVideos = await Promise.all(
-            (existingVideoUrls || []).map(async entry => {
-                const n = normalizeStoredVideo(entry);
-                if (!n) return null;
-                let url = n.url;
-                if (n.file instanceof File) url = await uploadToCloudinary(n.file);
-                if (!url) return null;
-                return { url, is360: !!n.is360 };
-            })
-        ).then(list => list.filter(Boolean));
-        
         migrateVariantStockMaps();
 
-        // Upload all variant images and swatches in parallel
-        const parsedVariantsResult = await Promise.all(variantBlocks.map(async v => {
-            const uploadedVariantImages = await Promise.all(
-                (v.images || []).map(async img => {
-                    if (img instanceof File) return await uploadToCloudinary(img);
-                    return img;
-                })
-            );
+        const parsedVariantsResult = variantBlocks.map(v => {
+            const uploadedVariantImages = (v.images || []).map(img => batch.add(img));
+            const uploadedSpinImages = (v.spinImages || []).map(img => batch.add(img));
+            const uploadedPanoramaImages = (v.panoramaImages || []).map(img => batch.add(img));
+            const uploadedVideos = (v.videos || []).map(entry => {
+                const n = normalizeStoredVideo(entry);
+                if (!n) return null;
+                const url = n.file instanceof File ? batch.add(n.file) : n.url;
+                if (!url) return null;
+                return { url, is360: !!n.is360 };
+            }).filter(Boolean);
+            const uploadedPreviewUrls = (v.previewImages || []).map(img => batch.add(img));
 
-            const uploadedSpinImages = await Promise.all(
-                (v.spinImages || []).map(async img => {
-                    if (img instanceof File) return await uploadToCloudinary(img);
-                    return img;
-                })
-            );
-
-            const uploadedPanoramaImages = await Promise.all(
-                (v.panoramaImages || []).map(async img => {
-                    if (img instanceof File) return await uploadToCloudinary(img);
-                    return img;
-                })
-            );
-
-            const uploadedVideos = await Promise.all(
-                (v.videos || []).map(async entry => {
-                    const n = normalizeStoredVideo(entry);
-                    if (!n) return null;
-                    let url = n.url;
-                    if (n.file instanceof File) url = await uploadToCloudinary(n.file);
-                    if (!url) return null;
-                    return { url, is360: !!n.is360 };
-                })
-            ).then(list => list.filter(Boolean));
-            
-            const uploadedPreviewUrls = await Promise.all(
-                (v.previewImages || []).map(async img => {
-                    if (img instanceof File) {
-                        return await uploadToCloudinary(img);
-                    }
-                    return img;
-                })
-            );
-            
             let finalSize = v.size || 'Standard';
             let finalColor = v.color || '';
             let finalColorName = v.colorName || '';
             let finalPattern = v.pattern || '';
             let finalPatternName = v.patternName || '';
-            
+
             if (finalSize === 'Standard' && !finalColor && !finalPattern && uploadedPreviewUrls.length === 0) {
                 return null;
             }
-            
+
             return {
                 size: finalSize,
                 color: finalColor,
@@ -2244,9 +2338,26 @@ async function saveProduct() {
                 images: uploadedVariantImages,
                 previewImages: uploadedPreviewUrls
             };
+        }).filter(x => x !== null);
+
+        const resolve = await batch.run((pct, done, total) => {
+            adminSetSaveProgress(pct, total ? `Uploading ${done}/${total}… ${pct}%` : 'Preparing…');
+        });
+
+        const resolvedMainImages = finalMainImages.map(resolve);
+        const resolvedSpinImages = finalSpinImages.map(resolve);
+        const resolvedPanoramaImages = finalPanoramaImages.map(resolve);
+        const resolvedVideos = finalVideos.map(v => ({ url: resolve(v.url), is360: v.is360 }));
+
+        const parsedVariants = parsedVariantsResult.map(v => ({
+            ...v,
+            images: v.images.map(resolve),
+            spinImages: v.spinImages.map(resolve),
+            panoramaImages: v.panoramaImages.map(resolve),
+            videos: v.videos.map(vid => ({ url: resolve(vid.url), is360: vid.is360 })),
+            previewImages: v.previewImages.map(resolve),
+            threeSixtyCols: v.spinImages.length || v.threeSixtyCols
         }));
-        
-        const parsedVariants = parsedVariantsResult.filter(x => x !== null);
         
         const mergedVariants = [];
         parsedVariants.forEach(v => {
@@ -2315,14 +2426,14 @@ async function saveProduct() {
             hideNoImagePlaceholder: document.getElementById('m-hide-main-placeholder').checked,
             is360: spinEnabled,
             is360Panorama: panoEnabled,
-            threeSixtyCols: finalSpinImages.length || 1,
+            threeSixtyCols: resolvedSpinImages.length || 1,
             threeSixtyRows: 1,
-            spinImages: finalSpinImages,
-            panoramaImages: finalPanoramaImages,
-            videos: finalVideos,
+            spinImages: resolvedSpinImages,
+            panoramaImages: resolvedPanoramaImages,
+            videos: resolvedVideos,
             trackGlobalStock: globalStock.trackGlobalStock,
             globalStockCount: globalStock.globalStockCount,
-            images: finalMainImages,
+            images: resolvedMainImages,
             variants: mergedVariants,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             // Fallback for older legacy UI code (using flatMap for comma separation)
@@ -2344,15 +2455,18 @@ async function saveProduct() {
             });
         });
         
+        adminSetSaveProgress(96, 'Saving to database…');
         if(editingId) {
             await db.collection("products").doc(editingId).update(data); 
         } else {
             await db.collection("products").add(data); 
         }
         
+        adminHideSaveProgress();
         showToast("Saved!"); 
         closeModal('prod-modal'); 
     } catch(e) { 
+        adminHideSaveProgress();
         console.error(e);
         showToast("Error saving product: " + e.message); 
     } 

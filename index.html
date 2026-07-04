@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.6">
+    <link rel="stylesheet" href="css/style.css?v=9.7">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -2503,7 +2503,7 @@
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
-                        <p><strong>Always visible</strong> (not in accordion). Upload → preview clip → optional <strong>Yes, create 16 frames</strong> for Rotate. Video and rotation frames are separate on the shop.</p>
+                        <p><strong>Always visible</strong> (not in accordion). Upload → preview clip → choose <strong>16 frames (default)</strong>, <strong>Auto</strong>, or <strong>Custom</strong> for Rotate. Video and rotation frames stay separate on the shop.</p>
                     </div>
                     <div class="admin-guide-row">
                         <span class="admin-guide-tag admin-guide-tag--blue">360° accordion</span>
@@ -2692,6 +2692,12 @@
                 <input type="checkbox" id="m-hide-main-placeholder" style="width:auto; margin:0;">
                 <label for="m-hide-main-placeholder" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide
                     default placeholder for no image</label>
+            </div>
+            <div id="admin-save-progress" class="admin-save-progress" style="display:none;" aria-live="polite">
+                <div class="admin-save-progress__track">
+                    <div id="admin-save-progress-bar" class="admin-save-progress__bar"></div>
+                </div>
+                <p id="admin-save-progress-text" class="admin-save-progress__text">Saving…</p>
             </div>
             <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
             <button onclick="closeModal('prod-modal')"
@@ -3142,13 +3148,13 @@
     <script src="js/app.js?v=10.5"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/categories.js?v=10.6"></script>
-    <script src="js/store.js?v=10.16"></script>
+    <script src="js/store.js?v=10.17"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.5"></script>
     <script src="js/comments.js?v=10.2"></script>
     <script src="js/support-chat.js?v=10.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=12.0"></script>
+    <script src="js/admin.js?v=12.1"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

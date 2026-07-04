@@ -2730,6 +2730,94 @@ body {
     min-width: 120px;
 }
 
+.admin-video-frame-offer__dismiss {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.admin-video-frame-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.admin-video-frame-tools--compact {
+    margin-top: 8px;
+}
+
+.admin-video-frame-tools__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-video-frame-tools__row .admin-media-action-btn {
+    flex: 1;
+    min-width: 100px;
+}
+
+.admin-video-frame-tools__custom {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.admin-frame-custom-input {
+    width: 72px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 13px;
+}
+
+.admin-video-frame-tools__hint {
+    margin: 0;
+    font-size: 10px;
+    color: #888;
+    line-height: 1.4;
+}
+
+.admin-video-card__extract-panel {
+    margin-top: 8px;
+}
+
+.admin-video-card__extract-panel summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.admin-video-card__extract-panel summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-save-progress {
+    margin-bottom: 12px;
+}
+
+.admin-save-progress__track {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+}
+
+.admin-save-progress__bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #c9a227, var(--gold));
+    transition: width 0.2s ease;
+}
+
+.admin-save-progress__text {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+}
+
 .admin-media-thumb {
     position: relative;
     border-radius: 8px;

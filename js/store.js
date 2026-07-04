@@ -2093,6 +2093,7 @@ function updateDetailGalleryActions(idx, productOverride) {
     const media = p ? resolveProductMedia(p) : null;
     const hasSpinOrPano = !!(media && (media.has360 || media.hasPanorama360));
     const has360View = hasSpinOrPano;
+    const hasVideoInGallery = map.some(m => m && m.type === 'video');
     const isVideoSlide = !!(slide && slide.type === 'video');
     const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && !slide.is360Preview && hasRealPhotos);
 
@@ -2102,7 +2103,8 @@ function updateDetailGalleryActions(idx, productOverride) {
         zoomBtn.classList.toggle('det-side-right', canZoom && !has360View);
     }
     if (playBtn) {
-        playBtn.style.display = isVideoSlide ? 'flex' : 'none';
+        // On a video slide the gallery card already has a play overlay — avoid duplicate side button
+        playBtn.style.display = (hasVideoInGallery && !isVideoSlide) ? 'flex' : 'none';
     }
     if (spinBtn) {
         spinBtn.style.display = (has360View && !isVideoSlide) ? 'flex' : 'none';
@@ -2119,7 +2121,8 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     const sideActions = document.getElementById('det-gallery-side-actions');
     if (sideActions) {
-        const anySideAction = canZoom || isVideoSlide || (has360View && !isVideoSlide);
+        const showVideoSide = hasVideoInGallery && !isVideoSlide;
+        const anySideAction = canZoom || showVideoSide || (has360View && !isVideoSlide);
         sideActions.style.display = anySideAction ? '' : 'none';
     }
 }
@@ -2136,7 +2139,14 @@ function openCurrentDetailVideoAt(index, event) {
 window.openCurrentDetailVideoAt = openCurrentDetailVideoAt;
 
 function openCurrentDetailVideo() {
-    openCurrentDetailVideoAt(window.detailGalleryActiveIndex || 0);
+    const map = window.detailGallerySlideMap || [];
+    const idx = window.detailGalleryActiveIndex || 0;
+    if (map[idx]?.type === 'video') {
+        openCurrentDetailVideoAt(idx);
+        return;
+    }
+    const firstVideoIdx = map.findIndex(m => m && m.type === 'video');
+    if (firstVideoIdx >= 0) openCurrentDetailVideoAt(firstVideoIdx);
 }
 window.openCurrentDetailVideo = openCurrentDetailVideo;
 
