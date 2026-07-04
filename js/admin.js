@@ -1545,8 +1545,9 @@ function handleVideoFileSelect(input, vId) {
         renderVideoPreviews(vId);
     }
     input.value = '';
-    showToast('Video added — preview below. Optionally create rotation frames for the Rotate button.');
+    showToast('Video added — preview below. Optionally extract panorama or rotation frames.');
     syncAdminMediaStatus(vId);
+    adminDetectVideoFormatOnUpload(vId, newIndex);
     setTimeout(() => {
         const wrap = document.getElementById(vId === 'base' ? 'm-video-preview' : `v-video-preview-${vId}`);
         const card = wrap?.querySelectorAll('.admin-video-card')[newIndex];
@@ -1793,6 +1794,11 @@ async function extractVideoFramesForSpin(targetId, index, frameMode = ADMIN_DEFA
     }
     let frameCount = ADMIN_DEFAULT_FRAME_COUNT;
     try {
+        const is360Video = await adminVideoIsEquirectangular(entry, prep.url, prep.useCrossOrigin);
+        if (is360Video && !entry._spin360Warned) {
+            entry._spin360Warned = true;
+            showToast('Note: rotation frames from 360° video may look warped — flat video is best for product spin.');
+        }
         if (frameMode === 'auto') {
             adminSetSaveProgress(0, 'Analyzing video length…');
             const probeVideo = document.createElement('video');
@@ -2579,8 +2585,79 @@ function adminFrameExtractControlsHtml(targetId, index, compact = false) {
                 <input type="number" id="${inputId}" class="admin-frame-custom-input" min="${ADMIN_MIN_FRAME_COUNT}" max="${ADMIN_MAX_FRAME_COUNT}" value="24" aria-label="Custom frame count" onclick="event.stopPropagation();">
                 <button type="button" class="admin-media-action-btn" onclick="event.stopPropagation(); extractVideoFramesCustom('${targetId}', ${index})">Custom</button>
             </div>
-            <p class="admin-video-frame-tools__hint">Default ${ADMIN_DEFAULT_FRAME_COUNT} · Auto fits clip length (${ADMIN_MIN_FRAME_COUNT}–${ADMIN_MAX_FRAME_COUNT}) · works with long videos</p>
+            <p class="admin-video-frame-tools__hint">Default ${ADMIN_DEFAULT_FRAME_COUNT} · Auto fits clip length (${ADMIN_MIN_FRAME_COUNT}–${ADMIN_MAX_FRAME_COUNT}) · works with flat and 360° video</p>
         </div>`;
+}
+
+function adminVideoExtractPanelHtml(targetId, index, is360, highlight = false) {
+    const extractCls = highlight ? ' admin-video-card__extract--highlight' : '';
+    const panoSection = is360
+        ? `<div class="admin-video-extract-section admin-video-extract-section--pano">
+                <p class="admin-video-extract-section__title">Panorama still → Look Around</p>
+                <button type="button" class="admin-video-card__extract admin-video-card__extract--pano" onclick="event.stopPropagation(); extractPanoramaFromVideo('${targetId}', ${index})">
+                    <i class="fa fa-street-view"></i> Extract panorama still <em>(2:1 360° video)</em>
+                </button>
+                <p class="admin-video-extract-muted">One equirectangular frame for the Street View–style <strong>Look Around</strong> button.</p>
+            </div>`
+        : `<div class="admin-video-extract-section">
+                <p class="admin-video-extract-muted">Panorama extract needs a <strong>2:1 equirectangular</strong> (360°) video. Mark immersive 360° above or upload a 360° clip.</p>
+            </div>`;
+    return `
+        <details class="admin-video-card__extract-panel"${highlight ? ' open' : ''} onclick="event.stopPropagation();">
+            <summary class="admin-video-card__extract${extractCls}"><i class="fa fa-magic"></i> Extract from video</summary>
+            <div class="admin-video-extract-section">
+                <p class="admin-video-extract-section__title">Rotation frames → Rotate</p>
+                ${adminFrameExtractControlsHtml(targetId, index, true)}
+                ${is360 ? '<p class="admin-video-extract-warn">360° footage: rotation frames may look warped — flat product videos work best for spin.</p>' : ''}
+            </div>
+            ${panoSection}
+        </details>`;
+}
+
+function adminVideoNewUploadOfferHtml(targetId, index, is360) {
+    const panoBtn = is360
+        ? `<button type="button" class="admin-media-action-btn admin-video-offer-pano-btn" onclick="event.stopPropagation(); extractPanoramaFromVideo('${targetId}', ${index})"><i class="fa fa-street-view"></i> Panorama</button>`
+        : '';
+    return `
+        <div class="admin-video-frame-offer${is360 ? ' admin-video-frame-offer--360' : ''}">
+            <p>${is360
+                ? '360° video — extract panorama for <strong>Look Around</strong> and/or rotation frames for <strong>Rotate</strong>.'
+                : 'Also add swipe-to-rotate photos from this clip?'}</p>
+            <div class="admin-video-frame-offer__actions">
+                ${panoBtn}
+                <button type="button" class="admin-media-action-btn admin-media-action-btn--gold" onclick="event.stopPropagation(); extractVideoFramesForSpin('${targetId}', ${index}, ${ADMIN_DEFAULT_FRAME_COUNT})">${ADMIN_DEFAULT_FRAME_COUNT} rotation frames</button>
+            </div>
+            <button type="button" class="admin-media-action-btn admin-video-frame-offer__dismiss" onclick="event.stopPropagation(); dismissVideoFrameOffer('${targetId}', ${index})">Not now</button>
+        </div>`;
+}
+
+async function adminDetectVideoFormatOnUpload(targetId, index) {
+    const items = targetId === 'base'
+        ? (existingVideoUrls || [])
+        : (variantBlocks.find(x => x.id === targetId)?.videos || []);
+    const entry = items[index];
+    if (!entry || typeof entry !== 'object') return;
+    const normalized = normalizeStoredVideo(entry);
+    if (!normalized?.file && !normalized?.url) return;
+    let prep;
+    try {
+        prep = await adminPrepareVideoSource(normalized);
+    } catch {
+        return;
+    }
+    try {
+        const is360Video = await adminVideoIsEquirectangular(normalized, prep.url, prep.useCrossOrigin);
+        if (!is360Video) return;
+        entry.is360 = true;
+        entry._promptFrames = true;
+        entry._is360Detected = true;
+        renderVideoPreviews(targetId);
+        showToast('360° video detected — extract panorama (Look Around) and/or rotation frames (Rotate).');
+    } catch (e) {
+        console.warn('adminDetectVideoFormatOnUpload:', e);
+    } finally {
+        if (prep?.revoke) URL.revokeObjectURL(prep.url);
+    }
 }
 
 function renderSpinPreviews(targetId = 'base') {
@@ -2724,7 +2801,6 @@ function renderVideoPreviews(targetId = 'base') {
         const label = getStoredVideoLabel(vid);
         const is360 = !!entry.is360;
         const promptFrames = !!(vid && vid._promptFrames);
-        const extractCls = promptFrames ? ' admin-video-card__extract--highlight' : '';
         return `
             <div class="admin-video-card ${is360 ? 'admin-video-card--360' : ''}${promptFrames ? ' admin-video-card--new' : ''}">
                 <div class="admin-video-card__head">
@@ -2737,24 +2813,13 @@ function renderVideoPreviews(targetId = 'base') {
                     <span class="admin-video-card__play-hint">Tap to preview</span>
                     <button type="button" class="admin-video-card__remove" onclick="event.stopPropagation(); removeVideoItem('${targetId}', ${i})" title="Remove"><i class="fa fa-times"></i></button>
                 </button>
-                ${promptFrames ? `
-                <div class="admin-video-frame-offer">
-                    <p>Also add swipe-to-rotate photos from this clip?</p>
-                    ${adminFrameExtractControlsHtml(targetId, i)}
-                    <button type="button" class="admin-media-action-btn admin-video-frame-offer__dismiss" onclick="event.stopPropagation(); dismissVideoFrameOffer('${targetId}', ${i})">Not now</button>
-                </div>` : ''}
+                ${promptFrames ? adminVideoNewUploadOfferHtml(targetId, i, is360) : ''}
                 <label class="admin-video-card__toggle" onclick="event.stopPropagation();">
                     <input type="checkbox" ${is360 ? 'checked' : ''} onchange="toggleVideo360('${targetId}', ${i}, this.checked)">
                     <span>Play as immersive 360° video <em>(2:1 equirectangular only)</em></span>
                 </label>
-                <details class="admin-video-card__extract-panel" onclick="event.stopPropagation();">
-                    <summary class="admin-video-card__extract${extractCls}"><i class="fa fa-images"></i> Create rotation frames from video</summary>
-                    ${adminFrameExtractControlsHtml(targetId, i, true)}
-                </details>
-                <button type="button" class="admin-video-card__extract admin-video-card__extract--pano" onclick="event.stopPropagation(); extractPanoramaFromVideo('${targetId}', ${i})" title="Requires 2:1 immersive 360° video">
-                    <i class="fa fa-street-view"></i> Extract panorama for Look Around <em>(360° video only)</em>
-                </button>
-                <p class="admin-video-card__note">Shop: <strong>Video</strong> plays this clip · <strong>Rotate</strong> = swipe stills · <strong>Look Around</strong> = drag a 360° scene (panorama image, not flat video).</p>
+                ${adminVideoExtractPanelHtml(targetId, i, is360, false)}
+                <p class="admin-video-card__note">Shop: <strong>Video</strong> plays this clip · <strong>Rotate</strong> = swipe stills · <strong>Look Around</strong> = drag a 360° scene (panorama still from 2:1 video or photo).</p>
             </div>`;
     }).join('');
     syncAdminMediaStatus(targetId);

@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.14">
+    <link rel="stylesheet" href="css/style.css?v=9.16">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -751,26 +751,28 @@
 
                 <div id="admin-category-form-wrap" class="admin-category-form-wrap">
                     <div id="admin-category-form-mode" class="admin-category-form-mode">Add a new category</div>
-                    <div style="display:grid; grid-template-columns:1fr 90px; gap:10px; align-items:end;">
-                        <div>
-                            <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Category name</label>
-                            <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
-                        </div>
-                        <div>
-                            <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Order (optional)</label>
-                            <input id="admin-category-order" type="number" value="0" style="margin:0;">
-                        </div>
+                    <div class="admin-category-form-main">
+                        <label class="admin-category-form-label" for="admin-category-name">Category name</label>
+                        <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
                     </div>
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap;">
-                        <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#aaa; cursor:pointer; margin:0;">
-                            <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;"> Active on storefront
-                        </label>
-                        <div style="display:flex; gap:8px;">
-                            <button type="button" id="admin-category-clear-btn" class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px; background:#222; border:1px solid #444;"
-                                onclick="openCategoryForm()">Clear Form</button>
-                            <button type="button" id="admin-category-save-btn" class="btn-gold admin-category-save-btn" style="width:auto; padding:10px 16px; margin:0; font-size:12px;"
-                                onclick="saveCategory()">Add Category</button>
+                    <details id="admin-category-more-options" class="admin-category-more-options">
+                        <summary class="admin-category-more-options-summary">More options (order, visibility)</summary>
+                        <div class="admin-category-form-advanced-grid admin-category-more-options-body">
+                            <div>
+                                <label class="admin-category-form-label" for="admin-category-order">Display order</label>
+                                <input id="admin-category-order" type="number" value="0" min="0" step="1" style="margin:0;">
+                            </div>
+                            <label class="admin-category-form-active" for="admin-category-active">
+                                <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;">
+                                <span>Active on storefront</span>
+                            </label>
                         </div>
+                    </details>
+                    <div class="admin-category-form-actions">
+                        <button type="button" id="admin-category-clear-btn" class="btn-gold admin-category-btn admin-category-btn-muted admin-category-form-action-btn"
+                            onclick="openCategoryForm()" hidden>Clear Form</button>
+                        <button type="button" id="admin-category-save-btn" class="btn-gold admin-category-btn admin-category-save-btn admin-category-form-action-btn"
+                            onclick="saveCategory()">Add Category</button>
                     </div>
                 </div>
             </div>
@@ -2600,7 +2602,7 @@
                         </div>
                         <div id="admin-guide-section-video" class="admin-guide-section-content" style="display:none;">
                             <p>Video sits <strong>outside</strong> the 360° accordion — always easy to find. Upload → preview the clip on the card.</p>
-                            <p>Same video file can also feed <strong>Extract frames</strong> (Rotate) or <strong>Extract panorama</strong> (only if 2:1 immersive 360°). The clip itself still plays via the <strong>Video</strong> button on the shop.</p>
+                            <p>Same 2:1 equirectangular video can feed <strong>Extract panorama</strong> (Look Around) <em>and</em> <strong>Extract frames</strong> (Rotate). Flat video only supports rotation frames. The clip itself still plays via the <strong>Video</strong> button on the shop.</p>
                             <p>Immersive <strong>360° video playback</strong> (customer inside the sphere) only works for true 2:1 equirectangular files — otherwise it plays as flat video.</p>
                         </div>
                     </div>
@@ -3275,14 +3277,14 @@
     <script src="js/features.js?v=11.8"></script>
     <script src="js/app.js?v=10.6"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/categories.js?v=10.8"></script>
+    <script src="js/categories.js?v=10.9"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.5"></script>
     <script src="js/comments.js?v=10.3"></script>
     <script src="js/support-chat.js?v=10.8"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=12.8"></script>
+    <script src="js/admin.js?v=12.9"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

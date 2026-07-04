@@ -2556,14 +2556,6 @@ button.admin-stock-badge--more:hover {
 .admin-product-actions .fa-trash { color: var(--red); cursor: pointer; }
 
 .admin-guide-body {
-    padding: 0 12px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border-top: 1px solid #222;
-}
-
-.admin-guide-body {
     padding: 10px 12px 12px;
     display: flex;
     flex-direction: column;
@@ -2930,6 +2922,17 @@ button.admin-stock-badge--more:hover {
     border-radius: 8px;
     background: rgba(255,215,0,0.08);
     border: 1px solid rgba(255,215,0,0.28);
+}
+.admin-video-frame-offer--360 {
+    background: rgba(100, 181, 246, 0.08);
+    border-color: rgba(100, 181, 246, 0.28);
+}
+.admin-video-frame-offer--360 p {
+    color: #9ecbff;
+}
+.admin-video-offer-pano-btn {
+    border-color: rgba(100, 181, 246, 0.35) !important;
+    color: #9ecbff !important;
 }
 
 .admin-video-frame-offer p {
@@ -7341,6 +7344,106 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     background: var(--gold) !important;
     color: #111 !important;
     font-weight: 800 !important;
+}
+.admin-category-form-label {
+    font-size: 10px;
+    color: #666;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+}
+.admin-category-form-main {
+    margin-bottom: 0;
+}
+.admin-category-form-advanced-grid {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 10px;
+    align-items: end;
+}
+.admin-category-form-active {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #aaa;
+    cursor: pointer;
+    margin: 0;
+    min-height: 38px;
+}
+.admin-category-more-options {
+    margin-top: 10px;
+}
+.admin-category-more-options-summary {
+    font-size: 11px;
+    color: #888;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+.admin-category-more-options-summary::-webkit-details-marker {
+    display: none;
+}
+.admin-category-more-options-body {
+    margin-top: 10px;
+}
+.admin-category-form-wrap.admin-category-form-editing .admin-category-more-options {
+    border: none;
+}
+.admin-category-form-wrap.admin-category-form-editing .admin-category-more-options-summary {
+    display: none;
+}
+.admin-category-form-wrap.admin-category-form-editing .admin-category-more-options-body {
+    margin-top: 0;
+}
+.admin-category-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+.admin-category-form-action-btn {
+    width: auto !important;
+    padding: 10px 16px !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+}
+.admin-video-extract-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #2a2a2a;
+}
+.admin-video-extract-section:first-child {
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: none;
+}
+.admin-video-extract-section__title {
+    margin: 0 0 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ccc;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.admin-video-extract-section--pano .admin-video-extract-section__title {
+    color: #9ecbff;
+}
+.admin-video-extract-warn {
+    margin: 6px 0 0;
+    font-size: 10px;
+    color: #888;
+    line-height: 1.35;
+}
+.admin-video-extract-muted {
+    margin: 8px 0 0;
+    font-size: 10px;
+    color: #666;
+    line-height: 1.35;
+}
+.admin-video-card__extract-panel summary.admin-video-card__extract--open {
+    color: var(--gold);
 }
 .wish-category-bar {
     padding: 0 15px 10px;

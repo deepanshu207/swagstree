@@ -551,12 +551,15 @@ function updateCategoryFormMode() {
     const modeLabel = document.getElementById('admin-category-form-mode');
     const saveBtn = document.getElementById('admin-category-save-btn');
     const clearBtn = document.getElementById('admin-category-clear-btn');
+    const moreOptions = document.getElementById('admin-category-more-options');
+    const nameEl = document.getElementById('admin-category-name');
     const isEditing = !!window.editingCategoryId;
     const cat = isEditing ? getCategoryById(window.editingCategoryId) : null;
+    const hasDraft = !!(nameEl?.value || '').trim();
 
     if (modeLabel) {
         modeLabel.textContent = isEditing
-            ? `Editing “${cat?.name || 'category'}” — update fields and click Save Changes`
+            ? `Editing “${cat?.name || 'category'}”`
             : 'Add a new category';
         modeLabel.classList.toggle('is-editing', isEditing);
     }
@@ -567,10 +570,21 @@ function updateCategoryFormMode() {
     }
     if (clearBtn) {
         clearBtn.textContent = isEditing ? 'Cancel Edit' : 'Clear Form';
+        clearBtn.hidden = !isEditing && !hasDraft;
+    }
+    if (moreOptions) {
+        moreOptions.open = isEditing;
     }
     if (formWrap) {
         formWrap.classList.toggle('admin-category-form-editing', isEditing);
     }
+}
+
+function bindCategoryFormUi() {
+    const nameEl = document.getElementById('admin-category-name');
+    if (!nameEl || nameEl.dataset.categoryUiBound) return;
+    nameEl.dataset.categoryUiBound = '1';
+    nameEl.addEventListener('input', updateCategoryFormMode);
 }
 
 window.loadCategoryIntoForm = function(id) {
@@ -677,9 +691,11 @@ function resetCategoryForm() {
     const name = document.getElementById('admin-category-name');
     const order = document.getElementById('admin-category-order');
     const active = document.getElementById('admin-category-active');
+    const moreOptions = document.getElementById('admin-category-more-options');
     if (name) name.value = '';
     if (order) order.value = '0';
     if (active) active.checked = true;
+    if (moreOptions) moreOptions.open = false;
     updateCategoryFormMode();
 }
 
@@ -813,6 +829,7 @@ function initCategoryFormKeyboard() {
             saveCategory();
         }
     });
+    bindCategoryFormUi();
     updateCategoryFormMode();
 }
 
