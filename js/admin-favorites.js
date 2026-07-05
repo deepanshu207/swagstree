@@ -11,7 +11,6 @@
             title: 'Global Announcements',
             icon: 'fa-bullhorn',
             defaultFavorite: true,
-            expandFn: 'toggleAnnouncementAccordion',
             accordionContentId: 'announcement-accordion-content',
             accordionIconId: 'announcement-accordion-icon'
         },
@@ -20,7 +19,6 @@
             title: 'Support Chats',
             icon: 'fa-headset',
             defaultFavorite: true,
-            expandFn: 'toggleAdminSupportAccordion',
             accordionContentId: 'admin-support-accordion-content',
             accordionIconId: 'admin-support-accordion-icon'
         },
@@ -28,7 +26,6 @@
             id: 'admin-comments-moderation',
             title: 'Reviews Moderation',
             icon: 'fa-comments',
-            expandFn: 'toggleCommentsModerationAccordion',
             accordionContentId: 'admin-comments-accordion-content',
             accordionIconId: 'admin-comments-accordion-icon'
         },
@@ -39,7 +36,6 @@
             id: 'admin-promo-settings',
             title: 'Promo Codes',
             icon: 'fa-ticket-alt',
-            expandFn: 'toggleAdminPromoAccordion',
             accordionContentId: 'admin-promo-accordion-content',
             accordionIconId: 'admin-promo-accordion-icon'
         },
@@ -47,7 +43,6 @@
             id: 'admin-pagination-settings',
             title: 'Pagination Settings',
             icon: 'fa-list-ol',
-            expandFn: 'toggleAdminPaginationAccordion',
             accordionContentId: 'admin-pagination-accordion-content',
             accordionIconId: 'admin-pagination-accordion-icon'
         },
@@ -56,7 +51,6 @@
             id: 'admin-feedback-settings',
             title: 'Customer Diaries',
             icon: 'fa-camera',
-            expandFn: 'toggleAdminFeedbackAccordion',
             accordionContentId: 'admin-feedback-accordion-content',
             accordionIconId: 'admin-feedback-accordion-icon'
         },
@@ -68,6 +62,7 @@
         'feedback', 'footer', 'announcements', 'support', 'comments'
     ];
 
+    const _blockRefs = {};
     let _favoriteConfirmResolver = null;
 
     function adminPinnedSlot() {
@@ -95,18 +90,36 @@
         return adminFavoritesRead().includes(key);
     }
 
+    /** Keep DOM refs even while nodes are being moved (getElementById fails when detached). */
+    function adminGetToolBlock(key) {
+        const meta = ADMIN_FAVORITE_REGISTRY[key];
+        if (!meta) return null;
+        const live = document.getElementById(meta.id);
+        if (live) {
+            _blockRefs[key] = live;
+            return live;
+        }
+        const cached = _blockRefs[key];
+        if (cached && cached.id === meta.id) return cached;
+        return null;
+    }
+
     function adminCollectToolBlocks() {
         const blocks = {};
         STORE_TOOLS_ORDER.forEach(key => {
-            const meta = ADMIN_FAVORITE_REGISTRY[key];
-            const el = meta && document.getElementById(meta.id);
+            const el = adminGetToolBlock(key);
             if (el) blocks[key] = el;
         });
         return blocks;
     }
 
-    function adminDetachToolBlock(el) {
-        if (el && el.parentNode) el.parentNode.removeChild(el);
+    function adminIsBlockVisible(key, el) {
+        const node = el || adminGetToolBlock(key);
+        if (!node) return false;
+        if (key === 'support' || key === 'comments') {
+            return node.style.display !== 'none' && getComputedStyle(node).display !== 'none';
+        }
+        return true;
     }
 
     function adminExpandAccordionPanel(contentId, iconId) {
@@ -116,14 +129,14 @@
         if (icon) icon.style.transform = 'rotate(0deg)';
     }
 
-    function adminExpandFavoriteBlock(key) {
+    function adminExpandFavoriteBlock(key, el) {
         const meta = ADMIN_FAVORITE_REGISTRY[key];
         if (!meta) return;
-        const el = document.getElementById(meta.id);
-        if (el) {
-            el.style.display = '';
-            el.hidden = false;
-            el.classList.add('admin-store-tools-block--pinned');
+        const node = el || adminGetToolBlock(key);
+        if (node) {
+            node.style.display = '';
+            node.hidden = false;
+            node.classList.add('admin-store-tools-block--pinned');
         }
         if (meta.accordionContentId) {
             adminExpandAccordionPanel(meta.accordionContentId, meta.accordionIconId);
@@ -132,17 +145,6 @@
 
     function adminUnpinBlockVisual(el) {
         if (el) el.classList.remove('admin-store-tools-block--pinned');
-    }
-
-    function adminIsBlockVisible(key) {
-        const meta = ADMIN_FAVORITE_REGISTRY[key];
-        if (!meta) return false;
-        const el = document.getElementById(meta.id);
-        if (!el) return false;
-        if (key === 'support' || key === 'comments') {
-            return el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
-        }
-        return true;
     }
 
     function adminPromptFavoriteToggle(key) {
@@ -199,8 +201,8 @@
         btn.innerHTML = `<i class="fa fa-star${pinned ? '' : '-o'}"></i>`;
     }
 
-    function adminInjectPinnedBadge(el, key) {
-        if (!el || !adminIsFavorite(key)) return;
+    function adminInjectPinnedBadge(el) {
+        if (!el) return;
         let badge = el.querySelector('.admin-pinned-badge');
         if (!badge) {
             badge = document.createElement('span');
@@ -211,13 +213,21 @@
         }
     }
 
-    function adminScrollToPinnedBlock(key) {
-        const meta = ADMIN_FAVORITE_REGISTRY[key];
-        const el = meta && document.getElementById(meta.id);
+    function adminRemovePinnedBadge(el) {
+        el?.querySelector('.admin-pinned-badge')?.remove();
+    }
+
+    function adminScrollToBlock(key) {
+        const el = adminGetToolBlock(key);
         if (!el) return;
         requestAnimationFrame(() => {
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
+    }
+
+    function adminMoveBlock(el, target) {
+        if (!el || !target || el.parentNode === target) return;
+        target.appendChild(el);
     }
 
     function renderAdminFavorites() {
@@ -225,41 +235,31 @@
         const storeContent = document.getElementById('admin-store-tools-accordion-content');
         if (!pinnedSlot || !storeContent) return;
 
-        let favorites = adminFavoritesRead().filter(k => adminIsBlockVisible(k));
         const blocks = adminCollectToolBlocks();
+        let favorites = adminFavoritesRead().filter(k => blocks[k] && adminIsBlockVisible(k, blocks[k]));
 
-        const validFavorites = favorites.filter(k => blocks[k]);
-        if (validFavorites.length !== favorites.length) {
-            adminFavoritesWrite(validFavorites);
-            favorites = validFavorites;
+        const validKeys = favorites.filter(k => blocks[k]);
+        if (validKeys.length !== favorites.length) {
+            adminFavoritesWrite(validKeys);
+            favorites = validKeys;
         }
 
         STORE_TOOLS_ORDER.forEach(key => {
             const el = blocks[key];
-            if (el) adminDetachToolBlock(el);
-        });
+            if (!el || !adminIsBlockVisible(key, el)) return;
 
-        STORE_TOOLS_ORDER.forEach(key => {
-            const el = blocks[key];
-            if (!el || !adminIsBlockVisible(key)) return;
+            const pin = favorites.includes(key);
+            const target = pin ? pinnedSlot : storeContent;
+
             adminInjectFavoriteToggle(el, key);
-        });
+            adminMoveBlock(el, target);
 
-        favorites.forEach(key => {
-            const el = blocks[key];
-            if (el && adminIsBlockVisible(key)) {
-                pinnedSlot.appendChild(el);
-                adminExpandFavoriteBlock(key);
-                adminInjectPinnedBadge(el, key);
-            }
-        });
-
-        STORE_TOOLS_ORDER.forEach(key => {
-            if (favorites.includes(key)) return;
-            const el = blocks[key];
-            if (el) {
+            if (pin) {
+                adminExpandFavoriteBlock(key, el);
+                adminInjectPinnedBadge(el);
+            } else {
                 adminUnpinBlockVisual(el);
-                storeContent.appendChild(el);
+                adminRemovePinnedBadge(el);
             }
         });
 
@@ -283,17 +283,16 @@
             renderAdminFavorites();
             showToast(`"${meta.title}" moved to Store settings.`);
             if (typeof openAdminStoreToolsAccordion === 'function') openAdminStoreToolsAccordion();
-            requestAnimationFrame(() => {
-                const el = document.getElementById(meta.id);
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            });
+            if (meta.accordionContentId) {
+                adminExpandAccordionPanel(meta.accordionContentId, meta.accordionIconId);
+            }
+            adminScrollToBlock(key);
         } else {
             list.push(key);
             adminFavoritesWrite(list);
             renderAdminFavorites();
-            adminExpandFavoriteBlock(key);
-            showToast(`"${meta.title}" pinned — scroll below products to see it.`);
-            adminScrollToPinnedBlock(key);
+            showToast(`"${meta.title}" pinned below products.`);
+            adminScrollToBlock(key);
         }
     };
 
@@ -310,6 +309,7 @@
     window.renderAdminFavorites = renderAdminFavorites;
     window.adminFavoritesRead = adminFavoritesRead;
     window.adminFavoriteRegistryKeys = () => [...STORE_TOOLS_ORDER];
+    window.adminGetToolBlock = adminGetToolBlock;
 
     document.addEventListener('DOMContentLoaded', () => {
         renderAdminFavorites();

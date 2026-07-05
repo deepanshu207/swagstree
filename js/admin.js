@@ -5997,6 +5997,7 @@ window.toggleAdminStoreToolsAccordion = function() {
 };
 
 window.openAdminStoreToolsAccordion = function() {
+    if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
     openAdminSectionAccordion('admin-store-tools-accordion-content', 'admin-store-tools-accordion-icon');
 };
 
