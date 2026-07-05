@@ -545,6 +545,126 @@ if (typeof window.currentProductFiles === 'undefined') window.currentProductFile
 
 if (typeof window.adminProductsPageLimitSetting === 'undefined') window.adminProductsPageLimitSetting = 20;
 if (typeof window.adminProductsPage === 'undefined') window.adminProductsPage = 1;
+if (typeof window.adminProductsSortSetting === 'undefined') window.adminProductsSortSetting = 'latest';
+
+const ADMIN_PRODUCT_SORT_OPTIONS = ['latest', 'newest', 'oldest', 'name', 'name_desc', 'price_low', 'price_high'];
+
+function adminNormalizeProductSort(val) {
+    return ADMIN_PRODUCT_SORT_OPTIONS.includes(val) ? val : 'latest';
+}
+
+function adminReadFirestoreTimestamp(field) {
+    if (!field) return 0;
+    if (typeof field.toDate === 'function') return field.toDate().getTime();
+    if (field.seconds) return field.seconds * 1000;
+    if (typeof field === 'number') return field;
+    if (field instanceof Date) return field.getTime();
+    const parsed = Date.parse(field);
+    return isNaN(parsed) ? 0 : parsed;
+}
+
+function adminGetProductSortTimestamp(p, mode) {
+    const updated = adminReadFirestoreTimestamp(p?.updatedAt);
+    const created = adminReadFirestoreTimestamp(p?.createdAt);
+    if (mode === 'newest') return created || updated;
+    if (mode === 'oldest') return created || updated;
+    return Math.max(updated, created);
+}
+
+function adminSortProducts(list) {
+    const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
+    const items = [...(list || [])];
+    const byIdDesc = (a, b) => b.id.localeCompare(a.id);
+    const byIdAsc = (a, b) => a.id.localeCompare(b.id);
+
+    switch (sort) {
+        case 'newest':
+            items.sort((a, b) => {
+                const timeA = adminGetProductSortTimestamp(a, 'newest');
+                const timeB = adminGetProductSortTimestamp(b, 'newest');
+                if (timeA !== timeB) return timeB - timeA;
+                return byIdDesc(a, b);
+            });
+            break;
+        case 'oldest':
+            items.sort((a, b) => {
+                const timeA = adminGetProductSortTimestamp(a, 'oldest');
+                const timeB = adminGetProductSortTimestamp(b, 'oldest');
+                if (timeA !== timeB) return timeA - timeB;
+                return byIdAsc(a, b);
+            });
+            break;
+        case 'name':
+            items.sort((a, b) => {
+                const cmp = (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+                return cmp || byIdAsc(a, b);
+            });
+            break;
+        case 'name_desc':
+            items.sort((a, b) => {
+                const cmp = (b.name || '').localeCompare(a.name || '', undefined, { sensitivity: 'base' });
+                return cmp || byIdDesc(a, b);
+            });
+            break;
+        case 'price_low':
+            items.sort((a, b) => {
+                const diff = (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+                return diff || byIdAsc(a, b);
+            });
+            break;
+        case 'price_high':
+            items.sort((a, b) => {
+                const diff = (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+                return diff || byIdDesc(a, b);
+            });
+            break;
+        case 'latest':
+        default:
+            items.sort((a, b) => {
+                const timeA = adminGetProductSortTimestamp(a, 'latest');
+                const timeB = adminGetProductSortTimestamp(b, 'latest');
+                if (timeA !== timeB) return timeB - timeA;
+                return byIdDesc(a, b);
+            });
+            break;
+    }
+    return items;
+}
+
+function adminSyncProductSortUi() {
+    const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
+    const toolbar = document.getElementById('admin-product-sort');
+    const settings = document.getElementById('admin-products-sort-setting');
+    if (toolbar && toolbar.value !== sort) toolbar.value = sort;
+    if (settings && settings.value !== sort) settings.value = sort;
+}
+
+async function adminPersistProductSortSetting(sort) {
+    const normalized = adminNormalizeProductSort(sort);
+    window.adminProductsSortSetting = normalized;
+    adminSyncProductSortUi();
+    try {
+        await db.collection('settings').doc('pagination').set({ adminProductsSort: normalized }, { merge: true });
+    } catch (e) {
+        console.error('adminPersistProductSortSetting error:', e);
+    }
+}
+
+window.adminChangeProductSort = function(val, opts = {}) {
+    const toolbar = document.getElementById('admin-product-sort');
+    const settings = document.getElementById('admin-products-sort-setting');
+    let next = val;
+    if (next === undefined || next === null) {
+        next = toolbar ? toolbar.value : (settings ? settings.value : window.adminProductsSortSetting);
+    }
+    window.adminProductsSortSetting = adminNormalizeProductSort(next);
+    adminSyncProductSortUi();
+    window.adminProductsPage = 1;
+    renderAdmin();
+    if (!opts.skipPersist) {
+        adminPersistProductSortSetting(window.adminProductsSortSetting);
+    }
+};
 
 function getAdminProductsPageSize() {
     const n = parseInt(window.adminProductsPageLimitSetting, 10);
@@ -1515,7 +1635,7 @@ function adminGetFilteredProducts() {
         default:
             break;
     }
-    return list;
+    return adminSortProducts(list);
 }
 
 function adminGetVariantBlockErrors(v, index) {
@@ -3826,8 +3946,10 @@ async function saveProduct() {
         if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
         window._adminProductLiveBaseline = null;
         if (typeof clearProductDraftForCurrent === 'function') clearProductDraftForCurrent();
+        window.adminProductsPage = 1;
         showToast(editingId ? 'Product updated!' : 'Product created!');
-        closeModal('prod-modal'); 
+        closeModal('prod-modal');
+        if (typeof renderAdmin === 'function') renderAdmin(); 
     } catch(e) { 
         adminHideSaveProgress();
         console.error(e);
@@ -4200,6 +4322,11 @@ window.loadPaginationSettings = async function() {
                 if (inpAdmin) inpAdmin.value = val;
                 window.adminProductsPageLimitSetting = val;
             }
+
+            if (typeof data.adminProductsSort !== 'undefined') {
+                window.adminProductsSortSetting = adminNormalizeProductSort(data.adminProductsSort);
+                adminSyncProductSortUi();
+            }
             
             // Orders limit
             if (typeof data.ordersLimit !== 'undefined') {
@@ -4261,9 +4388,22 @@ window.savePaginationSettings = async function() {
         if (isNaN(valCustomers) || valCustomers < 1) valCustomers = 10;
         inpCustomers.value = valCustomers;
     }
+
+    const sortSetting = document.getElementById('admin-products-sort-setting');
+    const adminProductsSort = adminNormalizeProductSort(
+        sortSetting ? sortSetting.value : window.adminProductsSortSetting
+    );
+    window.adminProductsSortSetting = adminProductsSort;
+    adminSyncProductSortUi();
     
     try {
-        const payload = { limit: val, adminProductsLimit: valAdmin, ordersLimit: valOrders, customersLimit: valCustomers };
+        const payload = {
+            limit: val,
+            adminProductsLimit: valAdmin,
+            adminProductsSort,
+            ordersLimit: valOrders,
+            customersLimit: valCustomers
+        };
         await db.collection('settings').doc('pagination').set(payload, { merge: true });
         
         if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;

@@ -13,6 +13,7 @@
         headerActions: { title: 'Quick actions', hint: '+ Category and + New item', icon: 'fa-plus-circle', selector: '#admin-view .admin-view-actions' },
         productSearch: { title: 'Product search', icon: 'fa-search', ids: ['admin-product-search-wrap'] },
         productFilter: { title: 'Product filter dropdown', icon: 'fa-filter', ids: ['admin-product-filter-wrap'] },
+        productSort: { title: 'Product sort', icon: 'fa-sort', ids: ['admin-product-sort-wrap'] },
         categories: { title: 'Product Categories', icon: 'fa-tags', ids: ['admin-category-section'] },
         categorySearch: { title: 'Category search', hint: 'Inside Categories (3+ items)', icon: 'fa-search', ids: ['admin-category-list-tools'], parentKey: 'categories', sortable: false },
         products: { title: 'Products list', hint: 'Rows and pagination', icon: 'fa-box-open', ids: ['admin-products-area'] }
@@ -32,11 +33,11 @@
         comments: { title: 'Reviews Moderation', icon: 'fa-comments', id: 'admin-comments-moderation', accordionContentId: 'admin-comments-accordion-content', accordionIconId: 'admin-comments-accordion-icon' }
     };
 
-    const SECTION_KEYS = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'categories', 'categorySearch', 'products'];
+    const SECTION_KEYS = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'categorySearch', 'products'];
     const TOOL_KEYS = ['bulk', 'cod', 'max-qty', 'promo', 'pagination', 'feature-content', 'feedback', 'footer', 'announcements', 'support', 'comments'];
     const SORTABLE_BLOCK_KEYS = [...SECTION_KEYS.filter(k => SECTION_REGISTRY[k]?.sortable !== false), ...TOOL_KEYS];
 
-    const DEFAULT_ABOVE = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'categories', 'products'];
+    const DEFAULT_ABOVE = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'products'];
     const DEFAULT_INSIDE = [...TOOL_KEYS];
     const DEFAULT_BELOW = [];
 
@@ -98,9 +99,39 @@
             clean.inside.push(key);
             seen.add(key);
         });
+        adminEnsureToolbarKeysPlacement(clean);
         const vis = { ...(visible || adminBlockVisibilityRead()) };
         if (vis.categories !== false) vis.categorySearch = vis.categorySearch !== false;
         return { above: clean.above, inside: clean.inside, below: clean.below, visible: vis };
+    }
+
+    function adminEnsureToolbarKeysPlacement(clean) {
+        const toolbarKeys = ['productSearch', 'productFilter', 'productSort'];
+        const zones = ['above', 'inside', 'below'];
+        toolbarKeys.forEach(key => {
+            if (zones.some(z => clean[z].includes(key))) return;
+            zones.forEach(z => {
+                const idx = clean[z].indexOf(key);
+                if (idx >= 0) clean[z].splice(idx, 1);
+            });
+            for (const z of zones) {
+                const filterIdx = clean[z].indexOf('productFilter');
+                if (filterIdx >= 0) {
+                    clean[z].splice(filterIdx + 1, 0, key);
+                    return;
+                }
+            }
+            for (const z of zones) {
+                const searchIdx = clean[z].indexOf('productSearch');
+                if (searchIdx >= 0) {
+                    clean[z].splice(searchIdx + 1, 0, key);
+                    return;
+                }
+            }
+            const headerIdx = clean.above.indexOf('headerActions');
+            if (headerIdx >= 0) clean.above.splice(headerIdx + 1, 0, key);
+            else clean.above.push(key);
+        });
     }
 
     function adminPlacementRead() {
@@ -459,7 +490,7 @@
         }
         el.hidden = false;
         el.style.display = '';
-        if (key === 'productSearch' || key === 'productFilter') {
+        if (key === 'productSearch' || key === 'productFilter' || key === 'productSort') {
             const row = el.closest('.admin-product-toolbar--placed, #admin-product-toolbar');
             if (row) {
                 row.classList.remove('admin-layout-hidden');
@@ -489,7 +520,7 @@
         const source = adminGetSourceProductToolbar();
         if (!slot || !source) return;
         slot.querySelectorAll(':scope > .admin-product-toolbar--placed').forEach(row => {
-            ['admin-product-search-wrap', 'admin-product-filter-wrap'].forEach(id => {
+            ['admin-product-search-wrap', 'admin-product-filter-wrap', 'admin-product-sort-wrap'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && el.parentNode === row) source.appendChild(el);
             });
@@ -522,12 +553,12 @@
 
     function adminPlaceSearchFilterBlocks(keys, target, startIndex, insertAfter) {
         let i = startIndex;
-        if (keys[i] !== 'productSearch' && keys[i] !== 'productFilter') {
+        if (keys[i] !== 'productSearch' && keys[i] !== 'productFilter' && keys[i] !== 'productSort') {
             return { nextIndex: i, insertAfter };
         }
         const row = adminEnsureToolbarRowAt(target, insertAfter);
         let placed = false;
-        while (i < keys.length && (keys[i] === 'productSearch' || keys[i] === 'productFilter')) {
+        while (i < keys.length && (keys[i] === 'productSearch' || keys[i] === 'productFilter' || keys[i] === 'productSort')) {
             const key = keys[i];
             const el = adminGetBlockNode(key);
             if (!adminIsBlockShown(key)) {
@@ -560,7 +591,7 @@
             }
             if (key === 'categorySearch') { i++; continue; }
 
-            if (key === 'productSearch' || key === 'productFilter') {
+            if (key === 'productSearch' || key === 'productFilter' || key === 'productSort') {
                 const result = adminPlaceSearchFilterBlocks(keys, target, i, insertAfter);
                 i = result.nextIndex;
                 insertAfter = result.insertAfter;
@@ -578,7 +609,7 @@
             i++;
         }
         if (emptyToolbar) {
-            emptyToolbar.classList.toggle('admin-layout-hidden', !emptyToolbar.querySelector('#admin-product-search-wrap, #admin-product-filter-wrap'));
+            emptyToolbar.classList.toggle('admin-layout-hidden', !emptyToolbar.querySelector('#admin-product-search-wrap, #admin-product-filter-wrap, #admin-product-sort-wrap'));
         }
     }
 

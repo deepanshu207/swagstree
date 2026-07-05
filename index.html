@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.53">
+    <link rel="stylesheet" href="css/style.css?v=9.54">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -732,6 +732,17 @@
                 <option value="has_panorama">Has panorama</option>
             </select>
             </div>
+            <div id="admin-product-sort-wrap" class="admin-product-sort-wrap">
+            <select id="admin-product-sort" class="admin-product-filter admin-product-sort" onchange="adminChangeProductSort()" aria-label="Sort products">
+                <option value="latest">Latest edited</option>
+                <option value="newest">Newest added</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name">Name A–Z</option>
+                <option value="name_desc">Name Z–A</option>
+                <option value="price_low">Price low–high</option>
+                <option value="price_high">Price high–low</option>
+            </select>
+            </div>
         </div>
 
         <!-- Product Categories -->
@@ -1040,6 +1051,20 @@
                     <p style="margin:0 0 6px; font-size:10px; color:#666;">How many products show per page in the Admin catalog list below</p>
                     <input id="admin-editing-products-page-limit" type="number" min="1" step="1" value="20"
                         style="margin:0; font-size:12px;" placeholder="Default is 20">
+                </div>
+                <div>
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Admin Products Default Sort</span>
+                    <p style="margin:0 0 6px; font-size:10px; color:#666;">Order of products in the Admin catalog list (saved for all admins)</p>
+                    <select id="admin-products-sort-setting" class="admin-product-filter" style="margin:0; width:100%; max-width:100%; box-sizing:border-box;"
+                        onchange="adminChangeProductSort(this.value, { fromPagination: true })">
+                        <option value="latest">Latest edited first</option>
+                        <option value="newest">Newest added first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="name">Name A–Z</option>
+                        <option value="name_desc">Name Z–A</option>
+                        <option value="price_low">Price low–high</option>
+                        <option value="price_high">Price high–low</option>
+                    </select>
                 </div>
                 <div>
                     <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Profile & Orders Page
@@ -3442,7 +3467,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.6"></script>
     <script src="js/admin-draft-compare.js?v=1.5"></script>
-    <script src="js/admin-favorites.js?v=2.8"></script>
+    <script src="js/admin-favorites.js?v=2.9"></script>
     <script src="js/categories.js?v=12.0"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
@@ -3450,7 +3475,7 @@
     <script src="js/comments.js?v=10.5"></script>
     <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=14.8"></script>
+    <script src="js/admin.js?v=14.9"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

@@ -8954,12 +8954,14 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 
 .admin-product-search-wrap,
-.admin-product-filter-wrap {
+.admin-product-filter-wrap,
+.admin-product-sort-wrap {
     flex: 1;
     min-width: 0;
 }
 .admin-product-search-wrap .admin-product-search,
-.admin-product-filter-wrap .admin-product-filter {
+.admin-product-filter-wrap .admin-product-filter,
+.admin-product-sort-wrap .admin-product-sort {
     width: 100%;
 }
 
@@ -9468,8 +9470,10 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 .admin-above-settings-slot .admin-product-toolbar--placed .admin-product-search-wrap,
 .admin-above-settings-slot .admin-product-toolbar--placed .admin-product-filter-wrap,
+.admin-above-settings-slot .admin-product-toolbar--placed .admin-product-sort-wrap,
 .admin-below-settings-slot .admin-product-toolbar--placed .admin-product-search-wrap,
-.admin-below-settings-slot .admin-product-toolbar--placed .admin-product-filter-wrap {
+.admin-below-settings-slot .admin-product-toolbar--placed .admin-product-filter-wrap,
+.admin-below-settings-slot .admin-product-toolbar--placed .admin-product-sort-wrap {
     width: 100%;
 }
 .admin-above-settings-slot > .admin-view-actions .admin-view-btn {
