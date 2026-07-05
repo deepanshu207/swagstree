@@ -166,7 +166,7 @@ function syncAdminCategoryListTools(totalCount, visibleCount) {
     }
     if (scroll) {
         scroll.classList.toggle('admin-category-list-scroll--empty', totalCount === 0);
-        scroll.classList.toggle('admin-category-list-scroll--many', totalCount >= 8);
+        scroll.classList.toggle('admin-category-list-scroll--many', totalCount >= 12);
     }
 }
 
@@ -174,17 +174,16 @@ function highlightAdminCategoryRow(id) {
     document.querySelectorAll('#admin-category-list .admin-category-row').forEach(row => {
         row.classList.toggle('is-editing', !!id && row.dataset.categoryId === id);
     });
-    if (!id) return;
-    const row = document.querySelector(`#admin-category-list .admin-category-row[data-category-id="${id}"]`);
-    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function focusAdminCategoryForm() {
-    const formWrap = document.getElementById('admin-category-form-wrap');
     const nameEl = document.getElementById('admin-category-name');
-    if (formWrap) formWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     if (nameEl) {
-        setTimeout(() => nameEl.focus(), 80);
+        try {
+            nameEl.focus({ preventScroll: true });
+        } catch (e) {
+            nameEl.focus();
+        }
     }
 }
 
@@ -211,7 +210,9 @@ function getCategoryFormBaseline() {
             isActive: cat.isActive !== false
         };
     }
-    return { editingCategoryId: null, name: '', sortOrder: '0', isActive: true };
+    const orderEl = document.getElementById('admin-category-order');
+    const baselineOrder = orderEl?.dataset?.baselineOrder || String(getNextCategorySortOrder());
+    return { editingCategoryId: null, name: '', sortOrder: baselineOrder, isActive: true };
 }
 
 function isCategoryFormDirty() {
@@ -227,11 +228,14 @@ function applyCategoryFormState(state) {
     const name = document.getElementById('admin-category-name');
     const order = document.getElementById('admin-category-order');
     const active = document.getElementById('admin-category-active');
-    const moreOptions = document.getElementById('admin-category-more-options');
     if (name) name.value = state.name || '';
-    if (order) order.value = String(state.sortOrder ?? '0');
+    if (order) {
+        order.value = String(state.sortOrder ?? '0');
+        if (!window.editingCategoryId) {
+            order.dataset.baselineOrder = String(state.sortOrder ?? getNextCategorySortOrder());
+        }
+    }
     if (active) active.checked = state.isActive !== false;
-    if (moreOptions) moreOptions.open = !!window.editingCategoryId;
     updateCategoryFormMode();
     renderAdminCategoryList();
 }
@@ -240,20 +244,20 @@ function persistCategoryDraft() {
     if (!canManageProductCategories()) return;
     if (!isCategoryFormDirty()) {
         const existing = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
-        if (existing?.type === 'category') adminDraftClear();
+        if (existing?.type === 'category' && typeof adminDraftClear === 'function') adminDraftClear();
         return;
     }
     const state = serializeCategoryFormState();
+    if (!state.name && !state.editingCategoryId) return;
     const draft = {
         v: 1,
         type: 'category',
         updatedAt: Date.now(),
         entityId: state.editingCategoryId,
-        label: state.name || (state.editingCategoryId ? 'Category edit' : 'New category'),
+        label: state.name || 'Category',
         form: state
     };
     if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
-    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
 }
 window.persistCategoryDraft = persistCategoryDraft;
 
@@ -266,14 +270,22 @@ function discardCategoryDraft(silent) {
 window.discardCategoryDraft = discardCategoryDraft;
 
 function tryOfferCategoryDraftRestore() {
-    if (!canManageProductCategories()) return;
+    if (!canManageProductCategories() || window._categoryDraftOffered) return;
     const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
     if (!draft || draft.type !== 'category' || !draft.form) return;
     if (isCategoryFormDirty()) return;
-    applyCategoryFormState(draft.form);
-    openAdminCategoryAccordion();
-    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
-    showToast('Recovered unsaved category draft.');
+    if (!draft.form.name && !draft.form.editingCategoryId) {
+        if (typeof adminDraftClear === 'function') adminDraftClear();
+        return;
+    }
+    window._categoryDraftOffered = true;
+    const label = draft.form.name || 'category';
+    if (window.confirm(`Resume unsaved work on "${label}"?`)) {
+        applyCategoryFormState(draft.form);
+        showToast('Draft restored — tap Save when ready.');
+    } else if (typeof adminDraftClear === 'function') {
+        adminDraftClear();
+    }
 }
 
 function loadCategoryIntoFormInternal(id) {
@@ -291,6 +303,14 @@ function loadCategoryIntoFormInternal(id) {
     renderAdminCategoryList();
     focusAdminCategoryForm();
     if (typeof adminDraftClear === 'function') adminDraftClear();
+}
+
+function setCategoryFormDefaultOrder() {
+    const order = document.getElementById('admin-category-order');
+    if (!order) return;
+    const next = getNextCategorySortOrder();
+    order.value = String(next);
+    order.dataset.baselineOrder = String(next);
 }
 
 function getActiveCategories() {
@@ -744,7 +764,6 @@ function updateCategoryFormMode() {
     const modeLabel = document.getElementById('admin-category-form-mode');
     const saveBtn = document.getElementById('admin-category-save-btn');
     const clearBtn = document.getElementById('admin-category-clear-btn');
-    const moreOptions = document.getElementById('admin-category-more-options');
     const nameEl = document.getElementById('admin-category-name');
     const isEditing = !!window.editingCategoryId;
     const cat = isEditing ? getCategoryById(window.editingCategoryId) : null;
@@ -753,26 +772,22 @@ function updateCategoryFormMode() {
     if (modeLabel) {
         modeLabel.textContent = isEditing
             ? `Editing “${cat?.name || 'category'}”`
-            : 'Add a new category';
+            : 'Add category';
         modeLabel.classList.toggle('is-editing', isEditing);
     }
     if (saveBtn) {
-        saveBtn.textContent = isEditing ? 'Save Changes' : 'Add Category';
+        saveBtn.textContent = isEditing ? 'Save' : 'Add';
         saveBtn.classList.toggle('is-editing', isEditing);
-        saveBtn.setAttribute('aria-label', isEditing ? 'Save category changes' : 'Add new category');
+        saveBtn.setAttribute('aria-label', isEditing ? 'Save category' : 'Add category');
     }
     if (clearBtn) {
-        clearBtn.textContent = isEditing ? 'Cancel Edit' : 'Clear Form';
+        clearBtn.textContent = 'Cancel';
         clearBtn.hidden = !isEditing && !hasDraft;
-    }
-    if (moreOptions) {
-        moreOptions.open = isEditing;
     }
     if (formWrap) {
         formWrap.classList.toggle('admin-category-form-editing', isEditing);
     }
     highlightAdminCategoryRow(isEditing ? window.editingCategoryId : null);
-    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
 }
 
 function bindCategoryFormUi() {
@@ -848,11 +863,9 @@ function resetCategoryFormInternal() {
     const name = document.getElementById('admin-category-name');
     const order = document.getElementById('admin-category-order');
     const active = document.getElementById('admin-category-active');
-    const moreOptions = document.getElementById('admin-category-more-options');
     if (name) name.value = '';
-    if (order) order.value = '0';
     if (active) active.checked = true;
-    if (moreOptions) moreOptions.open = false;
+    setCategoryFormDefaultOrder();
     renderAdminCategoryList();
     updateCategoryFormMode();
     if (typeof adminDraftClear === 'function') adminDraftClear();
@@ -1007,6 +1020,7 @@ function loadProductCategories() {
     if (window._categoriesListenerStarted) return;
     window._categoriesListenerStarted = true;
     initCategoryFormKeyboard();
+    setCategoryFormDefaultOrder();
 
     db.collection('categories').onSnapshot(snap => {
         window.productCategories = snap.docs.map(doc => {

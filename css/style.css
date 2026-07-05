@@ -7240,9 +7240,9 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     position: sticky;
     top: 0;
     z-index: 2;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     padding-bottom: 2px;
-    background: linear-gradient(#111 70%, rgba(17, 17, 17, 0));
+    background: #111;
 }
 .admin-category-list-tools {
     display: flex;
@@ -7501,21 +7501,27 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 .admin-category-form-quick {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) 52px auto;
+    gap: 8px;
     align-items: end;
 }
+.admin-category-form-order-col {
+    min-width: 0;
+}
+.admin-category-form-order-col input {
+    text-align: center;
+    padding-left: 6px;
+    padding-right: 6px;
+}
 .admin-category-form-submit-btn {
-    min-width: 118px;
+    min-width: 64px;
     align-self: end;
     height: 42px;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
 }
-.admin-category-form-wrap.admin-category-form-editing .admin-category-form-quick {
-    grid-template-columns: 1fr;
-}
-.admin-category-form-wrap.admin-category-form-editing .admin-category-form-submit-btn {
-    width: 100%;
-    min-width: 0;
+.admin-category-form-wrap .admin-category-form-active {
+    margin-top: 8px;
 }
 .admin-category-form-wrap.admin-category-form-editing {
     border-color: rgba(255, 215, 0, 0.35);
@@ -7733,11 +7739,14 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
         margin-bottom: 10px;
     }
     .admin-category-form-quick {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) 48px auto;
+        gap: 6px;
     }
     .admin-category-form-submit-btn {
-        width: 100%;
-        min-width: 0;
+        min-width: 56px;
+        font-size: 11px !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
     }
     .admin-category-list-tools {
         flex-direction: column;

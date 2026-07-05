@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.18">
+    <link rel="stylesheet" href="css/style.css?v=9.19">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -747,41 +747,28 @@
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
                 <div id="admin-category-storefront-banner" style="display:none; margin-bottom:12px;"></div>
 
-                <div id="admin-category-draft-banner" class="admin-draft-banner" hidden>
-                    <div class="admin-draft-banner__text" id="admin-category-draft-text"></div>
-                    <div class="admin-draft-banner__actions">
-                        <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminApproveCategoryDraft()">Approve &amp; save</button>
-                        <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminRejectCategoryDraft()">Reject draft</button>
-                    </div>
-                </div>
-
                 <div class="admin-category-toolbar">
                     <div id="admin-category-form-wrap" class="admin-category-form-wrap">
                         <div id="admin-category-form-mode" class="admin-category-form-mode">Add a new category</div>
                         <div class="admin-category-form-quick">
                             <div class="admin-category-form-main">
-                                <label class="admin-category-form-label" for="admin-category-name">Category name</label>
-                                <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
+                                <label class="admin-category-form-label" for="admin-category-name">Name</label>
+                                <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses" style="margin:0;">
+                            </div>
+                            <div class="admin-category-form-order-col">
+                                <label class="admin-category-form-label" for="admin-category-order" title="Lower numbers appear first">Order</label>
+                                <input id="admin-category-order" type="number" value="0" min="0" step="1" inputmode="numeric" style="margin:0;" aria-label="Display order">
                             </div>
                             <button type="button" id="admin-category-save-btn" class="btn-gold admin-category-btn admin-category-save-btn admin-category-form-action-btn admin-category-form-submit-btn"
-                                onclick="saveCategory()">Add Category</button>
+                                onclick="saveCategory()">Add</button>
                         </div>
-                        <details id="admin-category-more-options" class="admin-category-more-options">
-                            <summary class="admin-category-more-options-summary">More options (order, visibility)</summary>
-                            <div class="admin-category-form-advanced-grid admin-category-more-options-body">
-                                <div>
-                                    <label class="admin-category-form-label" for="admin-category-order">Display order</label>
-                                    <input id="admin-category-order" type="number" value="0" min="0" step="1" style="margin:0;">
-                                </div>
-                                <label class="admin-category-form-active" for="admin-category-active">
-                                    <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;">
-                                    <span>Active on storefront</span>
-                                </label>
-                            </div>
-                        </details>
+                        <label class="admin-category-form-active" for="admin-category-active">
+                            <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;">
+                            <span>Active on storefront</span>
+                        </label>
                         <div class="admin-category-form-actions">
                             <button type="button" id="admin-category-clear-btn" class="btn-gold admin-category-btn admin-category-btn-muted admin-category-form-action-btn"
-                                onclick="openCategoryForm()" hidden>Clear Form</button>
+                                onclick="openCategoryForm()" hidden>Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -2524,13 +2511,6 @@
     <div id="prod-modal" class="modal">
         <div class="modal-box">
             <h3 id="m-modal-title">Add New Product</h3>
-            <div id="admin-product-draft-banner" class="admin-draft-banner admin-draft-banner--modal" hidden>
-                <div class="admin-draft-banner__text" id="admin-product-draft-text"></div>
-                <div class="admin-draft-banner__actions">
-                    <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminApproveProductDraft()">Approve &amp; save</button>
-                    <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminRejectProductDraft()">Reject draft</button>
-                </div>
-            </div>
             <input id="m-name" placeholder="Product name (required)" aria-required="true">
             <input id="m-price" type="number" min="0" step="1" placeholder="Base price ₹ (required)" aria-required="true">
             <div id="m-category-container" style="margin-bottom:12px;">
@@ -3320,15 +3300,15 @@
     <script src="js/features.js?v=11.8"></script>
     <script src="js/app.js?v=10.7"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/admin-drafts.js?v=1.0"></script>
-    <script src="js/categories.js?v=10.11"></script>
+    <script src="js/admin-drafts.js?v=1.1"></script>
+    <script src="js/categories.js?v=10.12"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.5"></script>
     <script src="js/comments.js?v=10.3"></script>
     <script src="js/support-chat.js?v=10.8"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=13.0"></script>
+    <script src="js/admin.js?v=13.1"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

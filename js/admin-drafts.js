@@ -87,26 +87,7 @@
     }
 
     function adminDraftRenderBanners() {
-        const draft = adminDraftRead();
-        ['category', 'product'].forEach(type => {
-            const banner = document.getElementById(`admin-${type}-draft-banner`);
-            const text = document.getElementById(`admin-${type}-draft-text`);
-            if (!banner || !text) return;
-            const active = draft && draft.type === type;
-            const dirty = type === 'category'
-                ? (typeof isCategoryFormDirty === 'function' && isCategoryFormDirty())
-                : (typeof adminIsProductDirty === 'function' && adminIsProductDirty());
-            if (!active) {
-                banner.hidden = true;
-                return;
-            }
-            const age = adminDraftFormatAge(draft.updatedAt);
-            const label = draft.label || (type === 'category' ? 'Category' : 'Product');
-            text.innerHTML = dirty
-                ? `<strong>Unsaved draft:</strong> ${escapeAdminDraftHtml(label)} <span class="admin-draft-age">· ${age}</span>`
-                : `<strong>Recovered draft:</strong> ${escapeAdminDraftHtml(label)} <span class="admin-draft-age">· ${age}</span>`;
-            banner.hidden = false;
-        });
+        /* Silent drafts — no in-form banners (avoids layout jump + scroll). */
     }
 
     function escapeAdminDraftHtml(str) {
@@ -208,7 +189,7 @@
         clearTimeout(categoryDraftTimer);
         categoryDraftTimer = setTimeout(() => {
             if (typeof persistCategoryDraft === 'function') persistCategoryDraft();
-        }, 450);
+        }, 800);
     };
 
     window.adminScheduleProductDraftSave = function() {

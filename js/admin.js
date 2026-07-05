@@ -811,7 +811,6 @@ function persistProductDraft() {
         form
     };
     if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
-    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
 }
 window.persistProductDraft = persistProductDraft;
 
@@ -836,17 +835,29 @@ function adminBindProductDraftListeners() {
     });
 }
 
-function adminTryRestoreProductDraft() {
+function adminTryRestoreProductDraft(expectedId) {
+    if (window._productDraftOffered) return false;
     const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
     if (!draft || draft.type !== 'product' || !draft.form) return false;
+    if (expectedId !== undefined && draft.form.editingId !== expectedId) return false;
+    if (expectedId === null && draft.form.editingId) return false;
+    if (!(draft.form.name || '').trim() && !draft.form.editingId) {
+        if (typeof adminDraftClear === 'function') adminDraftClear();
+        return false;
+    }
+    window._productDraftOffered = true;
+    const label = (draft.form.name || '').trim() || 'product';
+    if (!window.confirm(`Resume unsaved work on "${label}"?`)) {
+        if (typeof adminDraftClear === 'function') adminDraftClear();
+        return false;
+    }
     document.getElementById('prod-modal').style.display = 'flex';
     applyProductDraftForm(draft.form);
     if (draft.form.hasPendingFiles) {
         showToast('Draft restored — re-upload any files that were not saved.');
     } else {
-        showToast('Recovered unsaved product draft.');
+        showToast('Draft restored — tap Save when ready.');
     }
-    if (typeof adminDraftRenderBanners === 'function') adminDraftRenderBanners();
     return true;
 }
 
@@ -2439,13 +2450,9 @@ window.loadMoreAdminProducts = function() {
 };
 
 function openEdit(id) {
-    if (typeof adminDraftRead === 'function') {
-        const draft = adminDraftRead();
-        if (draft?.type === 'product' && draft.form?.editingId === id) {
-            adminTryRestoreProductDraft();
-            adminBindProductDraftListeners();
-            return;
-        }
+    if (adminTryRestoreProductDraft(id)) {
+        adminBindProductDraftListeners();
+        return;
     }
     editingId = id; 
     const p = products.find(x => x.id === id);
@@ -2600,9 +2607,7 @@ function syncAdmin360PanelVisibility() {
 window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
 
 function openAdd() {
-    const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
-    if (draft?.type === 'product' && !draft.form?.editingId) {
-        adminTryRestoreProductDraft();
+    if (adminTryRestoreProductDraft(null)) {
         adminBindProductDraftListeners();
         return;
     }
