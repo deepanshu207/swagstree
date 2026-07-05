@@ -343,9 +343,79 @@
         }
     }
 
+    window.adminMarkDraftFieldEl = function(el, isDraft, hint) {
+        if (!el) return;
+        el.classList.toggle('admin-field--draft', !!isDraft);
+        if (isDraft && hint) {
+            el.setAttribute('title', hint);
+            el.setAttribute('aria-description', hint);
+        } else {
+            el.removeAttribute('title');
+            el.removeAttribute('aria-description');
+        }
+    };
+
+    window.adminMarkDraftSectionEl = function(el, isDraft, hint) {
+        if (!el) return;
+        el.classList.toggle('admin-section--draft', !!isDraft);
+        if (isDraft && hint) el.setAttribute('title', hint);
+        else el.removeAttribute('title');
+    };
+
     function renderAdminDraftRecoveryPanel() {
         updateAdminNewProductDraftBadge();
         updateSuperadminDraftStorageInfo();
+
+        const panel = document.getElementById('admin-draft-recovery-panel');
+        if (!panel) return;
+
+        if (!adminCrudDraftsEnabled()) {
+            panel.hidden = true;
+            panel.innerHTML = '';
+            panel.style.display = 'none';
+            return;
+        }
+
+        const items = adminDraftListEntries().filter(item => adminDraftIsVisible(item.type, item.key));
+        if (!items.length) {
+            panel.hidden = true;
+            panel.innerHTML = '';
+            panel.style.display = 'none';
+            return;
+        }
+
+        panel.hidden = false;
+        panel.style.display = '';
+        panel.innerHTML = `
+            <div class="admin-draft-recovery-panel">
+                <div class="admin-draft-recovery-panel__head">
+                    <span class="admin-draft-recovery-panel__title"><i class="fa fa-file-text-o"></i> Saved drafts on this device</span>
+                    <button type="button" class="admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>
+                </div>
+                <div class="admin-draft-recovery-list">
+                    ${items.map(item => {
+                        const label = adminDraftEscapeHtml(item.entry?.label || 'Untitled');
+                        const age = adminDraftFormatAge(item.entry?.updatedAt);
+                        const typeLabel = item.type === 'product' ? 'Product' : 'Category';
+                        const isNew = item.key === 'new';
+                        const action = item.type === 'product'
+                            ? `adminRestoreDraft('product', '${item.key}')`
+                            : `adminRestoreDraft('category', '${item.key}')`;
+                        const meta = isNew ? 'New (unpublished)' : 'Edit draft';
+                        return `
+                        <div class="admin-draft-recovery-row">
+                            <div class="admin-draft-recovery-row__text">
+                                <strong>${label}</strong>
+                                <span class="admin-draft-recovery-row__meta">${typeLabel} · ${meta} · ${age}</span>
+                            </div>
+                            <div class="admin-draft-recovery-row__actions">
+                                <button type="button" class="btn-gold admin-draft-btn-approve" onclick="${action}">Continue</button>
+                                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDeleteDraft('${item.type}', '${item.key}')">Delete</button>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
     }
 
     window.adminRestoreDraft = function(type, key) {

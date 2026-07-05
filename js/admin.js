@@ -798,6 +798,9 @@ function applyProductDraftForm(form) {
         adminActivateProductDraftUi(editingId ? 'edit' : 'new');
     }
     adminResetProductSnapshot();
+    if (editingId && window._adminProductLiveBaseline) {
+        setTimeout(() => adminSyncProductEditDraftUi(), 150);
+    }
 }
 window.applyProductDraftForm = applyProductDraftForm;
 
@@ -808,6 +811,7 @@ function getProductDraftKey(id) {
 
 window._adminProductLiveBaseline = window._adminProductLiveBaseline || null;
 window._adminProductDraftUiActive = window._adminProductDraftUiActive || false;
+window._adminProductDraftLoaded = window._adminProductDraftLoaded || false;
 
 let _productDraftUiTimer = null;
 
@@ -870,6 +874,10 @@ function adminBuildCurrentFormCompareSnapshot() {
 }
 
 function adminMarkDraftFieldEl(el, isDraft, hint) {
+    if (typeof window.adminMarkDraftFieldEl === 'function' && window.adminMarkDraftFieldEl !== adminMarkDraftFieldEl) {
+        window.adminMarkDraftFieldEl(el, isDraft, hint);
+        return;
+    }
     if (!el) return;
     el.classList.toggle('admin-field--draft', !!isDraft);
     if (isDraft && hint) {
@@ -882,6 +890,10 @@ function adminMarkDraftFieldEl(el, isDraft, hint) {
 }
 
 function adminMarkDraftSectionEl(el, isDraft, hint) {
+    if (typeof window.adminMarkDraftSectionEl === 'function' && window.adminMarkDraftSectionEl !== adminMarkDraftSectionEl) {
+        window.adminMarkDraftSectionEl(el, isDraft, hint);
+        return;
+    }
     if (!el) return;
     el.classList.toggle('admin-section--draft', !!isDraft);
     if (isDraft && hint) el.setAttribute('title', hint);
@@ -890,10 +902,14 @@ function adminMarkDraftSectionEl(el, isDraft, hint) {
 
 function adminClearProductDraftUi() {
     window._adminProductDraftUiActive = false;
+    window._adminProductDraftLoaded = false;
     const modal = document.getElementById('prod-modal');
     if (modal) modal.classList.remove('prod-modal--draft-view');
     const bar = document.getElementById('admin-product-draft-mode-bar');
-    if (bar) bar.hidden = true;
+    if (bar) {
+        bar.hidden = true;
+        bar.style.display = 'none';
+    }
     document.querySelectorAll('#prod-modal .admin-field--draft, #prod-modal .admin-section--draft').forEach(el => {
         el.classList.remove('admin-field--draft', 'admin-section--draft');
         el.removeAttribute('title');
@@ -902,8 +918,43 @@ function adminClearProductDraftUi() {
 }
 window.adminClearProductDraftUi = adminClearProductDraftUi;
 
+function adminSyncProductEditDraftUi() {
+    if (!window._adminProductLiveBaseline) return;
+    const dirty = typeof adminIsProductDirty === 'function' && adminIsProductDirty();
+    if (!dirty && !window._adminProductDraftLoaded) {
+        const bar = document.getElementById('admin-product-draft-mode-bar');
+        if (bar) {
+            bar.hidden = true;
+            bar.style.display = 'none';
+        }
+        document.querySelectorAll('#prod-modal .admin-field--draft, #prod-modal .admin-section--draft').forEach(el => {
+            el.classList.remove('admin-field--draft', 'admin-section--draft');
+            el.removeAttribute('title');
+            el.removeAttribute('aria-description');
+        });
+        window._adminProductDraftUiActive = false;
+        return;
+    }
+    window._adminProductDraftUiActive = true;
+    const modal = document.getElementById('prod-modal');
+    if (modal) modal.classList.add('prod-modal--draft-view');
+    const bar = document.getElementById('admin-product-draft-mode-bar');
+    const textEl = bar?.querySelector('.admin-draft-mode-bar__text');
+    if (bar) {
+        bar.hidden = false;
+        bar.style.display = '';
+    }
+    if (textEl) {
+        textEl.innerHTML = window._adminProductDraftLoaded
+            ? '<strong>Draft loaded</strong> — amber fields differ from the published listing. Hover for the live value.'
+            : '<strong>Unsaved changes</strong> — amber fields differ from the published listing. Publish with Save Product or save as draft.';
+    }
+    adminSyncProductDraftFieldUi();
+}
+
 function adminActivateProductDraftUi(mode) {
     window._adminProductDraftUiActive = true;
+    window._adminProductDraftLoaded = true;
     const modal = document.getElementById('prod-modal');
     if (modal) modal.classList.add('prod-modal--draft-view');
     const bar = document.getElementById('admin-product-draft-mode-bar');
@@ -1170,9 +1221,14 @@ function adminBindProductDraftListeners() {
     if (!modal || modal.dataset.draftUiBound) return;
     modal.dataset.draftUiBound = '1';
     const onChange = () => {
-        if (!window._adminProductDraftUiActive) return;
         clearTimeout(_productDraftUiTimer);
-        _productDraftUiTimer = setTimeout(() => adminSyncProductDraftFieldUi(), 200);
+        _productDraftUiTimer = setTimeout(() => {
+            if (window._adminProductDraftUiActive || window._adminProductDraftLoaded) {
+                adminSyncProductDraftFieldUi();
+            } else if (window._adminProductLiveBaseline) {
+                adminSyncProductEditDraftUi();
+            }
+        }, 200);
     };
     modal.addEventListener('input', onChange);
     modal.addEventListener('change', onChange);
@@ -2797,8 +2853,10 @@ function openEdit(id) {
     if (!p) return showToast('Product not found.');
     window._adminProductLiveBaseline = adminBuildLiveProductSnapshot(p);
     if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+    window._adminProductLiveBaseline = adminBuildLiveProductSnapshot(p);
+    window._adminProductDraftLoaded = false;
     adminSetModalTitle('edit');
-    adminShowValidationErrors([]); 
+    adminShowValidationErrors([]);
     document.getElementById('m-name').value = p.name;
     document.getElementById('m-price').value = p.price; 
     document.getElementById('m-desc').value = p.description || ""; 
