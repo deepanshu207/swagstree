@@ -224,7 +224,7 @@ function adminActivateCategoryDraftUi(mode, liveBaseline, opts) {
     window._adminCategoryDraftLoaded = fromLoadedDraft;
     window._adminCategoryLiveBaseline = liveBaseline || null;
     const barHtml = mode === 'edit'
-        ? '<strong>Draft loaded</strong> — amber fields differ from the published category. Hover for the live value.'
+        ? '<strong>Draft view</strong> — amber fields differ from actual (live). Hover for the live value.'
         : '<strong>New category draft</strong> — not on the storefront until you publish.';
     const modal = document.getElementById('category-modal');
     if (modal) modal.classList.add('category-modal--draft-view');
@@ -251,8 +251,8 @@ function adminSyncCategoryEditDraftUi() {
     const modal = document.getElementById('category-modal');
     if (modal) modal.classList.add('category-modal--draft-view');
     adminShowCategoryDraftBar(true, window._adminCategoryDraftLoaded
-        ? '<strong>Draft loaded</strong> — amber fields differ from the published category.'
-        : '<strong>Unsaved changes</strong> — amber fields differ from the published category. Save or save as draft.');
+        ? '<strong>Draft view</strong> — amber fields differ from actual (live).'
+        : '<strong>Actual view</strong> — amber fields differ from what is live. Save or save as draft.');
     adminSyncCategoryDraftFieldUi();
 }
 
@@ -319,7 +319,7 @@ function renderCategoryModalDraftBanner() {
         <div class="admin-draft-banner admin-draft-banner--modal">
             <div class="admin-draft-banner__text">
                 <strong>Unpublished draft</strong> saved ${age}
-                <div class="admin-draft-recovery-hint">Switch to Draft tab above, or compare changes</div>
+                <div class="admin-draft-recovery-hint">Switch to Draft tab above, or compare actual vs draft</div>
             </div>
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditCategoryDraft()">Load draft</button>

@@ -6,10 +6,46 @@
     window._adminProductViewMode = window._adminProductViewMode || 'live';
     window._adminCategoryViewMode = window._adminCategoryViewMode || 'live';
 
+    function adminEscapeHtml(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     function adminFmtVal(v) {
         if (v === null || v === undefined || v === '') return '(empty)';
         if (typeof v === 'boolean') return v ? 'Yes' : 'No';
         return String(v);
+    }
+
+    function adminFmtQty(v) {
+        if (v === null || v === undefined || v === '') return '0';
+        const n = Number(v);
+        return Number.isFinite(n) ? String(n) : String(v);
+    }
+
+    function adminNormalizeCategoryIds(val) {
+        if (Array.isArray(val)) return [...val].map(id => String(id || '').trim()).filter(Boolean).sort();
+        return String(val || '').split(/[,\s]+/).map(s => s.trim()).filter(Boolean).sort();
+    }
+
+    function adminCategoryIdsEqual(a, b) {
+        const na = adminNormalizeCategoryIds(a);
+        const nb = adminNormalizeCategoryIds(b);
+        if (na.length !== nb.length) return false;
+        return na.every((id, i) => id === nb[i]);
+    }
+
+    function adminFormatCategoryLabels(val) {
+        const ids = adminNormalizeCategoryIds(val);
+        if (!ids.length) return '(none)';
+        const names = ids.map(id => {
+            const cat = typeof getCategoryById === 'function' ? getCategoryById(id) : null;
+            return cat?.name || id;
+        });
+        return names.join(', ');
     }
 
     function adminProductDraftEntry(id) {
@@ -34,11 +70,15 @@
         };
         add('name', 'Name', live.name, draft.name);
         add('price', 'Price', live.price, draft.price);
-        add('desc', 'Description', live.desc, (draft.desc || '').slice(0, 80));
-        const draftCatIds = Array.isArray(draft.categoryIds)
-            ? [...draft.categoryIds].sort().join(', ')
-            : String(draft.categoryIds || '').split(',').filter(Boolean).sort().join(', ');
-        add('categories', 'Categories', live.categoryIds, draftCatIds);
+        add('desc', 'Description', live.desc, (draft.desc || '').slice(0, 120));
+        if (!adminCategoryIdsEqual(live.categoryIds, draft.categoryIds)) {
+            rows.push({
+                field: 'categories',
+                label: 'Categories',
+                live: adminFormatCategoryLabels(live.categoryIds),
+                draft: adminFormatCategoryLabels(draft.categoryIds)
+            });
+        }
         add('hideMain', 'Hide main carousel', live.hideMain, draft.hideMain);
         add('hideMainDet', 'Hide details carousel', live.hideMainDet, draft.hideMainDet);
         add('mainPos', 'Main image position', live.mainPos, draft.mainPos);
@@ -46,7 +86,11 @@
         add('is360', 'Rotate 360°', live.is360, draft.is360);
         add('is360Pano', 'Look around panorama', live.is360Pano, draft.is360Pano);
         add('trackGlobal', 'Track global stock', live.trackGlobal, draft.trackGlobal);
-        add('globalQty', 'Global stock qty', live.globalQty, draft.globalQty);
+        const liveQty = adminFmtQty(live.globalQty);
+        const draftQty = adminFmtQty(draft.globalQty);
+        if (liveQty !== draftQty) {
+            rows.push({ field: 'globalQty', label: 'Global stock qty', live: liveQty, draft: draftQty });
+        }
         const draftImg = (draft.images || []).length;
         const draftSpin = (draft.spins || []).length;
         const draftPano = (draft.panos || []).length;
@@ -58,7 +102,7 @@
         add('videos', 'Videos', live.videoCount, draftVid);
         add('variants', 'Variants', live.variantCount, draftVar);
         if (draft.hasPendingFiles) {
-            rows.push({ field: 'media', label: 'Uploaded files', live: 'Published URLs only', draft: 'Pending uploads in draft' });
+            rows.push({ field: 'media', label: 'Uploaded files', live: 'Actual (live) URLs only', draft: 'Pending uploads in draft' });
         }
         return rows;
     }
@@ -84,22 +128,27 @@
         if (!modal || !body) return;
         if (titleEl) titleEl.textContent = title;
         if (!rows.length) {
-            body.innerHTML = '<p class="admin-draft-compare-empty">No differences — draft matches the published version.</p>';
+            body.innerHTML = '<p class="admin-draft-compare-empty">No differences — draft matches what is live on the storefront.</p>';
         } else {
             const modeNote = viewingMode === 'draft'
-                ? 'You are viewing the <strong>draft</strong>. Amber rows differ from what is live on the storefront.'
-                : 'You are viewing the <strong>published</strong> version. Amber rows differ from your saved draft.';
+                ? 'You are viewing the <strong>draft</strong>. Below: what is <strong>live now</strong> vs your <strong>saved draft</strong>.'
+                : 'You are viewing the <strong>actual (live)</strong> version. Below: what is <strong>live now</strong> vs your <strong>saved draft</strong>.';
             body.innerHTML = `
                 <p class="admin-draft-compare-intro">${modeNote}</p>
-                <div class="admin-draft-compare-table">
-                    <div class="admin-draft-compare-row admin-draft-compare-row--head">
-                        <span>Field</span><span>Published</span><span>Draft</span>
-                    </div>
+                <div class="admin-draft-compare-list">
                     ${rows.map(r => `
-                    <div class="admin-draft-compare-row">
-                        <span class="admin-draft-compare-field">${r.label}</span>
-                        <span class="admin-draft-compare-live">${r.live}</span>
-                        <span class="admin-draft-compare-draft">${r.draft}</span>
+                    <div class="admin-draft-compare-card">
+                        <div class="admin-draft-compare-card__field">${adminEscapeHtml(r.label)}</div>
+                        <div class="admin-draft-compare-card__cols">
+                            <div class="admin-draft-compare-col admin-draft-compare-col--actual">
+                                <span class="admin-draft-compare-col__label">Actual (live)</span>
+                                <span class="admin-draft-compare-col__value">${adminEscapeHtml(r.live)}</span>
+                            </div>
+                            <div class="admin-draft-compare-col admin-draft-compare-col--draft">
+                                <span class="admin-draft-compare-col__label">Draft (saved)</span>
+                                <span class="admin-draft-compare-col__value">${adminEscapeHtml(r.draft)}</span>
+                            </div>
+                        </div>
                     </div>`).join('')}
                 </div>`;
         }
@@ -136,7 +185,7 @@
         const draft = adminGetSavedProductDraftForm();
         if (!draft) return showToast('No draft to compare.');
         const rows = adminBuildProductCompareRows(live, draft);
-        adminRenderCompareModal('Product — published vs draft', rows, window._adminProductViewMode);
+        adminRenderCompareModal('Product — actual vs draft', rows, window._adminProductViewMode);
         if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
     };
 
@@ -152,7 +201,7 @@
         const draft = adminGetSavedCategoryDraftForm();
         if (!draft) return showToast('No draft to compare.');
         const rows = adminBuildCategoryCompareRows(live, draft);
-        adminRenderCompareModal('Category — published vs draft', rows, window._adminCategoryViewMode);
+        adminRenderCompareModal('Category — actual vs draft', rows, window._adminCategoryViewMode);
         if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
     };
 
@@ -207,7 +256,7 @@
             window._adminProductDraftLoaded = true;
             if (typeof adminActivateProductDraftUi === 'function') adminActivateProductDraftUi('edit');
             if (typeof adminDraftSetActive === 'function') adminDraftSetActive('product', `edit:${editingId}`);
-            showToast('Showing draft — switch to Published anytime.');
+            showToast('Showing draft — switch to Actual anytime.');
         } else {
             const p = (products || []).find(x => x.id === editingId);
             if (!p) return showToast('Product not found.');
@@ -217,7 +266,7 @@
             if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
             window._adminProductLiveBaseline = typeof adminBuildLiveProductSnapshot === 'function' ? adminBuildLiveProductSnapshot(p) : null;
             if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
-            showToast('Showing published version.');
+            showToast('Showing actual (live) version.');
         }
         if (typeof renderProductModalDraftBanner === 'function') renderProductModalDraftBanner();
         if (typeof adminResetProductSnapshot === 'function') adminResetProductSnapshot();
@@ -234,7 +283,7 @@
             if (typeof applyCategoryFormState === 'function') applyCategoryFormState(entry.entry.form, true);
             if (typeof adminDraftSetActive === 'function') adminDraftSetActive('category', `edit:${window.editingCategoryId}`);
             window._adminCategoryViewMode = 'draft';
-            showToast('Showing draft — switch to Published anytime.');
+            showToast('Showing draft — switch to Actual anytime.');
         } else {
             const cat = typeof getCategoryById === 'function' ? getCategoryById(window.editingCategoryId) : null;
             if (!cat) return showToast('Category not found.');
@@ -244,7 +293,7 @@
             if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
             window._adminCategoryLiveBaseline = typeof adminBuildLiveCategorySnapshot === 'function' ? adminBuildLiveCategorySnapshot(cat) : null;
             if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
-            showToast('Showing published version.');
+            showToast('Showing actual (live) version.');
         }
         if (typeof renderCategoryModalDraftBanner === 'function') renderCategoryModalDraftBanner();
         if (typeof adminResetCategorySnapshot === 'function') adminResetCategorySnapshot();

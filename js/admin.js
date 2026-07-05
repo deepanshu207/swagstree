@@ -956,8 +956,8 @@ function adminSyncProductEditDraftUi() {
     }
     if (textEl) {
         textEl.innerHTML = window._adminProductDraftLoaded
-            ? '<strong>Draft loaded</strong> — amber fields differ from the published listing. Hover for the live value.'
-            : '<strong>Unsaved changes</strong> — amber fields differ from the published listing. Publish with Save Product or save as draft.';
+            ? '<strong>Draft view</strong> — amber fields differ from actual (live). Hover for the live value.'
+            : '<strong>Actual view</strong> — amber fields differ from what is live. Save Product to publish or save as draft.';
     }
     adminSyncProductDraftFieldUi();
 }
@@ -972,7 +972,7 @@ function adminActivateProductDraftUi(mode) {
     if (bar) bar.hidden = false;
     if (textEl) {
         textEl.innerHTML = mode === 'edit'
-            ? '<strong>Draft loaded</strong> — amber fields differ from the published listing. Hover for the live value. Publish with <em>Save Product</em> to go live.'
+            ? '<strong>Draft view</strong> — amber fields differ from actual (live). Hover for the live value. Publish with <em>Save Product</em> to go live.'
             : '<strong>New product draft</strong> — not on the storefront yet. Amber fields are draft-only until you publish.';
     }
     adminSyncProductDraftFieldUi();
@@ -1222,7 +1222,7 @@ function renderProductModalDraftBanner() {
         <div class="admin-draft-banner admin-draft-banner--modal">
             <div class="admin-draft-banner__text">
                 <strong>Unpublished draft</strong> saved ${age}
-                <div class="admin-draft-recovery-hint">Switch to Draft tab above, or compare changes</div>
+                <div class="admin-draft-recovery-hint">Switch to Draft tab above, or compare actual vs draft</div>
             </div>
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditProductDraft()">Load draft</button>
