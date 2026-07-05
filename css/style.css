@@ -8883,7 +8883,69 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-layout-settings__zones {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
+}
+.admin-layout-zone-accordion {
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid #2a2a2a;
+    overflow: hidden;
+}
+.admin-layout-zone-accordion--inside {
+    background: rgba(0, 0, 0, 0.12);
+}
+.admin-layout-zone-accordion__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 12px 10px;
+    border: none;
+    background: transparent;
+    color: #eee;
+    cursor: pointer;
+    text-align: left;
+}
+.admin-layout-zone-accordion__head:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+.admin-layout-zone-accordion__title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+.admin-layout-zone-accordion__title-wrap > .fa {
+    color: var(--gold, #c9a227);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+.admin-layout-zone-accordion__title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+}
+.admin-layout-zone-accordion__count {
+    font-size: 10px;
+    font-weight: 600;
+    color: #777;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 2px 7px;
+    flex-shrink: 0;
+}
+.admin-layout-zone-accordion__icon {
+    color: var(--gold, #c9a227);
+    font-size: 11px;
+    transition: transform 0.25s;
+    transform: rotate(-90deg);
+    flex-shrink: 0;
+}
+.admin-layout-zone-accordion__body {
+    padding: 0 10px 10px;
 }
 .admin-layout-zone {
     padding: 10px 10px 8px;
@@ -8909,10 +8971,15 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     font-size: 11px;
 }
 .admin-layout-zone__hint {
-    margin: 0 0 8px;
+    margin: 0 0 0;
+    padding: 0 12px 10px;
     font-size: 10px;
     color: #555;
     line-height: 1.35;
+}
+.admin-layout-zone-accordion .admin-layout-zone__hint {
+    padding-top: 0;
+    margin-top: -4px;
 }
 .admin-layout-sortable-list {
     display: flex;

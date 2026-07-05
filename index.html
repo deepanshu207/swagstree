@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.46">
+    <link rel="stylesheet" href="css/style.css?v=9.47">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -812,17 +812,35 @@
                 <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
                 Admin layout
             </h4>
-            <p style="margin:6px 0 14px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> turns each section on or off. <strong>Drag</strong> (or ↑↓) to reorder. Items in <em>Above store settings</em> appear on the Admin page before this accordion; items in <em>Inside store settings</em> appear here when expanded. Tap <strong>Save layout</strong> when done.</p>
+            <p style="margin:6px 0 12px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> = on/off. <strong>Drag</strong> or ↑↓ to reorder. Expand each zone below to edit. Tap <strong>Save layout</strong> when done.</p>
             <div class="admin-layout-settings__zones">
-                <div class="admin-layout-zone">
-                    <h6 class="admin-layout-zone__title"><i class="fa fa-arrow-up" aria-hidden="true"></i> Above store settings</h6>
-                    <p class="admin-layout-zone__hint">Drafts, search, filter, categories, products, tools — your order</p>
-                    <div id="admin-layout-above-list" class="admin-layout-sortable-list" role="list" aria-label="Sections above store settings"></div>
+                <div class="admin-layout-zone-accordion">
+                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('above')" aria-expanded="false" aria-controls="admin-layout-above-content">
+                        <span class="admin-layout-zone-accordion__title-wrap">
+                            <i class="fa fa-arrow-up" aria-hidden="true"></i>
+                            <span class="admin-layout-zone-accordion__title">Above store settings</span>
+                            <span id="admin-layout-above-count" class="admin-layout-zone-accordion__count"></span>
+                        </span>
+                        <i id="admin-layout-above-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                    </button>
+                    <p class="admin-layout-zone__hint">On Admin page before this accordion — drafts, search, filter, categories, products, tools</p>
+                    <div id="admin-layout-above-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                        <div id="admin-layout-above-list" class="admin-layout-sortable-list" role="list" aria-label="Sections above store settings"></div>
+                    </div>
                 </div>
-                <div class="admin-layout-zone admin-layout-zone--accordion">
-                    <h6 class="admin-layout-zone__title"><i class="fa fa-sliders-h" aria-hidden="true"></i> Inside store settings</h6>
-                    <p class="admin-layout-zone__hint">Only visible when this accordion is open</p>
-                    <div id="admin-layout-inside-list" class="admin-layout-sortable-list" role="list" aria-label="Sections inside store settings"></div>
+                <div class="admin-layout-zone-accordion admin-layout-zone-accordion--inside">
+                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('inside')" aria-expanded="false" aria-controls="admin-layout-inside-content">
+                        <span class="admin-layout-zone-accordion__title-wrap">
+                            <i class="fa fa-sliders-h" aria-hidden="true"></i>
+                            <span class="admin-layout-zone-accordion__title">Inside store settings</span>
+                            <span id="admin-layout-inside-count" class="admin-layout-zone-accordion__count"></span>
+                        </span>
+                        <i id="admin-layout-inside-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                    </button>
+                    <p class="admin-layout-zone__hint">Only when Store settings accordion is open</p>
+                    <div id="admin-layout-inside-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                        <div id="admin-layout-inside-list" class="admin-layout-sortable-list" role="list" aria-label="Sections inside store settings"></div>
+                    </div>
                 </div>
             </div>
             <div class="admin-layout-settings__actions">
@@ -3401,7 +3419,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.5"></script>
     <script src="js/admin-draft-compare.js?v=1.3"></script>
-    <script src="js/admin-favorites.js?v=2.3"></script>
+    <script src="js/admin-favorites.js?v=2.4"></script>
     <script src="js/categories.js?v=11.8"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>

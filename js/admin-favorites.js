@@ -434,7 +434,9 @@
         aboveList.innerHTML = buildZoneHtml(draft.above);
         insideList.innerHTML = buildZoneHtml(draft.inside);
 
+        adminUpdateLayoutZoneCounts(draft.above.length, draft.inside.length);
         adminBindSortables();
+        adminSyncLayoutZoneAccordions();
         adminLayoutUpdateSaveButton();
     }
 
