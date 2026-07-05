@@ -1220,8 +1220,8 @@ function renderProductModalDraftBanner() {
                 <div class="admin-draft-recovery-hint">Load draft to continue, or publish from the live version below</div>
             </div>
             <div class="admin-draft-banner__actions">
-                <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminLoadEditProductDraft()">Load draft</button>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDiscardEditProductDraft()">Delete draft</button>
+                <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditProductDraft()">Load draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditProductDraft()">Delete draft</button>
             </div>
         </div>`;
 }

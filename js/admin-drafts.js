@@ -669,8 +669,8 @@
                 <span class="admin-draft-recovery-row__meta">${meta} · ${age}${mediaNote}</span>
             </div>
             <div class="admin-draft-recovery-row__actions">
-                <button type="button" class="btn-gold admin-draft-btn-approve" onclick="${action}">Continue</button>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDeleteDraft('${item.type}', '${item.key}')">Delete</button>
+                <button type="button" class="btn-gold admin-draft-btn-continue" onclick="${action}">Continue</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDeleteDraft('${item.type}', '${item.key}')">Delete</button>
             </div>
         </div>`;
     }
@@ -794,7 +794,7 @@
 
         const mainOpen = !!window._adminDraftsAccordionOpen;
         const clearBtn = adminCrudDraftsClearAllEnabled()
-            ? '<button type="button" class="admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>'
+            ? '<button type="button" class="admin-btn-draft-clear" onclick="event.stopPropagation(); adminDeleteAllDrafts()">Clear all</button>'
             : '';
 
         panel.hidden = false;

@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.31">
+    <link rel="stylesheet" href="css/style.css?v=9.32">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -699,12 +699,12 @@
     <div id="admin-view" class="section">
         <div id="admin-draft-recovery-panel" hidden></div>
 
-        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
+        <div class="admin-view-header">
+            <h3 class="admin-view-title">Admin Tools <span id="admin-product-count"
                     class="count-badge" style="display:none;">0 Products</span></h3>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn-gold" style="width:auto; padding:8px 16px;" onclick="openCategoryAdd()">+ Category</button>
-                <button type="button" id="admin-new-product-btn" class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+            <div class="admin-view-actions">
+                <button type="button" class="btn-gold admin-view-btn" onclick="openCategoryAdd()">+ Category</button>
+                <button type="button" id="admin-new-product-btn" class="btn-gold admin-view-btn" onclick="openAdd()">+ New item</button>
             </div>
         </div>
 
@@ -727,8 +727,7 @@
         </div>
 
         <!-- Product Categories -->
-        <div id="admin-category-section" class="admin-primary-section"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-category-section" class="admin-primary-section admin-panel-card">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
                 onclick="toggleAdminCategoryAccordion()">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
@@ -780,7 +779,7 @@
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
 
         <!-- Store settings & tools (bulk, checkout, promos, storefront, support) -->
-        <div id="admin-store-tools-section" class="admin-store-tools-section" style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-store-tools-section" class="admin-store-tools-section admin-panel-card">
             <div class="admin-store-tools-header" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
                 onclick="toggleAdminStoreToolsAccordion()">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
@@ -2845,7 +2844,7 @@
                 <p id="admin-save-progress-text" class="admin-save-progress__text">Saving…</p>
             </div>
             <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
-            <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" id="m-save-draft" onclick="saveProductAsDraft()" style="width:100%; margin-top:10px;">Save as draft</button>
+            <button type="button" class="btn-gold admin-btn-draft-save" id="m-save-draft" onclick="saveProductAsDraft()">Save as draft</button>
             <button type="button" onclick="closeProductModal()"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
         </div>
@@ -3307,9 +3306,9 @@
                 <span>Active on storefront</span>
             </label>
             <button type="button" class="btn-gold" id="admin-category-save-btn" onclick="saveCategory()">Save Category</button>
-            <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="saveCategoryAsDraft()" style="width:100%; margin-top:10px;">Save as draft</button>
-            <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-category-modal-delete" id="admin-category-delete-btn" onclick="deleteCategoryFromModal()" style="width:100%; margin-top:10px; display:none;">Delete category</button>
-            <button type="button" onclick="closeCategoryModal()" style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
+            <button type="button" class="btn-gold admin-btn-draft-save" onclick="saveCategoryAsDraft()">Save as draft</button>
+            <button type="button" class="admin-btn-danger-muted admin-category-modal-delete" id="admin-category-delete-btn" onclick="deleteCategoryFromModal()" style="display:none;">Delete category</button>
+            <button type="button" class="admin-btn-cancel-text" onclick="closeCategoryModal()">Cancel</button>
         </div>
     </div>
 
@@ -3320,8 +3319,8 @@
             <p id="admin-unsaved-message" style="margin:0 0 16px; font-size:13px; color:#aaa; line-height:1.45;"></p>
             <div class="admin-unsaved-actions">
                 <button type="button" class="btn-gold admin-unsaved-btn-save" onclick="adminUnsavedResolve('save')">Publish / Save</button>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-unsaved-btn-draft" id="admin-unsaved-btn-draft" onclick="adminUnsavedResolve('draft')">Save as draft</button>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-unsaved-btn-discard" onclick="adminUnsavedResolve('discard')">Discard</button>
+                <button type="button" class="btn-gold admin-btn-draft-save admin-unsaved-btn-draft" id="admin-unsaved-btn-draft" onclick="adminUnsavedResolve('draft')">Save as draft</button>
+                <button type="button" class="admin-btn-secondary admin-unsaved-btn-discard" onclick="adminUnsavedResolve('discard')">Discard</button>
                 <button type="button" class="admin-unsaved-btn-cancel" onclick="adminUnsavedResolve('cancel')">Keep editing</button>
             </div>
         </div>
@@ -3332,15 +3331,15 @@
     <script src="js/features.js?v=12.0"></script>
     <script src="js/app.js?v=10.7"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/admin-drafts.js?v=3.1"></script>
-    <script src="js/categories.js?v=11.2"></script>
+    <script src="js/admin-drafts.js?v=3.2"></script>
+    <script src="js/categories.js?v=11.3"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.7"></script>
     <script src="js/comments.js?v=10.3"></script>
     <script src="js/support-chat.js?v=10.8"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=13.9"></script>
+    <script src="js/admin.js?v=14.0"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

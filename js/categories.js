@@ -308,8 +308,8 @@ function renderCategoryModalDraftBanner() {
                 <div class="admin-draft-recovery-hint">Load draft to continue, or edit the published version below</div>
             </div>
             <div class="admin-draft-banner__actions">
-                <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminLoadEditCategoryDraft()">Load draft</button>
-                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDiscardEditCategoryDraft()">Delete draft</button>
+                <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditCategoryDraft()">Load draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditCategoryDraft()">Delete draft</button>
             </div>
         </div>`;
 }
