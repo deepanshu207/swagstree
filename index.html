@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.23">
+    <link rel="stylesheet" href="css/style.css?v=9.24">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -763,6 +763,8 @@
                             </div>
                             <button type="button" id="admin-category-save-btn" class="btn-gold admin-category-btn admin-category-save-btn admin-category-form-action-btn admin-category-form-submit-btn"
                                 onclick="saveCategory()">Add</button>
+                            <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-category-form-action-btn"
+                                onclick="saveCategoryAsDraft()">Save draft</button>
                         </div>
                         <label class="admin-category-form-active" for="admin-category-active">
                             <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;">
@@ -1990,7 +1992,7 @@
                     </label>
                 </div>
                 <p id="admin-drafts-storage-info" style="margin:4px 0 0; font-size:10px; color:#666; line-height:1.4;">
-                    Auto-saves unsaved <strong>new</strong> products/categories after reload or timeout. Edits use Save/Discard only.
+                    Auto-saves drafts for new & edited items. Use <strong>Save as draft</strong> to keep work without publishing.
                 </p>
 
                 <div style="height:1px; background:#333; margin:12px 0 8px;"></div>
@@ -2838,6 +2840,7 @@
                 <label for="m-hide-main-placeholder" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide
                     default placeholder for no image</label>
             </div>
+            <div id="admin-product-draft-banner" hidden></div>
             <div id="m-validation-errors" class="admin-validation-errors" style="display:none;" role="alert"></div>
             <div id="admin-save-progress" class="admin-save-progress" style="display:none;" aria-live="polite">
                 <div class="admin-save-progress__track">
@@ -2846,6 +2849,7 @@
                 <p id="admin-save-progress-text" class="admin-save-progress__text">Saving…</p>
             </div>
             <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
+            <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" id="m-save-draft" onclick="saveProductAsDraft()" style="width:100%; margin-top:10px;">Save as draft</button>
             <button type="button" onclick="closeProductModal()"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
         </div>
@@ -3294,7 +3298,8 @@
             <h3 style="margin:0 0 8px; font-size:15px; color:#fff;">Unsaved changes</h3>
             <p id="admin-unsaved-message" style="margin:0 0 16px; font-size:13px; color:#aaa; line-height:1.45;"></p>
             <div class="admin-unsaved-actions">
-                <button type="button" class="btn-gold admin-unsaved-btn-save" onclick="adminUnsavedResolve('save')">Save</button>
+                <button type="button" class="btn-gold admin-unsaved-btn-save" onclick="adminUnsavedResolve('save')">Publish / Save</button>
+                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-unsaved-btn-draft" id="admin-unsaved-btn-draft" onclick="adminUnsavedResolve('draft')">Save as draft</button>
                 <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-unsaved-btn-discard" onclick="adminUnsavedResolve('discard')">Discard</button>
                 <button type="button" class="admin-unsaved-btn-cancel" onclick="adminUnsavedResolve('cancel')">Keep editing</button>
             </div>
@@ -3306,15 +3311,15 @@
     <script src="js/features.js?v=11.9"></script>
     <script src="js/app.js?v=10.7"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/admin-drafts.js?v=2.1"></script>
-    <script src="js/categories.js?v=10.16"></script>
+    <script src="js/admin-drafts.js?v=2.2"></script>
+    <script src="js/categories.js?v=10.17"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.6"></script>
     <script src="js/comments.js?v=10.3"></script>
     <script src="js/support-chat.js?v=10.8"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=13.3"></script>
+    <script src="js/admin.js?v=13.4"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

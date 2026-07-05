@@ -7833,6 +7833,15 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 #admin-new-product-btn {
     position: relative;
 }
+.admin-product-row--has-edit-draft {
+    border-left: 3px solid rgba(255, 215, 0, 0.45);
+}
+.admin-category-row--has-edit-draft {
+    border-left: 3px solid rgba(255, 215, 0, 0.35);
+}
+.admin-unsaved-btn-draft {
+    width: 100%;
+}
 #admin-new-product-btn .admin-new-draft-btn-badge {
     margin-left: 6px;
     padding: 2px 6px;
@@ -7841,9 +7850,8 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    background: rgba(0, 0, 0, 0.35);
-    color: #111;
     background: #ffdf5c;
+    color: #111;
 }
 .admin-draft-btn-reject {
     width: auto !important;

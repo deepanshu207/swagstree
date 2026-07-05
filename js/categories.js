@@ -282,17 +282,101 @@ function applyCategoryFormState(state) {
 }
 window.applyCategoryFormState = applyCategoryFormState;
 
+function getCategoryDraftKey(id) {
+    const catId = id ?? window.inlineEditingCategoryId;
+    return catId ? `edit:${catId}` : 'new';
+}
+
+function categoryFormHasDraftableContent(state) {
+    if (!state) return false;
+    return !!(state.name || '').trim();
+}
+
+function flushCategoryDraft() {
+    if (!canManageProductCategories()) return false;
+    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return false;
+
+    if (window.inlineEditingCategoryId && isInlineCategoryDirty(window.inlineEditingCategoryId)) {
+        const id = window.inlineEditingCategoryId;
+        const state = serializeInlineCategoryState(id);
+        if (!categoryFormHasDraftableContent(state)) return false;
+        const key = getCategoryDraftKey(id);
+        if (typeof adminDraftUpsert === 'function') {
+            return adminDraftUpsert('category', key, {
+                entityId: id,
+                label: state.name,
+                form: {
+                    editingCategoryId: id,
+                    name: state.name,
+                    sortOrder: state.sortOrder,
+                    isActive: state.isActive
+                }
+            }, { skipUi: true });
+        }
+        return false;
+    }
+
+    if (!isCategoryFormDirty()) return false;
+    const state = serializeCategoryFormState();
+    if (!categoryFormHasDraftableContent(state)) return false;
+    if (typeof adminDraftUpsert === 'function') {
+        return adminDraftUpsert('category', 'new', {
+            entityId: null,
+            label: state.name,
+            form: state
+        }, { skipUi: true });
+    }
+    return false;
+}
+
 function persistCategoryDraft() {
-    if (!canManageProductCategories()) return;
-    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return;
-    if (window.inlineEditingCategoryId) return;
+    flushCategoryDraft();
+}
+window.persistCategoryDraft = persistCategoryDraft;
+
+function clearCategoryDraftForCurrent() {
+    const key = getCategoryDraftKey();
+    if (typeof adminDraftRemove === 'function') adminDraftRemove('category', key);
+}
+
+async function saveCategoryAsDraft(silent) {
+    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) {
+        if (!silent) showToast('Drafts are disabled in Superadmin settings.');
+        return false;
+    }
+    if (window.inlineEditingCategoryId && isInlineCategoryDirty(window.inlineEditingCategoryId)) {
+        const id = window.inlineEditingCategoryId;
+        const state = serializeInlineCategoryState(id);
+        if (!categoryFormHasDraftableContent(state)) {
+            if (!silent) showToast('Category name required for draft.');
+            return false;
+        }
+        if (typeof adminDraftUpsert === 'function') {
+            adminDraftUpsert('category', getCategoryDraftKey(id), {
+                entityId: id,
+                label: state.name,
+                form: {
+                    editingCategoryId: id,
+                    name: state.name,
+                    sortOrder: state.sortOrder,
+                    isActive: state.isActive
+                }
+            });
+        }
+        finishCancelInlineCategoryEdit();
+        if (!silent) showToast('Category saved as draft.');
+        return true;
+    }
 
     if (!isCategoryFormDirty()) {
-        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
-        return;
+        if (!silent) showToast('No changes to save as draft.');
+        return false;
     }
     const state = serializeCategoryFormState();
-    if (!state.name) return;
+    if (!categoryFormHasDraftableContent(state)) {
+        if (!silent) showToast('Add a category name before saving as draft.');
+        return false;
+    }
     if (typeof adminDraftUpsert === 'function') {
         adminDraftUpsert('category', 'new', {
             entityId: null,
@@ -300,25 +384,31 @@ function persistCategoryDraft() {
             form: state
         });
     }
+    resetCategoryFormInternal();
+    renderAdminCategoryList();
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (!silent) showToast('Category saved as draft.');
+    return true;
 }
-window.persistCategoryDraft = persistCategoryDraft;
-
-function clearCategoryDraftForCurrent() {
-    if (window.inlineEditingCategoryId) return;
-    if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
-}
+window.saveCategoryAsDraft = saveCategoryAsDraft;
 
 function discardCategoryDraft(silent) {
     if (window.inlineEditingCategoryId) {
-        cancelInlineCategoryEdit();
+        clearCategoryDraftForCurrent();
+        finishCancelInlineCategoryEdit();
     } else {
-        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
+        clearCategoryDraftForCurrent();
         resetCategoryFormInternal();
         renderAdminCategoryList();
     }
-    if (!silent) showToast('Changes discarded.');
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (!silent) showToast('Draft discarded.');
 }
 window.discardCategoryDraft = discardCategoryDraft;
+
+function adminCategoryHasEditDraft(id) {
+    return typeof adminDraftIsVisible === 'function' && adminDraftIsVisible('category', `edit:${id}`);
+}
 
 function adminCategoryNewDraftRowHtml() {
     const item = typeof adminGetOrphanedNewCategoryDraft === 'function' ? adminGetOrphanedNewCategoryDraft() : null;
@@ -360,6 +450,7 @@ function startInlineCategoryEditInternal(id, preset) {
     if (!cat) return;
     openAdminCategoryAccordion();
     window.inlineEditingCategoryId = id;
+    if (typeof adminDraftSetActive === 'function') adminDraftSetActive('category', getCategoryDraftKey(id));
     const base = preset || {
         name: cat.name || '',
         sortOrder: String(getCategorySortOrder(cat)),
@@ -394,18 +485,30 @@ async function guardInlineCategorySwitch(next) {
         return;
     }
     if (typeof adminPromptUnsavedChoice === 'function') {
-        const choice = await adminPromptUnsavedChoice('Save changes to this category?');
+        const choice = await adminPromptUnsavedChoice('Save changes to this category?', true);
         if (choice === 'cancel') return;
         if (choice === 'save') {
             await saveInlineCategory(currentId);
             if (isInlineCategoryDirty(currentId)) return;
+        } else if (choice === 'draft') {
+            await saveCategoryAsDraft(true);
+            return;
         } else {
-            cancelInlineCategoryEdit();
+            clearCategoryDraftForCurrent();
+            finishCancelInlineCategoryEdit();
         }
     } else {
-        cancelInlineCategoryEdit();
+        finishCancelInlineCategoryEdit();
     }
     await next();
+}
+
+function finishCancelInlineCategoryEdit() {
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (typeof flushCategoryDraft === 'function') flushCategoryDraft();
+    window.inlineEditingCategoryId = null;
+    window._inlineCategoryBaseline = null;
+    renderAdminCategoryList();
 }
 
 window.startInlineCategoryEdit = async function(id) {
@@ -414,10 +517,13 @@ window.startInlineCategoryEdit = async function(id) {
     await guardInlineCategorySwitch(() => startInlineCategoryEditInternal(id));
 };
 
-window.cancelInlineCategoryEdit = function() {
-    window.inlineEditingCategoryId = null;
-    window._inlineCategoryBaseline = null;
-    renderAdminCategoryList();
+window.cancelInlineCategoryEdit = async function() {
+    const id = window.inlineEditingCategoryId;
+    if (id && isInlineCategoryDirty(id)) {
+        await guardInlineCategorySwitch(() => finishCancelInlineCategoryEdit());
+        return;
+    }
+    finishCancelInlineCategoryEdit();
 };
 
 window.saveInlineCategory = async function(id) {
@@ -497,6 +603,7 @@ function adminCategoryInlineRowHtml(cat, counts) {
             </label>
             <div class="admin-category-inline-edit-actions">
                 <button type="button" class="btn-gold admin-category-btn admin-category-inline-save" onclick="saveInlineCategory('${cat.id}')">Save</button>
+                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="saveCategoryAsDraft()">Save draft</button>
                 <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="cancelInlineCategoryEdit()">Cancel</button>
                 <button type="button" class="admin-category-icon-btn admin-category-icon-btn--danger admin-category-inline-delete" onclick="deleteCategory('${cat.id}')" title="Delete"><i class="fa fa-trash"></i></button>
             </div>
@@ -512,12 +619,15 @@ function adminCategoryViewRowHtml(cat, counts, categories) {
     const canMoveUp = globalIndex > 0;
     const canMoveDown = globalIndex >= 0 && globalIndex < categories.length - 1;
     const inlineBusy = !!window.inlineEditingCategoryId;
+    const editDraftBadge = adminCategoryHasEditDraft(cat.id)
+        ? ' <span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>'
+        : '';
     return `
-    <div class="admin-category-row${!active ? ' is-hidden-cat' : ''}" data-category-id="${cat.id}">
+    <div class="admin-category-row${!active ? ' is-hidden-cat' : ''}${adminCategoryHasEditDraft(cat.id) ? ' admin-category-row--has-edit-draft' : ''}" data-category-id="${cat.id}">
         <div class="admin-category-row-main" onclick="startInlineCategoryEdit('${cat.id}')" role="button" tabindex="0" aria-label="Edit ${escapeCategoryHtml(cat.name)}">
             <span class="admin-category-order-badge" title="Display order">${sortOrder}</span>
             <div class="admin-category-main">
-                <strong>${escapeCategoryHtml(cat.name)}</strong>
+                <strong>${escapeCategoryHtml(cat.name)}${editDraftBadge}</strong>
                 <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
             </div>
         </div>
@@ -972,16 +1082,19 @@ function closeAdminCategoryAccordion() {
 
 async function tryCloseAdminCategoryAccordion() {
     if (window.inlineEditingCategoryId && !isInlineCategoryDirty(window.inlineEditingCategoryId)) {
-        cancelInlineCategoryEdit();
+        finishCancelInlineCategoryEdit();
     }
 
     if (!isAnyCategoryCrudDirty()) {
+        if (typeof flushCategoryDraft === 'function') flushCategoryDraft();
+        if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
         closeAdminCategoryAccordion();
+        renderAdminCategoryList();
         return;
     }
 
     const choice = typeof adminPromptUnsavedChoice === 'function'
-        ? await adminPromptUnsavedChoice('Save category changes before closing?')
+        ? await adminPromptUnsavedChoice('Publish, save as draft, or discard category changes?', true)
         : (window.confirm('Save changes? OK = Save, Cancel = Keep editing') ? 'save' : 'cancel');
     if (choice === 'cancel') return;
 
@@ -995,12 +1108,17 @@ async function tryCloseAdminCategoryAccordion() {
             await saveCategory();
             if (isCategoryFormDirty()) return;
         }
+    } else if (choice === 'draft') {
+        await saveCategoryAsDraft(true);
     } else {
         discardCategoryDraft(true);
     }
 
     if (isAnyCategoryCrudDirty()) return;
+    if (typeof flushCategoryDraft === 'function') flushCategoryDraft();
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
     closeAdminCategoryAccordion();
+    renderAdminCategoryList();
 }
 
 function openAdminCategoryAccordion() {

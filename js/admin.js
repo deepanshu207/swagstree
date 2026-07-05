@@ -794,12 +794,55 @@ function applyProductDraftForm(form) {
 }
 window.applyProductDraftForm = applyProductDraftForm;
 
-function getProductDraftKey() {
-    return 'new';
+function getProductDraftKey(id) {
+    const pid = id ?? editingId;
+    return pid ? `edit:${pid}` : 'new';
 }
+
+function adminProductFormHasDraftableContent(form) {
+    if (!form) return false;
+    if ((form.name || '').trim()) return true;
+    if ((form.desc || '').trim()) return true;
+    if (form.price !== '' && form.price != null) return true;
+    if (form.images?.length || form.spins?.length || form.panos?.length || form.videos?.length) return true;
+    if (form.variants?.length) return true;
+    return false;
+}
+window.adminProductFormHasDraftableContent = function() {
+    return adminProductFormHasDraftableContent(adminBuildProductDraftPayload());
+};
+
+function adminFinalizeProductModalClose() {
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (typeof flushProductDraft === 'function') flushProductDraft();
+    if (typeof renderAdmin === 'function') renderAdmin();
+}
+window.adminFinalizeProductModalClose = adminFinalizeProductModalClose;
+
+function flushProductDraft() {
+    const modal = document.getElementById('prod-modal');
+    if (!modal || modal.style.display !== 'flex') return false;
+    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return false;
+    const form = adminBuildProductDraftPayload();
+    if (!adminProductFormHasDraftableContent(form)) return false;
+    const key = getProductDraftKey(form.editingId);
+    if (typeof adminDraftUpsert === 'function') {
+        return adminDraftUpsert('product', key, {
+            entityId: form.editingId || null,
+            label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
+            form
+        }, { skipUi: true });
+    }
+    return false;
+}
+window.flushProductDraft = flushProductDraft;
 
 function adminGetOrphanedNewProductDraftEntry() {
     return typeof adminGetOrphanedNewProductDraft === 'function' ? adminGetOrphanedNewProductDraft() : null;
+}
+
+function adminProductHasEditDraft(id) {
+    return typeof adminDraftIsVisible === 'function' && adminDraftIsVisible('product', `edit:${id}`);
 }
 
 function adminNewProductDraftRowHtml() {
@@ -830,7 +873,7 @@ function adminNewProductDraftRowHtml() {
                     <span class="admin-draft-age">Saved ${age}</span>
                     ${pendingNote}
                 </div>
-                <p class="admin-product-draft-hint">Unsaved new product — tap to continue or finish and save</p>
+                <p class="admin-product-draft-hint">Unsaved new product — tap to continue, publish, or save as draft</p>
             </div>
             <div class="admin-product-actions">
                 <i class="fa fa-play" title="Continue draft" onclick="event.stopPropagation();adminOpenNewProductDraft()"></i>
@@ -841,7 +884,6 @@ function adminNewProductDraftRowHtml() {
 
 window.adminOpenNewProductDraft = function() {
     if (typeof adminRestoreDraft === 'function') adminRestoreDraft('product', 'new');
-    if (typeof adminBindProductDraftListeners === 'function') adminBindProductDraftListeners();
 };
 
 window.adminDeleteNewProductDraft = function() {
@@ -849,40 +891,100 @@ window.adminDeleteNewProductDraft = function() {
 };
 
 function persistProductDraft() {
-    const modal = document.getElementById('prod-modal');
-    if (!modal || modal.style.display !== 'flex') return;
-    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return;
-    if (editingId) return;
-    if (!adminIsProductDirty()) {
-        if (typeof adminDraftRemove === 'function') adminDraftRemove('product', 'new');
-        return;
-    }
-    const form = adminBuildProductDraftPayload();
-    if (form.editingId) return;
-    if (typeof adminDraftUpsert === 'function') {
-        adminDraftUpsert('product', 'new', {
-            entityId: null,
-            label: (form.name || '').trim() || 'New product',
-            form
-        });
-    }
+    flushProductDraft();
     if (typeof updateAdminNewProductDraftBadge === 'function') updateAdminNewProductDraftBadge();
 }
 window.persistProductDraft = persistProductDraft;
 
 function clearProductDraftForCurrent() {
-    if (editingId) return;
-    if (typeof adminDraftRemove === 'function') adminDraftRemove('product', 'new');
+    if (typeof adminDraftRemove === 'function') adminDraftRemove('product', getProductDraftKey(editingId));
 }
 
-function discardProductDraft(silent) {
-    clearProductDraftForCurrent();
+async function saveProductAsDraft(silent) {
+    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) {
+        if (!silent) showToast('Drafts are disabled in Superadmin settings.');
+        return false;
+    }
+    const form = adminBuildProductDraftPayload();
+    if (!adminProductFormHasDraftableContent(form)) {
+        if (!silent) showToast('Add a name, price, or details before saving as draft.');
+        return false;
+    }
+    const key = getProductDraftKey(form.editingId);
+    if (typeof adminDraftUpsert === 'function') {
+        adminDraftUpsert('product', key, {
+            entityId: form.editingId || null,
+            label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
+            form
+        });
+    }
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
     adminProductSnapshot = null;
     if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
     closeModal('prod-modal');
-    if (!silent) showToast('Changes discarded.');
+    if (typeof renderAdmin === 'function') renderAdmin();
+    if (!silent) showToast('Saved as draft.');
+    return true;
+}
+window.saveProductAsDraft = saveProductAsDraft;
+
+function discardProductDraft(silent) {
+    clearProductDraftForCurrent();
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    adminProductSnapshot = null;
+    if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
+    closeModal('prod-modal');
+    if (typeof renderAdmin === 'function') renderAdmin();
+    if (!silent) showToast('Draft discarded.');
 }
 window.discardProductDraft = discardProductDraft;
+
+function renderProductModalDraftBanner() {
+    const el = document.getElementById('admin-product-draft-banner');
+    if (!el) return;
+    if (!editingId || typeof adminDraftGetEntry !== 'function') {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    const key = `edit:${editingId}`;
+    if (typeof adminDraftIsActive === 'function' && adminDraftIsActive('product', key)) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    const item = adminDraftGetEntry('product', key);
+    if (!item) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    const age = item && typeof adminDraftFormatAge === 'function' ? adminDraftFormatAge(item.entry.updatedAt) : '';
+    el.hidden = false;
+    el.innerHTML = `
+        <div class="admin-draft-banner admin-draft-banner--modal">
+            <div class="admin-draft-banner__text">
+                <strong>Unpublished draft</strong> saved ${age}
+                <div class="admin-draft-recovery-hint">Load draft to continue, or publish from the live version below</div>
+            </div>
+            <div class="admin-draft-banner__actions">
+                <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminLoadEditProductDraft()">Load draft</button>
+                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDiscardEditProductDraft()">Delete draft</button>
+            </div>
+        </div>`;
+}
+window.renderProductModalDraftBanner = renderProductModalDraftBanner;
+
+window.adminLoadEditProductDraft = function() {
+    if (!editingId) return;
+    if (typeof adminRestoreDraft === 'function') adminRestoreDraft('product', `edit:${editingId}`);
+};
+
+window.adminDiscardEditProductDraft = function() {
+    if (!editingId) return;
+    if (typeof adminDeleteDraft === 'function') adminDeleteDraft('product', `edit:${editingId}`);
+    renderProductModalDraftBanner();
+};
 
 function adminBindProductDraftListeners() {
     const modal = document.getElementById('prod-modal');
@@ -912,9 +1014,10 @@ function adminIsProductDirty() {
 
 async function closeProductModal() {
     if (typeof adminGuardProductLeave === 'function') {
-        await adminGuardProductLeave('Save product changes before closing?', () => {
+        await adminGuardProductLeave('Publish, save as draft, or discard your changes?', () => {
             adminProductSnapshot = null;
             if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
+            if (typeof adminFinalizeProductModalClose === 'function') adminFinalizeProductModalClose();
             closeModal('prod-modal');
         });
         return;
@@ -2461,14 +2564,18 @@ function renderAdmin() {
         const safeName = (p.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const priceLabel = `₹${Number(p.price) || 0}`;
         const mediaBadges = adminProductMediaBadges(p);
+        const editDraftBadge = adminProductHasEditDraft(p.id)
+            ? '<span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>'
+            : '';
         return `
-        <div class="admin-product-row">
+        <div class="admin-product-row${adminProductHasEditDraft(p.id) ? ' admin-product-row--has-edit-draft' : ''}">
             <div class="admin-product-thumb-wrap">
                 <img src="${thumbUrl}" class="admin-product-thumb" alt="" loading="lazy">
             </div>
             <div class="admin-product-body">
                 <div class="admin-product-title-row">
                     <b class="admin-product-name">${safeName}</b>
+                    ${editDraftBadge}
                     <span class="admin-product-price">${priceLabel}</span>
                     ${catLabel ? `<span class="admin-product-cat">${typeof escapeCategoryHtml === 'function' ? escapeCategoryHtml(catLabel) : catLabel}</span>` : ''}
                     ${mediaBadges}
@@ -2493,6 +2600,7 @@ window.loadMoreAdminProducts = function() {
 
 function openEdit(id) {
     editingId = id; 
+    if (typeof adminDraftSetActive === 'function') adminDraftSetActive('product', getProductDraftKey(id));
     const p = products.find(x => x.id === id);
     if (!p) return showToast('Product not found.');
     adminSetModalTitle('edit');
@@ -2613,6 +2721,7 @@ function openEdit(id) {
     document.getElementById('prod-modal').style.display = 'flex';
     adminResetProductSnapshot();
     adminBindProductDraftListeners();
+    renderProductModalDraftBanner();
 }
 
 function toggle360Badge(id, checked) {
@@ -2692,9 +2801,11 @@ function openAdd() {
     renderVariantBlocks();
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(null);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
+    if (typeof adminDraftSetActive === 'function') adminDraftSetActive('product', 'new');
     document.getElementById('prod-modal').style.display = 'flex';
     adminResetProductSnapshot();
     adminBindProductDraftListeners();
+    renderProductModalDraftBanner();
 }
 
 function renderImagePreviews(targetId = 'base') { 
@@ -3111,7 +3222,12 @@ async function saveProduct() {
     const validationErrors = adminValidateProductForm();
     if (validationErrors.length) {
         adminShowValidationErrors(validationErrors);
-        return showToast('Fix the errors below before saving.');
+        if (typeof adminCrudDraftsEnabled === 'function' && adminCrudDraftsEnabled()) {
+            showToast('Fix errors to publish, or use Save as draft to keep your work.');
+        } else {
+            showToast('Fix the errors below before saving.');
+        }
+        return;
     }
     adminShowValidationErrors([]);
 
@@ -3350,7 +3466,12 @@ async function saveProduct() {
     } catch(e) { 
         adminHideSaveProgress();
         console.error(e);
-        showToast("Error saving product: " + e.message); 
+        if (typeof adminCrudDraftsEnabled === 'function' && adminCrudDraftsEnabled() && typeof saveProductAsDraft === 'function') {
+            await saveProductAsDraft(true);
+            showToast('Could not publish — saved as draft. Fix issues and try again.');
+        } else {
+            showToast("Error saving product: " + e.message);
+        }
     } 
     btn.disabled = false; 
     btn.innerText = "Save Product"; 

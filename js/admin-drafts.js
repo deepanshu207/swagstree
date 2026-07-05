@@ -1,5 +1,5 @@
 // ==========================================
-// SWAG STREE | ADMIN CRUD DRAFTS (multi-slot, crash recovery)
+// SWAG STREE | ADMIN CRUD DRAFTS (seller-style)
 // ==========================================
 
 (function() {
@@ -12,7 +12,8 @@
     let unsavedResolver = null;
     let categoryDraftTimer = null;
     let productDraftTimer = null;
-    const liveDraftKeys = new Set();
+
+    window._activeAdminDraftKey = window._activeAdminDraftKey || null;
 
     function adminCrudDraftsEnabled() {
         return !!(window.APP_FEATURES && window.APP_FEATURES.adminCrudDrafts !== false);
@@ -38,6 +39,22 @@
         return { v: 2, categories: {}, products: {} };
     }
 
+    function adminDraftComposeActiveKey(type, key) {
+        return `${type}:${key}`;
+    }
+
+    function adminDraftSetActive(type, key) {
+        window._activeAdminDraftKey = type && key ? adminDraftComposeActiveKey(type, key) : null;
+    }
+
+    function adminDraftClearActive() {
+        window._activeAdminDraftKey = null;
+    }
+
+    function adminDraftIsActive(type, key) {
+        return window._activeAdminDraftKey === adminDraftComposeActiveKey(type, key);
+    }
+
     function adminDraftMigrateLegacy() {
         try {
             const legacyRaw = localStorage.getItem(ADMIN_DRAFTS_LEGACY_KEY);
@@ -50,19 +67,20 @@
                 try {
                     const draft = JSON.parse(raw);
                     if (!draft || !draft.type || !draft.form) return;
-                    const type = draft.type === 'category' ? 'categories' : draft.type === 'product' ? 'products' : null;
-                    if (!type) return;
-                    const key = draft.entityId ? `edit:${draft.entityId}` : 'new';
-                    if (!store[type][key]) {
-                        store[type][key] = {
+                    const bucket = draft.type === 'category' ? 'categories' : draft.type === 'product' ? 'products' : null;
+                    if (!bucket) return;
+                    const entityId = draft.entityId || draft.form.editingCategoryId || draft.form.editingId || null;
+                    const key = entityId ? `edit:${entityId}` : 'new';
+                    if (!store[bucket][key]) {
+                        store[bucket][key] = {
                             form: draft.form,
-                            label: draft.label || draft.form.name || (type === 'products' ? 'Product' : 'Category'),
-                            entityId: draft.entityId || draft.form.editingCategoryId || draft.form.editingId || null,
+                            label: draft.label || draft.form.name || (bucket === 'products' ? 'Product' : 'Category'),
+                            entityId,
                             updatedAt: draft.updatedAt || draft.archivedAt || Date.now()
                         };
                         changed = true;
                     }
-                } catch (e) { /* ignore bad legacy entry */ }
+                } catch (e) { /* ignore */ }
             });
 
             if (legacyRaw) {
@@ -89,18 +107,6 @@
             store.categories = store.categories && typeof store.categories === 'object' ? store.categories : {};
             store.products = store.products && typeof store.products === 'object' ? store.products : {};
             store.v = 2;
-            let purged = false;
-            ['categories', 'products'].forEach(bucket => {
-                Object.keys(store[bucket]).forEach(key => {
-                    if (key !== 'new') {
-                        delete store[bucket][key];
-                        purged = true;
-                    }
-                });
-            });
-            if (purged) {
-                try { localStorage.setItem(ADMIN_DRAFTS_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
-            }
             return store;
         } catch (e) {
             console.warn('adminDraftsReadAll failed:', e);
@@ -129,37 +135,34 @@
     }
 
     function adminDraftsEvictOldest(store) {
-        ['categories', 'products'].forEach(type => {
-            const entries = Object.entries(store[type] || {});
+        ['categories', 'products'].forEach(bucket => {
+            const entries = Object.entries(store[bucket] || {});
             if (entries.length <= ADMIN_DRAFTS_MAX_PER_TYPE) return;
             entries.sort((a, b) => (Number(a[1]?.updatedAt) || 0) - (Number(b[1]?.updatedAt) || 0));
             const removeCount = entries.length - ADMIN_DRAFTS_MAX_PER_TYPE;
             entries.slice(0, removeCount).forEach(([key]) => {
-                delete store[type][key];
-                liveDraftKeys.delete(`${type === 'categories' ? 'category' : 'product'}:${key}`);
+                delete store[bucket][key];
             });
         });
     }
 
-    function adminDraftLiveKey(type, key) {
-        return `${type}:${key}`;
+    function adminDraftGetEntry(type, key) {
+        if (!type || !key) return null;
+        const store = adminDraftsReadAll();
+        const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
+        if (!bucket) return null;
+        const entry = store[bucket][key];
+        if (!entry?.form) return null;
+        return { type, key, entry };
     }
 
-    function adminDraftMarkLive(type, key) {
-        if (!type || !key) return;
-        liveDraftKeys.add(adminDraftLiveKey(type, key));
+    function adminDraftIsVisible(type, key) {
+        if (!adminCrudDraftsEnabled()) return false;
+        if (adminDraftIsActive(type, key)) return false;
+        return !!adminDraftGetEntry(type, key);
     }
 
-    function adminDraftUnmarkLive(type, key) {
-        if (!type || !key) return;
-        liveDraftKeys.delete(adminDraftLiveKey(type, key));
-    }
-
-    function adminDraftIsLive(type, key) {
-        return liveDraftKeys.has(adminDraftLiveKey(type, key));
-    }
-
-    function adminDraftUpsert(type, key, payload) {
+    function adminDraftUpsert(type, key, payload, opts) {
         if (!adminCrudDraftsEnabled() || !type || !key || !payload) return false;
         const store = adminDraftsReadAll();
         const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
@@ -172,11 +175,8 @@
         };
         adminDraftsEvictOldest(store);
         const ok = adminDraftsWriteAll(store);
-        if (ok) {
-            adminDraftMarkLive(type, key);
-            if (type === 'product' && key === 'new' && typeof updateAdminNewProductDraftBadge === 'function') {
-                updateAdminNewProductDraftBadge();
-            }
+        if (ok && !(opts && opts.skipUi)) {
+            renderAdminDraftRecoveryPanel();
         }
         return ok;
     }
@@ -185,71 +185,59 @@
         if (!type || !key) return;
         const store = adminDraftsReadAll();
         const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
-        if (!bucket || !store[bucket][key]) {
-            adminDraftUnmarkLive(type, key);
-            return;
-        }
-        delete store[bucket][key];
+        if (!bucket) return;
+        if (store[bucket][key]) delete store[bucket][key];
         adminDraftsWriteAll(store);
-        adminDraftUnmarkLive(type, key);
+        if (adminDraftIsActive(type, key)) adminDraftClearActive();
         renderAdminDraftRecoveryPanel();
-        updateSuperadminDraftStorageInfo();
     }
 
     function adminDraftRemoveAll() {
         try { localStorage.removeItem(ADMIN_DRAFTS_KEY); } catch (e) { /* ignore */ }
-        liveDraftKeys.clear();
+        adminDraftClearActive();
         renderAdminDraftRecoveryPanel();
-        updateSuperadminDraftStorageInfo();
-    }
-
-    function adminDraftIsNewKey(key) {
-        return key === 'new';
     }
 
     function adminDraftListEntries() {
         const store = adminDraftsReadAll();
         const items = [];
         Object.entries(store.categories || {}).forEach(([key, entry]) => {
-            if (adminDraftIsNewKey(key)) items.push({ type: 'category', key, entry });
+            items.push({ type: 'category', key, entry });
         });
         Object.entries(store.products || {}).forEach(([key, entry]) => {
-            if (adminDraftIsNewKey(key)) items.push({ type: 'product', key, entry });
+            items.push({ type: 'product', key, entry });
         });
         items.sort((a, b) => (Number(b.entry?.updatedAt) || 0) - (Number(a.entry?.updatedAt) || 0));
         return items;
     }
 
-    function adminDraftGetOrphaned() {
-        if (!adminCrudDraftsEnabled()) return [];
-        return adminDraftListEntries().filter(item => !adminDraftIsLive(item.type, item.key));
+    function adminGetVisibleProductDraft(key) {
+        if (!adminDraftIsVisible('product', key)) return null;
+        return adminDraftGetEntry('product', key);
     }
 
-    function adminDraftGetOrphanedNew(type) {
-        return adminDraftGetOrphaned().filter(item => item.type === type && adminDraftIsNewKey(item.key));
+    function adminGetVisibleCategoryDraft(key) {
+        if (!adminDraftIsVisible('category', key)) return null;
+        return adminDraftGetEntry('category', key);
     }
 
     function adminGetOrphanedNewProductDraft() {
-        const items = adminDraftGetOrphanedNew('product');
-        return items.length ? items[0] : null;
+        return adminGetVisibleProductDraft('new');
     }
 
     function adminGetOrphanedNewCategoryDraft() {
-        const items = adminDraftGetOrphanedNew('category');
-        return items.length ? items[0] : null;
+        return adminGetVisibleCategoryDraft('new');
     }
 
     function adminDraftsStorageInfo() {
         try {
             const raw = localStorage.getItem(ADMIN_DRAFTS_KEY) || '';
             const store = adminDraftsReadAll();
-            const catCount = Object.keys(store.categories || {}).length;
-            const prodCount = Object.keys(store.products || {}).length;
             return {
                 bytes: raw.length,
-                total: catCount + prodCount,
-                categories: catCount,
-                products: prodCount
+                total: Object.keys(store.categories || {}).length + Object.keys(store.products || {}).length,
+                categories: Object.keys(store.categories || {}).length,
+                products: Object.keys(store.products || {}).length
             };
         } catch (e) {
             return { bytes: 0, total: 0, categories: 0, products: 0 };
@@ -302,11 +290,8 @@
 
     window.adminRestoreDraft = function(type, key) {
         if (!adminCrudDraftsEnabled()) return;
-        if (!adminDraftIsNewKey(key)) return;
-        const store = adminDraftsReadAll();
-        const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
-        const entry = bucket ? store[bucket][key] : null;
-        if (!entry?.form) return;
+        const item = adminDraftGetEntry(type, key);
+        if (!item?.entry?.form) return;
 
         if (type === 'category') {
             if (typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) {
@@ -314,9 +299,9 @@
                 return;
             }
             if (typeof openAdminCategoryAccordion === 'function') openAdminCategoryAccordion();
-            if (typeof applyCategoryFormState === 'function') applyCategoryFormState(entry.form);
-            adminDraftMarkLive('category', key);
-            showToast('Category draft restored — tap Save when ready.');
+            if (typeof applyCategoryFormState === 'function') applyCategoryFormState(item.entry.form);
+            adminDraftSetActive('category', key);
+            showToast('Category draft opened — publish with Add/Save or use Save as draft.');
         } else if (type === 'product') {
             const modal = document.getElementById('prod-modal');
             if (modal?.style.display === 'flex' && typeof adminIsProductDirty === 'function' && adminIsProductDirty()) {
@@ -324,14 +309,16 @@
                 return;
             }
             if (modal) modal.style.display = 'flex';
-            if (typeof applyProductDraftForm === 'function') applyProductDraftForm(entry.form);
-            if (entry.form.hasPendingFiles) {
-                showToast('Product draft restored — re-upload any files that were not saved.');
-            } else {
-                showToast('Product draft restored — tap Save when ready.');
-            }
-            adminDraftMarkLive('product', key);
+            if (typeof applyProductDraftForm === 'function') applyProductDraftForm(item.entry.form);
+            adminDraftSetActive('product', key);
+            if (typeof adminBindProductDraftListeners === 'function') adminBindProductDraftListeners();
             if (typeof adminResetProductSnapshot === 'function') adminResetProductSnapshot();
+            if (typeof renderProductModalDraftBanner === 'function') renderProductModalDraftBanner();
+            if (item.entry.form.hasPendingFiles) {
+                showToast('Draft opened — re-upload any files that were not saved.');
+            } else {
+                showToast('Draft opened — publish with Save Product or Save as draft.');
+            }
         }
 
         renderAdminDraftRecoveryPanel();
@@ -339,29 +326,32 @@
     };
 
     window.adminDeleteDraft = function(type, key) {
-        if (!adminDraftIsNewKey(key)) return;
         adminDraftRemove(type, key);
         showToast('Draft deleted.');
         if (typeof renderAdmin === 'function') renderAdmin();
+        if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
     };
 
     window.adminDeleteAllDrafts = function() {
         if (!adminDraftListEntries().length) return;
-        if (!window.confirm('Delete all recovered drafts on this device?')) return;
+        if (!window.confirm('Delete all drafts on this device?')) return;
         adminDraftRemoveAll();
         showToast('All drafts cleared.');
+        if (typeof renderAdmin === 'function') renderAdmin();
     };
 
-    function adminPromptUnsaved(message) {
+    function adminPromptUnsaved(message, withDraft) {
         return new Promise(resolve => {
             const modal = document.getElementById('admin-unsaved-modal');
             const msgEl = document.getElementById('admin-unsaved-message');
+            const draftBtn = document.getElementById('admin-unsaved-btn-draft');
             if (!modal || !msgEl) {
                 resolve(window.confirm(message + '\n\nOK = Save, Cancel = Keep editing') ? 'save' : 'cancel');
                 return;
             }
             unsavedResolver = resolve;
             msgEl.textContent = message;
+            if (draftBtn) draftBtn.style.display = (withDraft && adminCrudDraftsEnabled()) ? 'block' : 'none';
             modal.style.display = 'flex';
         });
     }
@@ -373,14 +363,17 @@
         unsavedResolver = null;
     };
 
-    async function adminHandleDirtyLeave(message, onSave, onDiscard) {
-        const choice = await adminPromptUnsaved(message);
+    async function adminHandleDirtyLeave(message, handlers) {
+        const withDraft = !!(handlers && handlers.onSaveDraft);
+        const choice = await adminPromptUnsaved(message, withDraft);
         if (choice === 'cancel') return false;
         if (choice === 'save') {
-            const ok = await onSave();
+            const ok = handlers.onSave ? await handlers.onSave() : false;
             if (!ok) return false;
+        } else if (choice === 'draft') {
+            if (handlers.onSaveDraft) await handlers.onSaveDraft();
         } else if (choice === 'discard') {
-            if (typeof onDiscard === 'function') onDiscard();
+            if (handlers.onDiscard) handlers.onDiscard();
         }
         return true;
     }
@@ -393,11 +386,10 @@
         return false;
     }
 
-    // Legacy single-slot API shims (used by older call sites during transition)
     function adminDraftRead() {
-        const orphans = adminDraftGetOrphaned();
-        if (!orphans.length) return null;
-        const item = orphans[0];
+        const items = adminDraftListEntries().filter(item => adminDraftIsVisible(item.type, item.key));
+        if (!items.length) return null;
+        const item = items[0];
         return {
             type: item.type,
             form: item.entry.form,
@@ -410,8 +402,7 @@
     function adminDraftWrite(draft) {
         if (!draft || !draft.type || !draft.form) return false;
         const entityId = draft.entityId || draft.form.editingCategoryId || draft.form.editingId || null;
-        if (entityId) return false;
-        const key = 'new';
+        const key = entityId ? `edit:${entityId}` : 'new';
         return adminDraftUpsert(draft.type, key, {
             form: draft.form,
             label: draft.label,
@@ -424,15 +415,19 @@
     }
 
     window.adminCrudDraftsEnabled = adminCrudDraftsEnabled;
-    window.adminPromptUnsavedChoice = adminPromptUnsaved;
+    window.adminPromptUnsavedChoice = (msg, withDraft) => adminPromptUnsaved(msg, withDraft);
     window.adminDraftUpsert = adminDraftUpsert;
     window.adminDraftRemove = adminDraftRemove;
     window.adminDraftRemoveAll = adminDraftRemoveAll;
+    window.adminDraftGetEntry = adminDraftGetEntry;
+    window.adminDraftIsVisible = adminDraftIsVisible;
+    window.adminDraftSetActive = adminDraftSetActive;
+    window.adminDraftClearActive = adminDraftClearActive;
+    window.adminGetVisibleProductDraft = adminGetVisibleProductDraft;
+    window.adminGetVisibleCategoryDraft = adminGetVisibleCategoryDraft;
     window.adminGetOrphanedNewProductDraft = adminGetOrphanedNewProductDraft;
     window.adminGetOrphanedNewCategoryDraft = adminGetOrphanedNewCategoryDraft;
     window.updateAdminNewProductDraftBadge = updateAdminNewProductDraftBadge;
-    window.adminDraftMarkLive = adminDraftMarkLive;
-    window.adminDraftUnmarkLive = adminDraftUnmarkLive;
     window.adminDraftsStorageInfo = adminDraftsStorageInfo;
     window.adminDraftFormatAge = adminDraftFormatAge;
     window.adminDraftFormatBytes = adminDraftFormatBytes;
@@ -456,11 +451,13 @@
 
         const inlineId = window.inlineEditingCategoryId;
         if (inlineId && typeof isInlineCategoryDirty === 'function' && isInlineCategoryDirty(inlineId)) {
-            const choice = await adminPromptUnsaved(message || 'Save category changes?');
+            const choice = await adminPromptUnsaved(message || 'Save category changes?', adminCrudDraftsEnabled());
             if (choice === 'cancel') return false;
             if (choice === 'save') {
                 if (typeof saveInlineCategory === 'function') await saveInlineCategory(inlineId);
                 if (isInlineCategoryDirty(inlineId)) return false;
+            } else if (choice === 'draft') {
+                if (typeof saveCategoryAsDraft === 'function') await saveCategoryAsDraft(true);
             } else if (typeof discardCategoryDraft === 'function') {
                 discardCategoryDraft(true);
             } else if (typeof cancelInlineCategoryEdit === 'function') {
@@ -471,12 +468,17 @@
         if (typeof isCategoryFormDirty === 'function' && isCategoryFormDirty()) {
             const proceed = await adminHandleDirtyLeave(
                 message || 'You have unsaved category changes.',
-                async () => {
-                    if (typeof saveCategory !== 'function') return false;
-                    await saveCategory();
-                    return !(typeof isCategoryFormDirty === 'function' && isCategoryFormDirty());
-                },
-                () => { if (typeof discardCategoryDraft === 'function') discardCategoryDraft(true); }
+                {
+                    onSave: async () => {
+                        if (typeof saveCategory !== 'function') return false;
+                        await saveCategory();
+                        return !(typeof isCategoryFormDirty === 'function' && isCategoryFormDirty());
+                    },
+                    onSaveDraft: async () => {
+                        if (typeof saveCategoryAsDraft === 'function') await saveCategoryAsDraft(true);
+                    },
+                    onDiscard: () => { if (typeof discardCategoryDraft === 'function') discardCategoryDraft(true); }
+                }
             );
             if (!proceed) return false;
         }
@@ -489,18 +491,39 @@
     window.adminGuardProductLeave = async function(message, next) {
         const modal = document.getElementById('prod-modal');
         const open = modal && modal.style.display === 'flex';
-        if (!open || typeof adminIsProductDirty !== 'function' || !adminIsProductDirty()) {
+        if (!open) {
             if (typeof next === 'function') return next();
             return true;
         }
+
+        const dirty = typeof adminIsProductDirty === 'function' && adminIsProductDirty();
+        const hasContent = typeof adminProductFormHasDraftableContent === 'function' && adminProductFormHasDraftableContent();
+
+        if (!dirty && !hasContent) {
+            if (typeof adminFinalizeProductModalClose === 'function') adminFinalizeProductModalClose();
+            if (typeof next === 'function') await next();
+            return true;
+        }
+
+        if (!dirty && hasContent) {
+            if (typeof adminFinalizeProductModalClose === 'function') adminFinalizeProductModalClose();
+            if (typeof next === 'function') await next();
+            return true;
+        }
+
         const proceed = await adminHandleDirtyLeave(
             message || 'You have unsaved product changes.',
-            async () => {
-                if (typeof saveProduct !== 'function') return false;
-                await saveProduct();
-                return !(typeof adminIsProductDirty === 'function' && adminIsProductDirty());
-            },
-            () => { if (typeof discardProductDraft === 'function') discardProductDraft(true); }
+            {
+                onSave: async () => {
+                    if (typeof saveProduct !== 'function') return false;
+                    await saveProduct();
+                    return !(typeof adminIsProductDirty === 'function' && adminIsProductDirty());
+                },
+                onSaveDraft: async () => {
+                    if (typeof saveProductAsDraft === 'function') await saveProductAsDraft(true);
+                },
+                onDiscard: () => { if (typeof discardProductDraft === 'function') discardProductDraft(true); }
+            }
         );
         if (!proceed) return false;
         if (typeof next === 'function') await next();
