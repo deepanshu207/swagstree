@@ -631,12 +631,32 @@ function adminSortProducts(list) {
     return items;
 }
 
+const ADMIN_PRODUCT_SORT_LABELS = {
+    latest: 'Latest edited first',
+    newest: 'Newest added first',
+    oldest: 'Oldest first',
+    name: 'Name A–Z',
+    name_desc: 'Name Z–A',
+    price_low: 'Price low–high',
+    price_high: 'Price high–low'
+};
+
+function adminUpdateCatalogSettingsSummary() {
+    const el = document.getElementById('admin-catalog-settings-summary');
+    if (!el) return;
+    const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
+    const limit = getAdminProductsPageSize();
+    const sortLabel = ADMIN_PRODUCT_SORT_LABELS[sort] || sort;
+    el.textContent = `${sortLabel} · ${limit} per page · saved to database`;
+}
+
 function adminSyncProductSortUi() {
     const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
     const toolbar = document.getElementById('admin-product-sort');
     const settings = document.getElementById('admin-products-sort-setting');
     if (toolbar && toolbar.value !== sort) toolbar.value = sort;
     if (settings && settings.value !== sort) settings.value = sort;
+    adminUpdateCatalogSettingsSummary();
 }
 
 async function adminPersistProductSortSetting(sort) {
@@ -1280,8 +1300,15 @@ function adminGetOrphanedNewProductDraftEntry() {
 }
 
 function adminProductHasEditDraft(id) {
-    return typeof adminProductEditDraftHasUnpublishedChanges === 'function'
-        && adminProductEditDraftHasUnpublishedChanges(id, { skipPrune: true });
+    return typeof adminHasStoredEditDraft === 'function' && adminHasStoredEditDraft('product', id);
+}
+
+function adminProductDraftMetaHtml(productId) {
+    if (!adminProductHasEditDraft(productId)) return '';
+    return `<div class="admin-entity-draft-meta">
+        <span class="admin-draft-indicator admin-draft-indicator--inline">Unpublished draft</span>
+        <button type="button" class="admin-draft-discard-btn" onclick="event.stopPropagation();adminDeleteProductEditDraft('${productId}')">Discard draft</button>
+    </div>`;
 }
 
 function adminNewProductDraftRowHtml() {
@@ -1448,7 +1475,7 @@ function renderProductModalDraftBanner() {
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditProductDraft()">Load draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-compare" onclick="adminOpenProductDraftCompare()"><i class="fa fa-columns"></i> Compare</button>
-                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditProductDraft()">Delete draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditProductDraft()">Discard draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-original" onclick="adminLoadOriginalProduct()">Load original</button>
             </div>
         </div>`;
@@ -2910,7 +2937,6 @@ function removeVariant(id) {
 }
 
 function renderAdmin() { 
-    if (typeof adminPruneStaleEditDrafts === 'function') adminPruneStaleEditDrafts();
     const container = document.getElementById('admin-list');
     if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
     if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
@@ -3082,12 +3108,7 @@ function renderAdmin() {
         const priceLabel = `₹${Number(p.price) || 0}`;
         const mediaBadges = adminProductMediaBadges(p);
         const hasEditDraft = productEditDraftIds.has(p.id);
-        const editDraftChip = hasEditDraft
-            ? `<span class="admin-draft-chip" onclick="event.stopPropagation()">
-                <span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>
-                <button type="button" class="admin-draft-chip__discard" onclick="event.stopPropagation();adminDeleteProductEditDraft('${p.id}')" title="Discard unpublished draft">Discard</button>
-               </span>`
-            : '';
+        const editDraftMeta = adminProductDraftMetaHtml(p.id);
         return `
         <div class="admin-product-row${hasEditDraft ? ' admin-product-row--has-edit-draft' : ''}">
             <div class="admin-product-thumb-wrap">
@@ -3096,12 +3117,12 @@ function renderAdmin() {
             <div class="admin-product-body">
                 <div class="admin-product-title-row">
                     <b class="admin-product-name">${safeName}</b>
-                    ${editDraftChip}
                     <span class="admin-product-price">${priceLabel}</span>
                     ${catLabel ? `<span class="admin-product-cat">${typeof escapeCategoryHtml === 'function' ? escapeCategoryHtml(catLabel) : catLabel}</span>` : ''}
                     ${mediaBadges}
                     ${isOutOfStock ? `<span class="admin-product-oos">Out of stock</span>` : ''}
                 </div>
+                ${editDraftMeta}
                 ${stockHtml}
             </div>
             <div class="admin-product-actions">
@@ -4329,6 +4350,38 @@ window.saveMaxQtySettings = async function() {
     }
 }
 
+window.saveAdminCatalogSettings = async function() {
+    const inpAdmin = document.getElementById('admin-editing-products-page-limit');
+    const sortSetting = document.getElementById('admin-products-sort-setting');
+
+    let valAdmin = 20;
+    if (inpAdmin) {
+        valAdmin = parseInt(inpAdmin.value, 10);
+        if (isNaN(valAdmin) || valAdmin < 1) valAdmin = 20;
+        inpAdmin.value = valAdmin;
+    }
+
+    const adminProductsSort = adminNormalizeProductSort(
+        sortSetting ? sortSetting.value : window.adminProductsSortSetting
+    );
+    window.adminProductsSortSetting = adminProductsSort;
+    adminSyncProductSortUi();
+
+    try {
+        await db.collection('settings').doc('pagination').set({
+            adminProductsLimit: valAdmin,
+            adminProductsSort
+        }, { merge: true });
+        window.adminProductsPageLimitSetting = valAdmin;
+        window.adminProductsPage = 1;
+        showToast('Admin catalog settings saved to database.');
+        if (typeof renderAdmin === 'function') renderAdmin();
+    } catch (e) {
+        console.error('saveAdminCatalogSettings error:', e);
+        showToast('Failed to save admin catalog settings');
+    }
+};
+
 // ── Products & Orders Pagination Settings ─────────────────────────────────────
 window.loadPaginationSettings = async function() {
     try {
@@ -4358,6 +4411,8 @@ window.loadPaginationSettings = async function() {
             if (typeof data.adminProductsSort !== 'undefined') {
                 window.adminProductsSortSetting = adminNormalizeProductSort(data.adminProductsSort);
                 adminSyncProductSortUi();
+            } else {
+                adminUpdateCatalogSettingsSummary();
             }
             
             // Orders limit
@@ -4452,6 +4507,7 @@ window.savePaginationSettings = async function() {
         if (typeof displayedSuperCustomersLimit !== 'undefined') displayedSuperCustomersLimit = valCustomers;
         
         showToast('✅ Pagination settings saved successfully!');
+        adminUpdateCatalogSettingsSummary();
         if (typeof renderStore === 'function') renderStore();
         if (typeof loadOrders === 'function') loadOrders();
         if (typeof filterSuperCustomers === 'function') filterSuperCustomers();
@@ -6261,6 +6317,12 @@ window.toggleAdminPaginationAccordion = function() {
     if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-pagination-settings');
     else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-pagination-accordion-content', 'admin-pagination-accordion-icon');
+};
+
+window.toggleAdminCatalogAccordion = function() {
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-catalog-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    toggleAdminSectionAccordion('admin-catalog-accordion-content', 'admin-catalog-accordion-icon');
 };
 
 window.toggleAdminFeatureContentAccordion = function() {

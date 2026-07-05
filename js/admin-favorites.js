@@ -25,6 +25,7 @@
         'max-qty': { title: 'Global Max Cart Quantity', icon: 'fa-shopping-bag', id: 'admin-max-qty-settings' },
         promo: { title: 'Promo Codes', icon: 'fa-ticket-alt', id: 'admin-promo-settings', accordionContentId: 'admin-promo-accordion-content', accordionIconId: 'admin-promo-accordion-icon' },
         pagination: { title: 'Pagination Settings', icon: 'fa-list-ol', id: 'admin-pagination-settings', accordionContentId: 'admin-pagination-accordion-content', accordionIconId: 'admin-pagination-accordion-icon' },
+        catalog: { title: 'Admin Catalog', icon: 'fa-sort-amount-desc', id: 'admin-catalog-settings', accordionContentId: 'admin-catalog-accordion-content', accordionIconId: 'admin-catalog-accordion-icon' },
         'feature-content': { title: 'Storefront Content', icon: 'fa-paint-brush', id: 'admin-feature-content-settings', accordionContentId: 'admin-feature-content-accordion-content', accordionIconId: 'admin-feature-content-accordion-icon' },
         feedback: { title: 'Customer Diaries', icon: 'fa-camera', id: 'admin-feedback-settings', accordionContentId: 'admin-feedback-accordion-content', accordionIconId: 'admin-feedback-accordion-icon' },
         footer: { title: 'Footer Settings', icon: 'fa-window-minimize', id: 'admin-footer-settings' },
@@ -34,7 +35,7 @@
     };
 
     const SECTION_KEYS = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'categorySearch', 'products'];
-    const TOOL_KEYS = ['bulk', 'cod', 'max-qty', 'promo', 'pagination', 'feature-content', 'feedback', 'footer', 'announcements', 'support', 'comments'];
+    const TOOL_KEYS = ['bulk', 'cod', 'max-qty', 'promo', 'catalog', 'pagination', 'feature-content', 'feedback', 'footer', 'announcements', 'support', 'comments'];
     const SORTABLE_BLOCK_KEYS = [...SECTION_KEYS.filter(k => SECTION_REGISTRY[k]?.sortable !== false), ...TOOL_KEYS];
 
     const DEFAULT_ABOVE = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'products'];

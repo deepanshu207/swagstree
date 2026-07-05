@@ -361,7 +361,7 @@ function renderCategoryModalDraftBanner() {
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditCategoryDraft()">Load draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-compare" onclick="adminOpenCategoryDraftCompare()"><i class="fa fa-columns"></i> Compare</button>
-                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditCategoryDraft()">Delete draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditCategoryDraft()">Discard draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-original" onclick="adminLoadOriginalCategory()">Load original</button>
             </div>
         </div>`;
@@ -648,8 +648,15 @@ function discardCategoryDraft(silent) {
 window.discardCategoryDraft = discardCategoryDraft;
 
 function adminCategoryHasEditDraft(id) {
-    return typeof adminCategoryEditDraftHasUnpublishedChanges === 'function'
-        && adminCategoryEditDraftHasUnpublishedChanges(id, { skipPrune: true });
+    return typeof adminHasStoredEditDraft === 'function' && adminHasStoredEditDraft('category', id);
+}
+
+function adminCategoryDraftMetaHtml(categoryId) {
+    if (!adminCategoryHasEditDraft(categoryId)) return '';
+    return `<div class="admin-entity-draft-meta">
+        <span class="admin-draft-indicator admin-draft-indicator--inline">Unpublished draft</span>
+        <button type="button" class="admin-draft-discard-btn" onclick="event.stopPropagation();adminDeleteCategoryEditDraft('${categoryId}')">Discard draft</button>
+    </div>`;
 }
 
 function adminCategoryNewDraftRowHtml() {
@@ -768,19 +775,15 @@ function adminCategoryViewRowHtml(cat, counts, categories, editDraftIds) {
     const canMoveDown = globalIndex >= 0 && globalIndex < categories.length - 1;
     const inlineBusy = isCategoryModalOpen();
     const hasEditDraft = editDraftIds ? editDraftIds.has(cat.id) : adminCategoryHasEditDraft(cat.id);
-    const editDraftChip = hasEditDraft
-        ? `<span class="admin-draft-chip" onclick="event.stopPropagation()">
-            <span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>
-            <button type="button" class="admin-draft-chip__discard" onclick="event.stopPropagation();adminDeleteCategoryEditDraft('${cat.id}')" title="Discard unpublished draft">Discard</button>
-           </span>`
-        : '';
+    const editDraftMeta = adminCategoryDraftMetaHtml(cat.id);
     return `
     <div class="admin-category-row${!active ? ' is-hidden-cat' : ''}${hasEditDraft ? ' admin-category-row--has-edit-draft' : ''}" data-category-id="${cat.id}">
         <div class="admin-category-row-main" onclick="openCategoryEdit('${cat.id}')" role="button" tabindex="0" aria-label="Edit ${escapeCategoryHtml(cat.name)}">
             <span class="admin-category-order-badge" title="Display order">${sortOrder}</span>
             <div class="admin-category-main">
-                <strong>${escapeCategoryHtml(cat.name)}${editDraftChip}</strong>
+                <strong>${escapeCategoryHtml(cat.name)}</strong>
                 <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
+                ${editDraftMeta}
             </div>
         </div>
         <div class="admin-category-actions">
@@ -1134,7 +1137,6 @@ function renderAdminCategoryBanner() {
 }
 
 function renderAdminCategoryList() {
-    if (typeof adminPruneStaleEditDrafts === 'function') adminPruneStaleEditDrafts();
     const list = document.getElementById('admin-category-list');
     const section = document.getElementById('admin-category-section');
     if (!list || !section) return;

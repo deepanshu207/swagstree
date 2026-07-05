@@ -8156,6 +8156,32 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-draft-chip__discard:hover {
     color: #ffd28a;
 }
+.admin-entity-draft-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+.admin-draft-discard-btn {
+    border: 1px solid rgba(255, 179, 71, 0.45);
+    background: rgba(255, 179, 71, 0.1);
+    color: #ffb347;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.admin-draft-discard-btn:hover {
+    background: rgba(255, 179, 71, 0.18);
+    color: #ffd28a;
+}
+.admin-category-main .admin-entity-draft-meta {
+    margin-top: 8px;
+}
 
 /* Draft mode — field-level indicators (seller-style) */
 .admin-draft-mode-bar {

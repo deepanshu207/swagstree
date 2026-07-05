@@ -546,6 +546,11 @@
         scheduleAdminDraftUiRefresh();
     }
 
+    function adminHasStoredEditDraft(type, entityId) {
+        if (!entityId || !adminCrudDraftsEnabled()) return false;
+        return adminDraftIsVisible(type, `edit:${entityId}`);
+    }
+
     function adminGetProductEditDraftIdSet() {
         if (!adminCrudDraftsEnabled()) return new Set();
         const ids = new Set();
@@ -553,11 +558,7 @@
         Object.keys(store.products || {}).forEach(key => {
             if (!key.startsWith('edit:')) return;
             const id = key.slice(5);
-            if (typeof adminProductEditDraftHasUnpublishedChanges === 'function') {
-                if (adminProductEditDraftHasUnpublishedChanges(id)) ids.add(id);
-            } else if (adminDraftIsVisible('product', key)) {
-                ids.add(id);
-            }
+            if (adminHasStoredEditDraft('product', id)) ids.add(id);
         });
         return ids;
     }
@@ -569,30 +570,17 @@
         Object.keys(store.categories || {}).forEach(key => {
             if (!key.startsWith('edit:')) return;
             const id = key.slice(5);
-            if (typeof adminCategoryEditDraftHasUnpublishedChanges === 'function') {
-                if (adminCategoryEditDraftHasUnpublishedChanges(id)) ids.add(id);
-            } else if (adminDraftIsVisible('category', key)) {
-                ids.add(id);
-            }
+            if (adminHasStoredEditDraft('category', id)) ids.add(id);
         });
         return ids;
     }
 
-    function adminDraftEntryShowsInUi(item, opts) {
-        if (!item || !adminDraftIsVisible(item.type, item.key)) return false;
-        if (!item.key.startsWith('edit:')) return true;
-        const id = item.key.slice(5);
-        if (item.type === 'product' && typeof adminProductEditDraftHasUnpublishedChanges === 'function') {
-            return adminProductEditDraftHasUnpublishedChanges(id, opts);
-        }
-        if (item.type === 'category' && typeof adminCategoryEditDraftHasUnpublishedChanges === 'function') {
-            return adminCategoryEditDraftHasUnpublishedChanges(id, opts);
-        }
-        return true;
+    function adminDraftEntryShowsInUi(item) {
+        return !!(item && adminDraftIsVisible(item.type, item.key));
     }
 
-    function adminDraftListVisibleEntries(opts) {
-        return adminDraftListEntries().filter(item => adminDraftEntryShowsInUi(item, opts));
+    function adminDraftListVisibleEntries() {
+        return adminDraftListEntries().filter(adminDraftEntryShowsInUi);
     }
 
     function adminDraftListEntries() {
@@ -829,7 +817,7 @@
             return;
         }
 
-        const items = adminDraftListVisibleEntries({ skipPrune: true });
+        const items = adminDraftListVisibleEntries();
         if (!items.length) {
             panel.hidden = true;
             panel.innerHTML = '';
@@ -939,10 +927,10 @@
             const label = (item?.entry?.label || 'Untitled').trim();
             const noun = type === 'category' ? 'category' : 'product';
             const detail = key === 'new' ? 'unsaved new ' + noun : `unpublished ${noun} edits`;
-            if (!window.confirm(`Delete draft for "${label}" (${detail})?\n\nThis only removes the saved draft on this device.`)) return;
+            if (!window.confirm(`Discard draft for "${label}"?\n\n${detail.charAt(0).toUpperCase() + detail.slice(1)} on this device only.\n\nThis cannot be undone.`)) return;
         }
         adminDraftRemove(type, key);
-        showToast('Draft deleted.');
+        showToast('Draft discarded.');
         scheduleAdminDraftUiRefresh();
     };
 
@@ -1007,7 +995,7 @@
     }
 
     function adminDraftRead() {
-        const items = adminDraftListVisibleEntries({ skipPrune: true });
+        const items = adminDraftListVisibleEntries();
         if (!items.length) return null;
         const item = items[0];
         return {
@@ -1071,8 +1059,10 @@
         });
     }
 
-    window.adminPruneStaleEditDrafts = adminPruneStaleEditDrafts;
+    window.adminHasStoredEditDraft = adminHasStoredEditDraft;
+    window.adminGetProductEditDraftIdSet = adminGetProductEditDraftIdSet;
     window.adminGetCategoryEditDraftIdSet = adminGetCategoryEditDraftIdSet;
+    window.adminPruneStaleEditDrafts = adminPruneStaleEditDrafts;
     window.scheduleAdminDraftUiRefresh = scheduleAdminDraftUiRefresh;
     window.updateAdminNewProductDraftBadge = updateAdminNewProductDraftBadge;
     window.adminDraftsStorageInfo = adminDraftsStorageInfo;
