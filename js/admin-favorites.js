@@ -63,6 +63,8 @@
     ];
 
     const _blockRefs = {};
+    const _blockBackups = {};
+    let _backupsReady = false;
     let _favoriteConfirmResolver = null;
 
     function adminPinnedSlot() {
@@ -90,7 +92,39 @@
         return adminFavoritesRead().includes(key);
     }
 
-    /** Keep DOM refs even while nodes are being moved (getElementById fails when detached). */
+    function adminInitBlockBackups() {
+        if (_backupsReady) return;
+        STORE_TOOLS_ORDER.forEach(key => {
+            const meta = ADMIN_FAVORITE_REGISTRY[key];
+            if (!meta || _blockBackups[key]) return;
+            const el = document.getElementById(meta.id);
+            if (el) _blockBackups[key] = el.cloneNode(true);
+        });
+        _backupsReady = true;
+    }
+
+    function adminRecoverToolBlock(key) {
+        const existing = adminGetToolBlock(key);
+        if (existing) return existing;
+
+        const meta = ADMIN_FAVORITE_REGISTRY[key];
+        const backup = _blockBackups[key];
+        if (!meta || !backup) return null;
+
+        const restored = backup.cloneNode(true);
+        restored.id = meta.id;
+        restored.hidden = false;
+        restored.style.display = '';
+        _blockRefs[key] = restored;
+        console.warn(`[admin-favorites] Restored missing block: ${meta.title}`);
+        return restored;
+    }
+
+    function adminResolveToolBlock(key) {
+        adminInitBlockBackups();
+        return adminRecoverToolBlock(key) || adminGetToolBlock(key);
+    }
+
     function adminGetToolBlock(key) {
         const meta = ADMIN_FAVORITE_REGISTRY[key];
         if (!meta) return null;
@@ -105,21 +139,28 @@
     }
 
     function adminCollectToolBlocks() {
+        adminInitBlockBackups();
         const blocks = {};
         STORE_TOOLS_ORDER.forEach(key => {
-            const el = adminGetToolBlock(key);
+            const el = adminResolveToolBlock(key);
             if (el) blocks[key] = el;
         });
         return blocks;
     }
 
     function adminIsBlockVisible(key, el) {
-        const node = el || adminGetToolBlock(key);
+        const node = el || adminResolveToolBlock(key);
         if (!node) return false;
         if (key === 'support' || key === 'comments') {
             return node.style.display !== 'none' && getComputedStyle(node).display !== 'none';
         }
         return true;
+    }
+
+    function adminStarIconHtml(pinned) {
+        return pinned
+            ? '<i class="fa-solid fa-star" aria-hidden="true"></i>'
+            : '<i class="fa-regular fa-star" aria-hidden="true"></i>';
     }
 
     function adminExpandAccordionPanel(contentId, iconId) {
@@ -132,7 +173,7 @@
     function adminExpandFavoriteBlock(key, el) {
         const meta = ADMIN_FAVORITE_REGISTRY[key];
         if (!meta) return;
-        const node = el || adminGetToolBlock(key);
+        const node = el || adminResolveToolBlock(key);
         if (node) {
             node.style.display = '';
             node.hidden = false;
@@ -198,7 +239,7 @@
         const pinned = adminIsFavorite(key);
         btn.title = pinned ? 'Unpin — move back to Store settings' : 'Pin above Store settings';
         btn.setAttribute('aria-label', btn.title);
-        btn.innerHTML = `<i class="fa fa-star${pinned ? '' : '-o'}"></i>`;
+        btn.innerHTML = adminStarIconHtml(pinned);
     }
 
     function adminInjectPinnedBadge(el) {
@@ -218,7 +259,7 @@
     }
 
     function adminScrollToBlock(key) {
-        const el = adminGetToolBlock(key);
+        const el = adminResolveToolBlock(key);
         if (!el) return;
         requestAnimationFrame(() => {
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -235,6 +276,7 @@
         const storeContent = document.getElementById('admin-store-tools-accordion-content');
         if (!pinnedSlot || !storeContent) return;
 
+        adminInitBlockBackups();
         const blocks = adminCollectToolBlocks();
         let favorites = adminFavoritesRead().filter(k => blocks[k] && adminIsBlockVisible(k, blocks[k]));
 
@@ -245,7 +287,11 @@
         }
 
         STORE_TOOLS_ORDER.forEach(key => {
-            const el = blocks[key];
+            let el = blocks[key];
+            if (!el) {
+                el = adminRecoverToolBlock(key);
+                if (el) blocks[key] = el;
+            }
             if (!el || !adminIsBlockVisible(key, el)) return;
 
             const pin = favorites.includes(key);
@@ -309,9 +355,10 @@
     window.renderAdminFavorites = renderAdminFavorites;
     window.adminFavoritesRead = adminFavoritesRead;
     window.adminFavoriteRegistryKeys = () => [...STORE_TOOLS_ORDER];
-    window.adminGetToolBlock = adminGetToolBlock;
+    window.adminGetToolBlock = adminResolveToolBlock;
 
     document.addEventListener('DOMContentLoaded', () => {
+        adminInitBlockBackups();
         renderAdminFavorites();
     });
 })();

@@ -428,6 +428,7 @@ function navigateToCore(id, el) {
         if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
         if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
         if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
     }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
