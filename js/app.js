@@ -417,6 +417,7 @@ function navigateToCore(id, el) {
 
     // Render admin list on navigation to admin view
     if (id === 'admin') {
+        if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
         renderAdmin();
         if (typeof loadCodSettings === 'function') loadCodSettings();
         if (typeof loadMaxQtySettings === 'function') loadMaxQtySettings();

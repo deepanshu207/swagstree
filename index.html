@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.38">
+    <link rel="stylesheet" href="css/style.css?v=9.39">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -778,15 +778,8 @@
         <div id="admin-list" style="padding:0 20px"></div>
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
 
-        <!-- Pinned admin tools (favorites) -->
-        <div id="admin-favorites-section" class="admin-favorites-section admin-panel-card" hidden>
-            <div class="admin-favorites-header">
-                <h4 class="admin-favorites-title"><i class="fa fa-star" aria-hidden="true"></i> Pinned tools <span id="admin-favorites-count" class="admin-favorites-count">0</span></h4>
-                <p class="admin-favorites-hint">Quick access — same level as Categories &amp; Products. Tap ★ on any tool to pin or unpin (you'll be asked to confirm).</p>
-                <p class="admin-favorites-note">Drafts, Categories, and Products always stay at the top and cannot be moved.</p>
-            </div>
-            <div id="admin-favorites-list" class="admin-favorites-list"></div>
-        </div>
+        <!-- Pinned store tools: each block sits here (between products & store settings) -->
+        <div id="admin-pinned-tools-slot" class="admin-pinned-tools-slot" hidden></div>
 
         <!-- Store settings & tools (bulk, checkout, promos, storefront, support) -->
         <div id="admin-store-tools-section" class="admin-store-tools-section admin-panel-card">
@@ -796,7 +789,7 @@
                     <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
                         <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — tap ★ on any block to pin above (with confirmation)</p>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — tap ★ on any block to pin it below Products (with confirmation)</p>
                     </div>
                 </div>
                 <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
@@ -3382,11 +3375,11 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="js/features.js?v=12.0"></script>
-    <script src="js/app.js?v=10.7"></script>
+    <script src="js/app.js?v=10.8"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.4"></script>
     <script src="js/admin-draft-compare.js?v=1.3"></script>
-    <script src="js/admin-favorites.js?v=1.4"></script>
+    <script src="js/admin-favorites.js?v=1.5"></script>
     <script src="js/categories.js?v=11.7"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>

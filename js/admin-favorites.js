@@ -70,6 +70,10 @@
 
     let _favoriteConfirmResolver = null;
 
+    function adminPinnedSlot() {
+        return document.getElementById('admin-pinned-tools-slot');
+    }
+
     function adminFavoritesRead() {
         try {
             const raw = localStorage.getItem(ADMIN_FAVORITES_KEY);
@@ -112,17 +116,22 @@
         if (icon) icon.style.transform = 'rotate(0deg)';
     }
 
-    function adminExpandFavoriteBlock(key, opts) {
+    function adminExpandFavoriteBlock(key) {
         const meta = ADMIN_FAVORITE_REGISTRY[key];
         if (!meta) return;
         const el = document.getElementById(meta.id);
         if (el) {
             el.style.display = '';
             el.hidden = false;
+            el.classList.add('admin-store-tools-block--pinned');
         }
-        if (meta.accordionContentId && (opts?.expandAccordion !== false)) {
+        if (meta.accordionContentId) {
             adminExpandAccordionPanel(meta.accordionContentId, meta.accordionIconId);
         }
+    }
+
+    function adminUnpinBlockVisual(el) {
+        if (el) el.classList.remove('admin-store-tools-block--pinned');
     }
 
     function adminIsBlockVisible(key) {
@@ -143,7 +152,7 @@
         const title = isPinned ? 'Move back to Store settings?' : 'Pin above Store settings?';
         const message = isPinned
             ? `"${meta.title}" will move back inside the Store settings accordion. You can pin it again anytime with ★.`
-            : `"${meta.title}" will appear above Store settings — same outer level as Categories and Products. You can unpin it anytime with ★.`;
+            : `"${meta.title}" will appear directly below your product list and above Store settings. You can unpin it anytime with ★.`;
 
         return new Promise(resolve => {
             const modal = document.getElementById('admin-favorite-confirm-modal');
@@ -190,20 +199,31 @@
         btn.innerHTML = `<i class="fa fa-star${pinned ? '' : '-o'}"></i>`;
     }
 
-    function adminScrollToPinnedSection(pinned) {
-        const targetId = pinned ? 'admin-favorites-section' : 'admin-store-tools-section';
-        const target = document.getElementById(targetId);
-        if (!target || target.hidden) return;
+    function adminInjectPinnedBadge(el, key) {
+        if (!el || !adminIsFavorite(key)) return;
+        let badge = el.querySelector('.admin-pinned-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'admin-pinned-badge';
+            badge.textContent = 'Pinned';
+            const head = el.querySelector('h4');
+            if (head) head.appendChild(badge);
+        }
+    }
+
+    function adminScrollToPinnedBlock(key) {
+        const meta = ADMIN_FAVORITE_REGISTRY[key];
+        const el = meta && document.getElementById(meta.id);
+        if (!el) return;
         requestAnimationFrame(() => {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     }
 
     function renderAdminFavorites() {
-        const section = document.getElementById('admin-favorites-section');
-        const favList = document.getElementById('admin-favorites-list');
+        const pinnedSlot = adminPinnedSlot();
         const storeContent = document.getElementById('admin-store-tools-accordion-content');
-        if (!section || !favList || !storeContent) return;
+        if (!pinnedSlot || !storeContent) return;
 
         let favorites = adminFavoritesRead().filter(k => adminIsBlockVisible(k));
         const blocks = adminCollectToolBlocks();
@@ -228,23 +248,24 @@
         favorites.forEach(key => {
             const el = blocks[key];
             if (el && adminIsBlockVisible(key)) {
-                favList.appendChild(el);
+                pinnedSlot.appendChild(el);
                 adminExpandFavoriteBlock(key);
+                adminInjectPinnedBadge(el, key);
             }
         });
 
         STORE_TOOLS_ORDER.forEach(key => {
             if (favorites.includes(key)) return;
             const el = blocks[key];
-            if (el) storeContent.appendChild(el);
+            if (el) {
+                adminUnpinBlockVisual(el);
+                storeContent.appendChild(el);
+            }
         });
 
-        const hasFavorites = favorites.length > 0;
-        section.hidden = !hasFavorites;
-        section.style.display = hasFavorites ? '' : 'none';
-
-        const countEl = document.getElementById('admin-favorites-count');
-        if (countEl) countEl.textContent = String(favorites.length);
+        const hasPinned = favorites.length > 0;
+        pinnedSlot.hidden = !hasPinned;
+        pinnedSlot.style.display = hasPinned ? 'block' : 'none';
     }
 
     window.adminToggleFavorite = async function(key) {
@@ -262,20 +283,23 @@
             renderAdminFavorites();
             showToast(`"${meta.title}" moved to Store settings.`);
             if (typeof openAdminStoreToolsAccordion === 'function') openAdminStoreToolsAccordion();
-            adminScrollToPinnedSection(false);
+            requestAnimationFrame(() => {
+                const el = document.getElementById(meta.id);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
         } else {
             list.push(key);
             adminFavoritesWrite(list);
             renderAdminFavorites();
             adminExpandFavoriteBlock(key);
-            showToast(`"${meta.title}" pinned above Store settings.`);
-            adminScrollToPinnedSection(true);
+            showToast(`"${meta.title}" pinned — scroll below products to see it.`);
+            adminScrollToPinnedBlock(key);
         }
     };
 
     window.adminIsToolBlockPinned = function(blockId) {
         const el = typeof blockId === 'string' ? document.getElementById(blockId) : blockId;
-        return !!(el && el.closest('#admin-favorites-list'));
+        return !!(el && el.closest('#admin-pinned-tools-slot'));
     };
 
     window.adminEnsureParentStoreToolsOpen = function(blockId) {
@@ -288,6 +312,6 @@
     window.adminFavoriteRegistryKeys = () => [...STORE_TOOLS_ORDER];
 
     document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(renderAdminFavorites, 400);
+        renderAdminFavorites();
     });
 })();
