@@ -2367,6 +2367,10 @@ async function loadSuperadminFeatures() {
             if (document.getElementById('toggle-admin-storefront-content')) {
                 document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
             }
+            if (document.getElementById('toggle-admin-crud-drafts')) {
+                document.getElementById('toggle-admin-crud-drafts').checked = data.adminCrudDrafts !== false;
+            }
+            if (typeof updateSuperadminDraftStorageInfo === 'function') updateSuperadminDraftStorageInfo();
 
             if (typeof syncCatalogControlCheckboxes === 'function') {
                 syncCatalogControlCheckboxes(data);
@@ -2420,6 +2424,7 @@ async function saveSuperadminFeatures() {
         productComments: !!document.getElementById('toggle-product-comments')?.checked,
         productCategories: !!document.getElementById('toggle-product-categories')?.checked,
         adminStorefrontContent: !!document.getElementById('toggle-admin-storefront-content')?.checked,
+        adminCrudDrafts: !!document.getElementById('toggle-admin-crud-drafts')?.checked,
         widgets: {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,
@@ -2448,6 +2453,7 @@ async function saveSuperadminFeatures() {
         window.APP_FEATURES = { ...window.APP_FEATURES, ...updateObj };
         if (typeof cacheFeaturesConfig === 'function') cacheFeaturesConfig(window.APP_FEATURES);
         if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
+        if (!updateObj.adminCrudDrafts && typeof adminDraftRemoveAll === 'function') adminDraftRemoveAll();
         await db.collection("settings").doc("comments").set({
             enabled: updateObj.productComments
         }, { merge: true });

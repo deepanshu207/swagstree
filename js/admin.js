@@ -792,34 +792,44 @@ function applyProductDraftForm(form) {
     syncAdminMediaStatus('base');
     adminResetProductSnapshot();
 }
+window.applyProductDraftForm = applyProductDraftForm;
+
+function getProductDraftKey(formOrId) {
+    if (typeof formOrId === 'string' && formOrId) return `edit:${formOrId}`;
+    const id = formOrId?.editingId ?? editingId;
+    return id ? `edit:${id}` : 'new';
+}
 
 function persistProductDraft() {
     const modal = document.getElementById('prod-modal');
     if (!modal || modal.style.display !== 'flex') return;
+    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return;
     if (!adminIsProductDirty()) {
-        const existing = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
-        if (existing?.type === 'product' && typeof adminDraftClear === 'function') adminDraftClear();
+        if (typeof adminDraftRemove === 'function') adminDraftRemove('product', getProductDraftKey(editingId));
         return;
     }
     const form = adminBuildProductDraftPayload();
-    const draft = {
-        v: 1,
-        type: 'product',
-        updatedAt: Date.now(),
-        entityId: form.editingId,
-        label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
-        form
-    };
-    if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
+    const key = getProductDraftKey(form.editingId);
+    if (typeof adminDraftUpsert === 'function') {
+        adminDraftUpsert('product', key, {
+            entityId: form.editingId,
+            label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
+            form
+        });
+    }
 }
 window.persistProductDraft = persistProductDraft;
 
+function clearProductDraftForCurrent() {
+    if (typeof adminDraftRemove === 'function') adminDraftRemove('product', getProductDraftKey(editingId));
+}
+
 function discardProductDraft(silent) {
+    clearProductDraftForCurrent();
     adminProductSnapshot = null;
-    if (typeof adminDraftClear === 'function') adminDraftClear();
     if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
     closeModal('prod-modal');
-    if (!silent) showToast('Product draft discarded.');
+    if (!silent) showToast('Changes discarded.');
 }
 window.discardProductDraft = discardProductDraft;
 
@@ -836,29 +846,8 @@ function adminBindProductDraftListeners() {
 }
 
 function adminTryRestoreProductDraft(expectedId) {
-    if (window._productDraftOffered) return false;
-    const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
-    if (!draft || draft.type !== 'product' || !draft.form) return false;
-    if (expectedId !== undefined && draft.form.editingId !== expectedId) return false;
-    if (expectedId === null && draft.form.editingId) return false;
-    if (!(draft.form.name || '').trim() && !draft.form.editingId) {
-        if (typeof adminDraftClear === 'function') adminDraftClear();
-        return false;
-    }
-    window._productDraftOffered = true;
-    const label = (draft.form.name || '').trim() || 'product';
-    if (!window.confirm(`Resume unsaved work on "${label}"?`)) {
-        if (typeof adminDraftClear === 'function') adminDraftClear();
-        return false;
-    }
-    document.getElementById('prod-modal').style.display = 'flex';
-    applyProductDraftForm(draft.form);
-    if (draft.form.hasPendingFiles) {
-        showToast('Draft restored — re-upload any files that were not saved.');
-    } else {
-        showToast('Draft restored — tap Save when ready.');
-    }
-    return true;
+    /* Recovery handled by admin draft panel after reload/timeout — no auto-prompt. */
+    return false;
 }
 
 function adminResetProductSnapshot() {
@@ -2257,6 +2246,7 @@ function removeVariant(id) {
 
 function renderAdmin() { 
     const container = document.getElementById('admin-list');
+    if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
     if(!container) return;
     
     const loadMoreContainer = document.getElementById('admin-load-more-container');
@@ -2450,10 +2440,6 @@ window.loadMoreAdminProducts = function() {
 };
 
 function openEdit(id) {
-    if (adminTryRestoreProductDraft(id)) {
-        adminBindProductDraftListeners();
-        return;
-    }
     editingId = id; 
     const p = products.find(x => x.id === id);
     if (!p) return showToast('Product not found.');
@@ -2607,10 +2593,6 @@ function syncAdmin360PanelVisibility() {
 window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
 
 function openAdd() {
-    if (adminTryRestoreProductDraft(null)) {
-        adminBindProductDraftListeners();
-        return;
-    }
     editingId = null; 
     adminSetModalTitle('add');
     adminShowValidationErrors([]);
@@ -3306,7 +3288,7 @@ async function saveProduct() {
         
         adminHideSaveProgress();
         adminProductSnapshot = null;
-        if (typeof adminDraftClear === 'function') adminDraftClear();
+        if (typeof clearProductDraftForCurrent === 'function') clearProductDraftForCurrent();
         showToast(editingId ? 'Product updated!' : 'Product created!');
         closeModal('prod-modal'); 
     } catch(e) { 

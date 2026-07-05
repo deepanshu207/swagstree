@@ -1,82 +1,29 @@
 // ==========================================
-// SWAG STREE | ADMIN CRUD DRAFTS (single slot)
+// SWAG STREE | ADMIN CRUD DRAFTS (multi-slot, crash recovery)
 // ==========================================
 
 (function() {
-    const ADMIN_DRAFT_KEY = 'swagstree_admin_draft_v1';
-    const ADMIN_DRAFT_ARCHIVE_KEY = 'swagstree_admin_draft_archive_v1';
-    const ADMIN_DRAFT_MAX_BYTES = 100000;
+    const ADMIN_DRAFTS_KEY = 'swagstree_admin_drafts_v2';
+    const ADMIN_DRAFTS_LEGACY_KEY = 'swagstree_admin_draft_v1';
+    const ADMIN_DRAFTS_LEGACY_ARCHIVE_KEY = 'swagstree_admin_draft_archive_v1';
+    const ADMIN_DRAFTS_MAX_BYTES = 500000;
+    const ADMIN_DRAFTS_MAX_PER_TYPE = 25;
+
     let unsavedResolver = null;
     let categoryDraftTimer = null;
     let productDraftTimer = null;
+    const liveDraftKeys = new Set();
 
-    function adminDraftRead() {
-        try {
-            const raw = localStorage.getItem(ADMIN_DRAFT_KEY);
-            if (!raw) return null;
-            const draft = JSON.parse(raw);
-            if (!draft || typeof draft !== 'object' || !draft.type) return null;
-            return draft;
-        } catch (e) {
-            console.warn('adminDraftRead failed:', e);
-            return null;
-        }
+    function adminCrudDraftsEnabled() {
+        return !!(window.APP_FEATURES && window.APP_FEATURES.adminCrudDrafts !== false);
     }
 
-    function adminDraftWrite(draft) {
-        if (!draft) return false;
-        try {
-            const json = JSON.stringify(draft);
-            if (json.length > ADMIN_DRAFT_MAX_BYTES) {
-                console.warn('Admin draft too large; not saved.');
-                return false;
-            }
-            localStorage.setItem(ADMIN_DRAFT_KEY, json);
-            return true;
-        } catch (e) {
-            console.warn('adminDraftWrite failed:', e);
-            return false;
-        }
-    }
-
-    window.adminDraftWrite = adminDraftWrite;
-
-    function adminDraftArchiveFromActive() {
-        const draft = adminDraftRead();
-        if (!draft) return false;
-        try {
-            const json = JSON.stringify({ ...draft, archivedAt: Date.now() });
-            if (json.length > ADMIN_DRAFT_MAX_BYTES) return false;
-            localStorage.setItem(ADMIN_DRAFT_ARCHIVE_KEY, json);
-            return true;
-        } catch (e) {
-            console.warn('adminDraftArchiveFromActive failed:', e);
-            return false;
-        }
-    }
-
-    function adminDraftReadArchive() {
-        try {
-            const raw = localStorage.getItem(ADMIN_DRAFT_ARCHIVE_KEY);
-            if (!raw) return null;
-            const draft = JSON.parse(raw);
-            if (!draft || typeof draft !== 'object' || !draft.type) return null;
-            return draft;
-        } catch (e) {
-            console.warn('adminDraftReadArchive failed:', e);
-            return null;
-        }
-    }
-
-    function adminDraftClearArchive() {
-        try { localStorage.removeItem(ADMIN_DRAFT_ARCHIVE_KEY); } catch (e) { /* ignore */ }
-    }
-
-    function adminDraftClear(opts) {
-        if (opts && opts.archive) adminDraftArchiveFromActive();
-        try { localStorage.removeItem(ADMIN_DRAFT_KEY); } catch (e) { /* ignore */ }
-        adminDraftRenderBanners();
-        if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
+    function adminDraftEscapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     function adminDraftFormatAge(ts) {
@@ -86,6 +33,308 @@
         if (ms < 86400000) return `${Math.floor(ms / 3600000)}h ago`;
         return `${Math.floor(ms / 86400000)}d ago`;
     }
+
+    function adminDraftEmptyStore() {
+        return { v: 2, categories: {}, products: {} };
+    }
+
+    function adminDraftMigrateLegacy() {
+        try {
+            const legacyRaw = localStorage.getItem(ADMIN_DRAFTS_LEGACY_KEY);
+            const archiveRaw = localStorage.getItem(ADMIN_DRAFTS_LEGACY_ARCHIVE_KEY);
+            const store = adminDraftsReadAll();
+            let changed = false;
+
+            [legacyRaw, archiveRaw].forEach(raw => {
+                if (!raw) return;
+                try {
+                    const draft = JSON.parse(raw);
+                    if (!draft || !draft.type || !draft.form) return;
+                    const type = draft.type === 'category' ? 'categories' : draft.type === 'product' ? 'products' : null;
+                    if (!type) return;
+                    const key = draft.entityId ? `edit:${draft.entityId}` : 'new';
+                    if (!store[type][key]) {
+                        store[type][key] = {
+                            form: draft.form,
+                            label: draft.label || draft.form.name || (type === 'products' ? 'Product' : 'Category'),
+                            entityId: draft.entityId || draft.form.editingCategoryId || draft.form.editingId || null,
+                            updatedAt: draft.updatedAt || draft.archivedAt || Date.now()
+                        };
+                        changed = true;
+                    }
+                } catch (e) { /* ignore bad legacy entry */ }
+            });
+
+            if (legacyRaw) {
+                localStorage.removeItem(ADMIN_DRAFTS_LEGACY_KEY);
+                changed = true;
+            }
+            if (archiveRaw) {
+                localStorage.removeItem(ADMIN_DRAFTS_LEGACY_ARCHIVE_KEY);
+                changed = true;
+            }
+            if (changed) adminDraftsWriteAll(store);
+        } catch (e) {
+            console.warn('adminDraftMigrateLegacy failed:', e);
+        }
+    }
+
+    function adminDraftsReadAll() {
+        adminDraftMigrateLegacy();
+        try {
+            const raw = localStorage.getItem(ADMIN_DRAFTS_KEY);
+            if (!raw) return adminDraftEmptyStore();
+            const store = JSON.parse(raw);
+            if (!store || typeof store !== 'object') return adminDraftEmptyStore();
+            store.categories = store.categories && typeof store.categories === 'object' ? store.categories : {};
+            store.products = store.products && typeof store.products === 'object' ? store.products : {};
+            store.v = 2;
+            return store;
+        } catch (e) {
+            console.warn('adminDraftsReadAll failed:', e);
+            return adminDraftEmptyStore();
+        }
+    }
+
+    function adminDraftsWriteAll(store) {
+        if (!store) return false;
+        try {
+            const json = JSON.stringify(store);
+            if (json.length > ADMIN_DRAFTS_MAX_BYTES) {
+                console.warn('Admin drafts exceed storage cap; oldest entries trimmed.');
+                adminDraftsEvictOldest(store);
+                const trimmed = JSON.stringify(store);
+                if (trimmed.length > ADMIN_DRAFTS_MAX_BYTES) return false;
+                localStorage.setItem(ADMIN_DRAFTS_KEY, trimmed);
+                return true;
+            }
+            localStorage.setItem(ADMIN_DRAFTS_KEY, json);
+            return true;
+        } catch (e) {
+            console.warn('adminDraftsWriteAll failed:', e);
+            return false;
+        }
+    }
+
+    function adminDraftsEvictOldest(store) {
+        ['categories', 'products'].forEach(type => {
+            const entries = Object.entries(store[type] || {});
+            if (entries.length <= ADMIN_DRAFTS_MAX_PER_TYPE) return;
+            entries.sort((a, b) => (Number(a[1]?.updatedAt) || 0) - (Number(b[1]?.updatedAt) || 0));
+            const removeCount = entries.length - ADMIN_DRAFTS_MAX_PER_TYPE;
+            entries.slice(0, removeCount).forEach(([key]) => {
+                delete store[type][key];
+                liveDraftKeys.delete(`${type === 'categories' ? 'category' : 'product'}:${key}`);
+            });
+        });
+    }
+
+    function adminDraftLiveKey(type, key) {
+        return `${type}:${key}`;
+    }
+
+    function adminDraftMarkLive(type, key) {
+        if (!type || !key) return;
+        liveDraftKeys.add(adminDraftLiveKey(type, key));
+    }
+
+    function adminDraftUnmarkLive(type, key) {
+        if (!type || !key) return;
+        liveDraftKeys.delete(adminDraftLiveKey(type, key));
+    }
+
+    function adminDraftIsLive(type, key) {
+        return liveDraftKeys.has(adminDraftLiveKey(type, key));
+    }
+
+    function adminDraftUpsert(type, key, payload) {
+        if (!adminCrudDraftsEnabled() || !type || !key || !payload) return false;
+        const store = adminDraftsReadAll();
+        const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
+        if (!bucket) return false;
+        store[bucket][key] = {
+            form: payload.form,
+            label: payload.label || 'Untitled',
+            entityId: payload.entityId || null,
+            updatedAt: Date.now()
+        };
+        adminDraftsEvictOldest(store);
+        const ok = adminDraftsWriteAll(store);
+        if (ok) adminDraftMarkLive(type, key);
+        return ok;
+    }
+
+    function adminDraftRemove(type, key) {
+        if (!type || !key) return;
+        const store = adminDraftsReadAll();
+        const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
+        if (!bucket || !store[bucket][key]) {
+            adminDraftUnmarkLive(type, key);
+            return;
+        }
+        delete store[bucket][key];
+        adminDraftsWriteAll(store);
+        adminDraftUnmarkLive(type, key);
+        renderAdminDraftRecoveryPanel();
+        updateSuperadminDraftStorageInfo();
+    }
+
+    function adminDraftRemoveAll() {
+        try { localStorage.removeItem(ADMIN_DRAFTS_KEY); } catch (e) { /* ignore */ }
+        liveDraftKeys.clear();
+        renderAdminDraftRecoveryPanel();
+        updateSuperadminDraftStorageInfo();
+    }
+
+    function adminDraftListEntries() {
+        const store = adminDraftsReadAll();
+        const items = [];
+        Object.entries(store.categories || {}).forEach(([key, entry]) => {
+            items.push({ type: 'category', key, entry });
+        });
+        Object.entries(store.products || {}).forEach(([key, entry]) => {
+            items.push({ type: 'product', key, entry });
+        });
+        items.sort((a, b) => (Number(b.entry?.updatedAt) || 0) - (Number(a.entry?.updatedAt) || 0));
+        return items;
+    }
+
+    function adminDraftGetOrphaned() {
+        if (!adminCrudDraftsEnabled()) return [];
+        return adminDraftListEntries().filter(item => !adminDraftIsLive(item.type, item.key));
+    }
+
+    function adminDraftsStorageInfo() {
+        try {
+            const raw = localStorage.getItem(ADMIN_DRAFTS_KEY) || '';
+            const store = adminDraftsReadAll();
+            const catCount = Object.keys(store.categories || {}).length;
+            const prodCount = Object.keys(store.products || {}).length;
+            return {
+                bytes: raw.length,
+                total: catCount + prodCount,
+                categories: catCount,
+                products: prodCount
+            };
+        } catch (e) {
+            return { bytes: 0, total: 0, categories: 0, products: 0 };
+        }
+    }
+
+    function adminDraftFormatBytes(bytes) {
+        const n = Number(bytes) || 0;
+        if (n < 1024) return `${n} B`;
+        if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+        return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    function updateSuperadminDraftStorageInfo() {
+        const el = document.getElementById('admin-drafts-storage-info');
+        if (!el) return;
+        const info = adminDraftsStorageInfo();
+        el.textContent = info.total
+            ? `${info.total} draft${info.total === 1 ? '' : 's'} · ${adminDraftFormatBytes(info.bytes)} in browser storage`
+            : 'No drafts stored in this browser';
+    }
+
+    function renderAdminDraftRecoveryPanel() {
+        const el = document.getElementById('admin-draft-recovery-panel');
+        if (!el) return;
+
+        if (!adminCrudDraftsEnabled()) {
+            el.hidden = true;
+            el.innerHTML = '';
+            return;
+        }
+
+        const orphans = adminDraftGetOrphaned();
+        if (!orphans.length) {
+            el.hidden = true;
+            el.innerHTML = '';
+            return;
+        }
+
+        el.hidden = false;
+        el.className = 'admin-draft-recovery-panel';
+        const rows = orphans.map(item => {
+            const label = item.entry?.label || (item.type === 'category' ? 'Category' : 'Product');
+            const age = adminDraftFormatAge(item.entry?.updatedAt);
+            const kind = item.type === 'category'
+                ? (item.key === 'new' ? 'New category' : 'Category edit')
+                : (item.key === 'new' ? 'New product' : 'Product edit');
+            const safeType = adminDraftEscapeHtml(item.type);
+            const safeKey = adminDraftEscapeHtml(item.key);
+            return `
+                <div class="admin-draft-recovery-row">
+                    <div class="admin-draft-recovery-row__text">
+                        <strong>${adminDraftEscapeHtml(kind)}:</strong> ${adminDraftEscapeHtml(label)}
+                        <span class="admin-draft-age">${adminDraftEscapeHtml(age)}</span>
+                    </div>
+                    <div class="admin-draft-recovery-row__actions">
+                        <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminRestoreDraft('${safeType}','${safeKey}')">Restore</button>
+                        <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDeleteDraft('${safeType}','${safeKey}')">Delete</button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        el.innerHTML = `
+            <div class="admin-draft-banner admin-draft-recovery">
+                <div class="admin-draft-banner__text">
+                    <strong>Recovered unsaved work</strong>
+                    <div class="admin-draft-recovery-hint">From a reload, tab close, or session timeout — not from Discard</div>
+                </div>
+                <button type="button" class="admin-category-btn admin-category-btn-muted admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>
+            </div>
+            <div class="admin-draft-recovery-list">${rows}</div>`;
+    }
+
+    window.adminRestoreDraft = function(type, key) {
+        if (!adminCrudDraftsEnabled()) return;
+        const store = adminDraftsReadAll();
+        const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
+        const entry = bucket ? store[bucket][key] : null;
+        if (!entry?.form) return;
+
+        if (type === 'category') {
+            if (typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) {
+                showToast('Save or discard your current category edits first.');
+                return;
+            }
+            if (typeof openAdminCategoryAccordion === 'function') openAdminCategoryAccordion();
+            if (typeof applyCategoryFormState === 'function') applyCategoryFormState(entry.form);
+            adminDraftMarkLive('category', key);
+            showToast('Category draft restored — tap Save when ready.');
+        } else if (type === 'product') {
+            const modal = document.getElementById('prod-modal');
+            if (modal?.style.display === 'flex' && typeof adminIsProductDirty === 'function' && adminIsProductDirty()) {
+                showToast('Save or discard your current product edits first.');
+                return;
+            }
+            if (modal) modal.style.display = 'flex';
+            if (typeof applyProductDraftForm === 'function') applyProductDraftForm(entry.form);
+            if (entry.form.hasPendingFiles) {
+                showToast('Product draft restored — re-upload any files that were not saved.');
+            } else {
+                showToast('Product draft restored — tap Save when ready.');
+            }
+            adminDraftMarkLive('product', key);
+            if (typeof adminResetProductSnapshot === 'function') adminResetProductSnapshot();
+        }
+
+        renderAdminDraftRecoveryPanel();
+    };
+
+    window.adminDeleteDraft = function(type, key) {
+        adminDraftRemove(type, key);
+        showToast('Draft deleted.');
+    };
+
+    window.adminDeleteAllDrafts = function() {
+        if (!adminDraftListEntries().length) return;
+        if (!window.confirm('Delete all recovered drafts on this device?')) return;
+        adminDraftRemoveAll();
+        showToast('All drafts cleared.');
+    };
 
     function adminPromptUnsaved(message) {
         return new Promise(resolve => {
@@ -120,18 +369,6 @@
         return true;
     }
 
-    function adminDraftRenderBanners() {
-        /* Silent drafts — no in-form banners (avoids layout jump + scroll). */
-    }
-
-    function escapeAdminDraftHtml(str) {
-        return String(str || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
     function adminAnyUnsavedDirty() {
         const prodOpen = document.getElementById('prod-modal')?.style.display === 'flex';
         if (prodOpen && typeof adminIsProductDirty === 'function' && adminIsProductDirty()) return true;
@@ -140,31 +377,51 @@
         return false;
     }
 
+    // Legacy single-slot API shims (used by older call sites during transition)
+    function adminDraftRead() {
+        const orphans = adminDraftGetOrphaned();
+        if (!orphans.length) return null;
+        const item = orphans[0];
+        return {
+            type: item.type,
+            form: item.entry.form,
+            label: item.entry.label,
+            entityId: item.entry.entityId,
+            updatedAt: item.entry.updatedAt
+        };
+    }
+
+    function adminDraftWrite(draft) {
+        if (!draft || !draft.type || !draft.form) return false;
+        const entityId = draft.entityId || draft.form.editingCategoryId || draft.form.editingId || null;
+        const key = entityId ? `edit:${entityId}` : 'new';
+        return adminDraftUpsert(draft.type, key, {
+            form: draft.form,
+            label: draft.label,
+            entityId
+        });
+    }
+
+    function adminDraftClear() {
+        adminDraftRemoveAll();
+    }
+
+    window.adminCrudDraftsEnabled = adminCrudDraftsEnabled;
     window.adminPromptUnsavedChoice = adminPromptUnsaved;
+    window.adminDraftUpsert = adminDraftUpsert;
+    window.adminDraftRemove = adminDraftRemove;
+    window.adminDraftRemoveAll = adminDraftRemoveAll;
+    window.adminDraftMarkLive = adminDraftMarkLive;
+    window.adminDraftUnmarkLive = adminDraftUnmarkLive;
+    window.adminDraftsStorageInfo = adminDraftsStorageInfo;
+    window.adminDraftFormatAge = adminDraftFormatAge;
+    window.adminDraftFormatBytes = adminDraftFormatBytes;
     window.adminDraftClear = adminDraftClear;
     window.adminDraftRead = adminDraftRead;
-    window.adminDraftArchiveFromActive = adminDraftArchiveFromActive;
-    window.adminDraftReadArchive = adminDraftReadArchive;
-    window.adminDraftClearArchive = adminDraftClearArchive;
-    window.adminDraftFormatAge = adminDraftFormatAge;
-    window.adminDraftRenderBanners = adminDraftRenderBanners;
+    window.adminDraftWrite = adminDraftWrite;
+    window.renderAdminDraftRecoveryPanel = renderAdminDraftRecoveryPanel;
+    window.updateSuperadminDraftStorageInfo = updateSuperadminDraftStorageInfo;
     window.adminAnyUnsavedDirty = adminAnyUnsavedDirty;
-
-    window.adminApproveCategoryDraft = async function() {
-        if (typeof saveCategory === 'function') await saveCategory();
-    };
-
-    window.adminRejectCategoryDraft = function() {
-        if (typeof discardCategoryDraft === 'function') discardCategoryDraft(true);
-    };
-
-    window.adminApproveProductDraft = async function() {
-        if (typeof saveProduct === 'function') await saveProduct();
-    };
-
-    window.adminRejectProductDraft = function() {
-        if (typeof discardProductDraft === 'function') discardProductDraft(true);
-    };
 
     window.adminGuardCategoryLeave = async function(message, next) {
         if (window.inlineEditingCategoryId && typeof isInlineCategoryDirty === 'function' &&
@@ -250,6 +507,7 @@
     };
 
     window.adminScheduleCategoryDraftSave = function() {
+        if (!adminCrudDraftsEnabled()) return;
         clearTimeout(categoryDraftTimer);
         categoryDraftTimer = setTimeout(() => {
             if (typeof persistCategoryDraft === 'function') persistCategoryDraft();
@@ -257,6 +515,7 @@
     };
 
     window.adminScheduleProductDraftSave = function() {
+        if (!adminCrudDraftsEnabled()) return;
         clearTimeout(productDraftTimer);
         productDraftTimer = setTimeout(() => {
             if (typeof persistProductDraft === 'function') persistProductDraft();
@@ -271,6 +530,8 @@
     });
 
     document.addEventListener('DOMContentLoaded', () => {
-        adminDraftRenderBanners();
+        adminDraftMigrateLegacy();
+        renderAdminDraftRecoveryPanel();
+        updateSuperadminDraftStorageInfo();
     });
 })();

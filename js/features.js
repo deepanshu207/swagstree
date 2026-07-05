@@ -14,6 +14,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     productComments: true,
     productCategories: true,
     adminStorefrontContent: true,
+    adminCrudDrafts: true,
     widgets: {
         recentOrders: false,
         discountWheel: false,

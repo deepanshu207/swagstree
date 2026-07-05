@@ -7732,6 +7732,49 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     color: #888;
     margin-top: 4px;
 }
+.admin-draft-recovery-panel {
+    margin: 0 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.admin-draft-recovery-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.admin-draft-recovery-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+}
+.admin-draft-recovery-row__text {
+    flex: 1;
+    min-width: 160px;
+    font-size: 12px;
+    color: #ccc;
+    line-height: 1.45;
+}
+.admin-draft-recovery-row__text strong {
+    color: var(--gold);
+}
+.admin-draft-recovery-row__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.admin-draft-clear-all {
+    width: auto !important;
+    padding: 6px 12px !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+}
 .admin-draft-btn-reject {
     width: auto !important;
     padding: 8px 14px !important;

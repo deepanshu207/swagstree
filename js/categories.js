@@ -280,133 +280,75 @@ function applyCategoryFormState(state) {
     if (active) active.checked = state.isActive !== false;
     updateCategoryFormMode();
 }
+window.applyCategoryFormState = applyCategoryFormState;
+
+function getCategoryDraftKey(formOrId) {
+    if (typeof formOrId === 'string' && formOrId) return `edit:${formOrId}`;
+    const id = formOrId?.editingCategoryId || window.inlineEditingCategoryId;
+    return id ? `edit:${id}` : 'new';
+}
 
 function persistCategoryDraft() {
     if (!canManageProductCategories()) return;
+    if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return;
 
     if (window.inlineEditingCategoryId && isInlineCategoryDirty(window.inlineEditingCategoryId)) {
-        const state = serializeInlineCategoryState(window.inlineEditingCategoryId);
+        const id = window.inlineEditingCategoryId;
+        const state = serializeInlineCategoryState(id);
         if (!state?.name) return;
-        const draft = {
-            v: 1,
-            type: 'category',
-            updatedAt: Date.now(),
-            entityId: window.inlineEditingCategoryId,
-            label: state.name,
-            form: {
-                editingCategoryId: window.inlineEditingCategoryId,
-                name: state.name,
-                sortOrder: state.sortOrder,
-                isActive: state.isActive
-            }
-        };
-        if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
-        if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
+        const key = getCategoryDraftKey(id);
+        if (typeof adminDraftUpsert === 'function') {
+            adminDraftUpsert('category', key, {
+                entityId: id,
+                label: state.name,
+                form: {
+                    editingCategoryId: id,
+                    name: state.name,
+                    sortOrder: state.sortOrder,
+                    isActive: state.isActive
+                }
+            });
+        }
         return;
     }
 
     if (!isCategoryFormDirty()) {
-        const existing = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
-        if (existing?.type === 'category' && typeof adminDraftClear === 'function') adminDraftClear();
+        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
         return;
     }
     const state = serializeCategoryFormState();
     if (!state.name) return;
-    const draft = {
-        v: 1,
-        type: 'category',
-        updatedAt: Date.now(),
-        entityId: null,
-        label: state.name,
-        form: state
-    };
-    if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
-    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
+    if (typeof adminDraftUpsert === 'function') {
+        adminDraftUpsert('category', 'new', {
+            entityId: null,
+            label: state.name,
+            form: state
+        });
+    }
 }
 window.persistCategoryDraft = persistCategoryDraft;
 
-function clearCategoryDraftStorage() {
-    if (typeof adminDraftClear === 'function') adminDraftClear();
-    if (typeof adminDraftClearArchive === 'function') adminDraftClearArchive();
-    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
+function clearCategoryDraftForCurrent() {
+    if (window.inlineEditingCategoryId) {
+        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', getCategoryDraftKey(window.inlineEditingCategoryId));
+    } else if (typeof adminDraftRemove === 'function') {
+        adminDraftRemove('category', 'new');
+    }
 }
 
 function discardCategoryDraft(silent) {
-    if (typeof adminDraftArchiveFromActive === 'function') adminDraftArchiveFromActive();
     if (window.inlineEditingCategoryId) {
+        const id = window.inlineEditingCategoryId;
+        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', getCategoryDraftKey(id));
         cancelInlineCategoryEdit();
     } else {
+        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
         resetCategoryFormInternal();
         renderAdminCategoryList();
     }
-    if (typeof adminDraftClear === 'function') adminDraftClear();
-    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
-    if (!silent) showToast('Draft discarded — use Restore below if you need it back.');
+    if (!silent) showToast('Changes discarded.');
 }
 window.discardCategoryDraft = discardCategoryDraft;
-
-function getRecoverableCategoryDraft() {
-    const active = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
-    if (active?.type === 'category' && active.form && (active.form.name || active.form.editingCategoryId)) {
-        return { draft: active, source: 'active' };
-    }
-    const archived = typeof adminDraftReadArchive === 'function' ? adminDraftReadArchive() : null;
-    if (archived?.type === 'category' && archived.form && (archived.form.name || archived.form.editingCategoryId)) {
-        return { draft: archived, source: 'archive' };
-    }
-    return null;
-}
-
-function renderAdminCategoryDraftRecovery() {
-    const el = document.getElementById('admin-category-draft-recovery');
-    if (!el) return;
-    const rec = getRecoverableCategoryDraft();
-    if (!rec) {
-        el.hidden = true;
-        el.innerHTML = '';
-        return;
-    }
-    const { draft, source } = rec;
-    const label = draft.form.name || getCategoryById(draft.form.editingCategoryId)?.name || 'category';
-    const ts = draft.updatedAt || draft.archivedAt || Date.now();
-    const age = typeof adminDraftFormatAge === 'function' ? adminDraftFormatAge(ts) : '';
-    const sourceNote = source === 'archive' ? ' (discarded)' : '';
-    el.hidden = false;
-    el.className = 'admin-draft-banner admin-draft-recovery';
-    el.innerHTML = `
-        <div class="admin-draft-banner__text">
-            <strong>Saved draft${sourceNote}:</strong> ${escapeCategoryHtml(label)}
-            <span class="admin-draft-age">${escapeCategoryHtml(age)}</span>
-            <div class="admin-draft-recovery-hint">Survives reload — tap Restore to continue editing</div>
-        </div>
-        <div class="admin-draft-banner__actions">
-            <button type="button" class="btn-gold admin-draft-btn-approve" onclick="restoreCategoryDraft()">Restore</button>
-            <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="deleteCategoryDraftRecovery()">Delete</button>
-        </div>`;
-}
-window.renderAdminCategoryDraftRecovery = renderAdminCategoryDraftRecovery;
-
-window.restoreCategoryDraft = function() {
-    const rec = getRecoverableCategoryDraft();
-    if (!rec) return;
-    if (isAnyCategoryCrudDirty()) {
-        showToast('Save or discard your current edits first.');
-        return;
-    }
-    openAdminCategoryAccordion();
-    applyCategoryFormState(rec.draft.form);
-    if (rec.source === 'archive' && typeof adminDraftWrite === 'function') {
-        adminDraftWrite(rec.draft);
-        if (typeof adminDraftClearArchive === 'function') adminDraftClearArchive();
-    }
-    renderAdminCategoryDraftRecovery();
-    showToast('Draft restored — tap Save when ready.');
-};
-
-window.deleteCategoryDraftRecovery = function() {
-    clearCategoryDraftStorage();
-    showToast('Draft deleted.');
-};
 
 function startInlineCategoryEditInternal(id, preset) {
     const cat = getCategoryById(id);
@@ -438,7 +380,6 @@ function startInlineCategoryEditInternal(id, preset) {
             try { nameInput.focus({ preventScroll: true }); } catch (e) { nameInput.focus(); }
         }
     }, 40);
-    if (typeof adminDraftClear === 'function') adminDraftClear();
 }
 
 async function guardInlineCategorySwitch(next) {
@@ -469,6 +410,8 @@ window.startInlineCategoryEdit = async function(id) {
 };
 
 window.cancelInlineCategoryEdit = function() {
+    const id = window.inlineEditingCategoryId;
+    if (id && typeof adminDraftRemove === 'function') adminDraftRemove('category', getCategoryDraftKey(id));
     window.inlineEditingCategoryId = null;
     window._inlineCategoryBaseline = null;
     renderAdminCategoryList();
@@ -510,7 +453,7 @@ window.saveInlineCategory = async function(id) {
         }
         window.inlineEditingCategoryId = null;
         window._inlineCategoryBaseline = null;
-        clearCategoryDraftStorage();
+        clearCategoryDraftForCurrent();
         renderAdminCategoryList();
         showToast(linkedProducts.length ? `Saved (${linkedProducts.length} product${linkedProducts.length === 1 ? '' : 's'} synced).` : 'Category saved.');
     } catch (e) {
@@ -1062,7 +1005,7 @@ function openAdminCategoryAccordion() {
     if (!content) return;
     content.style.display = 'flex';
     if (icon) icon.style.transform = 'rotate(0deg)';
-    renderAdminCategoryDraftRecovery();
+    if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
 }
 
 window.toggleAdminCategoryAccordion = async function() {
@@ -1145,7 +1088,6 @@ function resetCategoryFormInternal() {
     if (name) name.value = '';
     if (active) active.checked = true;
     setCategoryFormDefaultOrder();
-    if (typeof adminDraftClear === 'function') adminDraftClear();
 }
 
 function resetCategoryForm() {
@@ -1207,7 +1149,7 @@ window.saveCategory = async function() {
         showToast('Category added.');
         resetCategoryForm();
         renderAdminCategoryList();
-        clearCategoryDraftStorage();
+        clearCategoryDraftForCurrent();
         focusAdminCategoryForm();
     } catch (e) {
         console.error('saveCategory failed:', e);
@@ -1275,7 +1217,7 @@ function loadProductCategories() {
     window._categoriesListenerStarted = true;
     initCategoryFormKeyboard();
     setCategoryFormDefaultOrder();
-    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
+    if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
 
     db.collection('categories').onSnapshot(snap => {
         window.productCategories = snap.docs.map(doc => {
