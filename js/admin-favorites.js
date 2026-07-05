@@ -656,20 +656,11 @@
 
     function adminUpdateBelowSlotHeading(belowSlot, belowKeys) {
         if (!belowSlot) return;
-        let heading = document.getElementById('admin-below-slot-heading');
-        const visibleCount = belowKeys.filter(k => adminIsBlockShown(k)).length;
-        if (visibleCount === 0) {
-            if (heading) heading.hidden = true;
-            return;
+        const heading = document.getElementById('admin-below-slot-heading');
+        if (heading) {
+            heading.hidden = true;
+            heading.remove();
         }
-        if (!heading) {
-            heading = document.createElement('div');
-            heading.id = 'admin-below-slot-heading';
-            heading.className = 'admin-layout-slot-heading';
-            heading.innerHTML = '<i class="fa fa-arrow-down" aria-hidden="true"></i><span>Below store settings</span>';
-            belowSlot.insertBefore(heading, belowSlot.firstChild);
-        }
-        heading.hidden = false;
     }
 
     function applyAdminLayout() {
@@ -709,10 +700,7 @@
         adminPlaceOrderedBlocks(placement.inside, storeContent, { insideTool: true, afterEl: layoutSettings });
 
         adminUpdateBelowSlotHeading(belowSlot, placement.below);
-        const belowHeading = document.getElementById('admin-below-slot-heading');
-        adminPlaceOrderedBlocks(placement.below, belowSlot, {
-            afterEl: belowHeading && !belowHeading.hidden ? belowHeading : null
-        });
+        adminPlaceOrderedBlocks(placement.below, belowSlot);
 
         adminHideBlocksOutsideZones(placement);
         adminSetSlotVisibility(aboveSlot, placement.above);

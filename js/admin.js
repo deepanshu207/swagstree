@@ -1280,7 +1280,8 @@ function adminGetOrphanedNewProductDraftEntry() {
 }
 
 function adminProductHasEditDraft(id) {
-    return typeof adminDraftIsVisible === 'function' && adminDraftIsVisible('product', `edit:${id}`);
+    return typeof adminProductEditDraftHasUnpublishedChanges === 'function'
+        && adminProductEditDraftHasUnpublishedChanges(id, { skipPrune: true });
 }
 
 function adminNewProductDraftRowHtml() {
@@ -2909,6 +2910,7 @@ function removeVariant(id) {
 }
 
 function renderAdmin() { 
+    if (typeof adminPruneStaleEditDrafts === 'function') adminPruneStaleEditDrafts();
     const container = document.getElementById('admin-list');
     if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
     if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
@@ -3080,8 +3082,11 @@ function renderAdmin() {
         const priceLabel = `₹${Number(p.price) || 0}`;
         const mediaBadges = adminProductMediaBadges(p);
         const hasEditDraft = productEditDraftIds.has(p.id);
-        const editDraftBadge = hasEditDraft
-            ? '<span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>'
+        const editDraftChip = hasEditDraft
+            ? `<span class="admin-draft-chip" onclick="event.stopPropagation()">
+                <span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>
+                <button type="button" class="admin-draft-chip__discard" onclick="event.stopPropagation();adminDeleteProductEditDraft('${p.id}')" title="Discard unpublished draft">Discard</button>
+               </span>`
             : '';
         return `
         <div class="admin-product-row${hasEditDraft ? ' admin-product-row--has-edit-draft' : ''}">
@@ -3091,7 +3096,7 @@ function renderAdmin() {
             <div class="admin-product-body">
                 <div class="admin-product-title-row">
                     <b class="admin-product-name">${safeName}</b>
-                    ${editDraftBadge}
+                    ${editDraftChip}
                     <span class="admin-product-price">${priceLabel}</span>
                     ${catLabel ? `<span class="admin-product-cat">${typeof escapeCategoryHtml === 'function' ? escapeCategoryHtml(catLabel) : catLabel}</span>` : ''}
                     ${mediaBadges}
@@ -3102,7 +3107,6 @@ function renderAdmin() {
             <div class="admin-product-actions">
                 <i class="fa fa-copy" title="Duplicate product" onclick="copyProduct('${p.id}')"></i>
                 <i class="fa fa-edit" title="Edit product" onclick="openEdit('${p.id}')"></i>
-                ${hasEditDraft ? `<i class="fa fa-eraser admin-product-action--draft-delete" title="Delete unpublished draft" onclick="event.stopPropagation();adminDeleteProductEditDraft('${p.id}')"></i>` : ''}
                 <i class="fa fa-trash" title="Delete product" onclick="deleteProduct('${p.id}')"></i>
             </div>
         </div>

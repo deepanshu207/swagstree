@@ -200,6 +200,51 @@
         return rows;
     }
 
+    function adminProductEditDraftHasUnpublishedChanges(productId, opts) {
+        if (!productId || typeof adminCrudDraftsEnabled !== 'function' || !adminCrudDraftsEnabled()) return false;
+        const key = `edit:${productId}`;
+        if (typeof adminDraftIsVisible !== 'function' || !adminDraftIsVisible('product', key)) return false;
+        const item = typeof adminDraftGetEntry === 'function' ? adminDraftGetEntry('product', key) : null;
+        if (!item?.entry?.form) return false;
+        const draft = item.entry.form;
+        if (draft.hasPendingFiles) return true;
+        if (typeof adminBuildLiveProductSnapshot !== 'function') return true;
+        const p = (typeof products !== 'undefined' ? products : []).find(x => x.id === productId);
+        if (!p) return true;
+        const live = adminBuildLiveProductSnapshot(p);
+        const rows = adminBuildProductCompareRows(live, draft, p, draft);
+        if (!rows.length) {
+            if (!(opts && opts.skipPrune) && typeof adminDraftRemove === 'function') {
+                adminDraftRemove('product', key);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    function adminCategoryEditDraftHasUnpublishedChanges(categoryId, opts) {
+        if (!categoryId || typeof adminCrudDraftsEnabled !== 'function' || !adminCrudDraftsEnabled()) return false;
+        const key = `edit:${categoryId}`;
+        if (typeof adminDraftIsVisible !== 'function' || !adminDraftIsVisible('category', key)) return false;
+        const item = typeof adminDraftGetEntry === 'function' ? adminDraftGetEntry('category', key) : null;
+        if (!item?.entry?.form) return false;
+        if (typeof adminBuildLiveCategorySnapshot !== 'function' || typeof getCategoryById !== 'function') return true;
+        const cat = getCategoryById(categoryId);
+        if (!cat) return true;
+        const live = adminBuildLiveCategorySnapshot(cat);
+        const rows = adminBuildCategoryCompareRows(live, item.entry.form);
+        if (!rows.length) {
+            if (!(opts && opts.skipPrune) && typeof adminDraftRemove === 'function') {
+                adminDraftRemove('category', key);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    window.adminProductEditDraftHasUnpublishedChanges = adminProductEditDraftHasUnpublishedChanges;
+    window.adminCategoryEditDraftHasUnpublishedChanges = adminCategoryEditDraftHasUnpublishedChanges;
+
     function adminRenderCompareModal(title, rows, viewingMode) {
         const modal = document.getElementById('admin-draft-compare-modal');
         const body = document.getElementById('admin-draft-compare-body');

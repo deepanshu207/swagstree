@@ -548,28 +548,51 @@
 
     function adminGetProductEditDraftIdSet() {
         if (!adminCrudDraftsEnabled()) return new Set();
-        const active = window._activeAdminDraftKey;
-        const store = adminDraftsReadAll();
         const ids = new Set();
+        const store = adminDraftsReadAll();
         Object.keys(store.products || {}).forEach(key => {
             if (!key.startsWith('edit:')) return;
-            if (adminDraftComposeActiveKey('product', key) === active) return;
-            if (store.products[key]?.form) ids.add(key.slice(5));
+            const id = key.slice(5);
+            if (typeof adminProductEditDraftHasUnpublishedChanges === 'function') {
+                if (adminProductEditDraftHasUnpublishedChanges(id)) ids.add(id);
+            } else if (adminDraftIsVisible('product', key)) {
+                ids.add(id);
+            }
         });
         return ids;
     }
 
     function adminGetCategoryEditDraftIdSet() {
         if (!adminCrudDraftsEnabled()) return new Set();
-        const active = window._activeAdminDraftKey;
-        const store = adminDraftsReadAll();
         const ids = new Set();
+        const store = adminDraftsReadAll();
         Object.keys(store.categories || {}).forEach(key => {
             if (!key.startsWith('edit:')) return;
-            if (adminDraftComposeActiveKey('category', key) === active) return;
-            if (store.categories[key]?.form) ids.add(key.slice(5));
+            const id = key.slice(5);
+            if (typeof adminCategoryEditDraftHasUnpublishedChanges === 'function') {
+                if (adminCategoryEditDraftHasUnpublishedChanges(id)) ids.add(id);
+            } else if (adminDraftIsVisible('category', key)) {
+                ids.add(id);
+            }
         });
         return ids;
+    }
+
+    function adminDraftEntryShowsInUi(item, opts) {
+        if (!item || !adminDraftIsVisible(item.type, item.key)) return false;
+        if (!item.key.startsWith('edit:')) return true;
+        const id = item.key.slice(5);
+        if (item.type === 'product' && typeof adminProductEditDraftHasUnpublishedChanges === 'function') {
+            return adminProductEditDraftHasUnpublishedChanges(id, opts);
+        }
+        if (item.type === 'category' && typeof adminCategoryEditDraftHasUnpublishedChanges === 'function') {
+            return adminCategoryEditDraftHasUnpublishedChanges(id, opts);
+        }
+        return true;
+    }
+
+    function adminDraftListVisibleEntries(opts) {
+        return adminDraftListEntries().filter(item => adminDraftEntryShowsInUi(item, opts));
     }
 
     function adminDraftListEntries() {
@@ -697,7 +720,7 @@
             </div>
             <div class="admin-draft-recovery-row__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="${action}">Continue</button>
-                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDeleteDraft('${item.type}', '${item.key}')">Delete</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDeleteDraft('${item.type}', '${item.key}')">Discard</button>
             </div>
         </div>`;
     }
@@ -806,7 +829,7 @@
             return;
         }
 
-        const items = adminDraftListEntries().filter(item => adminDraftIsVisible(item.type, item.key));
+        const items = adminDraftListVisibleEntries({ skipPrune: true });
         if (!items.length) {
             panel.hidden = true;
             panel.innerHTML = '';
@@ -984,7 +1007,7 @@
     }
 
     function adminDraftRead() {
-        const items = adminDraftListEntries().filter(item => adminDraftIsVisible(item.type, item.key));
+        const items = adminDraftListVisibleEntries({ skipPrune: true });
         if (!items.length) return null;
         const item = items[0];
         return {
@@ -1031,7 +1054,24 @@
     window.adminGetVisibleCategoryDraft = adminGetVisibleCategoryDraft;
     window.adminGetOrphanedNewProductDraft = adminGetOrphanedNewProductDraft;
     window.adminGetOrphanedNewCategoryDraft = adminGetOrphanedNewCategoryDraft;
-    window.adminGetProductEditDraftIdSet = adminGetProductEditDraftIdSet;
+    function adminPruneStaleEditDrafts() {
+        if (!adminCrudDraftsEnabled()) return;
+        const store = adminDraftsReadAll();
+        Object.keys(store.products || {}).forEach(key => {
+            if (!key.startsWith('edit:')) return;
+            if (typeof adminProductEditDraftHasUnpublishedChanges === 'function') {
+                adminProductEditDraftHasUnpublishedChanges(key.slice(5));
+            }
+        });
+        Object.keys(store.categories || {}).forEach(key => {
+            if (!key.startsWith('edit:')) return;
+            if (typeof adminCategoryEditDraftHasUnpublishedChanges === 'function') {
+                adminCategoryEditDraftHasUnpublishedChanges(key.slice(5));
+            }
+        });
+    }
+
+    window.adminPruneStaleEditDrafts = adminPruneStaleEditDrafts;
     window.adminGetCategoryEditDraftIdSet = adminGetCategoryEditDraftIdSet;
     window.scheduleAdminDraftUiRefresh = scheduleAdminDraftUiRefresh;
     window.updateAdminNewProductDraftBadge = updateAdminNewProductDraftBadge;
