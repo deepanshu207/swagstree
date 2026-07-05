@@ -1134,6 +1134,7 @@ function renderAdminCategoryBanner() {
 }
 
 function renderAdminCategoryList() {
+    if (typeof adminPruneStaleEditDrafts === 'function') adminPruneStaleEditDrafts();
     const list = document.getElementById('admin-category-list');
     const section = document.getElementById('admin-category-section');
     if (!list || !section) return;
