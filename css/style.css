@@ -8866,6 +8866,94 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     color: #f0c674;
 }
 
+.admin-layout-hidden {
+    display: none !important;
+}
+
+.admin-product-search-wrap,
+.admin-product-filter-wrap {
+    flex: 1;
+    min-width: 0;
+}
+.admin-product-search-wrap .admin-product-search,
+.admin-product-filter-wrap .admin-product-filter {
+    width: 100%;
+}
+
+.admin-layout-settings__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+.admin-layout-settings__group-title {
+    margin: 0 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #888;
+}
+.admin-layout-settings__hint {
+    margin: 0 0 8px;
+    font-size: 10px;
+    color: #555;
+    line-height: 1.4;
+}
+.admin-layout-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.admin-layout-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0;
+    cursor: pointer;
+    font-size: 12px;
+    color: #ddd;
+    line-height: 1.35;
+}
+.admin-layout-checkbox--disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.admin-layout-checkbox input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--gold, #c9a227);
+    cursor: pointer;
+}
+.admin-layout-checkbox--disabled input[type="checkbox"] {
+    cursor: not-allowed;
+}
+.admin-layout-checkbox__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+.admin-layout-checkbox__label {
+    font-weight: 600;
+    color: #eee;
+}
+.admin-layout-checkbox__label .fa {
+    color: var(--gold, #c9a227);
+    margin-right: 4px;
+    width: 14px;
+    text-align: center;
+}
+.admin-layout-checkbox__hint {
+    font-size: 10px;
+    color: #666;
+}
+
+@media (max-width: 720px) {
+    .admin-layout-settings__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* --- Pinned store tools slot (between products & store settings) --- */
 .admin-pinned-tools-slot {
     margin: 0 20px 20px;

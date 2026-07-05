@@ -392,7 +392,8 @@ function syncAdminCategoryListTools(totalCount, visibleCount) {
     const meta = document.getElementById('admin-category-list-meta');
     const scroll = document.getElementById('admin-category-list-scroll');
     const showTools = totalCount >= 3;
-    if (tools) tools.hidden = !showTools;
+    const layoutOk = typeof adminIsLayoutSectionEnabled !== 'function' || adminIsLayoutSectionEnabled('categorySearch');
+    if (tools) tools.hidden = !showTools || !layoutOk;
     if (meta) {
         const query = getAdminCategorySearchQuery();
         if (!totalCount) meta.textContent = '';
@@ -406,7 +407,15 @@ function syncAdminCategoryListTools(totalCount, visibleCount) {
         scroll.classList.toggle('admin-category-list-scroll--empty', totalCount === 0);
         scroll.classList.toggle('admin-category-list-scroll--many', totalCount >= 12);
     }
+    window._adminCategoryListTotalCount = totalCount;
+    window._adminCategoryListVisibleCount = visibleCount;
 }
+
+window.syncAdminCategoryListToolsFromLayout = function() {
+    if (typeof window._adminCategoryListTotalCount === 'number' && typeof window._adminCategoryListVisibleCount === 'number') {
+        syncAdminCategoryListTools(window._adminCategoryListTotalCount, window._adminCategoryListVisibleCount);
+    }
+};
 
 function focusAdminCategoryForm() {
     const nameEl = document.getElementById('admin-category-name');

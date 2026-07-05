@@ -780,6 +780,13 @@
         const panel = document.getElementById('admin-draft-recovery-panel');
         if (!panel) return;
 
+        if (typeof adminIsLayoutSectionEnabled === 'function' && !adminIsLayoutSectionEnabled('drafts')) {
+            panel.hidden = true;
+            panel.innerHTML = '';
+            panel.style.display = 'none';
+            return;
+        }
+
         if (!adminCrudDraftsEnabled()) {
             panel.hidden = true;
             panel.innerHTML = '';

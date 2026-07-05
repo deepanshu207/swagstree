@@ -4,6 +4,55 @@
 
 (function() {
     const ADMIN_FAVORITES_KEY = 'swagstree_admin_favorites_v1';
+    const ADMIN_LAYOUT_KEY = 'swagstree_admin_layout_v1';
+
+    const ADMIN_LAYOUT_REGISTRY = {
+        drafts: {
+            ids: ['admin-draft-recovery-panel'],
+            title: 'Saved drafts',
+            hint: 'Draft recovery panel at the top',
+            defaultVisible: true
+        },
+        headerActions: {
+            selector: '#admin-view .admin-view-actions',
+            title: 'Quick actions',
+            hint: '+ Category and + New item buttons',
+            defaultVisible: true
+        },
+        productSearch: {
+            ids: ['admin-product-search-wrap'],
+            title: 'Product search',
+            defaultVisible: true
+        },
+        productFilter: {
+            ids: ['admin-product-filter-wrap'],
+            title: 'Product filter dropdown',
+            defaultVisible: true
+        },
+        categories: {
+            ids: ['admin-category-section'],
+            title: 'Product Categories',
+            defaultVisible: true
+        },
+        categorySearch: {
+            ids: ['admin-category-list-tools'],
+            title: 'Category search',
+            hint: 'Inside the Categories section (3+ categories)',
+            defaultVisible: true,
+            parentKey: 'categories'
+        },
+        products: {
+            ids: ['admin-products-area'],
+            title: 'Products list',
+            hint: 'Product rows and pagination',
+            defaultVisible: true
+        }
+    };
+
+    const ADMIN_LAYOUT_ORDER = [
+        'drafts', 'headerActions', 'productSearch', 'productFilter',
+        'categories', 'categorySearch', 'products'
+    ];
 
     const ADMIN_FAVORITE_REGISTRY = {
         announcements: {
@@ -70,6 +119,141 @@
     function adminPinnedSlot() {
         return document.getElementById('admin-pinned-tools-slot');
     }
+
+    function adminLayoutRead() {
+        const defaults = {};
+        ADMIN_LAYOUT_ORDER.forEach(key => {
+            defaults[key] = ADMIN_LAYOUT_REGISTRY[key]?.defaultVisible !== false;
+        });
+        try {
+            const raw = localStorage.getItem(ADMIN_LAYOUT_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                    ADMIN_LAYOUT_ORDER.forEach(key => {
+                        if (typeof parsed[key] === 'boolean') defaults[key] = parsed[key];
+                    });
+                }
+            }
+        } catch (e) { /* ignore */ }
+        return defaults;
+    }
+
+    function adminLayoutWrite(prefs) {
+        try {
+            localStorage.setItem(ADMIN_LAYOUT_KEY, JSON.stringify(prefs));
+        } catch (e) { console.warn('adminLayoutWrite failed:', e); }
+    }
+
+    function adminLayoutGetElements(meta) {
+        if (!meta) return [];
+        const nodes = [];
+        (meta.ids || []).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) nodes.push(el);
+        });
+        if (meta.selector) {
+            document.querySelectorAll(meta.selector).forEach(el => nodes.push(el));
+        }
+        return nodes;
+    }
+
+    function adminIsLayoutSectionEnabled(key) {
+        const prefs = adminLayoutRead();
+        const meta = ADMIN_LAYOUT_REGISTRY[key];
+        if (!meta) return true;
+        if (prefs[key] === false) return false;
+        if (meta.parentKey && prefs[meta.parentKey] === false) return false;
+        return true;
+    }
+
+    function applyAdminLayout() {
+        const prefs = adminLayoutRead();
+        ADMIN_LAYOUT_ORDER.forEach(key => {
+            const meta = ADMIN_LAYOUT_REGISTRY[key];
+            if (!meta) return;
+            const parentOk = !meta.parentKey || prefs[meta.parentKey] !== false;
+            const visible = prefs[key] !== false && parentOk;
+            adminLayoutGetElements(meta).forEach(el => {
+                el.classList.toggle('admin-layout-hidden', !visible);
+            });
+        });
+
+        const toolbar = document.getElementById('admin-product-toolbar');
+        if (toolbar) {
+            const showToolbar = prefs.productSearch !== false || prefs.productFilter !== false;
+            toolbar.classList.toggle('admin-layout-hidden', !showToolbar);
+        }
+
+        if (typeof syncAdminCategoryListToolsFromLayout === 'function') {
+            syncAdminCategoryListToolsFromLayout();
+        }
+    }
+
+    function renderAdminLayoutSettings() {
+        const sectionBox = document.getElementById('admin-layout-section-checkboxes');
+        const pinBox = document.getElementById('admin-layout-pin-checkboxes');
+        if (!sectionBox || !pinBox) return;
+
+        const prefs = adminLayoutRead();
+        const favorites = adminFavoritesRead();
+
+        sectionBox.innerHTML = ADMIN_LAYOUT_ORDER.map(key => {
+            const meta = ADMIN_LAYOUT_REGISTRY[key];
+            if (!meta) return '';
+            const checked = prefs[key] !== false;
+            const disabled = meta.parentKey && prefs[meta.parentKey] === false;
+            const hint = meta.hint ? `<span class="admin-layout-checkbox__hint">${meta.hint}</span>` : '';
+            return `<label class="admin-layout-checkbox${disabled ? ' admin-layout-checkbox--disabled' : ''}">
+                <input type="checkbox" data-layout-key="${key}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''} onchange="adminSetLayoutVisible('${key}', this.checked)">
+                <span class="admin-layout-checkbox__text">
+                    <span class="admin-layout-checkbox__label">${meta.title}</span>
+                    ${hint}
+                </span>
+            </label>`;
+        }).join('');
+
+        pinBox.innerHTML = STORE_TOOLS_ORDER.map(key => {
+            const meta = ADMIN_FAVORITE_REGISTRY[key];
+            if (!meta) return '';
+            const pinned = favorites.includes(key);
+            return `<label class="admin-layout-checkbox">
+                <input type="checkbox" data-pin-key="${key}" ${pinned ? 'checked' : ''} onchange="adminSetPinFromCheckbox('${key}', this.checked)">
+                <span class="admin-layout-checkbox__text">
+                    <span class="admin-layout-checkbox__label"><i class="fa ${meta.icon}" aria-hidden="true"></i> ${meta.title}</span>
+                </span>
+            </label>`;
+        }).join('');
+    }
+
+    window.adminSetLayoutVisible = function(key, visible) {
+        if (!ADMIN_LAYOUT_REGISTRY[key]) return;
+        const prefs = adminLayoutRead();
+        prefs[key] = !!visible;
+        adminLayoutWrite(prefs);
+        applyAdminLayout();
+        renderAdminLayoutSettings();
+        if (key === 'drafts' && typeof renderAdminDraftRecoveryPanel === 'function') {
+            renderAdminDraftRecoveryPanel();
+        }
+        if ((key === 'categories' || key === 'categorySearch') && typeof renderAdminCategoryList === 'function') {
+            renderAdminCategoryList();
+        }
+    };
+
+    window.adminSetPinFromCheckbox = function(key, pinned) {
+        if (!ADMIN_FAVORITE_REGISTRY[key]) return;
+        let list = adminFavoritesRead();
+        const wasPinned = list.includes(key);
+        if (pinned === wasPinned) return;
+        if (pinned) list.push(key);
+        else list = list.filter(k => k !== key);
+        adminFavoritesWrite(list);
+        renderAdminFavorites();
+        renderAdminLayoutSettings();
+        const meta = ADMIN_FAVORITE_REGISTRY[key];
+        showToast(pinned ? `"${meta.title}" pinned below products.` : `"${meta.title}" moved to Store settings.`);
+    };
 
     function adminFavoritesRead() {
         try {
@@ -312,6 +496,9 @@
         const hasPinned = favorites.length > 0;
         pinnedSlot.hidden = !hasPinned;
         pinnedSlot.style.display = hasPinned ? 'block' : 'none';
+
+        applyAdminLayout();
+        renderAdminLayoutSettings();
     }
 
     window.adminToggleFavorite = async function(key) {
@@ -356,9 +543,13 @@
     window.adminFavoritesRead = adminFavoritesRead;
     window.adminFavoriteRegistryKeys = () => [...STORE_TOOLS_ORDER];
     window.adminGetToolBlock = adminResolveToolBlock;
+    window.adminIsLayoutSectionEnabled = adminIsLayoutSectionEnabled;
+    window.applyAdminLayout = applyAdminLayout;
+    window.renderAdminLayoutSettings = renderAdminLayoutSettings;
 
     document.addEventListener('DOMContentLoaded', () => {
         adminInitBlockBackups();
         renderAdminFavorites();
+        applyAdminLayout();
     });
 })();
