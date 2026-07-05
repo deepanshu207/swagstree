@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.35">
+    <link rel="stylesheet" href="css/style.css?v=9.36">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -782,7 +782,8 @@
         <div id="admin-favorites-section" class="admin-favorites-section admin-panel-card" hidden>
             <div class="admin-favorites-header">
                 <h4 class="admin-favorites-title"><i class="fa fa-star" aria-hidden="true"></i> Pinned tools <span id="admin-favorites-count" class="admin-favorites-count">0</span></h4>
-                <p class="admin-favorites-hint">Frequently used tools — tap ★ on any block to pin above Store settings or unpin back.</p>
+                <p class="admin-favorites-hint">Quick access — same level as Categories &amp; Products. Tap ★ on any tool to pin or unpin (you'll be asked to confirm).</p>
+                <p class="admin-favorites-note">Drafts, Categories, and Products always stay at the top and cannot be moved.</p>
             </div>
             <div id="admin-favorites-list" class="admin-favorites-list"></div>
         </div>
@@ -795,7 +796,7 @@
                     <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
                         <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout rules, promos, storefront content &amp; more — pin ★ to move tools above</p>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — tap ★ on any block to pin above (with confirmation)</p>
                     </div>
                 </div>
                 <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
@@ -3352,6 +3353,18 @@
         </div>
     </div>
 
+    <!-- Modal: Pin / unpin admin tool -->
+    <div id="admin-favorite-confirm-modal" class="modal" style="display:none; z-index:10045;">
+        <div class="modal-box admin-favorite-confirm-modal-box">
+            <h3 id="admin-favorite-confirm-title" style="margin:0 0 8px; font-size:15px; color:#fff;">Pin tool?</h3>
+            <p id="admin-favorite-confirm-message" style="margin:0 0 16px; font-size:13px; color:#aaa; line-height:1.45;"></p>
+            <div class="admin-favorite-confirm-actions">
+                <button type="button" class="btn-gold" id="admin-favorite-confirm-yes" onclick="adminFavoriteConfirmResolve(true)">Yes, move it</button>
+                <button type="button" class="admin-btn-secondary" onclick="adminFavoriteConfirmResolve(false)">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Unsaved admin changes -->
     <div id="admin-unsaved-modal" class="modal" style="display:none; z-index:10050;">
         <div class="modal-box admin-unsaved-modal-box">
@@ -3373,7 +3386,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.4"></script>
     <script src="js/admin-draft-compare.js?v=1.2"></script>
-    <script src="js/admin-favorites.js?v=1.2"></script>
+    <script src="js/admin-favorites.js?v=1.3"></script>
     <script src="js/categories.js?v=11.6"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>

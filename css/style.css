@@ -8873,6 +8873,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     font-size: 11px;
     color: #666;
 }
+.admin-favorites-note {
+    margin: 6px 0 0;
+    font-size: 10px;
+    color: #555;
+    font-style: italic;
+}
 .admin-favorites-list {
     display: flex;
     flex-direction: column;
@@ -8905,6 +8911,20 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-favorite-toggle:hover {
     background: #1a1a1a;
     border-color: var(--gold, #c9a227);
+}
+.admin-favorite-confirm-modal-box {
+    max-width: 400px;
+    width: 92%;
+}
+.admin-favorite-confirm-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.admin-favorite-confirm-actions .btn-gold,
+.admin-favorite-confirm-actions .admin-btn-secondary {
+    width: 100%;
+    margin: 0;
 }
 .admin-store-tools-block {
     position: relative;
