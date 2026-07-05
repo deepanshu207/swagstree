@@ -357,6 +357,36 @@
         };
     }
 
+    function adminLayoutZoneIsOpen(zone) {
+        window._adminLayoutZoneOpen = window._adminLayoutZoneOpen || { above: false, inside: false };
+        return window._adminLayoutZoneOpen[zone] === true;
+    }
+
+    function adminSyncLayoutZoneAccordions() {
+        ['above', 'inside'].forEach(zone => {
+            const open = adminLayoutZoneIsOpen(zone);
+            const content = document.getElementById(`admin-layout-${zone}-content`);
+            const icon = document.getElementById(`admin-layout-${zone}-icon`);
+            const head = content?.closest('.admin-layout-zone-accordion')?.querySelector('.admin-layout-zone-accordion__head');
+            if (content) content.style.display = open ? 'block' : 'none';
+            if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+            if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    }
+
+    window.toggleAdminLayoutZoneAccordion = function(zone) {
+        window._adminLayoutZoneOpen = window._adminLayoutZoneOpen || { above: false, inside: false };
+        window._adminLayoutZoneOpen[zone] = !adminLayoutZoneIsOpen(zone);
+        adminSyncLayoutZoneAccordions();
+    };
+
+    function adminUpdateLayoutZoneCounts(aboveLen, insideLen) {
+        const aboveCount = document.getElementById('admin-layout-above-count');
+        const insideCount = document.getElementById('admin-layout-inside-count');
+        if (aboveCount) aboveCount.textContent = `${aboveLen} item${aboveLen === 1 ? '' : 's'}`;
+        if (insideCount) insideCount.textContent = `${insideLen} item${insideLen === 1 ? '' : 's'}`;
+    }
+
     function adminBindSortables() {
         adminDestroySortables();
         if (!window.Sortable) return;
