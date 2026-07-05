@@ -8882,7 +8882,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 
 .admin-layout-settings__grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 18px;
 }
 .admin-layout-settings__group-title {
@@ -8988,6 +8988,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     font-weight: 600;
 }
 
+@media (max-width: 960px) {
+    .admin-layout-settings__grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 @media (max-width: 720px) {
     .admin-layout-settings__grid {
         grid-template-columns: 1fr;
@@ -9016,82 +9022,9 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     border-color: rgba(201, 162, 39, 0.45) !important;
     box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.12);
 }
-.admin-pinned-badge {
-    display: inline-flex;
-    align-items: center;
-    margin-left: 8px;
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: #111;
-    background: var(--gold, #c9a227);
-    padding: 2px 7px;
-    border-radius: 8px;
-    vertical-align: middle;
-}
+.admin-pinned-badge,
 .admin-favorite-toggle {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    z-index: 2;
-    width: 34px;
-    height: 34px;
-    border: none;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.55);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
-    color: #888;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    line-height: 1;
-    transition: background 0.15s, box-shadow 0.15s, transform 0.12s;
-    -webkit-tap-highlight-color: transparent;
-}
-.admin-favorite-star {
-    display: block;
-    font-size: 17px;
-    line-height: 1;
-    font-weight: 400;
-    color: #777;
-    transform: translateY(-1px);
-}
-.admin-favorite-toggle.is-pinned {
-    background: rgba(201, 162, 39, 0.18);
-    box-shadow: 0 0 0 1.5px rgba(201, 162, 39, 0.55);
-}
-.admin-favorite-toggle.is-pinned .admin-favorite-star {
-    color: var(--gold, #c9a227);
-    font-weight: 700;
-    text-shadow: 0 0 10px rgba(201, 162, 39, 0.45);
-}
-.admin-favorite-toggle:hover {
-    background: rgba(26, 26, 26, 0.95);
-    box-shadow: 0 0 0 1.5px rgba(201, 162, 39, 0.4);
-    transform: scale(1.06);
-}
-.admin-favorite-toggle.is-pinned:hover {
-    background: rgba(201, 162, 39, 0.28);
-}
-.admin-favorite-toggle:active {
-    transform: scale(0.96);
-}
-.admin-favorite-confirm-modal-box {
-    max-width: 400px;
-    width: 92%;
-}
-.admin-favorite-confirm-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.admin-favorite-confirm-actions .btn-gold,
-.admin-favorite-confirm-actions .admin-btn-secondary {
-    width: 100%;
-    margin: 0;
+    display: none !important;
 }
 .admin-store-tools-block {
     position: relative;

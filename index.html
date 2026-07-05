@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.42">
+    <link rel="stylesheet" href="css/style.css?v=9.43">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -795,7 +795,7 @@
                     <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
                         <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — use checkboxes or ★ to pin tools below Products</p>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — use checkboxes below to show, hide, or pin tools</p>
                     </div>
                 </div>
                 <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
@@ -804,22 +804,27 @@
             <div id="admin-store-tools-accordion-content" class="admin-store-tools-body"
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
 
-        <!-- Admin layout & favorites -->
+        <!-- Admin layout settings -->
         <div id="admin-layout-settings" class="admin-store-tools-block admin-layout-settings"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px;">
                 <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
-                Admin layout &amp; favorites
+                Admin layout
             </h4>
-            <p style="margin:6px 0 14px; font-size:11px; color:#666; line-height:1.45;">Choose which sections to show and which tools to pin. Tap <strong>Save layout</strong> when done — or use ★ on any block to pin instantly.</p>
+            <p style="margin:6px 0 14px; font-size:11px; color:#666; line-height:1.45;">Show or hide Admin sections and store tools using the checkboxes below. Tap <strong>Save layout</strong> when done.</p>
             <div class="admin-layout-settings__grid">
                 <div class="admin-layout-settings__group">
                     <h5 class="admin-layout-settings__group-title">Visible sections</h5>
                     <div id="admin-layout-section-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Visible admin sections"></div>
                 </div>
                 <div class="admin-layout-settings__group">
-                    <h5 class="admin-layout-settings__group-title">Pinned store tools</h5>
-                    <p class="admin-layout-settings__hint">Appear below Products, above this accordion</p>
+                    <h5 class="admin-layout-settings__group-title">Show store tools</h5>
+                    <p class="admin-layout-settings__hint">Uncheck to hide a tool from Admin entirely</p>
+                    <div id="admin-layout-tool-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Visible store tools"></div>
+                </div>
+                <div class="admin-layout-settings__group">
+                    <h5 class="admin-layout-settings__group-title">Pin below products</h5>
+                    <p class="admin-layout-settings__hint">Quick access above Store settings</p>
                     <div id="admin-layout-pin-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Pinned store tools"></div>
                 </div>
             </div>
@@ -3378,18 +3383,6 @@
         </div>
     </div>
 
-    <!-- Modal: Pin / unpin admin tool -->
-    <div id="admin-favorite-confirm-modal" class="modal" style="display:none; z-index:10045;">
-        <div class="modal-box admin-favorite-confirm-modal-box">
-            <h3 id="admin-favorite-confirm-title" style="margin:0 0 8px; font-size:15px; color:#fff;">Pin tool?</h3>
-            <p id="admin-favorite-confirm-message" style="margin:0 0 16px; font-size:13px; color:#aaa; line-height:1.45;"></p>
-            <div class="admin-favorite-confirm-actions">
-                <button type="button" class="btn-gold" id="admin-favorite-confirm-yes" onclick="adminFavoriteConfirmResolve(true)">Yes, move it</button>
-                <button type="button" class="admin-btn-secondary" onclick="adminFavoriteConfirmResolve(false)">Cancel</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal: Unsaved admin changes -->
     <div id="admin-unsaved-modal" class="modal" style="display:none; z-index:10050;">
         <div class="modal-box admin-unsaved-modal-box">
@@ -3411,7 +3404,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.5"></script>
     <script src="js/admin-draft-compare.js?v=1.3"></script>
-    <script src="js/admin-favorites.js?v=1.9"></script>
+    <script src="js/admin-favorites.js?v=2.0"></script>
     <script src="js/categories.js?v=11.8"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
