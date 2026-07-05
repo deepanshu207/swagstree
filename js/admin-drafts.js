@@ -362,6 +362,51 @@
         else el.removeAttribute('title');
     };
 
+    function adminDraftRecoveryRowHtml(item) {
+        const label = adminDraftEscapeHtml(item.entry?.label || 'Untitled');
+        const age = adminDraftFormatAge(item.entry?.updatedAt);
+        const isNew = item.key === 'new';
+        const meta = isNew ? 'New — not published yet' : 'Unpublished edits';
+        const action = `adminRestoreDraft('${item.type}', '${item.key}')`;
+        return `
+        <div class="admin-draft-recovery-row admin-draft-recovery-row--${item.type}">
+            <div class="admin-draft-recovery-row__text">
+                <strong>${label}</strong>
+                <span class="admin-draft-recovery-row__meta">${meta} · ${age}</span>
+            </div>
+            <div class="admin-draft-recovery-row__actions">
+                <button type="button" class="btn-gold admin-draft-btn-approve" onclick="${action}">Continue</button>
+                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDeleteDraft('${item.type}', '${item.key}')">Delete</button>
+            </div>
+        </div>`;
+    }
+
+    function adminDraftRecoverySectionHtml(type, items) {
+        if (!items.length) return '';
+        const isProduct = type === 'product';
+        const icon = isProduct ? 'fa-box-open' : 'fa-folder-open-o';
+        const title = isProduct ? 'Product drafts' : 'Category drafts';
+        const hint = isProduct
+            ? 'Open a draft, finish your changes, then tap <strong>Save Product</strong> to publish.'
+            : 'Open a draft, finish your changes, then tap <strong>Save Category</strong> to publish.';
+        const countLabel = `${items.length} draft${items.length === 1 ? '' : 's'}`;
+        const sorted = [...items].sort((a, b) => (Number(b.entry?.updatedAt) || 0) - (Number(a.entry?.updatedAt) || 0));
+        return `
+        <section class="admin-draft-recovery-section admin-draft-recovery-section--${type}" aria-label="${title}">
+            <div class="admin-draft-recovery-section__head">
+                <span class="admin-draft-recovery-section__title">
+                    <i class="fa ${icon}" aria-hidden="true"></i>
+                    ${title}
+                    <span class="admin-draft-recovery-section__count">${countLabel}</span>
+                </span>
+                <p class="admin-draft-recovery-section__hint">${hint}</p>
+            </div>
+            <div class="admin-draft-recovery-list">
+                ${sorted.map(adminDraftRecoveryRowHtml).join('')}
+            </div>
+        </section>`;
+    }
+
     function renderAdminDraftRecoveryPanel() {
         updateAdminNewProductDraftBadge();
         updateSuperadminDraftStorageInfo();
@@ -384,6 +429,9 @@
             return;
         }
 
+        const productDrafts = items.filter(item => item.type === 'product');
+        const categoryDrafts = items.filter(item => item.type === 'category');
+
         panel.hidden = false;
         panel.style.display = '';
         panel.innerHTML = `
@@ -392,28 +440,10 @@
                     <span class="admin-draft-recovery-panel__title"><i class="fa fa-file-text-o"></i> Saved drafts on this device</span>
                     <button type="button" class="admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>
                 </div>
-                <div class="admin-draft-recovery-list">
-                    ${items.map(item => {
-                        const label = adminDraftEscapeHtml(item.entry?.label || 'Untitled');
-                        const age = adminDraftFormatAge(item.entry?.updatedAt);
-                        const typeLabel = item.type === 'product' ? 'Product' : 'Category';
-                        const isNew = item.key === 'new';
-                        const action = item.type === 'product'
-                            ? `adminRestoreDraft('product', '${item.key}')`
-                            : `adminRestoreDraft('category', '${item.key}')`;
-                        const meta = isNew ? 'New (unpublished)' : 'Edit draft';
-                        return `
-                        <div class="admin-draft-recovery-row">
-                            <div class="admin-draft-recovery-row__text">
-                                <strong>${label}</strong>
-                                <span class="admin-draft-recovery-row__meta">${typeLabel} · ${meta} · ${age}</span>
-                            </div>
-                            <div class="admin-draft-recovery-row__actions">
-                                <button type="button" class="btn-gold admin-draft-btn-approve" onclick="${action}">Continue</button>
-                                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDeleteDraft('${item.type}', '${item.key}')">Delete</button>
-                            </div>
-                        </div>`;
-                    }).join('')}
+                <p class="admin-draft-recovery-intro">Unfinished work saved on this phone. <strong>Continue</strong> opens the draft — publish when ready, or <strong>Delete</strong> to remove it.</p>
+                <div class="admin-draft-recovery-sections">
+                    ${adminDraftRecoverySectionHtml('product', productDrafts)}
+                    ${adminDraftRecoverySectionHtml('category', categoryDrafts)}
                 </div>
             </div>`;
     }

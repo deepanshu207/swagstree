@@ -7736,7 +7736,89 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0 20px 16px;
     display: flex;
     flex-direction: column;
+    gap: 10px;
+}
+.admin-draft-recovery-intro {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #999;
+    background: #111;
+    border: 1px solid #252525;
+    border-radius: 10px;
+}
+.admin-draft-recovery-intro strong {
+    color: #ccc;
+    font-weight: 600;
+}
+.admin-draft-recovery-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.admin-draft-recovery-section {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #2a2a2a;
+    background: #0f0f0f;
+}
+.admin-draft-recovery-section--product {
+    border-color: rgba(255, 215, 0, 0.22);
+    box-shadow: inset 3px 0 0 rgba(255, 215, 0, 0.55);
+}
+.admin-draft-recovery-section--category {
+    border-color: rgba(100, 180, 255, 0.22);
+    box-shadow: inset 3px 0 0 rgba(100, 180, 255, 0.55);
+}
+.admin-draft-recovery-section__head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.admin-draft-recovery-section__title {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #eee;
+}
+.admin-draft-recovery-section__title i {
+    font-size: 14px;
+}
+.admin-draft-recovery-section--product .admin-draft-recovery-section__title i {
+    color: var(--gold);
+}
+.admin-draft-recovery-section--category .admin-draft-recovery-section__title i {
+    color: #6eb5ff;
+}
+.admin-draft-recovery-section__count {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #bbb;
+    background: #1a1a1a;
+    border: 1px solid #333;
+}
+.admin-draft-recovery-section__hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #777;
+}
+.admin-draft-recovery-section__hint strong {
+    color: #aaa;
+    font-weight: 600;
 }
 .admin-draft-recovery-panel__head {
     display: flex;
@@ -7812,6 +7894,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     border-radius: 10px;
     background: #141414;
     border: 1px solid #2a2a2a;
+}
+.admin-draft-recovery-row--product {
+    border-color: rgba(255, 215, 0, 0.12);
+}
+.admin-draft-recovery-row--category {
+    border-color: rgba(100, 180, 255, 0.12);
 }
 .admin-draft-recovery-row__text {
     flex: 1;

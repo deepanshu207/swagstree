@@ -330,14 +330,6 @@ function normalizeCategorySortOrderValue(val, fallback = 0) {
     return String(parseCategorySortOrder(val, fallback));
 }
 
-function categoryFormStatesEqual(a, b) {
-    if (!a || !b) return false;
-    return a.name === b.name &&
-        normalizeCategorySortOrderValue(a.sortOrder) === normalizeCategorySortOrderValue(b.sortOrder) &&
-        !!a.isActive === !!b.isActive &&
-        (a.editingCategoryId || null) === (b.editingCategoryId || null);
-}
-
 function isAnyCategoryCrudDirty() {
     return isCategoryModalOpen() && adminIsCategoryDirty();
 }
