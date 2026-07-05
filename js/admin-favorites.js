@@ -1,5 +1,5 @@
 // ==========================================
-// SWAG STREE | ADMIN LAYOUT & PINNED TOOLS
+// SWAG STREE | ADMIN LAYOUT & TOOL ORDERING
 // ==========================================
 
 (function() {
@@ -59,13 +59,6 @@
             title: 'Products list',
             hint: 'Product rows and pagination',
             icon: 'fa-box-open',
-            defaultVisible: true
-        },
-        pinnedTools: {
-            ids: ['admin-pinned-tools-slot'],
-            title: 'Pinned tools area',
-            hint: 'Shortcuts pinned below Products',
-            icon: 'fa-thumb-tack',
             defaultVisible: true
         }
     };
@@ -134,20 +127,22 @@
     const _blockBackups = {};
     let _backupsReady = false;
     let _layoutDraft = null;
+    let _quickSortable = null;
+    let _accordionSortable = null;
 
-    function adminLayoutDraftGet() {
-        if (!_layoutDraft) {
-            _layoutDraft = {
-                layout: { ...adminLayoutRead() },
-                pins: [...adminFavoritesRead()],
-                toolVisible: { ...adminToolVisibilityRead() }
-            };
-        }
-        return _layoutDraft;
+    function adminPlacementListsEqual(a, b) {
+        return a.length === b.length && a.every((k, i) => k === b[i]);
     }
 
-    function adminLayoutDraftClear() {
-        _layoutDraft = null;
+    function adminLegacyPinsRead() {
+        try {
+            const raw = localStorage.getItem(ADMIN_FAVORITES_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed.filter(k => ADMIN_FAVORITE_REGISTRY[k]);
+            }
+        } catch (e) { /* ignore */ }
+        return [];
     }
 
     function adminToolVisibilityRead() {
@@ -168,32 +163,38 @@
         return defaults;
     }
 
+    function adminDefaultPlacement(visible) {
+        const legacyPins = adminLegacyPinsRead();
+        const quick = legacyPins.length
+            ? legacyPins.filter(k => visible[k] !== false)
+            : [];
+        const accordion = STORE_TOOLS_ORDER.filter(k => visible[k] !== false && !quick.includes(k));
+        return { quick, accordion };
+    }
+
+    function adminToolPlacementRead() {
+        const visible = adminToolVisibilityRead();
+        try {
+            const raw = localStorage.getItem(ADMIN_LAYOUT_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed?.toolQuick) && Array.isArray(parsed?.toolAccordion)) {
+                    const known = new Set(STORE_TOOLS_ORDER);
+                    const quick = parsed.toolQuick.filter(k => known.has(k));
+                    const accordion = parsed.toolAccordion.filter(k => known.has(k) && !quick.includes(k));
+                    STORE_TOOLS_ORDER.forEach(key => {
+                        if (visible[key] === false) return;
+                        if (!quick.includes(key) && !accordion.includes(key)) accordion.push(key);
+                    });
+                    return { quick, accordion };
+                }
+            }
+        } catch (e) { /* ignore */ }
+        return adminDefaultPlacement(visible);
+    }
+
     function adminIsToolVisible(key) {
         return adminToolVisibilityRead()[key] !== false;
-    }
-
-    function adminLayoutIsDirty() {
-        if (!_layoutDraft) return false;
-        const savedLayout = adminLayoutRead();
-        const savedPins = adminFavoritesRead();
-        const savedToolVisible = adminToolVisibilityRead();
-        const layoutDirty = ADMIN_LAYOUT_ORDER.some(key => !!_layoutDraft.layout[key] !== (savedLayout[key] !== false));
-        const pinsDirty = _layoutDraft.pins.length !== savedPins.length
-            || _layoutDraft.pins.some(k => !savedPins.includes(k));
-        const toolsDirty = STORE_TOOLS_ORDER.some(key => !!_layoutDraft.toolVisible[key] !== (savedToolVisible[key] !== false));
-        return layoutDirty || pinsDirty || toolsDirty;
-    }
-
-    function adminLayoutUpdateSaveButton() {
-        const saveBtn = document.getElementById('admin-layout-save-btn');
-        const hint = document.getElementById('admin-layout-unsaved-hint');
-        const dirty = adminLayoutIsDirty();
-        if (saveBtn) saveBtn.disabled = !dirty;
-        if (hint) hint.hidden = !dirty;
-    }
-
-    function adminPinnedSlot() {
-        return document.getElementById('admin-pinned-tools-slot');
     }
 
     function adminLayoutRead() {
@@ -215,11 +216,68 @@
         return defaults;
     }
 
-    function adminLayoutWrite(prefs, toolVisible) {
+    function adminLayoutWrite(prefs, toolVisible, toolQuick, toolAccordion) {
         try {
-            const payload = { ...prefs, toolVisible: toolVisible || adminToolVisibilityRead() };
-            localStorage.setItem(ADMIN_LAYOUT_KEY, JSON.stringify(payload));
+            localStorage.setItem(ADMIN_LAYOUT_KEY, JSON.stringify({
+                ...prefs,
+                toolVisible,
+                toolQuick,
+                toolAccordion
+            }));
         } catch (e) { console.warn('adminLayoutWrite failed:', e); }
+    }
+
+    function adminLayoutDraftGet() {
+        if (!_layoutDraft) {
+            const placement = adminToolPlacementRead();
+            _layoutDraft = {
+                layout: { ...adminLayoutRead() },
+                toolVisible: { ...adminToolVisibilityRead() },
+                quick: [...placement.quick],
+                accordion: [...placement.accordion]
+            };
+            adminNormalizeDraftPlacement();
+        }
+        return _layoutDraft;
+    }
+
+    function adminNormalizeDraftPlacement() {
+        if (!_layoutDraft) return;
+        const known = new Set(STORE_TOOLS_ORDER);
+        _layoutDraft.quick = _layoutDraft.quick.filter(k => known.has(k));
+        _layoutDraft.accordion = _layoutDraft.accordion.filter(k => known.has(k) && !_layoutDraft.quick.includes(k));
+        STORE_TOOLS_ORDER.forEach(key => {
+            if (_layoutDraft.quick.includes(key) || _layoutDraft.accordion.includes(key)) return;
+            _layoutDraft.accordion.push(key);
+        });
+    }
+
+    function adminLayoutDraftClear() {
+        _layoutDraft = null;
+    }
+
+    function adminLayoutIsDirty() {
+        if (!_layoutDraft) return false;
+        const savedLayout = adminLayoutRead();
+        const savedVisible = adminToolVisibilityRead();
+        const savedPlacement = adminToolPlacementRead();
+        const layoutDirty = ADMIN_LAYOUT_ORDER.some(key => !!_layoutDraft.layout[key] !== (savedLayout[key] !== false));
+        const toolsDirty = STORE_TOOLS_ORDER.some(key => !!_layoutDraft.toolVisible[key] !== (savedVisible[key] !== false));
+        const orderDirty = !adminPlacementListsEqual(_layoutDraft.quick, savedPlacement.quick)
+            || !adminPlacementListsEqual(_layoutDraft.accordion, savedPlacement.accordion);
+        return layoutDirty || toolsDirty || orderDirty;
+    }
+
+    function adminLayoutUpdateSaveButton() {
+        const saveBtn = document.getElementById('admin-layout-save-btn');
+        const hint = document.getElementById('admin-layout-unsaved-hint');
+        const dirty = adminLayoutIsDirty();
+        if (saveBtn) saveBtn.disabled = !dirty;
+        if (hint) hint.hidden = !dirty;
+    }
+
+    function adminQuickSlot() {
+        return document.getElementById('admin-pinned-tools-slot');
     }
 
     function adminLayoutGetElements(meta) {
@@ -249,42 +307,86 @@
         el.querySelectorAll('.admin-favorite-toggle, .admin-pinned-badge').forEach(node => node.remove());
     }
 
-    function applyAdminLayout() {
-        const prefs = adminLayoutRead();
-        ADMIN_LAYOUT_ORDER.forEach(key => {
-            const meta = ADMIN_LAYOUT_REGISTRY[key];
-            if (!meta) return;
-            const parentOk = !meta.parentKey || prefs[meta.parentKey] !== false;
-            const visible = prefs[key] !== false && parentOk;
-            adminLayoutGetElements(meta).forEach(el => {
-                el.classList.toggle('admin-layout-hidden', !visible);
-            });
-        });
+    function adminToolItemHtml(key, visible) {
+        const meta = ADMIN_FAVORITE_REGISTRY[key];
+        if (!meta) return '';
+        return `<div class="admin-layout-tool-item${visible ? '' : ' admin-layout-tool-item--off'}" data-tool-key="${key}">
+            <button type="button" class="admin-layout-drag-handle" aria-label="Drag ${meta.title} to reorder" title="Drag to reorder">
+                <i class="fa fa-bars" aria-hidden="true"></i>
+            </button>
+            <span class="admin-layout-tool-item__name">
+                <i class="fa ${meta.icon}" aria-hidden="true"></i>
+                <span>${meta.title}</span>
+            </span>
+            <div class="admin-layout-tool-item__nudge">
+                <button type="button" class="admin-layout-nudge-btn" onclick="adminLayoutNudgeTool('${key}', -1)" aria-label="Move ${meta.title} up" title="Move up">↑</button>
+                <button type="button" class="admin-layout-nudge-btn" onclick="adminLayoutNudgeTool('${key}', 1)" aria-label="Move ${meta.title} down" title="Move down">↓</button>
+            </div>
+            <label class="admin-layout-tool-item__show" title="Show ${meta.title} in Admin">
+                <input type="checkbox" ${visible ? 'checked' : ''} onchange="adminLayoutDraftToggle('tool', '${key}', this.checked)" aria-label="Show ${meta.title}">
+                <span>Show</span>
+            </label>
+        </div>`;
+    }
 
-        const toolbar = document.getElementById('admin-product-toolbar');
-        if (toolbar) {
-            const showToolbar = prefs.productSearch !== false || prefs.productFilter !== false;
-            toolbar.classList.toggle('admin-layout-hidden', !showToolbar);
+    function adminDestroyToolSortables() {
+        if (_quickSortable) {
+            _quickSortable.destroy();
+            _quickSortable = null;
         }
+        if (_accordionSortable) {
+            _accordionSortable.destroy();
+            _accordionSortable = null;
+        }
+    }
 
-        const pinnedSlot = adminPinnedSlot();
-        if (pinnedSlot) {
-            pinnedSlot.classList.remove('admin-layout-hidden');
-        }
+    function adminReadPlacementFromDom() {
+        const read = (id) => Array.from(document.querySelectorAll(`#${id} .admin-layout-tool-item`))
+            .map(el => el.dataset.toolKey)
+            .filter(Boolean);
+        return {
+            quick: read('admin-layout-quick-list'),
+            accordion: read('admin-layout-accordion-list')
+        };
+    }
 
-        if (typeof syncAdminCategoryListToolsFromLayout === 'function') {
-            syncAdminCategoryListToolsFromLayout();
-        }
+    function adminBindToolSortables() {
+        adminDestroyToolSortables();
+        if (!window.Sortable) return;
+        const quickEl = document.getElementById('admin-layout-quick-list');
+        const accEl = document.getElementById('admin-layout-accordion-list');
+        if (!quickEl || !accEl) return;
+
+        const opts = {
+            group: 'admin-tool-order',
+            animation: 160,
+            handle: '.admin-layout-drag-handle',
+            draggable: '.admin-layout-tool-item',
+            ghostClass: 'admin-layout-tool-item--ghost',
+            chosenClass: 'admin-layout-tool-item--chosen',
+            onEnd() {
+                const draft = adminLayoutDraftGet();
+                const next = adminReadPlacementFromDom();
+                draft.quick = next.quick;
+                draft.accordion = next.accordion;
+                adminNormalizeDraftPlacement();
+                adminLayoutUpdateSaveButton();
+            }
+        };
+        _quickSortable = Sortable.create(quickEl, opts);
+        _accordionSortable = Sortable.create(accEl, opts);
     }
 
     function renderAdminLayoutSettings() {
         const sectionBox = document.getElementById('admin-layout-section-checkboxes');
-        const toolRows = document.getElementById('admin-layout-tool-rows');
-        if (!sectionBox || !toolRows) return;
+        const quickList = document.getElementById('admin-layout-quick-list');
+        const accordionList = document.getElementById('admin-layout-accordion-list');
+        if (!sectionBox || !quickList || !accordionList) return;
+
+        adminDestroyToolSortables();
 
         const draft = adminLayoutDraftGet();
         const prefs = draft.layout;
-        const favorites = draft.pins;
         const toolVisible = draft.toolVisible;
 
         sectionBox.innerHTML = ADMIN_LAYOUT_ORDER.map(key => {
@@ -303,30 +405,29 @@
             </label>`;
         }).join('');
 
-        toolRows.innerHTML = STORE_TOOLS_ORDER.map(key => {
-            const meta = ADMIN_FAVORITE_REGISTRY[key];
-            if (!meta) return '';
-            const visible = toolVisible[key] !== false;
-            const pinned = favorites.includes(key);
-            const pinDisabled = !visible;
-            return `<div class="admin-layout-tool-row${pinDisabled ? ' admin-layout-tool-row--hidden-tool' : ''}${pinned ? ' admin-layout-tool-row--pinned' : ''}">
-                <span class="admin-layout-tool-row__name">
-                    <i class="fa ${meta.icon}" aria-hidden="true"></i>
-                    <span>${meta.title}</span>
-                </span>
-                <label class="admin-layout-tool-row__check" title="Show ${meta.title} in Admin">
-                    <input type="checkbox" data-tool-key="${key}" ${visible ? 'checked' : ''} onchange="adminLayoutDraftToggle('tool', '${key}', this.checked)" aria-label="Show ${meta.title}">
-                    <span class="admin-layout-tool-row__check-label">Show</span>
-                </label>
-                <label class="admin-layout-tool-row__check admin-layout-tool-row__check--pin${pinDisabled ? ' admin-layout-tool-row__check--disabled' : ''}" title="Pin ${meta.title} below Products">
-                    <input type="checkbox" data-pin-key="${key}" ${pinned ? 'checked' : ''} ${pinDisabled ? 'disabled' : ''} onchange="adminLayoutDraftToggle('pin', '${key}', this.checked)" aria-label="Pin ${meta.title} below Products">
-                    <span class="admin-layout-tool-row__check-label">Pin</span>
-                </label>
-            </div>`;
-        }).join('');
+        quickList.innerHTML = draft.quick.map(key => adminToolItemHtml(key, toolVisible[key] !== false)).join('');
+        accordionList.innerHTML = draft.accordion.map(key => adminToolItemHtml(key, toolVisible[key] !== false)).join('');
 
+        adminBindToolSortables();
         adminLayoutUpdateSaveButton();
     }
+
+    function adminSwapInList(list, index, delta) {
+        const next = index + delta;
+        if (next < 0 || next >= list.length) return;
+        const tmp = list[index];
+        list[index] = list[next];
+        list[next] = tmp;
+    }
+
+    window.adminLayoutNudgeTool = function(key, delta) {
+        const draft = adminLayoutDraftGet();
+        let list = draft.quick.includes(key) ? draft.quick : draft.accordion;
+        const index = list.indexOf(key);
+        if (index < 0) return;
+        adminSwapInList(list, index, delta);
+        renderAdminLayoutSettings();
+    };
 
     window.adminLayoutDraftToggle = function(type, key, checked) {
         const draft = adminLayoutDraftGet();
@@ -337,21 +438,21 @@
         } else if (type === 'tool') {
             if (!ADMIN_FAVORITE_REGISTRY[key]) return;
             draft.toolVisible[key] = !!checked;
-            if (!checked) draft.pins = draft.pins.filter(k => k !== key);
-        } else if (type === 'pin') {
-            if (!ADMIN_FAVORITE_REGISTRY[key]) return;
-            if (draft.toolVisible[key] === false) return;
-            if (checked && !draft.pins.includes(key)) draft.pins.push(key);
-            else if (!checked) draft.pins = draft.pins.filter(k => k !== key);
+            if (!checked) {
+                draft.quick = draft.quick.filter(k => k !== key);
+                if (!draft.accordion.includes(key)) draft.accordion.push(key);
+            }
         }
         renderAdminLayoutSettings();
     };
 
     window.adminSaveLayoutSettings = function() {
         const draft = adminLayoutDraftGet();
-        draft.pins = draft.pins.filter(k => draft.toolVisible[k] !== false);
-        adminLayoutWrite(draft.layout, draft.toolVisible);
-        adminFavoritesWrite(draft.pins);
+        const next = adminReadPlacementFromDom();
+        draft.quick = next.quick.filter(k => draft.toolVisible[k] !== false);
+        draft.accordion = next.accordion.filter(k => draft.toolVisible[k] !== false && !draft.quick.includes(k));
+        adminNormalizeDraftPlacement();
+        adminLayoutWrite(draft.layout, draft.toolVisible, draft.quick, draft.accordion);
         adminLayoutDraftClear();
         renderAdminFavorites();
         if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
@@ -365,21 +466,27 @@
         showToast('Changes discarded.');
     };
 
-    function adminFavoritesRead() {
-        try {
-            const raw = localStorage.getItem(ADMIN_FAVORITES_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) return parsed.filter(k => ADMIN_FAVORITE_REGISTRY[k]);
-            }
-        } catch (e) { /* ignore */ }
-        return [];
-    }
+    function applyAdminLayout() {
+        const prefs = adminLayoutRead();
+        ADMIN_LAYOUT_ORDER.forEach(key => {
+            const meta = ADMIN_LAYOUT_REGISTRY[key];
+            if (!meta) return;
+            const parentOk = !meta.parentKey || prefs[meta.parentKey] !== false;
+            const visible = prefs[key] !== false && parentOk;
+            adminLayoutGetElements(meta).forEach(el => {
+                el.classList.toggle('admin-layout-hidden', !visible);
+            });
+        });
 
-    function adminFavoritesWrite(list) {
-        try {
-            localStorage.setItem(ADMIN_FAVORITES_KEY, JSON.stringify(list));
-        } catch (e) { console.warn('adminFavoritesWrite failed:', e); }
+        const toolbar = document.getElementById('admin-product-toolbar');
+        if (toolbar) {
+            const showToolbar = prefs.productSearch !== false || prefs.productFilter !== false;
+            toolbar.classList.toggle('admin-layout-hidden', !showToolbar);
+        }
+
+        if (typeof syncAdminCategoryListToolsFromLayout === 'function') {
+            syncAdminCategoryListToolsFromLayout();
+        }
     }
 
     function adminInitBlockBackups() {
@@ -461,22 +568,20 @@
         if (icon) icon.style.transform = 'rotate(0deg)';
     }
 
-    function adminExpandFavoriteBlock(key, el) {
+    function adminPrepareQuickBlock(key, el) {
         const meta = ADMIN_FAVORITE_REGISTRY[key];
-        if (!meta) return;
-        const node = el || adminResolveToolBlock(key);
-        if (node) {
-            node.style.display = '';
-            node.hidden = false;
-            node.classList.add('admin-store-tools-block--pinned');
-        }
-        if (meta.accordionContentId) {
+        if (!el) return;
+        el.style.display = '';
+        el.hidden = false;
+        el.classList.add('admin-store-tools-block--quick');
+        if (meta?.accordionContentId) {
             adminExpandAccordionPanel(meta.accordionContentId, meta.accordionIconId);
         }
     }
 
-    function adminUnpinBlockVisual(el) {
-        if (el) el.classList.remove('admin-store-tools-block--pinned');
+    function adminPrepareAccordionBlock(el) {
+        if (!el) return;
+        el.classList.remove('admin-store-tools-block--quick');
     }
 
     function adminMoveBlock(el, target) {
@@ -484,58 +589,50 @@
         target.appendChild(el);
     }
 
+    function adminPlaceToolsInOrder(keys, blocks, target, prepareFn) {
+        keys.forEach(key => {
+            const el = blocks[key];
+            if (!el || !adminIsBlockVisible(key, el)) return;
+            adminSanitizeToolBlock(el);
+            el.classList.remove('admin-layout-hidden');
+            el.hidden = false;
+            adminMoveBlock(el, target);
+            prepareFn(key, el);
+        });
+    }
+
     function renderAdminFavorites() {
-        const pinnedSlot = adminPinnedSlot();
+        const quickSlot = adminQuickSlot();
         const storeContent = document.getElementById('admin-store-tools-accordion-content');
-        if (!pinnedSlot || !storeContent) return;
+        const layoutSettings = document.getElementById('admin-layout-settings');
+        if (!quickSlot || !storeContent) return;
 
         adminInitBlockBackups();
         const blocks = adminCollectToolBlocks();
-        let favorites = adminFavoritesRead().filter(k => blocks[k] && adminIsBlockVisible(k, blocks[k]));
-
-        const validKeys = favorites.filter(k => blocks[k] && adminIsToolVisible(k));
-        if (validKeys.length !== favorites.length) {
-            adminFavoritesWrite(validKeys);
-            favorites = validKeys;
-        }
+        const placement = adminToolPlacementRead();
 
         STORE_TOOLS_ORDER.forEach(key => {
-            let el = blocks[key];
-            if (!el) {
-                el = adminRecoverToolBlock(key);
-                if (el) blocks[key] = el;
-            }
+            const el = blocks[key];
             if (!el) return;
-
-            adminSanitizeToolBlock(el);
-
             if (!adminIsToolVisible(key)) {
+                adminSanitizeToolBlock(el);
                 el.classList.add('admin-layout-hidden');
                 el.hidden = true;
                 return;
             }
-
             el.classList.remove('admin-layout-hidden');
             el.hidden = false;
-
-            if (!adminIsBlockVisible(key, el)) return;
-
-            const pin = favorites.includes(key);
-            const target = pin ? pinnedSlot : storeContent;
-
-            adminMoveBlock(el, target);
-
-            if (pin) {
-                adminExpandFavoriteBlock(key, el);
-            } else {
-                adminUnpinBlockVisual(el);
-            }
         });
 
-        const hasPinned = favorites.length > 0;
-        pinnedSlot.hidden = !hasPinned;
-        pinnedSlot.style.display = hasPinned ? 'block' : 'none';
-        pinnedSlot.classList.remove('admin-layout-hidden');
+        adminPlaceToolsInOrder(placement.quick, blocks, quickSlot, adminPrepareQuickBlock);
+        if (layoutSettings && layoutSettings.parentNode === storeContent) {
+            storeContent.insertBefore(layoutSettings, storeContent.firstChild);
+        }
+        adminPlaceToolsInOrder(placement.accordion, blocks, storeContent, (_, el) => adminPrepareAccordionBlock(el));
+
+        const hasQuick = placement.quick.some(k => adminIsToolVisible(k) && blocks[k] && adminIsBlockVisible(k, blocks[k]));
+        quickSlot.hidden = !hasQuick;
+        quickSlot.style.display = hasQuick ? 'block' : 'none';
 
         applyAdminLayout();
         renderAdminLayoutSettings();
@@ -552,7 +649,7 @@
     };
 
     window.renderAdminFavorites = renderAdminFavorites;
-    window.adminFavoritesRead = adminFavoritesRead;
+    window.adminFavoritesRead = () => adminToolPlacementRead().quick;
     window.adminFavoriteRegistryKeys = () => [...STORE_TOOLS_ORDER];
     window.adminGetToolBlock = adminResolveToolBlock;
     window.adminIsLayoutSectionEnabled = adminIsLayoutSectionEnabled;

@@ -8888,46 +8888,93 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-layout-settings__group--tools {
     min-width: 0;
 }
-.admin-layout-tool-head {
-    display: grid;
-    grid-template-columns: 1fr 52px 44px;
-    gap: 8px;
-    align-items: center;
-    padding: 0 4px 6px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid #2a2a2a;
-    font-size: 10px;
+.admin-layout-zone {
+    margin-bottom: 14px;
+    padding: 10px 10px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed #333;
+}
+.admin-layout-zone--accordion {
+    border-color: #2a2a2a;
+    background: rgba(0, 0, 0, 0.15);
+}
+.admin-layout-zone__title {
+    margin: 0 0 2px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.35px;
-    text-transform: uppercase;
-    color: #666;
+    color: #ddd;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
-.admin-layout-tool-head__show,
-.admin-layout-tool-head__pin {
-    text-align: center;
+.admin-layout-zone__title .fa {
+    color: var(--gold, #c9a227);
+    font-size: 11px;
 }
-.admin-layout-tool-rows {
+.admin-layout-zone__hint {
+    margin: 0 0 8px;
+    font-size: 10px;
+    color: #555;
+    line-height: 1.35;
+}
+.admin-layout-sortable-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+    min-height: 36px;
 }
-.admin-layout-tool-row {
+.admin-layout-sortable-list:empty::after {
+    content: 'Drag tools here';
+    display: block;
+    padding: 10px;
+    font-size: 11px;
+    color: #555;
+    text-align: center;
+    border: 1px dashed #333;
+    border-radius: 8px;
+}
+.admin-layout-tool-item {
     display: grid;
-    grid-template-columns: 1fr 52px 44px;
+    grid-template-columns: 28px 1fr auto auto;
     gap: 8px;
     align-items: center;
-    padding: 7px 4px;
+    padding: 8px 8px 8px 4px;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.02);
+    background: #161616;
+    border: 1px solid #2a2a2a;
+    touch-action: none;
 }
-.admin-layout-tool-row--pinned {
-    background: rgba(201, 162, 39, 0.06);
-    box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.15);
+.admin-layout-tool-item--off {
+    opacity: 0.45;
 }
-.admin-layout-tool-row--hidden-tool {
-    opacity: 0.5;
+.admin-layout-tool-item--ghost {
+    opacity: 0.35;
+    background: #1f1a10;
+    border-color: var(--gold, #c9a227);
 }
-.admin-layout-tool-row__name {
+.admin-layout-tool-item--chosen {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    border-color: rgba(201, 162, 39, 0.45);
+}
+.admin-layout-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: #666;
+    cursor: grab;
+    padding: 0;
+    border-radius: 6px;
+}
+.admin-layout-drag-handle:active {
+    cursor: grabbing;
+    color: var(--gold, #c9a227);
+}
+.admin-layout-tool-item__name {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -8937,48 +8984,48 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     color: #eee;
     line-height: 1.3;
 }
-.admin-layout-tool-row__name .fa {
+.admin-layout-tool-item__name .fa {
     color: var(--gold, #c9a227);
     width: 14px;
     text-align: center;
     flex-shrink: 0;
 }
-.admin-layout-tool-row__name span {
-    min-width: 0;
+.admin-layout-tool-item__nudge {
+    display: flex;
+    gap: 2px;
 }
-.admin-layout-tool-row__check {
+.admin-layout-nudge-btn {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #111;
+    color: #aaa;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+.admin-layout-nudge-btn:hover {
+    border-color: var(--gold, #c9a227);
+    color: var(--gold, #c9a227);
+}
+.admin-layout-tool-item__show {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 2px;
-    cursor: pointer;
-    margin: 0;
-}
-.admin-layout-tool-row__check--disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-.admin-layout-tool-row__check input[type="checkbox"] {
-    margin: 0;
-    accent-color: var(--gold, #c9a227);
-    cursor: pointer;
-}
-.admin-layout-tool-row__check--disabled input[type="checkbox"] {
-    cursor: not-allowed;
-}
-.admin-layout-tool-row__check-label {
     font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.3px;
     text-transform: uppercase;
     color: #666;
+    cursor: pointer;
+    margin: 0;
+    min-width: 38px;
 }
-.admin-layout-tool-row__check--pin .admin-layout-tool-row__check-label {
-    color: #8a7428;
-}
-.admin-layout-tool-row--pinned .admin-layout-tool-row__check--pin .admin-layout-tool-row__check-label {
-    color: var(--gold, #c9a227);
+.admin-layout-tool-item__show input {
+    margin: 0;
+    accent-color: var(--gold, #c9a227);
 }
 .admin-layout-settings__group-title {
     margin: 0 0 8px;
@@ -9087,14 +9134,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     .admin-layout-settings__grid {
         grid-template-columns: 1fr;
     }
-    .admin-layout-tool-head {
-        grid-template-columns: 1fr 48px 40px;
+    .admin-layout-tool-item {
+        grid-template-columns: 24px 1fr auto auto;
+        gap: 6px;
+        padding: 7px 6px 7px 2px;
     }
-    .admin-layout-tool-row {
-        grid-template-columns: 1fr 48px 40px;
-        padding: 8px 2px;
-    }
-    .admin-layout-tool-row__name {
+    .admin-layout-tool-item__name {
         font-size: 11px;
     }
 }
@@ -9117,6 +9162,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-pinned-tools-slot .admin-store-tools-block:last-child {
     margin-bottom: 0 !important;
 }
+.admin-store-tools-block--quick,
 .admin-store-tools-block--pinned {
     border-color: rgba(201, 162, 39, 0.45) !important;
     box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.12);
