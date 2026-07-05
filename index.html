@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.48">
+    <link rel="stylesheet" href="css/style.css?v=9.49">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -796,7 +796,7 @@
                     <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
                         <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — order tools in Admin layout below</p>
+                        <p id="admin-store-tools-subtitle" style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — order tools in Admin layout below</p>
                     </div>
                 </div>
                 <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
@@ -812,7 +812,7 @@
                 <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
                 Admin layout
             </h4>
-            <p style="margin:6px 0 12px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> = on/off. <strong>Place</strong> = above, inside, or below Store settings. <strong>Drag</strong> or ↑↓ to reorder within a zone. Tap <strong>Save layout</strong> when done.</p>
+            <p style="margin:6px 0 12px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> = on/off. <strong>Place</strong> = where it appears on Admin (tap a pill). <strong>Drag</strong> or ↑↓ to reorder within a zone. Tap <strong>Save layout</strong> when done.</p>
             <div class="admin-layout-settings__zones">
                 <div class="admin-layout-zone-accordion">
                     <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('above')" aria-expanded="false" aria-controls="admin-layout-above-content">
@@ -823,7 +823,7 @@
                         </span>
                         <i id="admin-layout-above-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
                     </button>
-                    <p class="admin-layout-zone__hint">Top of Admin page — before Store settings accordion</p>
+                    <p class="admin-layout-zone__hint">Top of Admin — visible without opening Store settings</p>
                     <div id="admin-layout-above-content" class="admin-layout-zone-accordion__body" style="display:none;">
                         <div id="admin-layout-above-list" class="admin-layout-sortable-list" role="list" aria-label="Sections above store settings"></div>
                     </div>
@@ -837,7 +837,7 @@
                         </span>
                         <i id="admin-layout-inside-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
                     </button>
-                    <p class="admin-layout-zone__hint">Inside this accordion (below Admin layout)</p>
+                    <p class="admin-layout-zone__hint">Inside Store settings — expand that accordion on Admin to see these</p>
                     <div id="admin-layout-inside-content" class="admin-layout-zone-accordion__body" style="display:none;">
                         <div id="admin-layout-inside-list" class="admin-layout-sortable-list" role="list" aria-label="Sections inside store settings"></div>
                     </div>
@@ -851,7 +851,7 @@
                         </span>
                         <i id="admin-layout-below-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
                     </button>
-                    <p class="admin-layout-zone__hint">Bottom of Admin page — after Store settings accordion</p>
+                    <p class="admin-layout-zone__hint">After Store settings — always visible, no accordion needed</p>
                     <div id="admin-layout-below-content" class="admin-layout-zone-accordion__body" style="display:none;">
                         <div id="admin-layout-below-list" class="admin-layout-sortable-list" role="list" aria-label="Sections below store settings"></div>
                     </div>
@@ -3436,7 +3436,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.5"></script>
     <script src="js/admin-draft-compare.js?v=1.3"></script>
-    <script src="js/admin-favorites.js?v=2.5"></script>
+    <script src="js/admin-favorites.js?v=2.6"></script>
     <script src="js/categories.js?v=11.8"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>

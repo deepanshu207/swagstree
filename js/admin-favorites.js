@@ -214,6 +214,13 @@
         el?.querySelectorAll('.admin-favorite-toggle, .admin-pinned-badge').forEach(n => n.remove());
     }
 
+    function adminZonePillsHtml(key, zone) {
+        const labels = { above: 'Above', inside: 'Inside', below: 'Below' };
+        return `<div class="admin-layout-zone-pills" role="group" aria-label="Placement for ${adminBlockMeta(key)?.title || key}">
+            ${LAYOUT_ZONES.map(z => `<button type="button" class="admin-layout-zone-pill${zone === z ? ' admin-layout-zone-pill--active' : ''}" onclick="adminLayoutMoveBlockToZone('${key}', '${z}')" aria-pressed="${zone === z ? 'true' : 'false'}">${labels[z]}</button>`).join('')}
+        </div>`;
+    }
+
     function adminBlockItemHtml(key, visible, nested, zone) {
         const meta = adminBlockMeta(key);
         if (!meta) return '';
@@ -222,26 +229,23 @@
         const drag = nested
             ? '<span class="admin-layout-drag-handle admin-layout-drag-handle--nested" aria-hidden="true">↳</span>'
             : `<button type="button" class="admin-layout-drag-handle" aria-label="Drag ${meta.title}"><i class="fa fa-bars" aria-hidden="true"></i></button>`;
-        const zoneSelect = nested ? '<span class="admin-layout-block-item__zone-spacer"></span>' : `
-            <select class="admin-layout-zone-select" aria-label="Placement for ${meta.title}" onchange="adminLayoutMoveBlockToZone('${key}', this.value)">
-                <option value="above" ${zone === 'above' ? 'selected' : ''}>Above</option>
-                <option value="inside" ${zone === 'inside' ? 'selected' : ''}>Inside</option>
-                <option value="below" ${zone === 'below' ? 'selected' : ''}>Below</option>
-            </select>`;
-        const nudge = nested ? '<span class="admin-layout-block-item__nudge admin-layout-block-item__nudge--spacer"></span>' : `
+        const controls = nested ? '' : `<div class="admin-layout-block-item__controls">
+            ${adminZonePillsHtml(key, zone)}
             <div class="admin-layout-block-item__nudge">
                 <button type="button" class="admin-layout-nudge-btn" onclick="adminLayoutNudgeBlock('${key}', -1)" aria-label="Move up"><i class="fa fa-chevron-up" aria-hidden="true"></i></button>
                 <button type="button" class="admin-layout-nudge-btn" onclick="adminLayoutNudgeBlock('${key}', 1)" aria-label="Move down"><i class="fa fa-chevron-down" aria-hidden="true"></i></button>
-            </div>`;
+            </div>
+        </div>`;
         return `<div class="admin-layout-block-item${nested ? ' admin-layout-block-item--nested' : ''}${visible[key] !== false && !parentOff ? '' : ' admin-layout-block-item--off'}" data-block-key="${key}">
-            ${drag}
-            <span class="admin-layout-block-item__name"><i class="fa ${meta.icon}" aria-hidden="true"></i><span>${meta.title}${hint}</span></span>
-            ${zoneSelect}
-            ${nudge}
-            <label class="admin-layout-block-item__show">
-                <input type="checkbox" ${visible[key] !== false && !parentOff ? 'checked' : ''} ${parentOff ? 'disabled' : ''} onchange="adminLayoutDraftToggle('${key}', this.checked)" aria-label="Show ${meta.title}">
-                <span>Show</span>
-            </label>
+            <div class="admin-layout-block-item__top">
+                ${drag}
+                <span class="admin-layout-block-item__name"><i class="fa ${meta.icon}" aria-hidden="true"></i><span class="admin-layout-block-item__title-wrap">${meta.title}${hint}</span></span>
+                <label class="admin-layout-block-item__show">
+                    <input type="checkbox" ${visible[key] !== false && !parentOff ? 'checked' : ''} ${parentOff ? 'disabled' : ''} onchange="adminLayoutDraftToggle('${key}', this.checked)" aria-label="Show ${meta.title}">
+                    <span>Show</span>
+                </label>
+            </div>
+            ${controls}
         </div>`;
     }
 
@@ -256,7 +260,9 @@
     }
 
     function adminLayoutZoneIsOpen(zone) {
-        window._adminLayoutZoneOpen = window._adminLayoutZoneOpen || { above: false, inside: false, below: false };
+        if (!window._adminLayoutZoneOpen) {
+            window._adminLayoutZoneOpen = { above: false, inside: true, below: false };
+        }
         return window._adminLayoutZoneOpen[zone] === true;
     }
 
@@ -455,8 +461,16 @@
         el.style.display = '';
     }
 
-    function adminMoveBlock(el, target) {
-        if (el && target && el.parentNode !== target) target.appendChild(el);
+    function adminMoveBlock(el, target, afterEl) {
+        if (!el || !target) return afterEl || null;
+        if (afterEl && afterEl.parentNode === target) {
+            if (el.previousElementSibling !== afterEl) {
+                afterEl.insertAdjacentElement('afterend', el);
+            }
+            return el;
+        }
+        if (el.parentNode !== target) target.appendChild(el);
+        return el;
     }
 
     function adminPlaceToolbarPair(target, searchEl, filterEl) {
@@ -472,10 +486,19 @@
 
     function adminPlaceOrderedBlocks(keys, target, opts = {}) {
         const emptyToolbar = document.getElementById('admin-product-toolbar');
+        let insertAfter = opts.afterEl || null;
         let i = 0;
         while (i < keys.length) {
             const key = keys[i];
-            if (!adminIsBlockShown(key)) { adminHideBlockNode(key, adminGetBlockNode(key)); i++; continue; }
+            const hidden = !adminIsBlockShown(key);
+            if (hidden && key === 'categorySearch') { i++; continue; }
+            if (hidden) {
+                const hiddenEl = adminGetBlockNode(key);
+                if (hiddenEl) insertAfter = adminMoveBlock(hiddenEl, target, insertAfter);
+                adminHideBlockNode(key, hiddenEl);
+                i++;
+                continue;
+            }
             if (key === 'categorySearch') { i++; continue; }
 
             if (key === 'productSearch' && keys[i + 1] === 'productFilter') {
@@ -485,11 +508,15 @@
                     adminShowBlockNode('productSearch', searchEl);
                     adminShowBlockNode('productFilter', filterEl);
                     adminPlaceToolbarPair(target, searchEl, filterEl);
+                    insertAfter = target.querySelector(':scope > .admin-product-toolbar--placed') || insertAfter;
                 } else {
                     ['productSearch', 'productFilter'].forEach(k => {
                         const el = adminGetBlockNode(k);
                         if (!adminIsBlockShown(k)) adminHideBlockNode(k, el);
-                        else if (el) { adminShowBlockNode(k, el); adminMoveBlock(el, target); }
+                        else if (el) {
+                            adminShowBlockNode(k, el);
+                            insertAfter = adminMoveBlock(el, target, insertAfter);
+                        }
                     });
                 }
                 i += 2;
@@ -503,12 +530,60 @@
             adminSanitizeBlock(el);
             adminShowBlockNode(key, el);
             if (opts.insideTool) adminExpandToolAccordion(key);
-            adminMoveBlock(el, target);
+            insertAfter = adminMoveBlock(el, target, insertAfter);
             i++;
         }
         if (emptyToolbar) {
             emptyToolbar.classList.toggle('admin-layout-hidden', !emptyToolbar.querySelector('#admin-product-search-wrap, #admin-product-filter-wrap'));
         }
+    }
+
+    function adminZoneForPlacementKey(placement, key) {
+        if (placement.above.includes(key)) return 'above';
+        if (placement.below.includes(key)) return 'below';
+        return 'inside';
+    }
+
+    function adminHideBlocksOutsideZones(placement) {
+        SORTABLE_BLOCK_KEYS.forEach(key => {
+            const el = adminGetBlockNode(key);
+            if (!el) return;
+            const zone = adminZoneForPlacementKey(placement, key);
+            if (!adminIsBlockShown(key)) {
+                adminHideBlockNode(key, el);
+                return;
+            }
+            if (adminIsToolKey(key) && !adminIsRuntimeToolVisible(key, el)) {
+                adminHideBlockNode(key, el);
+            }
+        });
+    }
+
+    function adminUpdateStoreToolsSubtitle(insideKeys) {
+        const subtitle = document.getElementById('admin-store-tools-subtitle');
+        if (!subtitle) return;
+        const count = insideKeys.filter(k => adminIsBlockShown(k)).length;
+        subtitle.textContent = count > 0
+            ? `${count} tool${count === 1 ? '' : 's'} inside — expand to view · reorder in Admin layout`
+            : 'Bulk Excel, checkout, promos & more — order tools in Admin layout below';
+    }
+
+    function adminUpdateBelowSlotHeading(belowSlot, belowKeys) {
+        if (!belowSlot) return;
+        let heading = document.getElementById('admin-below-slot-heading');
+        const visibleCount = belowKeys.filter(k => adminIsBlockShown(k)).length;
+        if (visibleCount === 0) {
+            if (heading) heading.hidden = true;
+            return;
+        }
+        if (!heading) {
+            heading = document.createElement('div');
+            heading.id = 'admin-below-slot-heading';
+            heading.className = 'admin-layout-slot-heading';
+            heading.innerHTML = '<i class="fa fa-arrow-down" aria-hidden="true"></i><span>Below store settings</span>';
+            belowSlot.insertBefore(heading, belowSlot.firstChild);
+        }
+        heading.hidden = false;
     }
 
     function applyAdminLayout() {
@@ -540,15 +615,23 @@
 
         adminPlaceOrderedBlocks(placement.above, aboveSlot);
 
-        if (layoutSettings?.parentNode === storeContent) {
+        if (layoutSettings && layoutSettings.parentNode !== storeContent) {
+            storeContent.insertBefore(layoutSettings, storeContent.firstChild);
+        } else if (layoutSettings) {
             storeContent.insertBefore(layoutSettings, storeContent.firstChild);
         }
-        adminPlaceOrderedBlocks(placement.inside, storeContent, { insideTool: true });
+        adminPlaceOrderedBlocks(placement.inside, storeContent, { insideTool: true, afterEl: layoutSettings });
 
-        adminPlaceOrderedBlocks(placement.below, belowSlot);
+        adminUpdateBelowSlotHeading(belowSlot, placement.below);
+        const belowHeading = document.getElementById('admin-below-slot-heading');
+        adminPlaceOrderedBlocks(placement.below, belowSlot, {
+            afterEl: belowHeading && !belowHeading.hidden ? belowHeading : null
+        });
 
+        adminHideBlocksOutsideZones(placement);
         adminSetSlotVisibility(aboveSlot, placement.above);
         adminSetSlotVisibility(belowSlot, placement.below);
+        adminUpdateStoreToolsSubtitle(placement.inside);
 
         applyAdminLayout();
         renderAdminLayoutSettings();
