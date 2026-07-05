@@ -8561,8 +8561,10 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     padding: 0 4px 0 20px;
 }
 
-.admin-layout-block-item__accordion {
-    min-width: 52px;
+.admin-layout-block-item__products-options {
+    padding: 8px 0 4px;
+    margin-top: 2px;
+    border-top: 1px solid #252525;
 }
 
 .admin-products-section-count {

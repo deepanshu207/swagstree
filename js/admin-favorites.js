@@ -305,10 +305,15 @@
             </div>
         </div>`;
         const accordionToggle = key === 'products'
-            ? `<label class="admin-layout-block-item__show admin-layout-block-item__accordion">
-                <input type="checkbox" ${productsAccordion ? 'checked' : ''} ${productsOff || parentOff ? 'disabled' : ''} onchange="adminLayoutDraftToggleProductsAccordion(this.checked)" aria-label="Accordion for ${meta.title}">
-                <span>Accordion</span>
-            </label>`
+            ? `<div class="admin-layout-block-item__products-options">
+                <label class="admin-layout-checkbox${productsOff || parentOff ? ' admin-layout-checkbox--disabled' : ''}">
+                    <input type="checkbox" ${productsAccordion ? 'checked' : ''} ${productsOff || parentOff ? 'disabled' : ''} onchange="adminLayoutDraftToggleProductsAccordion(this.checked)" aria-label="Use accordion for Products list">
+                    <span class="admin-layout-checkbox__text">
+                        <span class="admin-layout-checkbox__label"><i class="fa fa-chevron-down" aria-hidden="true"></i> Accordion</span>
+                        <span class="admin-layout-checkbox__hint">Collapsible panel instead of flat list (off = flat by default)</span>
+                    </span>
+                </label>
+            </div>`
             : '';
         return `<div class="admin-layout-block-item${nested ? ' admin-layout-block-item--nested' : ''}${visible[key] !== false && !parentOff ? '' : ' admin-layout-block-item--off'}" data-block-key="${key}">
             <div class="admin-layout-block-item__top">
@@ -318,8 +323,8 @@
                     <input type="checkbox" ${visible[key] !== false && !parentOff ? 'checked' : ''} ${parentOff ? 'disabled' : ''} onchange="adminLayoutDraftToggle('${key}', this.checked)" aria-label="Show ${meta.title}">
                     <span>Show</span>
                 </label>
-                ${accordionToggle}
             </div>
+            ${accordionToggle}
             ${controls}
         </div>`;
     }
@@ -336,7 +341,7 @@
 
     function adminLayoutZoneIsOpen(zone) {
         if (!window._adminLayoutZoneOpen) {
-            window._adminLayoutZoneOpen = { above: false, inside: true, below: false };
+            window._adminLayoutZoneOpen = { above: true, inside: true, below: false };
         }
         return window._adminLayoutZoneOpen[zone] === true;
     }
