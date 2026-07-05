@@ -1178,7 +1178,7 @@ function renderProductModalDraftBanner() {
         return;
     }
     const key = `edit:${editingId}`;
-    if (typeof adminDraftIsActive === 'function' && adminDraftIsActive('product', key) && window._adminProductDraftUiActive) {
+    if (typeof adminDraftIsActive === 'function' && adminDraftIsActive('product', key) && window._adminProductDraftLoaded) {
         el.hidden = true;
         el.innerHTML = '';
         return;
