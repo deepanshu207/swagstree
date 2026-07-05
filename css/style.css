@@ -7778,11 +7778,14 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     transform: rotate(180deg);
 }
 .admin-draft-accordion__body {
-    padding: 0 12px 12px;
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 10px;
     border-top: 1px solid #222;
+    padding: 0 12px 12px;
+}
+.admin-draft-accordion__body.is-expanded {
+    display: flex;
 }
 .admin-draft-sub-accordion {
     border-radius: 10px;
@@ -7824,11 +7827,14 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     color: #6eb5ff;
 }
 .admin-draft-sub-accordion__body {
-    padding: 0 10px 10px;
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 8px;
     border-top: 1px solid #222;
+    padding: 0 10px 10px;
+}
+.admin-draft-sub-accordion__body.is-expanded {
+    display: flex;
 }
 .admin-draft-recovery-row__media {
     color: #8ab4f8;

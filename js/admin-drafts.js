@@ -25,8 +25,11 @@
     let _productAutoSaveInFlight = null;
 
     window._activeAdminDraftKey = window._activeAdminDraftKey || null;
-    window._adminDraftsAccordionOpen = window._adminDraftsAccordionOpen || false;
-    window._adminDraftSubOpen = window._adminDraftSubOpen || { product: false, category: false };
+    if (window._adminDraftAccordionStateInited !== true) {
+        window._adminDraftsAccordionOpen = false;
+        window._adminDraftSubOpen = { product: false, category: false };
+        window._adminDraftAccordionStateInited = true;
+    }
 
     function adminDraftInvalidateCache() {
         _draftStoreCache = null;
@@ -693,7 +696,7 @@
                 </span>
                 <i class="fa fa-chevron-down admin-draft-sub-accordion__icon${open ? ' is-open' : ''}" aria-hidden="true"></i>
             </button>
-            <div id="admin-draft-sub-${type}" class="admin-draft-sub-accordion__body" ${open ? '' : 'hidden'}>
+            <div id="admin-draft-sub-${type}" class="admin-draft-sub-accordion__body${open ? ' is-expanded' : ''}">
                 <p class="admin-draft-recovery-section__hint">${hint}</p>
                 <div class="admin-draft-recovery-list">
                     ${sorted.map(adminDraftRecoveryRowHtml).join('')}
@@ -702,26 +705,58 @@
         </div>`;
     }
 
+    function adminSyncDraftAccordionDom() {
+        const mainOpen = !!window._adminDraftsAccordionOpen;
+        const body = document.getElementById('admin-draft-accordion-body');
+        const mainIcon = document.querySelector('.admin-draft-accordion__icon');
+        const mainTrigger = document.querySelector('.admin-draft-accordion__trigger');
+        if (body) body.classList.toggle('is-expanded', mainOpen);
+        if (mainIcon) mainIcon.classList.toggle('is-open', mainOpen);
+        if (mainTrigger) mainTrigger.setAttribute('aria-expanded', mainOpen ? 'true' : 'false');
+
+        ['product', 'category'].forEach(type => {
+            const open = !!(window._adminDraftSubOpen && window._adminDraftSubOpen[type]);
+            const subBody = document.getElementById(`admin-draft-sub-${type}`);
+            const subIcon = document.querySelector(`.admin-draft-sub-accordion--${type} .admin-draft-sub-accordion__icon`);
+            const subTrigger = document.querySelector(`.admin-draft-sub-accordion--${type} .admin-draft-sub-accordion__trigger`);
+            if (subBody) subBody.classList.toggle('is-expanded', open);
+            if (subIcon) subIcon.classList.toggle('is-open', open);
+            if (subTrigger) subTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    }
+
     window.toggleAdminDraftsAccordion = function() {
         window._adminDraftsAccordionOpen = !window._adminDraftsAccordionOpen;
-        const body = document.getElementById('admin-draft-accordion-body');
-        const icon = document.querySelector('.admin-draft-accordion__icon');
-        if (body) body.hidden = !window._adminDraftsAccordionOpen;
-        if (icon) icon.classList.toggle('is-open', window._adminDraftsAccordionOpen);
-        const trigger = document.querySelector('.admin-draft-accordion__trigger');
-        if (trigger) trigger.setAttribute('aria-expanded', window._adminDraftsAccordionOpen ? 'true' : 'false');
+        if (!window._adminDraftsAccordionOpen) {
+            window._adminDraftSubOpen = { product: false, category: false };
+        }
+        adminSyncDraftAccordionDom();
     };
 
     window.toggleAdminDraftSubsection = function(type) {
         if (!type) return;
+        if (!window._adminDraftSubOpen) window._adminDraftSubOpen = { product: false, category: false };
         window._adminDraftSubOpen[type] = !window._adminDraftSubOpen[type];
-        const body = document.getElementById(`admin-draft-sub-${type}`);
-        const icon = document.querySelector(`.admin-draft-sub-accordion--${type} .admin-draft-sub-accordion__icon`);
-        if (body) body.hidden = !window._adminDraftSubOpen[type];
-        if (icon) icon.classList.toggle('is-open', window._adminDraftSubOpen[type]);
-        const trigger = document.querySelector(`.admin-draft-sub-accordion--${type} .admin-draft-sub-accordion__trigger`);
-        if (trigger) trigger.setAttribute('aria-expanded', window._adminDraftSubOpen[type] ? 'true' : 'false');
+        if (window._adminDraftSubOpen[type]) {
+            window._adminDraftsAccordionOpen = true;
+        }
+        adminSyncDraftAccordionDom();
     };
+
+    function adminDraftPanelListSignature(items) {
+        return items.map(i => `${i.type}:${i.key}`).sort().join('|');
+    }
+
+    function adminUpdateDraftPanelCounts(total, productCount, categoryCount) {
+        const mainBadge = document.querySelector('.admin-draft-accordion__trigger .admin-draft-recovery-section__count');
+        if (mainBadge) mainBadge.textContent = String(total);
+        const productBadge = document.querySelector('.admin-draft-sub-accordion--product .admin-draft-recovery-section__count');
+        if (productBadge) productBadge.textContent = String(productCount);
+        const categoryBadge = document.querySelector('.admin-draft-sub-accordion--category .admin-draft-recovery-section__count');
+        if (categoryBadge) categoryBadge.textContent = String(categoryCount);
+    }
+
+    let _lastDraftPanelListSig = '';
 
     function renderAdminDraftRecoveryPanel() {
         updateAdminNewProductDraftBadge();
@@ -742,12 +777,21 @@
             panel.hidden = true;
             panel.innerHTML = '';
             panel.style.display = 'none';
+            _lastDraftPanelListSig = '';
             return;
         }
 
         const productDrafts = items.filter(item => item.type === 'product');
         const categoryDrafts = items.filter(item => item.type === 'category');
         const totalCount = items.length;
+        const listSig = adminDraftPanelListSignature(items);
+        if (panel.querySelector('.admin-draft-accordion') && listSig === _lastDraftPanelListSig) {
+            adminUpdateDraftPanelCounts(totalCount, productDrafts.length, categoryDrafts.length);
+            adminSyncDraftAccordionDom();
+            return;
+        }
+        _lastDraftPanelListSig = listSig;
+
         const mainOpen = !!window._adminDraftsAccordionOpen;
         const clearBtn = adminCrudDraftsClearAllEnabled()
             ? '<button type="button" class="admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>'
@@ -768,14 +812,15 @@
                     </button>
                     ${clearBtn}
                 </div>
-                <div id="admin-draft-accordion-body" class="admin-draft-accordion__body" ${mainOpen ? '' : 'hidden'}>
-                    <p class="admin-draft-recovery-intro">Work is <strong>auto-saved</strong> on this device while you edit. Tap <strong>Continue</strong> to reopen a draft, then publish when ready.</p>
+                <div id="admin-draft-accordion-body" class="admin-draft-accordion__body${mainOpen ? ' is-expanded' : ''}">
+                    <p class="admin-draft-recovery-intro">Work is <strong>auto-saved</strong> on this device while you edit. Tap the sections below to view drafts, then <strong>Continue</strong> to reopen.</p>
                     <div class="admin-draft-recovery-sections">
                         ${adminDraftRecoverySectionHtml('product', productDrafts)}
                         ${adminDraftRecoverySectionHtml('category', categoryDrafts)}
                     </div>
                 </div>
             </div>`;
+        adminSyncDraftAccordionDom();
     }
 
     window.adminRestoreDraft = async function(type, key) {
