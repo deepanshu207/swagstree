@@ -650,13 +650,52 @@ function adminUpdateCatalogSettingsSummary() {
     el.textContent = `${sortLabel} · ${limit} per page · saved to database`;
 }
 
+function adminProductsAccordionLayoutEnabled() {
+    return typeof adminLayoutProductsAccordionRead === 'function' && adminLayoutProductsAccordionRead();
+}
+
+function adminApplyProductsSectionMode() {
+    const useAccordion = adminProductsAccordionLayoutEnabled();
+    const area = document.getElementById('admin-products-area');
+    const head = document.getElementById('admin-products-accordion-head');
+    if (!area) return;
+
+    area.classList.toggle('admin-products-area--accordion', useAccordion);
+    area.classList.toggle('admin-products-area--flat', !useAccordion);
+    area.classList.toggle('admin-panel-card', useAccordion);
+    area.classList.toggle('admin-primary-section', useAccordion);
+
+    if (head) {
+        head.hidden = !useAccordion;
+        head.style.display = useAccordion ? '' : 'none';
+    }
+
+    if (!useAccordion) {
+        window._adminProductsAccordionOpen = true;
+    } else if (window._adminProductsAccordionOpen !== true) {
+        window._adminProductsAccordionOpen = false;
+    }
+
+    adminSyncProductsAccordionDom();
+}
+
 function adminSyncProductsAccordionDom() {
-    const open = window._adminProductsAccordionOpen !== false;
+    const useAccordion = adminProductsAccordionLayoutEnabled();
     const content = document.getElementById('admin-products-accordion-content');
     const icon = document.getElementById('admin-products-accordion-icon');
+    if (!useAccordion) {
+        if (content) {
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+            content.style.marginTop = '0';
+        }
+        return;
+    }
+    const open = window._adminProductsAccordionOpen === true;
     if (content) {
         content.style.display = open ? 'flex' : 'none';
         content.style.flexDirection = 'column';
+        content.style.marginTop = open ? '12px' : '0';
     }
     if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
 }
@@ -667,11 +706,13 @@ function openAdminProductsAccordion() {
 }
 
 window.toggleAdminProductsAccordion = function() {
-    window._adminProductsAccordionOpen = window._adminProductsAccordionOpen === false;
+    if (!adminProductsAccordionLayoutEnabled()) return;
+    window._adminProductsAccordionOpen = window._adminProductsAccordionOpen !== true;
     adminSyncProductsAccordionDom();
 };
 
 window.openAdminProductsAccordion = openAdminProductsAccordion;
+window.adminApplyProductsSectionMode = adminApplyProductsSectionMode;
 
 function adminSyncProductSortUi() {
     const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
@@ -2968,7 +3009,7 @@ function adminMirrorProductCountBadge() {
 }
 
 function renderAdmin() { 
-    if (typeof adminSyncProductsAccordionDom === 'function') adminSyncProductsAccordionDom();
+    if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
     const container = document.getElementById('admin-list');
     if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
     if (typeof renderAdminFavorites === 'function') renderAdminFavorites();

@@ -16,7 +16,7 @@
         productSort: { title: 'Product sort', hint: 'Sort dropdown in admin toolbar', icon: 'fa-sort', ids: ['admin-product-sort-wrap'] },
         categories: { title: 'Product Categories', icon: 'fa-tags', ids: ['admin-category-section'] },
         categorySearch: { title: 'Category search', hint: 'Inside Categories (3+ items)', icon: 'fa-search', ids: ['admin-category-list-tools'], parentKey: 'categories', sortable: false },
-        products: { title: 'Products list', hint: 'Rows, pagination & accordion', icon: 'fa-box-open', ids: ['admin-products-area'] }
+        products: { title: 'Products list', hint: 'Flat list by default · optional accordion', icon: 'fa-box-open', ids: ['admin-products-area'] }
     };
 
     const TOOL_REGISTRY = {
@@ -56,6 +56,15 @@
         const vis = {};
         [...SECTION_KEYS, ...TOOL_KEYS].forEach(key => { vis[key] = true; });
         return vis;
+    }
+
+    function adminProductsAccordionRead() {
+        try {
+            const raw = localStorage.getItem(ADMIN_LAYOUT_KEY);
+            if (!raw) return false;
+            const parsed = JSON.parse(raw);
+            return parsed?.productsAccordion === true;
+        } catch (e) { return false; }
     }
 
     function adminBlockVisibilityRead() {
@@ -153,25 +162,32 @@
 
     function adminPlacementRead() {
         const visible = adminBlockVisibilityRead();
+        const productsAccordion = adminProductsAccordionRead();
         try {
             const raw = localStorage.getItem(ADMIN_LAYOUT_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed?.aboveOrder) && Array.isArray(parsed?.insideOrder)) {
                     const below = Array.isArray(parsed.belowOrder) ? parsed.belowOrder : [];
-                    return adminNormalizePlacement(
-                        parsed.aboveOrder.filter(k => SORTABLE_BLOCK_KEYS.includes(k)),
-                        parsed.insideOrder.filter(k => SORTABLE_BLOCK_KEYS.includes(k)),
-                        below.filter(k => SORTABLE_BLOCK_KEYS.includes(k)),
-                        visible
-                    );
+                    return {
+                        ...adminNormalizePlacement(
+                            parsed.aboveOrder.filter(k => SORTABLE_BLOCK_KEYS.includes(k)),
+                            parsed.insideOrder.filter(k => SORTABLE_BLOCK_KEYS.includes(k)),
+                            below.filter(k => SORTABLE_BLOCK_KEYS.includes(k)),
+                            visible
+                        ),
+                        productsAccordion
+                    };
                 }
             }
         } catch (e) { /* ignore */ }
         const legacyPins = adminLegacyPinsRead();
         const above = [...DEFAULT_ABOVE, ...legacyPins.filter(k => !DEFAULT_ABOVE.includes(k))];
         const inside = DEFAULT_INSIDE.filter(k => !above.includes(k));
-        return adminNormalizePlacement(above, inside, DEFAULT_BELOW, visible);
+        return {
+            ...adminNormalizePlacement(above, inside, DEFAULT_BELOW, visible),
+            productsAccordion
+        };
     }
 
     function adminIsBlockShown(key) {
@@ -186,10 +202,11 @@
     function adminIsLayoutSectionEnabled(key) { return adminIsBlockShown(key); }
     function adminIsToolVisible(key) { return adminIsBlockShown(key); }
 
-    function adminLayoutWrite(visible, above, inside, below) {
+    function adminLayoutWrite(visible, above, inside, below, productsAccordion) {
         try {
             localStorage.setItem(ADMIN_LAYOUT_KEY, JSON.stringify({
-                version: 3,
+                version: 4,
+                productsAccordion: productsAccordion === true,
                 blockVisible: visible,
                 aboveOrder: above,
                 insideOrder: inside,
@@ -205,7 +222,8 @@
                 visible: { ...saved.visible },
                 above: [...saved.above],
                 inside: [...saved.inside],
-                below: [...saved.below]
+                below: [...saved.below],
+                productsAccordion: saved.productsAccordion === true
             };
         }
         return _layoutDraft;
@@ -231,7 +249,8 @@
         const visDirty = [...SECTION_KEYS, ...TOOL_KEYS].some(key =>
             !!_layoutDraft.visible[key] !== (saved.visible[key] !== false)
         );
-        return visDirty
+        const accordionDirty = !!_layoutDraft.productsAccordion !== (saved.productsAccordion === true);
+        return visDirty || accordionDirty
             || !adminListsEqual(_layoutDraft.above, saved.above)
             || !adminListsEqual(_layoutDraft.inside, saved.inside)
             || !adminListsEqual(_layoutDraft.below, saved.below);
@@ -269,11 +288,12 @@
         </div>`;
     }
 
-    function adminBlockItemHtml(key, visible, nested, zone) {
+    function adminBlockItemHtml(key, visible, nested, zone, productsAccordion) {
         const meta = adminBlockMeta(key);
         if (!meta) return '';
         const hint = meta.hint ? `<span class="admin-layout-block-item__hint">${meta.hint}</span>` : '';
         const parentOff = meta.parentKey && visible[meta.parentKey] === false;
+        const productsOff = key === 'products' && visible.products === false;
         const drag = nested
             ? '<span class="admin-layout-drag-handle admin-layout-drag-handle--nested" aria-hidden="true">↳</span>'
             : `<button type="button" class="admin-layout-drag-handle" aria-label="Drag ${meta.title}"><i class="fa fa-bars" aria-hidden="true"></i></button>`;
@@ -284,6 +304,12 @@
                 <button type="button" class="admin-layout-nudge-btn" onclick="adminLayoutNudgeBlock('${key}', 1)" aria-label="Move down"><i class="fa fa-chevron-down" aria-hidden="true"></i></button>
             </div>
         </div>`;
+        const accordionToggle = key === 'products'
+            ? `<label class="admin-layout-block-item__show admin-layout-block-item__accordion">
+                <input type="checkbox" ${productsAccordion ? 'checked' : ''} ${productsOff || parentOff ? 'disabled' : ''} onchange="adminLayoutDraftToggleProductsAccordion(this.checked)" aria-label="Accordion for ${meta.title}">
+                <span>Accordion</span>
+            </label>`
+            : '';
         return `<div class="admin-layout-block-item${nested ? ' admin-layout-block-item--nested' : ''}${visible[key] !== false && !parentOff ? '' : ' admin-layout-block-item--off'}" data-block-key="${key}">
             <div class="admin-layout-block-item__top">
                 ${drag}
@@ -292,6 +318,7 @@
                     <input type="checkbox" ${visible[key] !== false && !parentOff ? 'checked' : ''} ${parentOff ? 'disabled' : ''} onchange="adminLayoutDraftToggle('${key}', this.checked)" aria-label="Show ${meta.title}">
                     <span>Show</span>
                 </label>
+                ${accordionToggle}
             </div>
             ${controls}
         </div>`;
@@ -374,8 +401,8 @@
         SORTABLE_BLOCK_KEYS.forEach(key => { if (!allKeys.has(key)) draft.inside.push(key); });
 
         const buildZoneHtml = (keys, zone) => keys.map(key => {
-            let html = adminBlockItemHtml(key, draft.visible, false, zone);
-            if (key === 'categories') html += adminBlockItemHtml('categorySearch', draft.visible, true, zone);
+            let html = adminBlockItemHtml(key, draft.visible, false, zone, draft.productsAccordion);
+            if (key === 'categories') html += adminBlockItemHtml('categorySearch', draft.visible, true, zone, draft.productsAccordion);
             return html;
         }).join('');
 
@@ -409,6 +436,12 @@
         renderAdminLayoutSettings();
     };
 
+    window.adminLayoutDraftToggleProductsAccordion = function(checked) {
+        const draft = adminLayoutDraftGet();
+        draft.productsAccordion = !!checked;
+        renderAdminLayoutSettings();
+    };
+
     window.adminLayoutDraftToggle = function(key, checked) {
         const draft = adminLayoutDraftGet();
         if (!adminBlockMeta(key)) return;
@@ -423,7 +456,7 @@
         draft.above = next.above;
         draft.inside = next.inside;
         draft.below = next.below;
-        adminLayoutWrite(draft.visible, draft.above, draft.inside, draft.below);
+        adminLayoutWrite(draft.visible, draft.above, draft.inside, draft.below, draft.productsAccordion);
         adminLayoutDraftClear();
         renderAdminFavorites();
         if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
@@ -716,6 +749,7 @@
         applyAdminLayout();
         renderAdminLayoutSettings();
         if (typeof adminSyncProductSortUi === 'function') adminSyncProductSortUi();
+        if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
     }
 
     window.adminIsToolBlockPinned = function(blockId) {
@@ -726,6 +760,11 @@
     window.adminEnsureParentStoreToolsOpen = function(blockId) {
         if (blockId && adminIsToolBlockPinned(blockId)) return;
         if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    };
+
+    window.adminLayoutProductsAccordionRead = function() {
+        if (_layoutDraft) return _layoutDraft.productsAccordion === true;
+        return adminProductsAccordionRead();
     };
 
     window.renderAdminFavorites = renderAdminFavorites;
