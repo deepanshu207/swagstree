@@ -72,7 +72,7 @@
 
     const ADMIN_LAYOUT_ORDER = [
         'drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter',
-        'categories', 'categorySearch', 'products', 'pinnedTools'
+        'categories', 'categorySearch', 'products'
     ];
 
     const ADMIN_FAVORITE_REGISTRY = {
@@ -268,9 +268,7 @@
         }
 
         const pinnedSlot = adminPinnedSlot();
-        if (pinnedSlot && prefs.pinnedTools === false) {
-            pinnedSlot.classList.add('admin-layout-hidden');
-        } else if (pinnedSlot) {
+        if (pinnedSlot) {
             pinnedSlot.classList.remove('admin-layout-hidden');
         }
 
@@ -281,9 +279,8 @@
 
     function renderAdminLayoutSettings() {
         const sectionBox = document.getElementById('admin-layout-section-checkboxes');
-        const toolBox = document.getElementById('admin-layout-tool-checkboxes');
-        const pinBox = document.getElementById('admin-layout-pin-checkboxes');
-        if (!sectionBox || !toolBox || !pinBox) return;
+        const toolRows = document.getElementById('admin-layout-tool-rows');
+        if (!sectionBox || !toolRows) return;
 
         const draft = adminLayoutDraftGet();
         const prefs = draft.layout;
@@ -306,30 +303,26 @@
             </label>`;
         }).join('');
 
-        toolBox.innerHTML = STORE_TOOLS_ORDER.map(key => {
+        toolRows.innerHTML = STORE_TOOLS_ORDER.map(key => {
             const meta = ADMIN_FAVORITE_REGISTRY[key];
             if (!meta) return '';
             const visible = toolVisible[key] !== false;
-            return `<label class="admin-layout-checkbox">
-                <input type="checkbox" data-tool-key="${key}" ${visible ? 'checked' : ''} onchange="adminLayoutDraftToggle('tool', '${key}', this.checked)">
-                <span class="admin-layout-checkbox__text">
-                    <span class="admin-layout-checkbox__label"><i class="fa ${meta.icon}" aria-hidden="true"></i> ${meta.title}</span>
-                </span>
-            </label>`;
-        }).join('');
-
-        pinBox.innerHTML = STORE_TOOLS_ORDER.map(key => {
-            const meta = ADMIN_FAVORITE_REGISTRY[key];
-            if (!meta) return '';
             const pinned = favorites.includes(key);
-            const toolShown = toolVisible[key] !== false;
-            const disabled = !toolShown;
-            return `<label class="admin-layout-checkbox${disabled ? ' admin-layout-checkbox--disabled' : ''}">
-                <input type="checkbox" data-pin-key="${key}" ${pinned ? 'checked' : ''} ${disabled ? 'disabled' : ''} onchange="adminLayoutDraftToggle('pin', '${key}', this.checked)">
-                <span class="admin-layout-checkbox__text">
-                    <span class="admin-layout-checkbox__label"><i class="fa ${meta.icon}" aria-hidden="true"></i> ${meta.title}</span>
+            const pinDisabled = !visible;
+            return `<div class="admin-layout-tool-row${pinDisabled ? ' admin-layout-tool-row--hidden-tool' : ''}${pinned ? ' admin-layout-tool-row--pinned' : ''}">
+                <span class="admin-layout-tool-row__name">
+                    <i class="fa ${meta.icon}" aria-hidden="true"></i>
+                    <span>${meta.title}</span>
                 </span>
-            </label>`;
+                <label class="admin-layout-tool-row__check" title="Show ${meta.title} in Admin">
+                    <input type="checkbox" data-tool-key="${key}" ${visible ? 'checked' : ''} onchange="adminLayoutDraftToggle('tool', '${key}', this.checked)" aria-label="Show ${meta.title}">
+                    <span class="admin-layout-tool-row__check-label">Show</span>
+                </label>
+                <label class="admin-layout-tool-row__check admin-layout-tool-row__check--pin${pinDisabled ? ' admin-layout-tool-row__check--disabled' : ''}" title="Pin ${meta.title} below Products">
+                    <input type="checkbox" data-pin-key="${key}" ${pinned ? 'checked' : ''} ${pinDisabled ? 'disabled' : ''} onchange="adminLayoutDraftToggle('pin', '${key}', this.checked)" aria-label="Pin ${meta.title} below Products">
+                    <span class="admin-layout-tool-row__check-label">Pin</span>
+                </label>
+            </div>`;
         }).join('');
 
         adminLayoutUpdateSaveButton();
@@ -356,7 +349,6 @@
 
     window.adminSaveLayoutSettings = function() {
         const draft = adminLayoutDraftGet();
-        if (draft.pins.length > 0) draft.layout.pinnedTools = true;
         draft.pins = draft.pins.filter(k => draft.toolVisible[k] !== false);
         adminLayoutWrite(draft.layout, draft.toolVisible);
         adminFavoritesWrite(draft.pins);
@@ -541,11 +533,9 @@
         });
 
         const hasPinned = favorites.length > 0;
-        const layoutPrefs = adminLayoutRead();
-        const showPinnedSlot = hasPinned && layoutPrefs.pinnedTools !== false;
-        pinnedSlot.hidden = !showPinnedSlot;
-        pinnedSlot.style.display = showPinnedSlot ? 'block' : 'none';
-        pinnedSlot.classList.toggle('admin-layout-hidden', layoutPrefs.pinnedTools === false);
+        pinnedSlot.hidden = !hasPinned;
+        pinnedSlot.style.display = hasPinned ? 'block' : 'none';
+        pinnedSlot.classList.remove('admin-layout-hidden');
 
         applyAdminLayout();
         renderAdminLayoutSettings();

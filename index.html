@@ -811,21 +811,22 @@
                 <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
                 Admin layout
             </h4>
-            <p style="margin:6px 0 14px; font-size:11px; color:#666; line-height:1.45;">Show or hide Admin sections and store tools using the checkboxes below. Tap <strong>Save layout</strong> when done.</p>
+            <p style="margin:6px 0 14px; font-size:11px; color:#666; line-height:1.45;">Tick what you want on the Admin page. For each store tool: <strong>Show</strong> turns it on, <strong>Pin</strong> puts it below Products for quick access. Tap <strong>Save layout</strong> when done.</p>
             <div class="admin-layout-settings__grid">
                 <div class="admin-layout-settings__group">
-                    <h5 class="admin-layout-settings__group-title">Visible sections</h5>
-                    <div id="admin-layout-section-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Visible admin sections"></div>
+                    <h5 class="admin-layout-settings__group-title">Main sections</h5>
+                    <p class="admin-layout-settings__hint">Search, categories, products, and more</p>
+                    <div id="admin-layout-section-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Main admin sections"></div>
                 </div>
-                <div class="admin-layout-settings__group">
-                    <h5 class="admin-layout-settings__group-title">Show store tools</h5>
-                    <p class="admin-layout-settings__hint">Uncheck to hide a tool from Admin entirely</p>
-                    <div id="admin-layout-tool-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Visible store tools"></div>
-                </div>
-                <div class="admin-layout-settings__group">
-                    <h5 class="admin-layout-settings__group-title">Pin below products</h5>
-                    <p class="admin-layout-settings__hint">Quick access above Store settings</p>
-                    <div id="admin-layout-pin-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Pinned store tools"></div>
+                <div class="admin-layout-settings__group admin-layout-settings__group--tools">
+                    <h5 class="admin-layout-settings__group-title">Store tools</h5>
+                    <p class="admin-layout-settings__hint">One row per tool — no duplicates</p>
+                    <div class="admin-layout-tool-head" aria-hidden="true">
+                        <span class="admin-layout-tool-head__name">Tool</span>
+                        <span class="admin-layout-tool-head__show">Show</span>
+                        <span class="admin-layout-tool-head__pin">Pin</span>
+                    </div>
+                    <div id="admin-layout-tool-rows" class="admin-layout-tool-rows" role="group" aria-label="Store tools visibility and pinning"></div>
                 </div>
             </div>
             <div class="admin-layout-settings__actions">
