@@ -8894,6 +8894,10 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-layout-zone-accordion--inside {
     background: rgba(0, 0, 0, 0.12);
 }
+.admin-layout-zone-accordion--below {
+    background: rgba(0, 0, 0, 0.08);
+    border-color: #333;
+}
 .admin-layout-zone-accordion__head {
     display: flex;
     align-items: center;
@@ -9005,20 +9009,40 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-layout-block-item,
 .admin-layout-tool-item {
     display: grid;
-    grid-template-columns: 28px 1fr auto auto;
-    gap: 8px;
+    grid-template-columns: 28px minmax(0, 1fr) 72px 52px 40px;
+    gap: 6px;
     align-items: center;
-    padding: 8px 8px 8px 4px;
+    padding: 8px 6px 8px 4px;
     border-radius: 10px;
     background: #161616;
     border: 1px solid #2a2a2a;
-    touch-action: none;
+    touch-action: manipulation;
 }
 .admin-layout-block-item--nested {
-    margin-left: 12px;
-    grid-template-columns: 20px 1fr auto auto;
+    margin-left: 10px;
+    grid-template-columns: 18px minmax(0, 1fr) 72px 52px 40px;
     background: #121212;
     border-style: dashed;
+}
+.admin-layout-zone-select {
+    width: 100%;
+    max-width: 72px;
+    padding: 5px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #ddd;
+    background: #0d0d0d;
+    border: 1px solid #333;
+    border-radius: 6px;
+    cursor: pointer;
+    appearance: auto;
+}
+.admin-layout-zone-select:focus {
+    border-color: var(--gold, #c9a227);
+    outline: none;
+}
+.admin-layout-block-item__zone-spacer {
+    width: 72px;
 }
 .admin-layout-block-item--off,
 .admin-layout-tool-item--off {
@@ -9073,16 +9097,23 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     width: 54px;
 }
 .admin-layout-nudge-btn {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     border: 1px solid #333;
     border-radius: 6px;
     background: #111;
     color: #aaa;
-    font-size: 12px;
+    font-size: 10px;
     line-height: 1;
     cursor: pointer;
     padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.admin-layout-nudge-btn .fa {
+    font-size: 10px;
+    pointer-events: none;
 }
 .admin-layout-nudge-btn:hover {
     border-color: var(--gold, #c9a227);
@@ -9230,18 +9261,31 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 @media (max-width: 720px) {
     .admin-layout-block-item,
     .admin-layout-tool-item {
-        grid-template-columns: 24px 1fr auto auto;
-        gap: 6px;
-        padding: 7px 6px 7px 2px;
+        grid-template-columns: 24px minmax(0, 1fr) 64px 46px 36px;
+        gap: 4px;
+        padding: 7px 4px 7px 2px;
+    }
+    .admin-layout-block-item--nested {
+        grid-template-columns: 16px minmax(0, 1fr) 64px 46px 36px;
+    }
+    .admin-layout-zone-select {
+        max-width: 64px;
+        font-size: 9px;
+        padding: 4px 2px;
     }
     .admin-layout-block-item__name,
     .admin-layout-tool-item__name {
         font-size: 11px;
     }
+    .admin-layout-block-item__show span,
+    .admin-layout-tool-item__show span {
+        font-size: 8px;
+    }
 }
 
 /* --- Above store settings slot --- */
 .admin-above-settings-slot,
+.admin-below-settings-slot,
 .admin-pinned-tools-slot {
     margin: 0 20px 20px;
     display: flex;
@@ -9249,10 +9293,13 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     gap: 0;
 }
 .admin-above-settings-slot[hidden],
+.admin-below-settings-slot[hidden],
 .admin-pinned-tools-slot[hidden] {
     display: none !important;
+    margin: 0;
 }
 .admin-above-settings-slot .admin-store-tools-block,
+.admin-below-settings-slot .admin-store-tools-block,
 .admin-pinned-tools-slot .admin-store-tools-block {
     margin: 0 0 16px 0 !important;
     display: block !important;
@@ -9260,11 +9307,15 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 .admin-above-settings-slot .admin-primary-section,
 .admin-above-settings-slot .admin-view-header,
-.admin-above-settings-slot #admin-products-area {
+.admin-above-settings-slot #admin-products-area,
+.admin-below-settings-slot .admin-primary-section,
+.admin-below-settings-slot .admin-view-header,
+.admin-below-settings-slot #admin-products-area {
     margin-bottom: 16px;
 }
 .admin-product-toolbar--placed {
-    margin: 0 20px 16px;
+    margin: 0 0 16px;
+    padding: 0 20px;
 }
 #admin-product-toolbar.admin-layout-hidden {
     display: none !important;
