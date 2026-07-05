@@ -2554,6 +2554,7 @@ button.admin-stock-badge--more:hover {
 .admin-product-actions .fa-copy { color: #aaa; cursor: pointer; }
 .admin-product-actions .fa-edit { color: var(--gold); cursor: pointer; }
 .admin-product-actions .fa-trash { color: var(--red); cursor: pointer; }
+.admin-product-actions .admin-product-action--draft-delete { color: #ffb347; cursor: pointer; }
 
 .admin-guide-body {
     padding: 10px 12px 12px;
@@ -7427,6 +7428,11 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     border-color: rgba(255, 215, 0, 0.25);
     background: rgba(255, 215, 0, 0.06);
 }
+.admin-category-icon-btn--warn {
+    color: #ffb347;
+    border-color: rgba(255, 179, 71, 0.3);
+    background: rgba(255, 179, 71, 0.08);
+}
 .admin-category-icon-btn--danger {
     color: #ff7675;
     border-color: rgba(231, 76, 60, 0.3);
@@ -8958,6 +8964,18 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-product-sort-wrap {
     flex: 1;
     min-width: 0;
+}
+.admin-product-sort-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.admin-product-sort-label {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
 }
 .admin-product-search-wrap .admin-product-search,
 .admin-product-filter-wrap .admin-product-filter,

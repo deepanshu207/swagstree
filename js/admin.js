@@ -1338,6 +1338,29 @@ function clearProductDraftForCurrent() {
     if (typeof adminDraftRemove === 'function') adminDraftRemove('product', getProductDraftKey(editingId));
 }
 
+function adminProductPublishedCleanup(publishedEditingId) {
+    window._adminProductPublishLock = true;
+    if (typeof adminCancelProductDraftAutosave === 'function') adminCancelProductDraftAutosave();
+    window._adminProductViewMode = 'live';
+    window._adminProductDraftLoaded = false;
+    if (typeof adminDraftRemove === 'function') {
+        adminDraftRemove('product', getProductDraftKey(publishedEditingId));
+        if (!publishedEditingId) adminDraftRemove('product', 'new');
+    }
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+    window._adminProductLiveBaseline = null;
+    if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
+    setTimeout(() => { window._adminProductPublishLock = false; }, 1200);
+}
+window.adminProductPublishedCleanup = adminProductPublishedCleanup;
+
+window.adminDeleteProductEditDraft = function(id) {
+    if (!id || typeof adminDeleteDraft !== 'function') return;
+    adminDeleteDraft('product', `edit:${id}`);
+    if (typeof renderAdmin === 'function') renderAdmin();
+};
+
 async function saveProductAsDraft(silent) {
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) {
         if (!silent) showToast('Drafts are disabled in Superadmin settings.');
@@ -3079,6 +3102,7 @@ function renderAdmin() {
             <div class="admin-product-actions">
                 <i class="fa fa-copy" title="Duplicate product" onclick="copyProduct('${p.id}')"></i>
                 <i class="fa fa-edit" title="Edit product" onclick="openEdit('${p.id}')"></i>
+                ${hasEditDraft ? `<i class="fa fa-eraser admin-product-action--draft-delete" title="Delete unpublished draft" onclick="event.stopPropagation();adminDeleteProductEditDraft('${p.id}')"></i>` : ''}
                 <i class="fa fa-trash" title="Delete product" onclick="deleteProduct('${p.id}')"></i>
             </div>
         </div>
@@ -3943,11 +3967,15 @@ async function saveProduct() {
         
         adminHideSaveProgress();
         adminProductSnapshot = null;
-        if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
-        window._adminProductLiveBaseline = null;
-        if (typeof clearProductDraftForCurrent === 'function') clearProductDraftForCurrent();
+        const wasEditingId = editingId;
+        if (typeof adminProductPublishedCleanup === 'function') adminProductPublishedCleanup(wasEditingId);
+        else {
+            if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+            window._adminProductLiveBaseline = null;
+            if (typeof clearProductDraftForCurrent === 'function') clearProductDraftForCurrent();
+        }
         window.adminProductsPage = 1;
-        showToast(editingId ? 'Product updated!' : 'Product created!');
+        showToast(wasEditingId ? 'Product updated!' : 'Product created!');
         closeModal('prod-modal');
         if (typeof renderAdmin === 'function') renderAdmin(); 
     } catch(e) { 

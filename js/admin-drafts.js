@@ -24,6 +24,16 @@
     let _draftMediaDbPromise = null;
     let _productAutoSaveInFlight = null;
 
+    function adminCancelProductDraftAutosave() {
+        clearTimeout(productDraftTimer);
+        productDraftTimer = null;
+    }
+
+    function adminCancelCategoryDraftAutosave() {
+        clearTimeout(categoryDraftTimer);
+        categoryDraftTimer = null;
+    }
+
     window._activeAdminDraftKey = window._activeAdminDraftKey || null;
     if (window._adminDraftAccordionStateInited !== true) {
         window._adminDraftsAccordionOpen = false;
@@ -290,6 +300,7 @@
 
     async function adminAutoSaveProductDraft(opts) {
         if (!adminCrudDraftsEnabled()) return false;
+        if (window._adminProductPublishLock) return false;
         const modal = document.getElementById('prod-modal');
         if (!modal || modal.style.display !== 'flex') return false;
         if (typeof adminBuildProductDraftPayload !== 'function') return false;
@@ -314,6 +325,7 @@
 
     async function adminAutoSaveCategoryDraft(opts) {
         if (!adminCrudDraftsEnabled()) return false;
+        if (window._adminCategoryPublishLock) return false;
         if (typeof isCategoryModalOpen !== 'function' || !isCategoryModalOpen()) return false;
         if (typeof serializeCategoryFormState !== 'function') return false;
         const state = serializeCategoryFormState();
@@ -897,7 +909,15 @@
         scheduleAdminDraftUiRefresh();
     };
 
-    window.adminDeleteDraft = function(type, key) {
+    window.adminDeleteDraft = function(type, key, opts) {
+        if (!type || !key) return;
+        if (!(opts && opts.skipConfirm)) {
+            const item = adminDraftGetEntry(type, key);
+            const label = (item?.entry?.label || 'Untitled').trim();
+            const noun = type === 'category' ? 'category' : 'product';
+            const detail = key === 'new' ? 'unsaved new ' + noun : `unpublished ${noun} edits`;
+            if (!window.confirm(`Delete draft for "${label}" (${detail})?\n\nThis only removes the saved draft on this device.`)) return;
+        }
         adminDraftRemove(type, key);
         showToast('Draft deleted.');
         scheduleAdminDraftUiRefresh();
@@ -991,7 +1011,8 @@
         adminDraftRemoveAll();
     }
 
-    window.adminCrudDraftsEnabled = adminCrudDraftsEnabled;
+    window.adminCancelProductDraftAutosave = adminCancelProductDraftAutosave;
+    window.adminCancelCategoryDraftAutosave = adminCancelCategoryDraftAutosave;
     window.adminCrudDraftsMediaEnabled = adminCrudDraftsMediaEnabled;
     window.adminCrudDraftsClearAllEnabled = adminCrudDraftsClearAllEnabled;
     window.adminAutoSaveProductDraft = adminAutoSaveProductDraft;

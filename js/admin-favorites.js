@@ -108,26 +108,37 @@
     function adminEnsureToolbarKeysPlacement(clean) {
         const toolbarKeys = ['productSearch', 'productFilter', 'productSort'];
         const zones = ['above', 'inside', 'below'];
-        toolbarKeys.forEach(key => {
-            if (zones.some(z => clean[z].includes(key))) return;
+
+        const hostZone = zones.find(z => clean[z].includes('productSearch') || clean[z].includes('productFilter'));
+        if (hostZone) {
             zones.forEach(z => {
-                const idx = clean[z].indexOf(key);
+                if (z === hostZone) return;
+                const idx = clean[z].indexOf('productSort');
                 if (idx >= 0) clean[z].splice(idx, 1);
             });
-            for (const z of zones) {
-                const filterIdx = clean[z].indexOf('productFilter');
-                if (filterIdx >= 0) {
-                    clean[z].splice(filterIdx + 1, 0, key);
-                    return;
+            if (!clean[hostZone].includes('productSort')) {
+                let insertAt = clean[hostZone].indexOf('productFilter');
+                if (insertAt >= 0) insertAt += 1;
+                else {
+                    insertAt = clean[hostZone].indexOf('productSearch');
+                    insertAt = insertAt >= 0 ? insertAt + 1 : clean[hostZone].length;
                 }
-            }
-            for (const z of zones) {
-                const searchIdx = clean[z].indexOf('productSearch');
-                if (searchIdx >= 0) {
-                    clean[z].splice(searchIdx + 1, 0, key);
-                    return;
+                clean[hostZone].splice(insertAt, 0, 'productSort');
+            } else {
+                clean[hostZone] = clean[hostZone].filter(k => k !== 'productSort');
+                let insertAt = clean[hostZone].indexOf('productFilter');
+                if (insertAt >= 0) insertAt += 1;
+                else {
+                    insertAt = clean[hostZone].indexOf('productSearch');
+                    insertAt = insertAt >= 0 ? insertAt + 1 : clean[hostZone].length;
                 }
+                clean[hostZone].splice(insertAt, 0, 'productSort');
             }
+            return;
+        }
+
+        toolbarKeys.forEach(key => {
+            if (zones.some(z => clean[z].includes(key))) return;
             const headerIdx = clean.above.indexOf('headerActions');
             if (headerIdx >= 0) clean.above.splice(headerIdx + 1, 0, key);
             else clean.above.push(key);
@@ -710,6 +721,7 @@
 
         applyAdminLayout();
         renderAdminLayoutSettings();
+        if (typeof adminSyncProductSortUi === 'function') adminSyncProductSortUi();
     }
 
     window.adminIsToolBlockPinned = function(blockId) {

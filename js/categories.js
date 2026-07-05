@@ -578,6 +578,29 @@ function clearCategoryDraftForCurrent() {
     if (typeof adminDraftRemove === 'function') adminDraftRemove('category', key);
 }
 
+function adminCategoryPublishedCleanup(publishedCategoryId) {
+    window._adminCategoryPublishLock = true;
+    if (typeof adminCancelCategoryDraftAutosave === 'function') adminCancelCategoryDraftAutosave();
+    window._adminCategoryViewMode = 'live';
+    window._adminCategoryDraftLoaded = false;
+    if (typeof adminDraftRemove === 'function') {
+        adminDraftRemove('category', getCategoryDraftKey(publishedCategoryId));
+        if (!publishedCategoryId) adminDraftRemove('category', 'new');
+    }
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
+    window._adminCategoryLiveBaseline = null;
+    if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
+    setTimeout(() => { window._adminCategoryPublishLock = false; }, 1200);
+}
+window.adminCategoryPublishedCleanup = adminCategoryPublishedCleanup;
+
+window.adminDeleteCategoryEditDraft = function(id) {
+    if (!id || typeof adminDeleteDraft !== 'function') return;
+    adminDeleteDraft('category', `edit:${id}`);
+    if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+};
+
 async function saveCategoryAsDraft(silent) {
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) {
         if (!silent) showToast('Drafts are disabled in Superadmin settings.');
@@ -762,6 +785,7 @@ function adminCategoryViewRowHtml(cat, counts, categories, editDraftIds) {
                 <button type="button" class="admin-category-icon-btn" onclick="event.stopPropagation(); moveCategoryOrder('${cat.id}', -1)" title="Move up" ${canMoveUp && !inlineBusy ? '' : 'disabled'}><i class="fa fa-chevron-up"></i></button>
                 <button type="button" class="admin-category-icon-btn" onclick="event.stopPropagation(); moveCategoryOrder('${cat.id}', 1)" title="Move down" ${canMoveDown && !inlineBusy ? '' : 'disabled'}><i class="fa fa-chevron-down"></i></button>
                 <button type="button" class="admin-category-icon-btn admin-category-icon-btn--gold" onclick="event.stopPropagation(); openCategoryEdit('${cat.id}')" title="Edit"><i class="fa fa-pencil"></i></button>
+                ${hasEditDraft ? `<button type="button" class="admin-category-icon-btn admin-category-icon-btn--warn" onclick="event.stopPropagation(); adminDeleteCategoryEditDraft('${cat.id}')" title="Delete unpublished draft"><i class="fa fa-eraser"></i></button>` : ''}
                 <button type="button" class="admin-category-icon-btn" onclick="event.stopPropagation(); toggleCategoryActive('${cat.id}')" title="${active ? 'Hide' : 'Show'}" ${inlineBusy ? 'disabled' : ''}><i class="fa fa-${active ? 'eye-slash' : 'eye'}"></i></button>
                 <button type="button" class="admin-category-icon-btn admin-category-icon-btn--danger" onclick="event.stopPropagation(); deleteCategory('${cat.id}')" title="Delete" ${inlineBusy ? 'disabled' : ''}><i class="fa fa-trash"></i></button>
             </div>
@@ -1329,10 +1353,14 @@ window.saveCategory = async function() {
             showToast('Category added.');
         }
         adminCategorySnapshot = null;
+        const wasEditingCategoryId = window.editingCategoryId;
         window.editingCategoryId = null;
-        clearCategoryDraftForCurrent();
-        if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
-        if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
+        if (typeof adminCategoryPublishedCleanup === 'function') adminCategoryPublishedCleanup(wasEditingCategoryId);
+        else {
+            clearCategoryDraftForCurrent();
+            if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+            if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
+        }
         closeModal('category-modal');
         renderAdminCategoryList();
     } catch (e) {
