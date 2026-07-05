@@ -282,35 +282,10 @@ function applyCategoryFormState(state) {
 }
 window.applyCategoryFormState = applyCategoryFormState;
 
-function getCategoryDraftKey(formOrId) {
-    if (typeof formOrId === 'string' && formOrId) return `edit:${formOrId}`;
-    const id = formOrId?.editingCategoryId || window.inlineEditingCategoryId;
-    return id ? `edit:${id}` : 'new';
-}
-
 function persistCategoryDraft() {
     if (!canManageProductCategories()) return;
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return;
-
-    if (window.inlineEditingCategoryId && isInlineCategoryDirty(window.inlineEditingCategoryId)) {
-        const id = window.inlineEditingCategoryId;
-        const state = serializeInlineCategoryState(id);
-        if (!state?.name) return;
-        const key = getCategoryDraftKey(id);
-        if (typeof adminDraftUpsert === 'function') {
-            adminDraftUpsert('category', key, {
-                entityId: id,
-                label: state.name,
-                form: {
-                    editingCategoryId: id,
-                    name: state.name,
-                    sortOrder: state.sortOrder,
-                    isActive: state.isActive
-                }
-            });
-        }
-        return;
-    }
+    if (window.inlineEditingCategoryId) return;
 
     if (!isCategoryFormDirty()) {
         if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
@@ -329,17 +304,12 @@ function persistCategoryDraft() {
 window.persistCategoryDraft = persistCategoryDraft;
 
 function clearCategoryDraftForCurrent() {
-    if (window.inlineEditingCategoryId) {
-        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', getCategoryDraftKey(window.inlineEditingCategoryId));
-    } else if (typeof adminDraftRemove === 'function') {
-        adminDraftRemove('category', 'new');
-    }
+    if (window.inlineEditingCategoryId) return;
+    if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
 }
 
 function discardCategoryDraft(silent) {
     if (window.inlineEditingCategoryId) {
-        const id = window.inlineEditingCategoryId;
-        if (typeof adminDraftRemove === 'function') adminDraftRemove('category', getCategoryDraftKey(id));
         cancelInlineCategoryEdit();
     } else {
         if (typeof adminDraftRemove === 'function') adminDraftRemove('category', 'new');
@@ -349,6 +319,41 @@ function discardCategoryDraft(silent) {
     if (!silent) showToast('Changes discarded.');
 }
 window.discardCategoryDraft = discardCategoryDraft;
+
+function adminCategoryNewDraftRowHtml() {
+    const item = typeof adminGetOrphanedNewCategoryDraft === 'function' ? adminGetOrphanedNewCategoryDraft() : null;
+    if (!item?.entry?.form) return '';
+    const form = item.entry.form;
+    const label = (form.name || '').trim() || 'Untitled category';
+    const age = typeof adminDraftFormatAge === 'function' ? adminDraftFormatAge(item.entry.updatedAt) : '';
+    const order = form.sortOrder ?? '0';
+    return `
+    <div class="admin-category-row admin-category-row--draft" role="button" tabindex="0" onclick="adminOpenNewCategoryDraft()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();adminOpenNewCategoryDraft();}">
+        <div class="admin-category-row-main">
+            <span class="admin-category-order-badge admin-category-order-badge--draft" title="Draft">∗</span>
+            <div class="admin-category-main">
+                <strong>${escapeCategoryHtml(label)} <span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span></strong>
+                <span class="admin-category-meta">Order ${escapeCategoryHtml(String(order))} · saved ${escapeCategoryHtml(age)}</span>
+            </div>
+        </div>
+        <div class="admin-category-actions">
+            <button type="button" class="admin-category-icon-btn admin-category-icon-btn--gold" onclick="event.stopPropagation();adminOpenNewCategoryDraft()" title="Continue draft"><i class="fa fa-play"></i></button>
+            <button type="button" class="admin-category-icon-btn admin-category-icon-btn--danger" onclick="event.stopPropagation();adminDeleteNewCategoryDraft()" title="Delete draft"><i class="fa fa-trash"></i></button>
+        </div>
+    </div>`;
+}
+
+window.adminOpenNewCategoryDraft = function() {
+    if (typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) {
+        showToast('Save or discard your current category edits first.');
+        return;
+    }
+    if (typeof adminRestoreDraft === 'function') adminRestoreDraft('category', 'new');
+};
+
+window.adminDeleteNewCategoryDraft = function() {
+    if (typeof adminDeleteDraft === 'function') adminDeleteDraft('category', 'new');
+};
 
 function startInlineCategoryEditInternal(id, preset) {
     const cat = getCategoryById(id);
@@ -410,8 +415,6 @@ window.startInlineCategoryEdit = async function(id) {
 };
 
 window.cancelInlineCategoryEdit = function() {
-    const id = window.inlineEditingCategoryId;
-    if (id && typeof adminDraftRemove === 'function') adminDraftRemove('category', getCategoryDraftKey(id));
     window.inlineEditingCategoryId = null;
     window._inlineCategoryBaseline = null;
     renderAdminCategoryList();
@@ -883,14 +886,15 @@ function renderAdminCategoryList() {
     const filtered = query ? categories.filter(cat => categoryMatchesSearch(cat, query)) : categories;
 
     if (!categories.length) {
-        list.innerHTML = '<p class="admin-category-empty">No categories yet — type a name above and tap <strong>Add</strong>.</p>';
+        const draftRow = adminCategoryNewDraftRowHtml();
+        list.innerHTML = draftRow || '<p class="admin-category-empty">No categories yet — type a name above and tap <strong>Add</strong>.</p>';
         updateAdminCategoryCountBadge(0);
         syncAdminCategoryListTools(0, 0);
         return;
     }
 
     if (!filtered.length) {
-        list.innerHTML = '<p class="admin-category-empty">No categories match your search.</p>';
+        list.innerHTML = adminCategoryNewDraftRowHtml() + '<p class="admin-category-empty">No categories match your search.</p>';
         updateAdminCategoryCountBadge(categories.length);
         syncAdminCategoryListTools(categories.length, 0);
         return;
@@ -898,7 +902,7 @@ function renderAdminCategoryList() {
 
     const counts = getProductCountsByCategory();
     const inlineId = window.inlineEditingCategoryId || '';
-    list.innerHTML = filtered.map(cat => {
+    list.innerHTML = adminCategoryNewDraftRowHtml() + filtered.map(cat => {
         if (inlineId === cat.id) return adminCategoryInlineRowHtml(cat, counts);
         return adminCategoryViewRowHtml(cat, counts, categories);
     }).join('');

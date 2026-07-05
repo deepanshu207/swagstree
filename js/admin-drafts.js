@@ -89,6 +89,18 @@
             store.categories = store.categories && typeof store.categories === 'object' ? store.categories : {};
             store.products = store.products && typeof store.products === 'object' ? store.products : {};
             store.v = 2;
+            let purged = false;
+            ['categories', 'products'].forEach(bucket => {
+                Object.keys(store[bucket]).forEach(key => {
+                    if (key !== 'new') {
+                        delete store[bucket][key];
+                        purged = true;
+                    }
+                });
+            });
+            if (purged) {
+                try { localStorage.setItem(ADMIN_DRAFTS_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
+            }
             return store;
         } catch (e) {
             console.warn('adminDraftsReadAll failed:', e);
@@ -160,7 +172,12 @@
         };
         adminDraftsEvictOldest(store);
         const ok = adminDraftsWriteAll(store);
-        if (ok) adminDraftMarkLive(type, key);
+        if (ok) {
+            adminDraftMarkLive(type, key);
+            if (type === 'product' && key === 'new' && typeof updateAdminNewProductDraftBadge === 'function') {
+                updateAdminNewProductDraftBadge();
+            }
+        }
         return ok;
     }
 
@@ -186,14 +203,18 @@
         updateSuperadminDraftStorageInfo();
     }
 
+    function adminDraftIsNewKey(key) {
+        return key === 'new';
+    }
+
     function adminDraftListEntries() {
         const store = adminDraftsReadAll();
         const items = [];
         Object.entries(store.categories || {}).forEach(([key, entry]) => {
-            items.push({ type: 'category', key, entry });
+            if (adminDraftIsNewKey(key)) items.push({ type: 'category', key, entry });
         });
         Object.entries(store.products || {}).forEach(([key, entry]) => {
-            items.push({ type: 'product', key, entry });
+            if (adminDraftIsNewKey(key)) items.push({ type: 'product', key, entry });
         });
         items.sort((a, b) => (Number(b.entry?.updatedAt) || 0) - (Number(a.entry?.updatedAt) || 0));
         return items;
@@ -202,6 +223,20 @@
     function adminDraftGetOrphaned() {
         if (!adminCrudDraftsEnabled()) return [];
         return adminDraftListEntries().filter(item => !adminDraftIsLive(item.type, item.key));
+    }
+
+    function adminDraftGetOrphanedNew(type) {
+        return adminDraftGetOrphaned().filter(item => item.type === type && adminDraftIsNewKey(item.key));
+    }
+
+    function adminGetOrphanedNewProductDraft() {
+        const items = adminDraftGetOrphanedNew('product');
+        return items.length ? items[0] : null;
+    }
+
+    function adminGetOrphanedNewCategoryDraft() {
+        const items = adminDraftGetOrphanedNew('category');
+        return items.length ? items[0] : null;
     }
 
     function adminDraftsStorageInfo() {
@@ -237,59 +272,37 @@
             : 'No drafts stored in this browser';
     }
 
+    function updateAdminNewProductDraftBadge() {
+        const btn = document.getElementById('admin-new-product-btn');
+        if (!btn) return;
+        const hasDraft = !!adminGetOrphanedNewProductDraft();
+        btn.classList.toggle('has-new-draft', hasDraft);
+        let badge = btn.querySelector('.admin-new-draft-btn-badge');
+        if (hasDraft) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'admin-new-draft-btn-badge';
+                badge.textContent = 'Draft';
+                btn.appendChild(badge);
+            }
+        } else if (badge) {
+            badge.remove();
+        }
+    }
+
     function renderAdminDraftRecoveryPanel() {
         const el = document.getElementById('admin-draft-recovery-panel');
-        if (!el) return;
-
-        if (!adminCrudDraftsEnabled()) {
+        if (el) {
             el.hidden = true;
             el.innerHTML = '';
-            return;
         }
-
-        const orphans = adminDraftGetOrphaned();
-        if (!orphans.length) {
-            el.hidden = true;
-            el.innerHTML = '';
-            return;
-        }
-
-        el.hidden = false;
-        el.className = 'admin-draft-recovery-panel';
-        const rows = orphans.map(item => {
-            const label = item.entry?.label || (item.type === 'category' ? 'Category' : 'Product');
-            const age = adminDraftFormatAge(item.entry?.updatedAt);
-            const kind = item.type === 'category'
-                ? (item.key === 'new' ? 'New category' : 'Category edit')
-                : (item.key === 'new' ? 'New product' : 'Product edit');
-            const safeType = adminDraftEscapeHtml(item.type);
-            const safeKey = adminDraftEscapeHtml(item.key);
-            return `
-                <div class="admin-draft-recovery-row">
-                    <div class="admin-draft-recovery-row__text">
-                        <strong>${adminDraftEscapeHtml(kind)}:</strong> ${adminDraftEscapeHtml(label)}
-                        <span class="admin-draft-age">${adminDraftEscapeHtml(age)}</span>
-                    </div>
-                    <div class="admin-draft-recovery-row__actions">
-                        <button type="button" class="btn-gold admin-draft-btn-approve" onclick="adminRestoreDraft('${safeType}','${safeKey}')">Restore</button>
-                        <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="adminDeleteDraft('${safeType}','${safeKey}')">Delete</button>
-                    </div>
-                </div>`;
-        }).join('');
-
-        el.innerHTML = `
-            <div class="admin-draft-banner admin-draft-recovery">
-                <div class="admin-draft-banner__text">
-                    <strong>Recovered unsaved work</strong>
-                    <div class="admin-draft-recovery-hint">From a reload, tab close, or session timeout — not from Discard</div>
-                </div>
-                <button type="button" class="admin-category-btn admin-category-btn-muted admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>
-            </div>
-            <div class="admin-draft-recovery-list">${rows}</div>`;
+        updateAdminNewProductDraftBadge();
+        updateSuperadminDraftStorageInfo();
     }
 
     window.adminRestoreDraft = function(type, key) {
         if (!adminCrudDraftsEnabled()) return;
+        if (!adminDraftIsNewKey(key)) return;
         const store = adminDraftsReadAll();
         const bucket = type === 'category' ? 'categories' : type === 'product' ? 'products' : null;
         const entry = bucket ? store[bucket][key] : null;
@@ -322,11 +335,14 @@
         }
 
         renderAdminDraftRecoveryPanel();
+        if (typeof renderAdmin === 'function') renderAdmin();
     };
 
     window.adminDeleteDraft = function(type, key) {
+        if (!adminDraftIsNewKey(key)) return;
         adminDraftRemove(type, key);
         showToast('Draft deleted.');
+        if (typeof renderAdmin === 'function') renderAdmin();
     };
 
     window.adminDeleteAllDrafts = function() {
@@ -394,7 +410,8 @@
     function adminDraftWrite(draft) {
         if (!draft || !draft.type || !draft.form) return false;
         const entityId = draft.entityId || draft.form.editingCategoryId || draft.form.editingId || null;
-        const key = entityId ? `edit:${entityId}` : 'new';
+        if (entityId) return false;
+        const key = 'new';
         return adminDraftUpsert(draft.type, key, {
             form: draft.form,
             label: draft.label,
@@ -411,6 +428,9 @@
     window.adminDraftUpsert = adminDraftUpsert;
     window.adminDraftRemove = adminDraftRemove;
     window.adminDraftRemoveAll = adminDraftRemoveAll;
+    window.adminGetOrphanedNewProductDraft = adminGetOrphanedNewProductDraft;
+    window.adminGetOrphanedNewCategoryDraft = adminGetOrphanedNewCategoryDraft;
+    window.updateAdminNewProductDraftBadge = updateAdminNewProductDraftBadge;
     window.adminDraftMarkLive = adminDraftMarkLive;
     window.adminDraftUnmarkLive = adminDraftUnmarkLive;
     window.adminDraftsStorageInfo = adminDraftsStorageInfo;

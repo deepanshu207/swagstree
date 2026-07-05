@@ -794,34 +794,85 @@ function applyProductDraftForm(form) {
 }
 window.applyProductDraftForm = applyProductDraftForm;
 
-function getProductDraftKey(formOrId) {
-    if (typeof formOrId === 'string' && formOrId) return `edit:${formOrId}`;
-    const id = formOrId?.editingId ?? editingId;
-    return id ? `edit:${id}` : 'new';
+function getProductDraftKey() {
+    return 'new';
 }
+
+function adminGetOrphanedNewProductDraftEntry() {
+    return typeof adminGetOrphanedNewProductDraft === 'function' ? adminGetOrphanedNewProductDraft() : null;
+}
+
+function adminNewProductDraftRowHtml() {
+    const item = adminGetOrphanedNewProductDraftEntry();
+    if (!item?.entry?.form) return '';
+    const form = item.entry.form;
+    const label = (form.name || '').trim() || 'Untitled product';
+    const priceLabel = form.price ? `₹${Number(form.price) || 0}` : '—';
+    const age = typeof adminDraftFormatAge === 'function' ? adminDraftFormatAge(item.entry.updatedAt) : '';
+    let thumbUrl = 'https://placehold.co/400x400/1a1a1a/666?text=Draft';
+    if (form.images?.length) thumbUrl = form.images[0];
+    else if (form.variants?.length) {
+        const v = form.variants.find(x => x.images?.length);
+        if (v) thumbUrl = v.images[0];
+    }
+    const safeName = label.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const pendingNote = form.hasPendingFiles ? '<span class="admin-draft-indicator admin-draft-indicator--warn">Re-upload files</span>' : '';
+    return `
+        <div class="admin-product-row admin-product-row--draft" role="button" tabindex="0" onclick="adminOpenNewProductDraft()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();adminOpenNewProductDraft();}">
+            <div class="admin-product-thumb-wrap admin-product-thumb-wrap--draft">
+                <img src="${thumbUrl}" class="admin-product-thumb" alt="" loading="lazy">
+                <span class="admin-draft-indicator">Draft</span>
+            </div>
+            <div class="admin-product-body">
+                <div class="admin-product-title-row">
+                    <b class="admin-product-name">${safeName}</b>
+                    <span class="admin-product-price">${priceLabel}</span>
+                    <span class="admin-draft-age">Saved ${age}</span>
+                    ${pendingNote}
+                </div>
+                <p class="admin-product-draft-hint">Unsaved new product — tap to continue or finish and save</p>
+            </div>
+            <div class="admin-product-actions">
+                <i class="fa fa-play" title="Continue draft" onclick="event.stopPropagation();adminOpenNewProductDraft()"></i>
+                <i class="fa fa-trash" title="Delete draft" onclick="event.stopPropagation();adminDeleteNewProductDraft()"></i>
+            </div>
+        </div>`;
+}
+
+window.adminOpenNewProductDraft = function() {
+    if (typeof adminRestoreDraft === 'function') adminRestoreDraft('product', 'new');
+    if (typeof adminBindProductDraftListeners === 'function') adminBindProductDraftListeners();
+};
+
+window.adminDeleteNewProductDraft = function() {
+    if (typeof adminDeleteDraft === 'function') adminDeleteDraft('product', 'new');
+};
 
 function persistProductDraft() {
     const modal = document.getElementById('prod-modal');
     if (!modal || modal.style.display !== 'flex') return;
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return;
+    if (editingId) return;
     if (!adminIsProductDirty()) {
-        if (typeof adminDraftRemove === 'function') adminDraftRemove('product', getProductDraftKey(editingId));
+        if (typeof adminDraftRemove === 'function') adminDraftRemove('product', 'new');
         return;
     }
     const form = adminBuildProductDraftPayload();
-    const key = getProductDraftKey(form.editingId);
+    if (form.editingId) return;
     if (typeof adminDraftUpsert === 'function') {
-        adminDraftUpsert('product', key, {
-            entityId: form.editingId,
-            label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
+        adminDraftUpsert('product', 'new', {
+            entityId: null,
+            label: (form.name || '').trim() || 'New product',
             form
         });
     }
+    if (typeof updateAdminNewProductDraftBadge === 'function') updateAdminNewProductDraftBadge();
 }
 window.persistProductDraft = persistProductDraft;
 
 function clearProductDraftForCurrent() {
-    if (typeof adminDraftRemove === 'function') adminDraftRemove('product', getProductDraftKey(editingId));
+    if (editingId) return;
+    if (typeof adminDraftRemove === 'function') adminDraftRemove('product', 'new');
 }
 
 function discardProductDraft(silent) {
@@ -2258,7 +2309,7 @@ function renderAdmin() {
             countContainer.style.display = 'inline-flex';
         }
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
-        container.innerHTML = `<div class="admin-product-empty">No products in your catalog yet. Tap <strong>+ NEW ITEM</strong> to add one.</div>`;
+        container.innerHTML = `${adminNewProductDraftRowHtml()}<div class="admin-product-empty">No products in your catalog yet. Tap <strong>+ NEW ITEM</strong> to add one.</div>`;
         if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
         return;
     }
@@ -2303,13 +2354,13 @@ function renderAdmin() {
     renderAdminProductsPagination(totalFiltered);
     
     if (!itemsToRender.length && products.length > 0) {
-        container.innerHTML = `<div class="admin-product-empty">No products match your search. <button type="button" class="admin-product-empty__clear" onclick="document.getElementById('admin-product-search').value='';document.getElementById('admin-product-filter').value='all';adminFilterProducts();">Clear filters</button></div>`;
+        container.innerHTML = `${adminNewProductDraftRowHtml()}<div class="admin-product-empty">No products match your search. <button type="button" class="admin-product-empty__clear" onclick="document.getElementById('admin-product-search').value='';document.getElementById('admin-product-filter').value='all';adminFilterProducts();">Clear filters</button></div>`;
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
         if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
         return;
     }
     
-    container.innerHTML = itemsToRender.map(p => {
+    container.innerHTML = adminNewProductDraftRowHtml() + itemsToRender.map(p => {
         let thumbUrl = 'https://placehold.co/400x400/222/FFF?text=+';
         if (p.images && p.images.length > 0) {
             thumbUrl = p.images[0];
@@ -2433,6 +2484,7 @@ function renderAdmin() {
         </div>
     `}).join('');
     if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+    if (typeof updateAdminNewProductDraftBadge === 'function') updateAdminNewProductDraftBadge();
 }
 
 window.loadMoreAdminProducts = function() {
@@ -2593,6 +2645,10 @@ function syncAdmin360PanelVisibility() {
 window.syncAdmin360PanelVisibility = syncAdmin360PanelVisibility;
 
 function openAdd() {
+    if (adminGetOrphanedNewProductDraftEntry()) {
+        adminOpenNewProductDraft();
+        return;
+    }
     editingId = null; 
     adminSetModalTitle('add');
     adminShowValidationErrors([]);

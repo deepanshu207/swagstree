@@ -7775,6 +7775,76 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0 !important;
     font-size: 11px !important;
 }
+.admin-product-row--draft {
+    border: 1px dashed rgba(255, 215, 0, 0.35);
+    background: rgba(255, 215, 0, 0.04);
+    cursor: pointer;
+}
+.admin-product-row--draft:hover {
+    background: rgba(255, 215, 0, 0.08);
+}
+.admin-product-thumb-wrap--draft {
+    position: relative;
+}
+.admin-product-thumb-wrap--draft .admin-draft-indicator {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+}
+.admin-draft-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #111;
+    background: var(--gold);
+}
+.admin-draft-indicator--inline {
+    font-size: 8px;
+    padding: 1px 6px;
+    vertical-align: middle;
+}
+.admin-draft-indicator--warn {
+    background: #c9a000;
+}
+.admin-product-draft-hint {
+    margin: 4px 0 0;
+    font-size: 11px;
+    color: #888;
+    line-height: 1.35;
+}
+.admin-category-row--draft {
+    border: 1px dashed rgba(255, 215, 0, 0.3);
+    background: rgba(255, 215, 0, 0.04);
+    cursor: pointer;
+}
+.admin-category-row--draft:hover {
+    background: rgba(255, 215, 0, 0.08);
+}
+.admin-category-order-badge--draft {
+    background: rgba(255, 215, 0, 0.15);
+    color: var(--gold);
+    font-weight: 800;
+}
+#admin-new-product-btn {
+    position: relative;
+}
+#admin-new-product-btn .admin-new-draft-btn-badge {
+    margin-left: 6px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: rgba(0, 0, 0, 0.35);
+    color: #111;
+    background: #ffdf5c;
+}
 .admin-draft-btn-reject {
     width: auto !important;
     padding: 8px 14px !important;
