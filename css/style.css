@@ -8882,8 +8882,103 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 
 .admin-layout-settings__grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
     gap: 18px;
+}
+.admin-layout-settings__group--tools {
+    min-width: 0;
+}
+.admin-layout-tool-head {
+    display: grid;
+    grid-template-columns: 1fr 52px 44px;
+    gap: 8px;
+    align-items: center;
+    padding: 0 4px 6px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #2a2a2a;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+    color: #666;
+}
+.admin-layout-tool-head__show,
+.admin-layout-tool-head__pin {
+    text-align: center;
+}
+.admin-layout-tool-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.admin-layout-tool-row {
+    display: grid;
+    grid-template-columns: 1fr 52px 44px;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 4px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.admin-layout-tool-row--pinned {
+    background: rgba(201, 162, 39, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.15);
+}
+.admin-layout-tool-row--hidden-tool {
+    opacity: 0.5;
+}
+.admin-layout-tool-row__name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #eee;
+    line-height: 1.3;
+}
+.admin-layout-tool-row__name .fa {
+    color: var(--gold, #c9a227);
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.admin-layout-tool-row__name span {
+    min-width: 0;
+}
+.admin-layout-tool-row__check {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+    margin: 0;
+}
+.admin-layout-tool-row__check--disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.admin-layout-tool-row__check input[type="checkbox"] {
+    margin: 0;
+    accent-color: var(--gold, #c9a227);
+    cursor: pointer;
+}
+.admin-layout-tool-row__check--disabled input[type="checkbox"] {
+    cursor: not-allowed;
+}
+.admin-layout-tool-row__check-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: #666;
+}
+.admin-layout-tool-row__check--pin .admin-layout-tool-row__check-label {
+    color: #8a7428;
+}
+.admin-layout-tool-row--pinned .admin-layout-tool-row__check--pin .admin-layout-tool-row__check-label {
+    color: var(--gold, #c9a227);
 }
 .admin-layout-settings__group-title {
     margin: 0 0 8px;
@@ -8988,15 +9083,19 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     font-weight: 600;
 }
 
-@media (max-width: 960px) {
-    .admin-layout-settings__grid {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-
 @media (max-width: 720px) {
     .admin-layout-settings__grid {
         grid-template-columns: 1fr;
+    }
+    .admin-layout-tool-head {
+        grid-template-columns: 1fr 48px 40px;
+    }
+    .admin-layout-tool-row {
+        grid-template-columns: 1fr 48px 40px;
+        padding: 8px 2px;
+    }
+    .admin-layout-tool-row__name {
+        font-size: 11px;
     }
 }
 
