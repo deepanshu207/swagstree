@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.52">
+    <link rel="stylesheet" href="css/style.css?v=9.53">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -1063,16 +1063,21 @@
         <!-- Admin: Content Settings for Features -->
         <div id="admin-feature-content-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-sliders" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization
-                    </h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set announcement bar text, chatbot messages,
-                        and promotional settings</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminFeatureContentAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-sliders" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Announcement bar, chatbot messages, newsletter &amp; wheel</p>
+                    </div>
                 </div>
+                <i id="admin-feature-content-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
 
+            <div id="admin-feature-content-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div
                 style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
                 <div>
@@ -1132,8 +1137,9 @@
                 </div>
 
                 <button class="btn-gold"
-                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:5px;"
+                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:14px;"
                     onclick="saveAdminFeatureContent()">Save Storefront Content</button>
+            </div>
             </div>
         </div>
 
@@ -3436,7 +3442,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.6"></script>
     <script src="js/admin-draft-compare.js?v=1.5"></script>
-    <script src="js/admin-favorites.js?v=2.7"></script>
+    <script src="js/admin-favorites.js?v=2.8"></script>
     <script src="js/categories.js?v=12.0"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
@@ -3444,7 +3450,7 @@
     <script src="js/comments.js?v=10.5"></script>
     <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=14.7"></script>
+    <script src="js/admin.js?v=14.8"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

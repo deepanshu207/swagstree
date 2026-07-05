@@ -8575,7 +8575,20 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     .admin-above-settings-slot,
     .admin-below-settings-slot {
         margin: 0 16px 16px;
-        gap: 14px;
+    }
+    .admin-above-settings-slot > :not(.admin-layout-slot-heading) + :not(.admin-layout-slot-heading),
+    .admin-below-settings-slot > :not(.admin-layout-slot-heading) + :not(.admin-layout-slot-heading) {
+        margin-top: 18px !important;
+    }
+    .admin-above-settings-slot > .admin-view-actions + .admin-product-toolbar--placed,
+    .admin-above-settings-slot > .admin-view-header + .admin-product-toolbar--placed,
+    .admin-below-settings-slot > .admin-view-actions + .admin-product-toolbar--placed,
+    .admin-below-settings-slot > .admin-view-header + .admin-product-toolbar--placed {
+        margin-top: 22px !important;
+    }
+    .admin-above-settings-slot > .admin-product-toolbar--placed + #admin-category-section,
+    .admin-below-settings-slot > .admin-product-toolbar--placed + #admin-category-section {
+        margin-top: 18px !important;
     }
     .admin-draft-recovery-panel {
         margin: 0 16px 12px;
@@ -8623,7 +8636,20 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     .admin-above-settings-slot,
     .admin-below-settings-slot {
         margin: 0 12px 14px;
-        gap: 16px;
+    }
+    .admin-above-settings-slot > :not(.admin-layout-slot-heading) + :not(.admin-layout-slot-heading),
+    .admin-below-settings-slot > :not(.admin-layout-slot-heading) + :not(.admin-layout-slot-heading) {
+        margin-top: 16px !important;
+    }
+    .admin-above-settings-slot > .admin-view-actions + .admin-product-toolbar--placed,
+    .admin-above-settings-slot > .admin-view-header + .admin-product-toolbar--placed,
+    .admin-below-settings-slot > .admin-view-actions + .admin-product-toolbar--placed,
+    .admin-below-settings-slot > .admin-view-header + .admin-product-toolbar--placed {
+        margin-top: 20px !important;
+    }
+    .admin-above-settings-slot > .admin-product-toolbar--placed + #admin-category-section,
+    .admin-below-settings-slot > .admin-product-toolbar--placed + #admin-category-section {
+        margin-top: 16px !important;
     }
     .admin-above-settings-slot .admin-view-header {
         padding: 12px 0 4px;
@@ -9400,17 +9426,31 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0 20px 20px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 0;
+}
+.admin-above-settings-slot > :not(.admin-layout-slot-heading),
+.admin-below-settings-slot > :not(.admin-layout-slot-heading) {
+    margin: 0 !important;
+}
+.admin-above-settings-slot > :not(.admin-layout-slot-heading) + :not(.admin-layout-slot-heading),
+.admin-below-settings-slot > :not(.admin-layout-slot-heading) + :not(.admin-layout-slot-heading) {
+    margin-top: 20px !important;
+}
+.admin-above-settings-slot > .admin-view-actions + .admin-product-toolbar--placed,
+.admin-above-settings-slot > .admin-view-header + .admin-product-toolbar--placed,
+.admin-below-settings-slot > .admin-view-actions + .admin-product-toolbar--placed,
+.admin-below-settings-slot > .admin-view-header + .admin-product-toolbar--placed {
+    margin-top: 24px !important;
+}
+.admin-above-settings-slot > .admin-product-toolbar--placed + #admin-category-section,
+.admin-below-settings-slot > .admin-product-toolbar--placed + #admin-category-section {
+    margin-top: 20px !important;
 }
 .admin-above-settings-slot[hidden],
 .admin-below-settings-slot[hidden],
 .admin-pinned-tools-slot[hidden] {
     display: none !important;
     margin: 0;
-}
-.admin-above-settings-slot > :not(.admin-layout-slot-heading),
-.admin-below-settings-slot > :not(.admin-layout-slot-heading) {
-    margin: 0 !important;
 }
 .admin-above-settings-slot .admin-store-tools-block,
 .admin-below-settings-slot .admin-store-tools-block,
@@ -9423,8 +9463,14 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 .admin-above-settings-slot > .admin-view-actions {
     display: flex;
-    padding: 0 0 4px;
+    padding: 0 0 8px;
     gap: 8px;
+}
+.admin-above-settings-slot .admin-product-toolbar--placed .admin-product-search-wrap,
+.admin-above-settings-slot .admin-product-toolbar--placed .admin-product-filter-wrap,
+.admin-below-settings-slot .admin-product-toolbar--placed .admin-product-search-wrap,
+.admin-below-settings-slot .admin-product-toolbar--placed .admin-product-filter-wrap {
+    width: 100%;
 }
 .admin-above-settings-slot > .admin-view-actions .admin-view-btn {
     flex: 1;
@@ -9435,7 +9481,9 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     flex-wrap: wrap;
     gap: 10px;
     width: 100%;
-    margin: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
     padding: 0;
 }
 .admin-below-settings-slot .admin-product-toolbar--placed {
@@ -9443,7 +9491,9 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     flex-wrap: wrap;
     gap: 10px;
     width: 100%;
-    margin: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
     padding: 0;
 }
 .admin-above-settings-slot #admin-products-area #admin-products-section,

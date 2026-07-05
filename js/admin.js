@@ -6091,6 +6091,12 @@ window.toggleAdminPaginationAccordion = function() {
     toggleAdminSectionAccordion('admin-pagination-accordion-content', 'admin-pagination-accordion-icon');
 };
 
+window.toggleAdminFeatureContentAccordion = function() {
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-feature-content-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    toggleAdminSectionAccordion('admin-feature-content-accordion-content', 'admin-feature-content-accordion-icon');
+};
+
 window.toggleAdminFeedbackAccordion = function() {
     if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-feedback-settings');
     else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
