@@ -101,10 +101,12 @@
     function adminAnyUnsavedDirty() {
         const prodOpen = document.getElementById('prod-modal')?.style.display === 'flex';
         if (prodOpen && typeof adminIsProductDirty === 'function' && adminIsProductDirty()) return true;
+        if (typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) return true;
         if (typeof isCategoryFormDirty === 'function' && isCategoryFormDirty()) return true;
         return false;
     }
 
+    window.adminPromptUnsavedChoice = adminPromptUnsaved;
     window.adminDraftClear = adminDraftClear;
     window.adminDraftRead = adminDraftRead;
     window.adminDraftRenderBanners = adminDraftRenderBanners;
@@ -127,6 +129,32 @@
     };
 
     window.adminGuardCategoryLeave = async function(message, next) {
+        if (typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) {
+            const inlineId = window.inlineEditingCategoryId;
+            if (inlineId && typeof isInlineCategoryDirty === 'function' && isInlineCategoryDirty(inlineId)) {
+                const choice = await adminPromptUnsaved(message || 'Save category changes?');
+                if (choice === 'cancel') return false;
+                if (choice === 'save') {
+                    if (typeof saveInlineCategory === 'function') await saveInlineCategory(inlineId);
+                    if (isInlineCategoryDirty(inlineId)) return false;
+                } else if (typeof cancelInlineCategoryEdit === 'function') {
+                    cancelInlineCategoryEdit();
+                }
+            } else if (typeof isCategoryFormDirty === 'function' && isCategoryFormDirty()) {
+                const proceed = await adminHandleDirtyLeave(
+                    message || 'You have unsaved category changes.',
+                    async () => {
+                        if (typeof saveCategory !== 'function') return false;
+                        await saveCategory();
+                        return !(typeof isCategoryFormDirty === 'function' && isCategoryFormDirty());
+                    },
+                    () => { if (typeof discardCategoryDraft === 'function') discardCategoryDraft(true); }
+                );
+                if (!proceed) return false;
+            }
+            if (typeof next === 'function') await next();
+            return true;
+        }
         if (typeof isCategoryFormDirty !== 'function' || !isCategoryFormDirty()) {
             if (typeof next === 'function') return next();
             return true;

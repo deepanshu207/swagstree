@@ -126,8 +126,42 @@ function getNextCategorySortOrder() {
 }
 
 function isAdminCategoryInlineEditing() {
+    const active = document.activeElement;
+    return !!(active && active.classList && active.classList.contains('admin-category-inline-input'));
+}
+
+window.inlineEditingCategoryId = window.inlineEditingCategoryId || null;
+window._inlineCategoryBaseline = window._inlineCategoryBaseline || null;
+
+function getInlineCategoryRow(id) {
+    return document.querySelector(`#admin-category-list .admin-category-row[data-category-id="${id}"]`);
+}
+
+function serializeInlineCategoryState(id) {
+    const row = getInlineCategoryRow(id);
+    if (!row) return null;
+    return {
+        name: (row.querySelector('.admin-category-inline-name')?.value || '').trim(),
+        sortOrder: row.querySelector('.admin-category-inline-order')?.value ?? '0',
+        isActive: !!row.querySelector('.admin-category-inline-active')?.checked
+    };
+}
+
+function isInlineCategoryDirty(id) {
+    id = id || window.inlineEditingCategoryId;
+    if (!id || !window._inlineCategoryBaseline) return false;
+    const current = serializeInlineCategoryState(id);
+    if (!current) return false;
+    return JSON.stringify(current) !== JSON.stringify(window._inlineCategoryBaseline);
+}
+window.isInlineCategoryDirty = isInlineCategoryDirty;
+
+function isAnyCategoryCrudDirty() {
+    if (isCategoryFormDirty()) return true;
+    if (window.inlineEditingCategoryId && isInlineCategoryDirty(window.inlineEditingCategoryId)) return true;
     return false;
 }
+window.isAnyCategoryCrudDirty = isAnyCategoryCrudDirty;
 
 function getAdminCategorySearchQuery() {
     return String(window.adminCategorySearchQuery || '').trim().toLowerCase();
@@ -192,7 +226,7 @@ function serializeCategoryFormState() {
     const orderEl = document.getElementById('admin-category-order');
     const activeEl = document.getElementById('admin-category-active');
     return {
-        editingCategoryId: window.editingCategoryId || null,
+        editingCategoryId: null,
         name: (nameEl?.value || '').trim(),
         sortOrder: orderEl?.value ?? '0',
         isActive: activeEl ? !!activeEl.checked : true
@@ -200,16 +234,6 @@ function serializeCategoryFormState() {
 }
 
 function getCategoryFormBaseline() {
-    if (window.editingCategoryId) {
-        const cat = getCategoryById(window.editingCategoryId);
-        if (!cat) return { editingCategoryId: null, name: '', sortOrder: '0', isActive: true };
-        return {
-            editingCategoryId: window.editingCategoryId,
-            name: cat.name || '',
-            sortOrder: String(getCategorySortOrder(cat)),
-            isActive: cat.isActive !== false
-        };
-    }
     const orderEl = document.getElementById('admin-category-order');
     const baselineOrder = orderEl?.dataset?.baselineOrder || String(getNextCategorySortOrder());
     return { editingCategoryId: null, name: '', sortOrder: baselineOrder, isActive: true };
@@ -224,37 +248,58 @@ window.isCategoryFormDirty = isCategoryFormDirty;
 
 function applyCategoryFormState(state) {
     if (!state) return;
-    window.editingCategoryId = state.editingCategoryId || null;
+    if (state.editingCategoryId) {
+        startInlineCategoryEditInternal(state.editingCategoryId, state);
+        return;
+    }
     const name = document.getElementById('admin-category-name');
     const order = document.getElementById('admin-category-order');
     const active = document.getElementById('admin-category-active');
     if (name) name.value = state.name || '';
     if (order) {
         order.value = String(state.sortOrder ?? '0');
-        if (!window.editingCategoryId) {
-            order.dataset.baselineOrder = String(state.sortOrder ?? getNextCategorySortOrder());
-        }
+        order.dataset.baselineOrder = String(state.sortOrder ?? getNextCategorySortOrder());
     }
     if (active) active.checked = state.isActive !== false;
     updateCategoryFormMode();
-    renderAdminCategoryList();
 }
 
 function persistCategoryDraft() {
     if (!canManageProductCategories()) return;
+
+    if (window.inlineEditingCategoryId && isInlineCategoryDirty(window.inlineEditingCategoryId)) {
+        const state = serializeInlineCategoryState(window.inlineEditingCategoryId);
+        if (!state?.name) return;
+        const draft = {
+            v: 1,
+            type: 'category',
+            updatedAt: Date.now(),
+            entityId: window.inlineEditingCategoryId,
+            label: state.name,
+            form: {
+                editingCategoryId: window.inlineEditingCategoryId,
+                name: state.name,
+                sortOrder: state.sortOrder,
+                isActive: state.isActive
+            }
+        };
+        if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
+        return;
+    }
+
     if (!isCategoryFormDirty()) {
         const existing = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
         if (existing?.type === 'category' && typeof adminDraftClear === 'function') adminDraftClear();
         return;
     }
     const state = serializeCategoryFormState();
-    if (!state.name && !state.editingCategoryId) return;
+    if (!state.name) return;
     const draft = {
         v: 1,
         type: 'category',
         updatedAt: Date.now(),
-        entityId: state.editingCategoryId,
-        label: state.name || 'Category',
+        entityId: null,
+        label: state.name,
         form: state
     };
     if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
@@ -262,10 +307,14 @@ function persistCategoryDraft() {
 window.persistCategoryDraft = persistCategoryDraft;
 
 function discardCategoryDraft(silent) {
-    const baseline = getCategoryFormBaseline();
-    applyCategoryFormState(baseline);
+    if (window.inlineEditingCategoryId) {
+        cancelInlineCategoryEdit();
+    } else {
+        resetCategoryFormInternal();
+        renderAdminCategoryList();
+    }
     if (typeof adminDraftClear === 'function') adminDraftClear();
-    if (!silent) showToast('Category draft discarded.');
+    if (!silent) showToast('Draft discarded.');
 }
 window.discardCategoryDraft = discardCategoryDraft;
 
@@ -273,13 +322,13 @@ function tryOfferCategoryDraftRestore() {
     if (!canManageProductCategories() || window._categoryDraftOffered) return;
     const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
     if (!draft || draft.type !== 'category' || !draft.form) return;
-    if (isCategoryFormDirty()) return;
+    if (isAnyCategoryCrudDirty()) return;
     if (!draft.form.name && !draft.form.editingCategoryId) {
         if (typeof adminDraftClear === 'function') adminDraftClear();
         return;
     }
     window._categoryDraftOffered = true;
-    const label = draft.form.name || 'category';
+    const label = draft.form.name || getCategoryById(draft.form.editingCategoryId)?.name || 'category';
     if (window.confirm(`Resume unsaved work on "${label}"?`)) {
         applyCategoryFormState(draft.form);
         showToast('Draft restored — tap Save when ready.');
@@ -288,21 +337,182 @@ function tryOfferCategoryDraftRestore() {
     }
 }
 
-function loadCategoryIntoFormInternal(id) {
+function startInlineCategoryEditInternal(id, preset) {
     const cat = getCategoryById(id);
     if (!cat) return;
     openAdminCategoryAccordion();
-    window.editingCategoryId = id;
-    const name = document.getElementById('admin-category-name');
-    const order = document.getElementById('admin-category-order');
-    const active = document.getElementById('admin-category-active');
-    if (name) name.value = cat.name || '';
-    if (order) order.value = String(getCategorySortOrder(cat));
-    if (active) active.checked = cat.isActive !== false;
-    updateCategoryFormMode();
+    window.inlineEditingCategoryId = id;
+    const base = preset || {
+        name: cat.name || '',
+        sortOrder: String(getCategorySortOrder(cat)),
+        isActive: cat.isActive !== false
+    };
+    window._inlineCategoryBaseline = {
+        name: base.name || '',
+        sortOrder: String(base.sortOrder ?? getCategorySortOrder(cat)),
+        isActive: base.isActive !== false
+    };
     renderAdminCategoryList();
-    focusAdminCategoryForm();
+    setTimeout(() => {
+        const row = getInlineCategoryRow(id);
+        const nameInput = row?.querySelector('.admin-category-inline-name');
+        if (preset) {
+            const orderInput = row?.querySelector('.admin-category-inline-order');
+            const activeInput = row?.querySelector('.admin-category-inline-active');
+            if (nameInput) nameInput.value = base.name || '';
+            if (orderInput) orderInput.value = String(base.sortOrder ?? '0');
+            if (activeInput) activeInput.checked = base.isActive !== false;
+        }
+        if (nameInput) {
+            try { nameInput.focus({ preventScroll: true }); } catch (e) { nameInput.focus(); }
+        }
+    }, 40);
     if (typeof adminDraftClear === 'function') adminDraftClear();
+}
+
+async function guardInlineCategorySwitch(next) {
+    const currentId = window.inlineEditingCategoryId;
+    if (!currentId || !isInlineCategoryDirty(currentId)) {
+        await next();
+        return;
+    }
+    if (typeof adminPromptUnsavedChoice === 'function') {
+        const choice = await adminPromptUnsavedChoice('Save changes to this category?');
+        if (choice === 'cancel') return;
+        if (choice === 'save') {
+            await saveInlineCategory(currentId);
+            if (isInlineCategoryDirty(currentId)) return;
+        } else {
+            cancelInlineCategoryEdit();
+        }
+    } else {
+        cancelInlineCategoryEdit();
+    }
+    await next();
+}
+
+window.startInlineCategoryEdit = async function(id) {
+    if (!id) return;
+    if (window.inlineEditingCategoryId === id) return;
+    await guardInlineCategorySwitch(() => startInlineCategoryEditInternal(id));
+};
+
+window.cancelInlineCategoryEdit = function() {
+    window.inlineEditingCategoryId = null;
+    window._inlineCategoryBaseline = null;
+    renderAdminCategoryList();
+};
+
+window.saveInlineCategory = async function(id) {
+    if (!isAdmin) return showToast('Admin only.');
+    const catId = id || window.inlineEditingCategoryId;
+    if (!catId) return;
+    const state = serializeInlineCategoryState(catId);
+    if (!state) return;
+    const name = state.name;
+    if (!name) return showToast('Category name required.');
+
+    const sortOrder = parseCategorySortOrder(state.sortOrder, getCategorySortOrder(getCategoryById(catId)));
+    const payload = {
+        name,
+        slug: slugifyCategoryName(name),
+        sortOrder,
+        isActive: state.isActive,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    const duplicate = (window.productCategories || []).find(c =>
+        c.id !== catId &&
+        String(c.slug || slugifyCategoryName(c.name)) === payload.slug
+    );
+    if (duplicate) return showToast('A category with this name already exists.');
+
+    try {
+        await db.collection('categories').doc(catId).set(payload, { merge: true });
+        const linkedProducts = getProductsWithCategory(catId);
+        if (linkedProducts.length) {
+            const batch = db.batch();
+            linkedProducts.forEach(p => {
+                batch.update(db.collection('products').doc(p.id), buildCategoryFieldsFromIds(getProductCategoryIds(p)));
+            });
+            await batch.commit();
+        }
+        window.inlineEditingCategoryId = null;
+        window._inlineCategoryBaseline = null;
+        showToast(linkedProducts.length ? `Saved (${linkedProducts.length} product${linkedProducts.length === 1 ? '' : 's'} synced).` : 'Category saved.');
+    } catch (e) {
+        console.error('saveInlineCategory failed:', e);
+        showToast('Could not save category.');
+    }
+};
+
+function adminCategoryInlineRowHtml(cat, counts) {
+    const count = counts[cat.id] || 0;
+    const active = cat.isActive !== false;
+    const sortOrder = getCategorySortOrder(cat);
+    const base = window._inlineCategoryBaseline || {
+        name: cat.name || '',
+        sortOrder: String(sortOrder),
+        isActive: active
+    };
+    return `
+    <div class="admin-category-row is-editing is-inline-edit${!active ? ' is-hidden-cat' : ''}" data-category-id="${cat.id}">
+        <div class="admin-category-inline-edit">
+            <div class="admin-category-inline-edit-head">
+                <span class="admin-category-inline-edit-label"><i class="fa fa-pencil"></i> Edit category</span>
+                <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
+            </div>
+            <div class="admin-category-inline-edit-grid">
+                <div class="admin-category-inline-field">
+                    <label class="admin-category-form-label">Name</label>
+                    <input type="text" class="admin-category-inline-input admin-category-inline-name" value="${escapeCategoryHtml(base.name)}" aria-label="Category name">
+                </div>
+                <div class="admin-category-inline-field admin-category-inline-field--order">
+                    <label class="admin-category-form-label">Order</label>
+                    <input type="number" class="admin-category-inline-input admin-category-inline-order" value="${escapeCategoryHtml(String(base.sortOrder))}" min="0" step="1" inputmode="numeric" aria-label="Display order">
+                </div>
+            </div>
+            <label class="admin-category-form-active admin-category-inline-active-wrap">
+                <input type="checkbox" class="admin-category-inline-input admin-category-inline-active" ${base.isActive ? 'checked' : ''}>
+                <span>Active on storefront</span>
+            </label>
+            <div class="admin-category-inline-edit-actions">
+                <button type="button" class="btn-gold admin-category-btn admin-category-inline-save" onclick="saveInlineCategory('${cat.id}')">Save</button>
+                <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted" onclick="cancelInlineCategoryEdit()">Cancel</button>
+                <button type="button" class="admin-category-icon-btn admin-category-icon-btn--danger admin-category-inline-delete" onclick="deleteCategory('${cat.id}')" title="Delete"><i class="fa fa-trash"></i></button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function adminCategoryViewRowHtml(cat, counts, categories) {
+    const count = counts[cat.id] || 0;
+    const active = cat.isActive !== false;
+    const sortOrder = getCategorySortOrder(cat);
+    const globalIndex = categories.findIndex(c => c.id === cat.id);
+    const canMoveUp = globalIndex > 0;
+    const canMoveDown = globalIndex >= 0 && globalIndex < categories.length - 1;
+    const inlineBusy = !!window.inlineEditingCategoryId;
+    return `
+    <div class="admin-category-row${!active ? ' is-hidden-cat' : ''}" data-category-id="${cat.id}">
+        <div class="admin-category-row-main" onclick="startInlineCategoryEdit('${cat.id}')" role="button" tabindex="0" aria-label="Edit ${escapeCategoryHtml(cat.name)}">
+            <span class="admin-category-order-badge" title="Display order">${sortOrder}</span>
+            <div class="admin-category-main">
+                <strong>${escapeCategoryHtml(cat.name)}</strong>
+                <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
+            </div>
+        </div>
+        <div class="admin-category-actions">
+            <span class="admin-category-status ${active ? 'is-active' : 'is-hidden'}">${active ? 'Active' : 'Hidden'}</span>
+            <div class="admin-category-icon-actions">
+                <button type="button" class="admin-category-icon-btn" onclick="event.stopPropagation(); moveCategoryOrder('${cat.id}', -1)" title="Move up" ${canMoveUp && !inlineBusy ? '' : 'disabled'}><i class="fa fa-chevron-up"></i></button>
+                <button type="button" class="admin-category-icon-btn" onclick="event.stopPropagation(); moveCategoryOrder('${cat.id}', 1)" title="Move down" ${canMoveDown && !inlineBusy ? '' : 'disabled'}><i class="fa fa-chevron-down"></i></button>
+                <button type="button" class="admin-category-icon-btn admin-category-icon-btn--gold" onclick="event.stopPropagation(); startInlineCategoryEdit('${cat.id}')" title="Edit inline"><i class="fa fa-pencil"></i></button>
+                <button type="button" class="admin-category-icon-btn" onclick="event.stopPropagation(); toggleCategoryActive('${cat.id}')" title="${active ? 'Hide' : 'Show'}" ${inlineBusy ? 'disabled' : ''}><i class="fa fa-${active ? 'eye-slash' : 'eye'}"></i></button>
+                <button type="button" class="admin-category-icon-btn admin-category-icon-btn--danger" onclick="event.stopPropagation(); deleteCategory('${cat.id}')" title="Delete" ${inlineBusy ? 'disabled' : ''}><i class="fa fa-trash"></i></button>
+            </div>
+        </div>
+    </div>`;
 }
 
 function setCategoryFormDefaultOrder() {
@@ -647,6 +857,8 @@ function renderAdminCategoryList() {
     const section = document.getElementById('admin-category-section');
     if (!list || !section) return;
 
+    if (isAdminCategoryInlineEditing()) return;
+
     section.style.display = 'block';
     renderAdminCategoryBanner();
 
@@ -655,10 +867,9 @@ function renderAdminCategoryList() {
     const filtered = query ? categories.filter(cat => categoryMatchesSearch(cat, query)) : categories;
 
     if (!categories.length) {
-        list.innerHTML = '<p class="admin-category-empty">No categories yet — type a name above and tap <strong>Add Category</strong>.</p>';
+        list.innerHTML = '<p class="admin-category-empty">No categories yet — type a name above and tap <strong>Add</strong>.</p>';
         updateAdminCategoryCountBadge(0);
         syncAdminCategoryListTools(0, 0);
-        highlightAdminCategoryRow(null);
         return;
     }
 
@@ -666,46 +877,35 @@ function renderAdminCategoryList() {
         list.innerHTML = '<p class="admin-category-empty">No categories match your search.</p>';
         updateAdminCategoryCountBadge(categories.length);
         syncAdminCategoryListTools(categories.length, 0);
-        highlightAdminCategoryRow(window.editingCategoryId || null);
         return;
     }
 
     const counts = getProductCountsByCategory();
-    const editingId = window.editingCategoryId || '';
-    list.innerHTML = filtered.map((cat, index) => {
-        const count = counts[cat.id] || 0;
-        const active = cat.isActive !== false;
-        const sortOrder = getCategorySortOrder(cat);
-        const globalIndex = categories.findIndex(c => c.id === cat.id);
-        const canMoveUp = globalIndex > 0;
-        const canMoveDown = globalIndex >= 0 && globalIndex < categories.length - 1;
-        const isEditing = editingId === cat.id;
-        return `
-        <div class="admin-category-row${isEditing ? ' is-editing' : ''}${!active ? ' is-hidden-cat' : ''}" data-category-id="${cat.id}">
-            <div class="admin-category-row-main" onclick="loadCategoryIntoForm('${cat.id}')" role="button" tabindex="0" aria-label="Edit ${escapeCategoryHtml(cat.name)}">
-                <span class="admin-category-order-badge" title="Display order">${sortOrder}</span>
-                <div class="admin-category-main">
-                    <strong>${escapeCategoryHtml(cat.name)}</strong>
-                    <span class="admin-category-meta">${escapeCategoryHtml(cat.slug || slugifyCategoryName(cat.name))}${count ? ` · ${count} product${count === 1 ? '' : 's'}` : ''}</span>
-                </div>
-            </div>
-            <div class="admin-category-actions">
-                <span class="admin-category-status ${active ? 'is-active' : 'is-hidden'}">${active ? 'Active' : 'Hidden'}</span>
-                <div class="admin-category-icon-actions">
-                    <button type="button" class="admin-category-icon-btn" onclick="moveCategoryOrder('${cat.id}', -1)" title="Move up" ${canMoveUp ? '' : 'disabled'}><i class="fa fa-chevron-up"></i></button>
-                    <button type="button" class="admin-category-icon-btn" onclick="moveCategoryOrder('${cat.id}', 1)" title="Move down" ${canMoveDown ? '' : 'disabled'}><i class="fa fa-chevron-down"></i></button>
-                    <button type="button" class="admin-category-icon-btn admin-category-icon-btn--gold" onclick="loadCategoryIntoForm('${cat.id}')" title="Edit"><i class="fa fa-pencil"></i></button>
-                    <button type="button" class="admin-category-icon-btn" onclick="toggleCategoryActive('${cat.id}')" title="${active ? 'Hide on storefront' : 'Show on storefront'}"><i class="fa fa-${active ? 'eye-slash' : 'eye'}"></i></button>
-                    <button type="button" class="admin-category-icon-btn admin-category-icon-btn--danger" onclick="deleteCategory('${cat.id}')" title="Delete"><i class="fa fa-trash"></i></button>
-                </div>
-            </div>
-        </div>`;
+    const inlineId = window.inlineEditingCategoryId || '';
+    list.innerHTML = filtered.map(cat => {
+        if (inlineId === cat.id) return adminCategoryInlineRowHtml(cat, counts);
+        return adminCategoryViewRowHtml(cat, counts, categories);
     }).join('');
 
     bindAdminCategoryRowKeys();
+    bindAdminCategoryInlineEditors();
     updateAdminCategoryCountBadge(categories.length);
     syncAdminCategoryListTools(categories.length, filtered.length);
-    highlightAdminCategoryRow(editingId || null);
+}
+
+function bindAdminCategoryInlineEditors() {
+    document.querySelectorAll('#admin-category-list .admin-category-inline-name').forEach(el => {
+        if (el.dataset.inlineBound) return;
+        el.dataset.inlineBound = '1';
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const id = el.closest('.admin-category-row')?.dataset?.categoryId;
+                if (id) saveInlineCategory(id);
+            }
+            if (e.key === 'Escape') cancelInlineCategoryEdit();
+        });
+    });
 }
 
 function bindAdminCategoryRowKeys() {
@@ -716,7 +916,7 @@ function bindAdminCategoryRowKeys() {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 const id = el.closest('.admin-category-row')?.dataset?.categoryId;
-                if (id) loadCategoryIntoForm(id);
+                if (id) startInlineCategoryEdit(id);
             }
         });
     });
@@ -760,34 +960,7 @@ window.toggleAdminCategoryAccordion = async function() {
 };
 
 function updateCategoryFormMode() {
-    const formWrap = document.getElementById('admin-category-form-wrap');
-    const modeLabel = document.getElementById('admin-category-form-mode');
-    const saveBtn = document.getElementById('admin-category-save-btn');
-    const clearBtn = document.getElementById('admin-category-clear-btn');
-    const nameEl = document.getElementById('admin-category-name');
-    const isEditing = !!window.editingCategoryId;
-    const cat = isEditing ? getCategoryById(window.editingCategoryId) : null;
-    const hasDraft = !!(nameEl?.value || '').trim();
-
-    if (modeLabel) {
-        modeLabel.textContent = isEditing
-            ? `Editing “${cat?.name || 'category'}”`
-            : 'Add category';
-        modeLabel.classList.toggle('is-editing', isEditing);
-    }
-    if (saveBtn) {
-        saveBtn.textContent = isEditing ? 'Save' : 'Add';
-        saveBtn.classList.toggle('is-editing', isEditing);
-        saveBtn.setAttribute('aria-label', isEditing ? 'Save category' : 'Add category');
-    }
-    if (clearBtn) {
-        clearBtn.textContent = 'Cancel';
-        clearBtn.hidden = !isEditing && !hasDraft;
-    }
-    if (formWrap) {
-        formWrap.classList.toggle('admin-category-form-editing', isEditing);
-    }
-    highlightAdminCategoryRow(isEditing ? window.editingCategoryId : null);
+    /* Add-only top form — no mode switching. */
 }
 
 function bindCategoryFormUi() {
@@ -796,7 +969,6 @@ function bindCategoryFormUi() {
     const activeEl = document.getElementById('admin-category-active');
     const searchEl = document.getElementById('admin-category-search');
     const onChange = () => {
-        updateCategoryFormMode();
         if (typeof adminScheduleCategoryDraftSave === 'function') adminScheduleCategoryDraftSave();
     };
     if (nameEl && !nameEl.dataset.categoryUiBound) {
@@ -823,15 +995,7 @@ function bindCategoryFormUi() {
     }
 }
 
-window.loadCategoryIntoForm = async function(id) {
-    if (window.editingCategoryId === id && !isCategoryFormDirty()) return;
-    const load = () => loadCategoryIntoFormInternal(id);
-    if (typeof adminGuardCategoryLeave === 'function' && isCategoryFormDirty()) {
-        await adminGuardCategoryLeave('Save changes before switching category?', load);
-        return;
-    }
-    load();
-};
+window.loadCategoryIntoForm = window.startInlineCategoryEdit;
 
 window.moveCategoryOrder = async function(id, direction) {
     if (!isAdmin) return showToast('Admin only.');
@@ -859,29 +1023,21 @@ window.moveCategoryOrder = async function(id, direction) {
 };
 
 function resetCategoryFormInternal() {
-    window.editingCategoryId = null;
     const name = document.getElementById('admin-category-name');
-    const order = document.getElementById('admin-category-order');
     const active = document.getElementById('admin-category-active');
     if (name) name.value = '';
     if (active) active.checked = true;
     setCategoryFormDefaultOrder();
-    renderAdminCategoryList();
-    updateCategoryFormMode();
     if (typeof adminDraftClear === 'function') adminDraftClear();
 }
 
 function resetCategoryForm() {
     resetCategoryFormInternal();
+    renderAdminCategoryList();
 }
 
-window.openCategoryForm = async function() {
-    if (typeof adminGuardCategoryLeave === 'function' && isCategoryFormDirty()) {
-        const ok = await adminGuardCategoryLeave('Save changes before clearing the form?', () => resetCategoryFormInternal());
-        if (!ok) return;
-    } else {
-        resetCategoryFormInternal();
-    }
+window.openCategoryForm = function() {
+    resetCategoryFormInternal();
     focusAdminCategoryForm();
 };
 
@@ -899,7 +1055,7 @@ window.scrollToCategoryAdmin = function() {
 };
 
 window.editCategory = function(id) {
-    loadCategoryIntoForm(id);
+    startInlineCategoryEdit(id);
 };
 
 window.saveCategory = async function() {
@@ -910,15 +1066,8 @@ window.saveCategory = async function() {
     const name = (nameEl?.value || '').trim();
     if (!name) return showToast('Category name required.');
 
-    let sortOrder;
-    if (orderEl?.value === '' || orderEl?.value === null || orderEl?.value === undefined) {
-        sortOrder = window.editingCategoryId
-            ? getCategorySortOrder(getCategoryById(window.editingCategoryId))
-            : getNextCategorySortOrder();
-    } else {
-        sortOrder = parseCategorySortOrder(orderEl.value, 0);
-    }
-    if (!window.editingCategoryId && sortOrder === 0 && (window.productCategories || []).length > 0) {
+    let sortOrder = parseCategorySortOrder(orderEl?.value, getNextCategorySortOrder());
+    if (sortOrder === 0 && (window.productCategories || []).length > 0) {
         sortOrder = getNextCategorySortOrder();
     }
 
@@ -927,34 +1076,22 @@ window.saveCategory = async function() {
         slug: slugifyCategoryName(name),
         sortOrder,
         isActive: activeEl ? !!activeEl.checked : true,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
     const duplicate = (window.productCategories || []).find(c =>
-        c.id !== window.editingCategoryId &&
         String(c.slug || slugifyCategoryName(c.name)) === payload.slug
     );
     if (duplicate) return showToast('A category with this name already exists.');
 
     try {
-        if (window.editingCategoryId) {
-            await db.collection('categories').doc(window.editingCategoryId).set(payload, { merge: true });
-            const linkedProducts = getProductsWithCategory(window.editingCategoryId);
-            if (linkedProducts.length) {
-                const batch = db.batch();
-                linkedProducts.forEach(p => {
-                    batch.update(db.collection('products').doc(p.id), buildCategoryFieldsFromIds(getProductCategoryIds(p)));
-                });
-                await batch.commit();
-            }
-            showToast(linkedProducts.length ? `Category updated (${linkedProducts.length} product${linkedProducts.length === 1 ? '' : 's'} synced).` : 'Category updated.');
-        } else {
-            payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-            await db.collection('categories').add(payload);
-            showToast('Category added.');
-        }
+        await db.collection('categories').add(payload);
+        showToast('Category added.');
         resetCategoryForm();
+        renderAdminCategoryList();
         if (typeof adminDraftClear === 'function') adminDraftClear();
+        focusAdminCategoryForm();
     } catch (e) {
         console.error('saveCategory failed:', e);
         showToast('Could not save category.');
@@ -994,7 +1131,7 @@ window.deleteCategory = async function(id) {
             await batch.commit();
         }
         showToast('Category deleted.');
-        if (window.editingCategoryId === id) resetCategoryForm();
+        if (window.inlineEditingCategoryId === id) cancelInlineCategoryEdit();
     } catch (e) {
         console.error('deleteCategory failed:', e);
         showToast('Could not delete category.');
