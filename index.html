@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.32">
+    <link rel="stylesheet" href="css/style.css?v=9.34">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -778,6 +778,15 @@
         <div id="admin-list" style="padding:0 20px"></div>
         <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
 
+        <!-- Pinned admin tools (favorites) -->
+        <div id="admin-favorites-section" class="admin-favorites-section admin-panel-card" hidden>
+            <div class="admin-favorites-header">
+                <h4 class="admin-favorites-title"><i class="fa fa-star" aria-hidden="true"></i> Pinned tools <span id="admin-favorites-count" class="admin-favorites-count">0</span></h4>
+                <p class="admin-favorites-hint">Frequently used tools — tap ★ in Store settings to pin or unpin.</p>
+            </div>
+            <div id="admin-favorites-list" class="admin-favorites-list"></div>
+        </div>
+
         <!-- Store settings & tools (bulk, checkout, promos, storefront, support) -->
         <div id="admin-store-tools-section" class="admin-store-tools-section admin-panel-card">
             <div class="admin-store-tools-header" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
@@ -786,7 +795,7 @@
                     <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
                         <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout rules, promos, storefront content, announcements, support inbox &amp; reviews</p>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout rules, promos, storefront content &amp; more — pin ★ to move tools above</p>
                     </div>
                 </div>
                 <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
@@ -796,7 +805,7 @@
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
 
         <!-- Bulk Operations -->
-        <div class="admin-store-tools-block"
+        <div id="admin-bulk-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:flex; gap:15px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div>
                 <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; letter-spacing:0.5px;">Bulk Catalog
@@ -2509,7 +2518,18 @@
     <!-- MODAL: Admin Edit Product -->
     <div id="prod-modal" class="modal">
         <div class="modal-box">
-            <h3 id="m-modal-title">Add New Product</h3>
+            <div class="admin-modal-head">
+                <h3 id="m-modal-title">Add New Product</h3>
+                <div id="admin-product-draft-switcher" class="admin-draft-switcher" hidden>
+                    <div class="admin-draft-switcher__tabs" role="tablist" aria-label="Published or draft">
+                        <button type="button" id="admin-product-view-live" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchProductView('live')">Published</button>
+                        <button type="button" id="admin-product-view-draft" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchProductView('draft')">Draft</button>
+                    </div>
+                    <button type="button" id="admin-product-compare-btn" class="admin-draft-compare-btn" onclick="adminOpenProductDraftCompare()" title="Compare published vs draft">
+                        <i class="fa fa-columns" aria-hidden="true"></i><span>Compare</span>
+                    </button>
+                </div>
+            </div>
             <div id="admin-product-draft-mode-bar" class="admin-draft-mode-bar" hidden role="status" aria-live="polite">
                 <span class="admin-draft-mode-bar__icon" aria-hidden="true"><i class="fa fa-file-text-o"></i></span>
                 <span class="admin-draft-mode-bar__text"></span>
@@ -3290,7 +3310,18 @@
     <!-- MODAL: Admin Category (add / edit — like products) -->
     <div id="category-modal" class="modal">
         <div class="modal-box admin-category-modal-box">
-            <h3 id="admin-category-modal-title">Add Category</h3>
+            <div class="admin-modal-head">
+                <h3 id="admin-category-modal-title">Add Category</h3>
+                <div id="admin-category-draft-switcher" class="admin-draft-switcher" hidden>
+                    <div class="admin-draft-switcher__tabs" role="tablist" aria-label="Published or draft">
+                        <button type="button" id="admin-category-view-live" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchCategoryView('live')">Published</button>
+                        <button type="button" id="admin-category-view-draft" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchCategoryView('draft')">Draft</button>
+                    </div>
+                    <button type="button" id="admin-category-compare-btn" class="admin-draft-compare-btn" onclick="adminOpenCategoryDraftCompare()" title="Compare published vs draft">
+                        <i class="fa fa-columns" aria-hidden="true"></i><span>Compare</span>
+                    </button>
+                </div>
+            </div>
             <div id="admin-category-draft-mode-bar" class="admin-draft-mode-bar admin-draft-mode-bar--compact" hidden role="status" aria-live="polite">
                 <span class="admin-draft-mode-bar__icon" aria-hidden="true"><i class="fa fa-file-text-o"></i></span>
                 <span class="admin-draft-mode-bar__text"></span>
@@ -3309,6 +3340,15 @@
             <button type="button" class="btn-gold admin-btn-draft-save" onclick="saveCategoryAsDraft()">Save as draft</button>
             <button type="button" class="admin-btn-danger-muted admin-category-modal-delete" id="admin-category-delete-btn" onclick="deleteCategoryFromModal()" style="display:none;">Delete category</button>
             <button type="button" class="admin-btn-cancel-text" onclick="closeCategoryModal()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Modal: Draft compare summary -->
+    <div id="admin-draft-compare-modal" class="modal" style="display:none;">
+        <div class="modal-box admin-draft-compare-modal-box">
+            <h3 id="admin-draft-compare-title">Changes summary</h3>
+            <div id="admin-draft-compare-body" class="admin-draft-compare-body"></div>
+            <button type="button" class="btn-gold" onclick="closeModal('admin-draft-compare-modal')" style="width:100%; margin-top:12px;">Close</button>
         </div>
     </div>
 
@@ -3331,15 +3371,17 @@
     <script src="js/features.js?v=12.0"></script>
     <script src="js/app.js?v=10.7"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/admin-drafts.js?v=3.2"></script>
-    <script src="js/categories.js?v=11.3"></script>
+    <script src="js/admin-drafts.js?v=3.4"></script>
+    <script src="js/admin-draft-compare.js?v=1.1"></script>
+    <script src="js/admin-favorites.js?v=1.1"></script>
+    <script src="js/categories.js?v=11.5"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
     <script src="js/auth.js?v=10.7"></script>
-    <script src="js/comments.js?v=10.3"></script>
-    <script src="js/support-chat.js?v=10.8"></script>
+    <script src="js/comments.js?v=10.4"></script>
+    <script src="js/support-chat.js?v=10.9"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=14.0"></script>
+    <script src="js/admin.js?v=14.2"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

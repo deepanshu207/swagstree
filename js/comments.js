@@ -148,6 +148,7 @@ function updateCommentsAdminUIVisibility() {
     if (!hasAdminCapability('approveComments') && typeof stopCommentsModerationListener === 'function') {
         stopCommentsModerationListener();
     }
+    if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
 }
 window.updateCommentsAdminUIVisibility = updateCommentsAdminUIVisibility;
 

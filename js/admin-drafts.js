@@ -48,6 +48,15 @@
         _adminUiRefreshTimer = setTimeout(() => {
             renderAdminDraftRecoveryPanel();
             const prodOpen = document.getElementById('prod-modal')?.style.display === 'flex';
+            const catOpen = typeof isCategoryModalOpen === 'function' && isCategoryModalOpen();
+            if (prodOpen) {
+                if (typeof renderProductModalDraftBanner === 'function') renderProductModalDraftBanner();
+                if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
+            }
+            if (catOpen) {
+                if (typeof renderCategoryModalDraftBanner === 'function') renderCategoryModalDraftBanner();
+                if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
+            }
             if (!prodOpen && typeof renderAdmin === 'function') renderAdmin();
         }, 300);
     }
@@ -496,6 +505,12 @@
         adminDraftsEvictOldest(store);
         const ok = adminDraftsWriteAll(store);
         if (ok && !(opts && opts.skipUi)) scheduleAdminDraftUiRefresh();
+        if (type === 'product' && key.startsWith('edit:') && document.getElementById('prod-modal')?.style.display === 'flex') {
+            if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
+        }
+        if (type === 'category' && key.startsWith('edit:') && typeof isCategoryModalOpen === 'function' && isCategoryModalOpen()) {
+            if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
+        }
         return ok;
     }
 
@@ -836,6 +851,9 @@
             if (typeof openAdminCategoryAccordion === 'function') openAdminCategoryAccordion();
             if (typeof applyCategoryFormState === 'function') applyCategoryFormState(item.entry.form, true);
             adminDraftSetActive('category', key);
+            window._adminCategoryViewMode = 'draft';
+            if (typeof renderCategoryModalDraftBanner === 'function') renderCategoryModalDraftBanner();
+            if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
             showToast('Category draft opened — publish with Save Category.');
         } else if (type === 'product') {
             const modal = document.getElementById('prod-modal');
@@ -854,9 +872,11 @@
             }
             if (typeof applyProductDraftForm === 'function') applyProductDraftForm(form);
             adminDraftSetActive('product', key);
+            window._adminProductViewMode = 'draft';
             if (typeof adminBindProductDraftListeners === 'function') adminBindProductDraftListeners();
             if (typeof adminResetProductSnapshot === 'function') adminResetProductSnapshot();
             if (typeof renderProductModalDraftBanner === 'function') renderProductModalDraftBanner();
+            if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
             if (form.hasPendingFiles) {
                 showToast('Draft opened — some media could not be restored; re-upload if needed.');
             } else if (form.hasSavedMedia) {

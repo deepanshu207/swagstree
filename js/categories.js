@@ -284,8 +284,22 @@ function adminSyncCategoryDraftFieldUi() {
 }
 window.adminSyncCategoryDraftFieldUi = adminSyncCategoryDraftFieldUi;
 
+function adminApplyLiveCategoryToForm(cat) {
+    if (!cat) return;
+    fillCategoryFormFromCat(cat);
+    updateCategoryModalTitle('edit');
+    updateCategoryModalMeta(cat);
+    window._adminCategoryLiveBaseline = adminBuildLiveCategorySnapshot(cat);
+}
+window.adminApplyLiveCategoryToForm = adminApplyLiveCategoryToForm;
+
 function renderCategoryModalDraftBanner() {
     const el = document.getElementById('admin-category-draft-banner');
+    const switcher = document.getElementById('admin-category-draft-switcher');
+    if (switcher && !switcher.hidden) {
+        if (el) { el.hidden = true; el.innerHTML = ''; }
+        return;
+    }
     if (!el) return;
     if (!window.editingCategoryId || window._adminCategoryDraftLoaded) {
         el.hidden = true;
@@ -305,11 +319,12 @@ function renderCategoryModalDraftBanner() {
         <div class="admin-draft-banner admin-draft-banner--modal">
             <div class="admin-draft-banner__text">
                 <strong>Unpublished draft</strong> saved ${age}
-                <div class="admin-draft-recovery-hint">Load draft to continue, or edit the published version below</div>
+                <div class="admin-draft-recovery-hint">Switch to Draft tab above, or compare changes</div>
             </div>
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditCategoryDraft()">Load draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditCategoryDraft()">Delete draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-original" onclick="adminLoadOriginalCategory()">Load original</button>
             </div>
         </div>`;
 }
@@ -317,12 +332,25 @@ window.renderCategoryModalDraftBanner = renderCategoryModalDraftBanner;
 
 window.adminLoadEditCategoryDraft = function() {
     if (!window.editingCategoryId) return;
+    if (isCategoryModalOpen() && typeof adminSwitchCategoryView === 'function') {
+        adminSwitchCategoryView('draft');
+        return;
+    }
     if (typeof adminRestoreDraft === 'function') adminRestoreDraft('category', `edit:${window.editingCategoryId}`);
 };
 
 window.adminDiscardEditCategoryDraft = function() {
     if (!window.editingCategoryId) return;
+    const wasDraft = window._adminCategoryViewMode === 'draft';
     if (typeof adminDeleteDraft === 'function') adminDeleteDraft('category', `edit:${window.editingCategoryId}`);
+    window._adminCategoryViewMode = 'live';
+    window._adminCategoryDraftLoaded = false;
+    if (wasDraft) {
+        const cat = typeof getCategoryById === 'function' ? getCategoryById(window.editingCategoryId) : null;
+        if (cat && typeof adminApplyLiveCategoryToForm === 'function') adminApplyLiveCategoryToForm(cat);
+        if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
+    }
+    if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
     renderCategoryModalDraftBanner();
 };
 
@@ -621,15 +649,15 @@ window.openCategoryEdit = function(id) {
     window._adminCategoryLiveBaseline = adminBuildLiveCategorySnapshot(cat);
     if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
     window._adminCategoryDraftLoaded = false;
-    fillCategoryFormFromCat(cat);
-    updateCategoryModalTitle('edit');
-    updateCategoryModalMeta(cat);
+    window._adminCategoryViewMode = 'live';
+    adminApplyLiveCategoryToForm(cat);
     if (typeof openAdminCategoryAccordion === 'function') openAdminCategoryAccordion();
     const modal = document.getElementById('category-modal');
     if (modal) modal.style.display = 'flex';
     renderCategoryModalDraftBanner();
     adminResetCategorySnapshot();
     focusAdminCategoryForm();
+    if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
 };
 
 window.closeCategoryModal = async function() {

@@ -2232,6 +2232,7 @@ function updateSupportChatVisibility() {
         const showInbox = isAdmin && hasSupportChatCapability() && isAdminSupportChatEnabled();
         adminSection.style.display = showInbox ? 'block' : 'none';
     }
+    if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
     if (isAnySupportChatEnabled()) startSupportCustomerWatcher();
     else stopSupportCustomerWatcher();
 

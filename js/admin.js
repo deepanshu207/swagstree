@@ -1193,6 +1193,11 @@ window.discardProductDraft = discardProductDraft;
 
 function renderProductModalDraftBanner() {
     const el = document.getElementById('admin-product-draft-banner');
+    const switcher = document.getElementById('admin-product-draft-switcher');
+    if (switcher && !switcher.hidden) {
+        if (el) { el.hidden = true; el.innerHTML = ''; }
+        return;
+    }
     if (!el) return;
     if (!editingId || typeof adminDraftGetEntry !== 'function') {
         el.hidden = true;
@@ -1217,11 +1222,12 @@ function renderProductModalDraftBanner() {
         <div class="admin-draft-banner admin-draft-banner--modal">
             <div class="admin-draft-banner__text">
                 <strong>Unpublished draft</strong> saved ${age}
-                <div class="admin-draft-recovery-hint">Load draft to continue, or publish from the live version below</div>
+                <div class="admin-draft-recovery-hint">Switch to Draft tab above, or compare changes</div>
             </div>
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditProductDraft()">Load draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditProductDraft()">Delete draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-original" onclick="adminLoadOriginalProduct()">Load original</button>
             </div>
         </div>`;
 }
@@ -1229,12 +1235,26 @@ window.renderProductModalDraftBanner = renderProductModalDraftBanner;
 
 window.adminLoadEditProductDraft = function() {
     if (!editingId) return;
+    const modal = document.getElementById('prod-modal');
+    if (modal?.style.display === 'flex' && typeof adminSwitchProductView === 'function') {
+        adminSwitchProductView('draft');
+        return;
+    }
     if (typeof adminRestoreDraft === 'function') adminRestoreDraft('product', `edit:${editingId}`);
 };
 
 window.adminDiscardEditProductDraft = function() {
     if (!editingId) return;
+    const wasDraft = window._adminProductViewMode === 'draft';
     if (typeof adminDeleteDraft === 'function') adminDeleteDraft('product', `edit:${editingId}`);
+    window._adminProductViewMode = 'live';
+    window._adminProductDraftLoaded = false;
+    if (wasDraft) {
+        const p = (products || []).find(x => x.id === editingId);
+        if (p && typeof adminApplyLiveProductToForm === 'function') adminApplyLiveProductToForm(p);
+        if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+    }
+    if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
     renderProductModalDraftBanner();
 };
 
@@ -2670,6 +2690,7 @@ function removeVariant(id) {
 function renderAdmin() { 
     const container = document.getElementById('admin-list');
     if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
+    if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
     if(!container) return;
     
     const loadMoreContainer = document.getElementById('admin-load-more-container');
@@ -2872,20 +2893,13 @@ window.loadMoreAdminProducts = function() {
     goAdminProductsPage((window.adminProductsPage || 1) + 1);
 };
 
-function openEdit(id) {
-    editingId = id; 
-    if (typeof adminDraftSetActive === 'function') adminDraftSetActive('product', getProductDraftKey(id));
-    const p = products.find(x => x.id === id);
-    if (!p) return showToast('Product not found.');
-    window._adminProductLiveBaseline = adminBuildLiveProductSnapshot(p);
-    if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
-    window._adminProductLiveBaseline = adminBuildLiveProductSnapshot(p);
-    window._adminProductDraftLoaded = false;
+function adminApplyLiveProductToForm(p) {
+    if (!p) return;
     adminSetModalTitle('edit');
     adminShowValidationErrors([]);
     document.getElementById('m-name').value = p.name;
-    document.getElementById('m-price').value = p.price; 
-    document.getElementById('m-desc').value = p.description || ""; 
+    document.getElementById('m-price').value = p.price;
+    document.getElementById('m-desc').value = p.description || '';
     document.getElementById('m-hide-main').checked = !!p.hideMainCarousel;
     document.getElementById('m-hide-main-details').checked = !!p.hideMainDetailsCarousel;
     document.getElementById('m-main-pos').value = p.mainImagesPosition || 'end';
@@ -2895,7 +2909,7 @@ function openEdit(id) {
     existingSpinUrls = [...(p.spinImages || [])];
     existingPanoramaUrls = [...(p.panoramaImages || [])];
     existingVideoUrls = (p.videos || []).map(normalizeStoredVideo).filter(Boolean);
-    
+
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
     syncAdmin360PanelVisibility();
     const mainIs360 = document.getElementById('m-is360');
@@ -2918,13 +2932,11 @@ function openEdit(id) {
     syncAdmin360AccordionSummary('base');
     syncAdminMediaStatus('base');
     if (typeof hydrateGlobalStockForm === 'function') hydrateGlobalStockForm(p);
-    
-    // Load variants or fallback
+
     if (p.variants && Array.isArray(p.variants)) {
         variantBlocks = p.variants.map(mapSavedVariantToBlock);
         migrateVariantStockMaps();
     } else {
-        // Fallback for older products
         variantBlocks = [];
         const sizes = p.sizes || [];
         const map = p.sizeColorMap || {};
@@ -2935,54 +2947,29 @@ function openEdit(id) {
                     let pImg = '';
                     if (Array.isArray(p.previewImages)) pImg = p.previewImages[0];
                     else if (p.previewImage) pImg = p.previewImage;
-
                     variantBlocks.push({
                         id: 'v_' + Math.random().toString(36).substr(2, 9),
-                        size: sz,
-                        color: col,
-                        colorName: '',
-                        pattern: '',
-                        patternName: '',
-                        showPatternText: false,
-                        price: null,
-                        hideDetailsGallery: false,
-                        showInMainCarousel: false,
-                        isActive: true,
-                        trackVariantStock: false,
-                        trackComboStock: false,
-                        variantStockCount: 0,
-                        trackStock: false,
-                        stockCount: 0,
-                        images: [],
-                        previewImages: pImg ? [pImg] : []
+                        size: sz, color: col, colorName: '', pattern: '', patternName: '',
+                        showPatternText: false, price: null, hideDetailsGallery: false,
+                        showInMainCarousel: false, isActive: true, trackVariantStock: false,
+                        trackComboStock: false, variantStockCount: 0, trackStock: false,
+                        stockCount: 0, images: [], previewImages: pImg ? [pImg] : []
                     });
                 });
             } else {
                 variantBlocks.push({
                     id: 'v_' + Math.random().toString(36).substr(2, 9),
-                    size: sz,
-                    color: '',
-                    colorName: '',
-                    pattern: '',
-                    patternName: '',
-                    showPatternText: false,
-                    price: p.price,
-                    hideDetailsGallery: false,
-                    showInMainCarousel: false,
-                    isActive: true,
-                    trackVariantStock: false,
-                    trackComboStock: false,
-                    variantStockCount: 0,
-                    trackStock: false,
-                    stockCount: 0,
-                    images: [],
-                    previewImages: []
+                    size: sz, color: '', colorName: '', pattern: '', patternName: '',
+                    showPatternText: false, price: p.price, hideDetailsGallery: false,
+                    showInMainCarousel: false, isActive: true, trackVariantStock: false,
+                    trackComboStock: false, variantStockCount: 0, trackStock: false,
+                    stockCount: 0, images: [], previewImages: []
                 });
             }
         });
     }
 
-    renderImagePreviews('base'); 
+    renderImagePreviews('base');
     renderVariantBlocks();
     if (p.is360 || p.is360Panorama || (p.spinImages || []).length || (p.panoramaImages || []).length) {
         toggleAdmin360Accordion('base', true);
@@ -2995,11 +2982,25 @@ function openEdit(id) {
         }
     });
     if (typeof hydrateProductCategoryForm === 'function') hydrateProductCategoryForm(p);
+}
+window.adminApplyLiveProductToForm = adminApplyLiveProductToForm;
+
+function openEdit(id) {
+    editingId = id;
+    if (typeof adminDraftSetActive === 'function') adminDraftSetActive('product', getProductDraftKey(id));
+    const p = products.find(x => x.id === id);
+    if (!p) return showToast('Product not found.');
+    window._adminProductLiveBaseline = adminBuildLiveProductSnapshot(p);
+    if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+    window._adminProductDraftLoaded = false;
+    window._adminProductViewMode = 'live';
+    adminApplyLiveProductToForm(p);
     if (typeof resetProductGuideAccordion === 'function') resetProductGuideAccordion();
     document.getElementById('prod-modal').style.display = 'flex';
     adminResetProductSnapshot();
     adminBindProductDraftListeners();
     renderProductModalDraftBanner();
+    if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
 }
 
 function toggle360Badge(id, checked) {
