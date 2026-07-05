@@ -2370,6 +2370,12 @@ async function loadSuperadminFeatures() {
             if (document.getElementById('toggle-admin-crud-drafts')) {
                 document.getElementById('toggle-admin-crud-drafts').checked = data.adminCrudDrafts !== false;
             }
+            if (document.getElementById('toggle-admin-crud-drafts-media')) {
+                document.getElementById('toggle-admin-crud-drafts-media').checked = !!data.adminCrudDraftsMedia;
+            }
+            if (document.getElementById('toggle-admin-crud-drafts-clear-all')) {
+                document.getElementById('toggle-admin-crud-drafts-clear-all').checked = data.adminCrudDraftsClearAll !== false;
+            }
             if (typeof updateSuperadminDraftStorageInfo === 'function') updateSuperadminDraftStorageInfo();
 
             if (typeof syncCatalogControlCheckboxes === 'function') {
@@ -2425,6 +2431,8 @@ async function saveSuperadminFeatures() {
         productCategories: !!document.getElementById('toggle-product-categories')?.checked,
         adminStorefrontContent: !!document.getElementById('toggle-admin-storefront-content')?.checked,
         adminCrudDrafts: !!document.getElementById('toggle-admin-crud-drafts')?.checked,
+        adminCrudDraftsMedia: !!document.getElementById('toggle-admin-crud-drafts-media')?.checked,
+        adminCrudDraftsClearAll: !!document.getElementById('toggle-admin-crud-drafts-clear-all')?.checked,
         widgets: {
             discountWheel: !!document.getElementById('toggle-discount-wheel')?.checked,
             recentOrders: !!document.getElementById('toggle-recent-orders')?.checked,

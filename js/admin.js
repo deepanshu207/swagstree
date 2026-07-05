@@ -733,7 +733,12 @@ function adminMapDraftVariantToBlock(v) {
         images: v.images || [],
         spinImages: v.spinImages || [],
         panoramaImages: v.panoramaImages || [],
-        videos: (v.videos || []).filter(x => x && x.url).map(x => ({ url: x.url, is360: !!x.is360 })),
+        videos: (v.videos || []).map(x => {
+            if (!x) return null;
+            if (x.file instanceof File) return { file: x.file, url: '', is360: !!x.is360 };
+            if (x.url) return { url: x.url, is360: !!x.is360 };
+            return null;
+        }).filter(Boolean),
         previewImages: v.previewImages || []
     });
     block.id = 'v_' + Math.random().toString(36).substr(2, 9);
@@ -756,7 +761,12 @@ function applyProductDraftForm(form) {
     existingImageUrls = [...(form.images || [])];
     existingSpinUrls = [...(form.spins || [])];
     existingPanoramaUrls = [...(form.panos || [])];
-    existingVideoUrls = (form.videos || []).filter(v => v && v.url).map(v => ({ url: v.url, is360: !!v.is360 }));
+    existingVideoUrls = (form.videos || []).map(v => {
+        if (!v) return null;
+        if (v.file instanceof File) return { file: v.file, url: '', is360: !!v.is360 };
+        if (v.url) return { url: v.url, is360: !!v.is360 };
+        return null;
+    }).filter(Boolean);
     variantBlocks = (form.variants || []).map(adminMapDraftVariantToBlock);
     syncAdmin360PanelVisibility();
     const mainIs360 = document.getElementById('m-is360');
@@ -1046,6 +1056,10 @@ function adminFinalizeProductModalClose() {
 window.adminFinalizeProductModalClose = adminFinalizeProductModalClose;
 
 function flushProductDraft() {
+    if (typeof adminAutoSaveProductDraft === 'function') {
+        adminAutoSaveProductDraft({ silent: true, force: true });
+        return true;
+    }
     const modal = document.getElementById('prod-modal');
     if (!modal || modal.style.display !== 'flex') return false;
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return false;
@@ -1132,12 +1146,20 @@ async function saveProductAsDraft(silent) {
         if (!silent) showToast('Drafts are disabled in Superadmin settings.');
         return false;
     }
-    const form = adminBuildProductDraftPayload();
+    let form = adminBuildProductDraftPayload();
     if (!adminProductDraftPayloadHasContent(form)) {
         if (!silent) showToast('Add a name, price, or details before saving as draft.');
         return false;
     }
     const key = getProductDraftKey(form.editingId);
+    if (typeof adminDraftPrepareProductFormForSave === 'function' &&
+        typeof adminCrudDraftsMediaEnabled === 'function' && adminCrudDraftsMediaEnabled()) {
+        try {
+            form = await adminDraftPrepareProductFormForSave(form, key);
+        } catch (e) {
+            console.warn('saveProductAsDraft media persist failed:', e);
+        }
+    }
     if (typeof adminDraftUpsert === 'function') {
         adminDraftUpsert('product', key, {
             entityId: form.editingId || null,
@@ -1229,6 +1251,7 @@ function adminBindProductDraftListeners() {
                 adminSyncProductEditDraftUi();
             }
         }, 200);
+        if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
     };
     modal.addEventListener('input', onChange);
     modal.addEventListener('change', onChange);
@@ -2054,6 +2077,7 @@ function handleSpinFileSelect(input, vId) {
     }
     syncAdmin360AccordionSummary(vId);
     input.value = '';
+    if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
 }
 window.handleSpinFileSelect = handleSpinFileSelect;
 
@@ -2072,6 +2096,7 @@ function handlePanoramaFileSelect(input, vId) {
     }
     syncAdminMediaStatus(vId);
     input.value = '';
+    if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
 }
 window.handlePanoramaFileSelect = handlePanoramaFileSelect;
 
@@ -2580,6 +2605,7 @@ function handleSwatchSelect(input, vId) {
     }
     renderVariantBlocks();
     input.value = '';
+    if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
 }
 
 function removeSpinImage(vId, index) {

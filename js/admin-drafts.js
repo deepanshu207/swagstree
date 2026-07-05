@@ -8,6 +8,12 @@
     const ADMIN_DRAFTS_LEGACY_ARCHIVE_KEY = 'swagstree_admin_draft_archive_v1';
     const ADMIN_DRAFTS_MAX_BYTES = 500000;
     const ADMIN_DRAFTS_MAX_PER_TYPE = 25;
+    const DRAFT_MEDIA_DB = 'swagstree_admin_draft_media';
+    const DRAFT_MEDIA_STORE = 'blobs';
+    const DRAFT_MEDIA_MAX_FILE = 8 * 1024 * 1024;
+    const DRAFT_MEDIA_MAX_DRAFT = 24 * 1024 * 1024;
+    const PRODUCT_AUTO_SAVE_MS = 900;
+    const CATEGORY_AUTO_SAVE_MS = 600;
 
     let unsavedResolver = null;
     let categoryDraftTimer = null;
@@ -15,8 +21,12 @@
     let _draftStoreCache = null;
     let _legacyMigrated = false;
     let _adminUiRefreshTimer = null;
+    let _draftMediaDbPromise = null;
+    let _productAutoSaveInFlight = null;
 
     window._activeAdminDraftKey = window._activeAdminDraftKey || null;
+    window._adminDraftsAccordionOpen = window._adminDraftsAccordionOpen || false;
+    window._adminDraftSubOpen = window._adminDraftSubOpen || { product: false, category: false };
 
     function adminDraftInvalidateCache() {
         _draftStoreCache = null;
@@ -41,6 +51,273 @@
 
     function adminCrudDraftsEnabled() {
         return !!(window.APP_FEATURES && window.APP_FEATURES.adminCrudDrafts !== false);
+    }
+
+    function adminCrudDraftsMediaEnabled() {
+        return adminCrudDraftsEnabled() && !!(window.APP_FEATURES && window.APP_FEATURES.adminCrudDraftsMedia);
+    }
+
+    function adminCrudDraftsClearAllEnabled() {
+        return adminCrudDraftsEnabled() && window.APP_FEATURES?.adminCrudDraftsClearAll !== false;
+    }
+
+    function adminDraftMediaOpenDb() {
+        if (_draftMediaDbPromise) return _draftMediaDbPromise;
+        _draftMediaDbPromise = new Promise((resolve, reject) => {
+            if (!window.indexedDB) {
+                reject(new Error('IndexedDB unavailable'));
+                return;
+            }
+            const req = indexedDB.open(DRAFT_MEDIA_DB, 1);
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(DRAFT_MEDIA_STORE)) {
+                    db.createObjectStore(DRAFT_MEDIA_STORE);
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+        });
+        return _draftMediaDbPromise;
+    }
+
+    async function adminDraftMediaPut(refId, blob, meta) {
+        const db = await adminDraftMediaOpenDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(DRAFT_MEDIA_STORE, 'readwrite');
+            tx.objectStore(DRAFT_MEDIA_STORE).put({ blob, meta: meta || {}, updatedAt: Date.now() }, refId);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    async function adminDraftMediaGet(refId) {
+        const db = await adminDraftMediaOpenDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(DRAFT_MEDIA_STORE, 'readonly');
+            const req = tx.objectStore(DRAFT_MEDIA_STORE).get(refId);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    async function adminDraftMediaDeletePrefix(prefix) {
+        try {
+            const db = await adminDraftMediaOpenDb();
+            const keys = await new Promise((resolve, reject) => {
+                const tx = db.transaction(DRAFT_MEDIA_STORE, 'readonly');
+                const req = tx.objectStore(DRAFT_MEDIA_STORE).getAllKeys();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => reject(req.error);
+            });
+            const toDelete = keys.filter(k => String(k).startsWith(prefix));
+            if (!toDelete.length) return;
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(DRAFT_MEDIA_STORE, 'readwrite');
+                const store = tx.objectStore(DRAFT_MEDIA_STORE);
+                toDelete.forEach(k => store.delete(k));
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        } catch (e) {
+            console.warn('adminDraftMediaDeletePrefix failed:', e);
+        }
+    }
+
+    async function adminDraftMediaClearAll() {
+        try {
+            const db = await adminDraftMediaOpenDb();
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(DRAFT_MEDIA_STORE, 'readwrite');
+                tx.objectStore(DRAFT_MEDIA_STORE).clear();
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        } catch (e) {
+            console.warn('adminDraftMediaClearAll failed:', e);
+        }
+    }
+
+    function adminDraftExtractFile(item) {
+        if (item instanceof File) return item;
+        if (item && typeof item === 'object') {
+            if (item.file instanceof File) return item.file;
+            if (item.blob instanceof Blob && !(item.url)) return item.file || null;
+        }
+        return null;
+    }
+
+    async function adminDraftPersistMediaArray(arr, type, draftKey, prefix, totalRef) {
+        if (!Array.isArray(arr)) return arr;
+        const out = [];
+        const isVideo = prefix.includes('video');
+        for (let i = 0; i < arr.length; i++) {
+            const item = arr[i];
+            if (typeof item === 'string' && item.trim()) {
+                out.push(item.trim());
+                continue;
+            }
+            if (item?.draftMediaRef && !item.pendingFile) {
+                out.push(item);
+                continue;
+            }
+            if (item?.url && !item.pendingFile && !adminDraftExtractFile(item)) {
+                out.push({ url: item.url, is360: !!item.is360 });
+                continue;
+            }
+            const file = adminDraftExtractFile(item);
+            if (!file) {
+                if (item?.pendingFile) out.push(item);
+                continue;
+            }
+            if (file.size > DRAFT_MEDIA_MAX_FILE || totalRef.bytes + file.size > DRAFT_MEDIA_MAX_DRAFT) {
+                out.push({ pendingFile: true, name: file.name, tooLarge: true });
+                totalRef.skipped = true;
+                continue;
+            }
+            const refId = `${type}:${draftKey}:${prefix}:${i}`;
+            try {
+                await adminDraftMediaPut(refId, file, { name: file.name, mime: file.type, size: file.size });
+                totalRef.bytes += file.size;
+                if (isVideo) {
+                    out.push({
+                        draftMediaRef: refId,
+                        name: file.name,
+                        mime: file.type,
+                        is360: !!(item.is360 || item._is360),
+                        restoredMedia: true
+                    });
+                } else {
+                    out.push({ draftMediaRef: refId, name: file.name, mime: file.type, restoredMedia: true });
+                }
+            } catch (e) {
+                console.warn('adminDraftPersistMediaArray failed:', e);
+                out.push({ pendingFile: true, name: file.name });
+                totalRef.skipped = true;
+            }
+        }
+        return out;
+    }
+
+    async function adminDraftHydrateMediaArray(arr, isVideo) {
+        if (!Array.isArray(arr)) return arr;
+        const out = [];
+        for (const item of arr) {
+            if (typeof item === 'string') {
+                out.push(item);
+                continue;
+            }
+            if (item?.draftMediaRef) {
+                try {
+                    const stored = await adminDraftMediaGet(item.draftMediaRef);
+                    const blob = stored?.blob;
+                    if (blob) {
+                        const file = new File([blob], item.name || 'media', { type: item.mime || blob.type || 'application/octet-stream' });
+                        if (isVideo) out.push({ file, url: '', is360: !!item.is360 });
+                        else out.push(file);
+                        continue;
+                    }
+                } catch (e) {
+                    console.warn('adminDraftHydrateMediaArray failed:', e);
+                }
+                out.push({ pendingFile: true, name: item.name || 'file', missingMedia: true });
+                continue;
+            }
+            if (item?.url) {
+                out.push(isVideo ? { url: item.url, is360: !!item.is360 } : item.url);
+                continue;
+            }
+            out.push(item);
+        }
+        return out;
+    }
+
+    async function adminDraftPrepareProductFormForSave(form, draftKey) {
+        if (!form || !adminCrudDraftsMediaEnabled()) return form;
+        const totalRef = { bytes: 0, skipped: false };
+        await adminDraftMediaDeletePrefix(`product:${draftKey}:`);
+        const out = { ...form, variants: (form.variants || []).map(v => ({ ...v })) };
+        out.images = await adminDraftPersistMediaArray(form.images, 'product', draftKey, 'img', totalRef);
+        out.spins = await adminDraftPersistMediaArray(form.spins, 'product', draftKey, 'spin', totalRef);
+        out.panos = await adminDraftPersistMediaArray(form.panos, 'product', draftKey, 'pano', totalRef);
+        out.videos = await adminDraftPersistMediaArray(form.videos, 'product', draftKey, 'video', totalRef);
+        for (let vi = 0; vi < (form.variants || []).length; vi++) {
+            const v = form.variants[vi];
+            const vp = `v${vi}`;
+            out.variants[vi].images = await adminDraftPersistMediaArray(v.images, 'product', draftKey, `${vp}-img`, totalRef);
+            out.variants[vi].spinImages = await adminDraftPersistMediaArray(v.spinImages, 'product', draftKey, `${vp}-spin`, totalRef);
+            out.variants[vi].panoramaImages = await adminDraftPersistMediaArray(v.panoramaImages, 'product', draftKey, `${vp}-pano`, totalRef);
+            out.variants[vi].videos = await adminDraftPersistMediaArray(v.videos, 'product', draftKey, `${vp}-video`, totalRef);
+            out.variants[vi].previewImages = await adminDraftPersistMediaArray(v.previewImages, 'product', draftKey, `${vp}-prev`, totalRef);
+        }
+        out.hasPendingFiles = !!totalRef.skipped;
+        out.hasSavedMedia = !totalRef.skipped && totalRef.bytes > 0;
+        return out;
+    }
+
+    async function adminDraftHydrateProductForm(form) {
+        if (!form) return form;
+        if (!adminCrudDraftsMediaEnabled()) return form;
+        const out = { ...form, variants: (form.variants || []).map(v => ({ ...v })) };
+        out.images = await adminDraftHydrateMediaArray(form.images, false);
+        out.spins = await adminDraftHydrateMediaArray(form.spins, false);
+        out.panos = await adminDraftHydrateMediaArray(form.panos, false);
+        out.videos = await adminDraftHydrateMediaArray(form.videos, true);
+        for (let vi = 0; vi < (form.variants || []).length; vi++) {
+            const v = form.variants[vi];
+            out.variants[vi].images = await adminDraftHydrateMediaArray(v.images, false);
+            out.variants[vi].spinImages = await adminDraftHydrateMediaArray(v.spinImages, false);
+            out.variants[vi].panoramaImages = await adminDraftHydrateMediaArray(v.panoramaImages, false);
+            out.variants[vi].videos = await adminDraftHydrateMediaArray(v.videos, true);
+            out.variants[vi].previewImages = await adminDraftHydrateMediaArray(v.previewImages, false);
+        }
+        out.hasPendingFiles = [out.images, out.spins, out.panos, out.videos, ...(out.variants || []).flatMap(v => [v.images, v.spinImages, v.panoramaImages, v.videos])]
+            .some(arr => (arr || []).some(item => item && (item.pendingFile || item.missingMedia || item.tooLarge)));
+        return out;
+    }
+
+    async function adminAutoSaveProductDraft(opts) {
+        if (!adminCrudDraftsEnabled()) return false;
+        const modal = document.getElementById('prod-modal');
+        if (!modal || modal.style.display !== 'flex') return false;
+        if (typeof adminBuildProductDraftPayload !== 'function') return false;
+        if (typeof adminProductDraftPayloadHasContent !== 'function') return false;
+        let form = adminBuildProductDraftPayload();
+        if (!adminProductDraftPayloadHasContent(form)) return false;
+        const isNew = !form.editingId;
+        if (!isNew && !(opts && opts.force) && typeof adminIsProductDirty === 'function' && !adminIsProductDirty()) {
+            return false;
+        }
+        const key = form.editingId ? `edit:${form.editingId}` : 'new';
+        if (adminCrudDraftsMediaEnabled()) {
+            form = await adminDraftPrepareProductFormForSave(form, key);
+        }
+        if (typeof adminDraftUpsert !== 'function') return false;
+        return adminDraftUpsert('product', key, {
+            entityId: form.editingId || null,
+            label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
+            form
+        }, { skipUi: !!(opts && opts.silent) });
+    }
+
+    async function adminAutoSaveCategoryDraft(opts) {
+        if (!adminCrudDraftsEnabled()) return false;
+        if (typeof isCategoryModalOpen !== 'function' || !isCategoryModalOpen()) return false;
+        if (typeof serializeCategoryFormState !== 'function') return false;
+        const state = serializeCategoryFormState();
+        if (typeof categoryFormHasDraftableContent !== 'function' || !categoryFormHasDraftableContent(state)) {
+            return false;
+        }
+        const isNew = !state.editingCategoryId;
+        if (!isNew && !(opts && opts.force) && typeof adminIsCategoryDirty === 'function' && !adminIsCategoryDirty()) {
+            return false;
+        }
+        const key = state.editingCategoryId ? `edit:${state.editingCategoryId}` : 'new';
+        return adminDraftUpsert('category', key, {
+            entityId: state.editingCategoryId || null,
+            label: state.name,
+            form: state
+        }, { skipUi: !!(opts && opts.silent) });
     }
 
     function adminDraftEscapeHtml(str) {
@@ -227,6 +504,7 @@
         if (store[bucket][key]) delete store[bucket][key];
         adminDraftsWriteAll(store);
         if (adminDraftIsActive(type, key)) adminDraftClearActive();
+        adminDraftMediaDeletePrefix(`${type}:${key}:`);
         scheduleAdminDraftUiRefresh();
     }
 
@@ -234,6 +512,7 @@
         try { localStorage.removeItem(ADMIN_DRAFTS_KEY); } catch (e) { /* ignore */ }
         adminDraftInvalidateCache();
         adminDraftClearActive();
+        adminDraftMediaClearAll();
         scheduleAdminDraftUiRefresh();
     }
 
@@ -320,9 +599,11 @@
         const el = document.getElementById('admin-drafts-storage-info');
         if (!el) return;
         const info = adminDraftsStorageInfo();
-        el.textContent = info.total
-            ? `${info.total} draft${info.total === 1 ? '' : 's'} · ${adminDraftFormatBytes(info.bytes)} in browser storage`
-            : 'No drafts stored in this browser';
+        const mediaNote = adminCrudDraftsMediaEnabled() ? ' · images/videos in browser storage' : ' · text fields only';
+        const clearNote = adminCrudDraftsClearAllEnabled() ? '' : ' · Clear all disabled';
+        el.innerHTML = info.total
+            ? `${info.total} draft${info.total === 1 ? '' : 's'} (${info.products} product, ${info.categories} category) · ${adminDraftFormatBytes(info.bytes)} in local storage${mediaNote}${clearNote}. Auto-saves while you edit.`
+            : `No drafts stored in this browser${mediaNote}. Auto-saves while you edit.`;
     }
 
     function updateAdminNewProductDraftBadge() {
@@ -362,17 +643,27 @@
         else el.removeAttribute('title');
     };
 
+    function adminDraftRowMediaNote(form) {
+        if (!form) return '';
+        if (form.hasSavedMedia) return ' · <span class="admin-draft-recovery-row__media">photos/videos saved</span>';
+        if (form.hasPendingFiles) return ' · <span class="admin-draft-recovery-row__media admin-draft-recovery-row__media--warn">re-upload media</span>';
+        const imgCount = (form.images?.length || 0) + (form.spins?.length || 0) + (form.panos?.length || 0) + (form.videos?.length || 0);
+        if (imgCount) return ' · <span class="admin-draft-recovery-row__media">includes media links</span>';
+        return '';
+    }
+
     function adminDraftRecoveryRowHtml(item) {
         const label = adminDraftEscapeHtml(item.entry?.label || 'Untitled');
         const age = adminDraftFormatAge(item.entry?.updatedAt);
         const isNew = item.key === 'new';
         const meta = isNew ? 'New — not published yet' : 'Unpublished edits';
+        const mediaNote = item.type === 'product' ? adminDraftRowMediaNote(item.entry?.form) : '';
         const action = `adminRestoreDraft('${item.type}', '${item.key}')`;
         return `
         <div class="admin-draft-recovery-row admin-draft-recovery-row--${item.type}">
             <div class="admin-draft-recovery-row__text">
                 <strong>${label}</strong>
-                <span class="admin-draft-recovery-row__meta">${meta} · ${age}</span>
+                <span class="admin-draft-recovery-row__meta">${meta} · ${age}${mediaNote}</span>
             </div>
             <div class="admin-draft-recovery-row__actions">
                 <button type="button" class="btn-gold admin-draft-btn-approve" onclick="${action}">Continue</button>
@@ -387,25 +678,50 @@
         const icon = isProduct ? 'fa-box-open' : 'fa-folder-open-o';
         const title = isProduct ? 'Product drafts' : 'Category drafts';
         const hint = isProduct
-            ? 'Open a draft, finish your changes, then tap <strong>Save Product</strong> to publish.'
-            : 'Open a draft, finish your changes, then tap <strong>Save Category</strong> to publish.';
-        const countLabel = `${items.length} draft${items.length === 1 ? '' : 's'}`;
+            ? 'Tap <strong>Continue</strong> → finish → <strong>Save Product</strong> to publish.'
+            : 'Tap <strong>Continue</strong> → finish → <strong>Save Category</strong> to publish.';
+        const countLabel = `${items.length}`;
         const sorted = [...items].sort((a, b) => (Number(b.entry?.updatedAt) || 0) - (Number(a.entry?.updatedAt) || 0));
+        const open = !!window._adminDraftSubOpen[type];
         return `
-        <section class="admin-draft-recovery-section admin-draft-recovery-section--${type}" aria-label="${title}">
-            <div class="admin-draft-recovery-section__head">
-                <span class="admin-draft-recovery-section__title">
+        <div class="admin-draft-sub-accordion admin-draft-sub-accordion--${type}">
+            <button type="button" class="admin-draft-sub-accordion__trigger" onclick="toggleAdminDraftSubsection('${type}')" aria-expanded="${open}">
+                <span class="admin-draft-sub-accordion__title">
                     <i class="fa ${icon}" aria-hidden="true"></i>
                     ${title}
                     <span class="admin-draft-recovery-section__count">${countLabel}</span>
                 </span>
+                <i class="fa fa-chevron-down admin-draft-sub-accordion__icon${open ? ' is-open' : ''}" aria-hidden="true"></i>
+            </button>
+            <div id="admin-draft-sub-${type}" class="admin-draft-sub-accordion__body" ${open ? '' : 'hidden'}>
                 <p class="admin-draft-recovery-section__hint">${hint}</p>
+                <div class="admin-draft-recovery-list">
+                    ${sorted.map(adminDraftRecoveryRowHtml).join('')}
+                </div>
             </div>
-            <div class="admin-draft-recovery-list">
-                ${sorted.map(adminDraftRecoveryRowHtml).join('')}
-            </div>
-        </section>`;
+        </div>`;
     }
+
+    window.toggleAdminDraftsAccordion = function() {
+        window._adminDraftsAccordionOpen = !window._adminDraftsAccordionOpen;
+        const body = document.getElementById('admin-draft-accordion-body');
+        const icon = document.querySelector('.admin-draft-accordion__icon');
+        if (body) body.hidden = !window._adminDraftsAccordionOpen;
+        if (icon) icon.classList.toggle('is-open', window._adminDraftsAccordionOpen);
+        const trigger = document.querySelector('.admin-draft-accordion__trigger');
+        if (trigger) trigger.setAttribute('aria-expanded', window._adminDraftsAccordionOpen ? 'true' : 'false');
+    };
+
+    window.toggleAdminDraftSubsection = function(type) {
+        if (!type) return;
+        window._adminDraftSubOpen[type] = !window._adminDraftSubOpen[type];
+        const body = document.getElementById(`admin-draft-sub-${type}`);
+        const icon = document.querySelector(`.admin-draft-sub-accordion--${type} .admin-draft-sub-accordion__icon`);
+        if (body) body.hidden = !window._adminDraftSubOpen[type];
+        if (icon) icon.classList.toggle('is-open', window._adminDraftSubOpen[type]);
+        const trigger = document.querySelector(`.admin-draft-sub-accordion--${type} .admin-draft-sub-accordion__trigger`);
+        if (trigger) trigger.setAttribute('aria-expanded', window._adminDraftSubOpen[type] ? 'true' : 'false');
+    };
 
     function renderAdminDraftRecoveryPanel() {
         updateAdminNewProductDraftBadge();
@@ -431,24 +747,38 @@
 
         const productDrafts = items.filter(item => item.type === 'product');
         const categoryDrafts = items.filter(item => item.type === 'category');
+        const totalCount = items.length;
+        const mainOpen = !!window._adminDraftsAccordionOpen;
+        const clearBtn = adminCrudDraftsClearAllEnabled()
+            ? '<button type="button" class="admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>'
+            : '';
 
         panel.hidden = false;
         panel.style.display = '';
         panel.innerHTML = `
-            <div class="admin-draft-recovery-panel">
-                <div class="admin-draft-recovery-panel__head">
-                    <span class="admin-draft-recovery-panel__title"><i class="fa fa-file-text-o"></i> Saved drafts on this device</span>
-                    <button type="button" class="admin-draft-clear-all" onclick="adminDeleteAllDrafts()">Clear all</button>
+            <div class="admin-draft-recovery-panel admin-draft-accordion">
+                <div class="admin-draft-accordion__head">
+                    <button type="button" class="admin-draft-accordion__trigger" onclick="toggleAdminDraftsAccordion()" aria-expanded="${mainOpen}">
+                        <span class="admin-draft-recovery-panel__title">
+                            <i class="fa fa-file-text-o" aria-hidden="true"></i>
+                            Saved drafts
+                            <span class="admin-draft-recovery-section__count">${totalCount}</span>
+                        </span>
+                        <i class="fa fa-chevron-down admin-draft-accordion__icon${mainOpen ? ' is-open' : ''}" aria-hidden="true"></i>
+                    </button>
+                    ${clearBtn}
                 </div>
-                <p class="admin-draft-recovery-intro">Unfinished work saved on this phone. <strong>Continue</strong> opens the draft — publish when ready, or <strong>Delete</strong> to remove it.</p>
-                <div class="admin-draft-recovery-sections">
-                    ${adminDraftRecoverySectionHtml('product', productDrafts)}
-                    ${adminDraftRecoverySectionHtml('category', categoryDrafts)}
+                <div id="admin-draft-accordion-body" class="admin-draft-accordion__body" ${mainOpen ? '' : 'hidden'}>
+                    <p class="admin-draft-recovery-intro">Work is <strong>auto-saved</strong> on this device while you edit. Tap <strong>Continue</strong> to reopen a draft, then publish when ready.</p>
+                    <div class="admin-draft-recovery-sections">
+                        ${adminDraftRecoverySectionHtml('product', productDrafts)}
+                        ${adminDraftRecoverySectionHtml('category', categoryDrafts)}
+                    </div>
                 </div>
             </div>`;
     }
 
-    window.adminRestoreDraft = function(type, key) {
+    window.adminRestoreDraft = async function(type, key) {
         if (!adminCrudDraftsEnabled()) return;
         const item = adminDraftGetEntry(type, key);
         if (!item?.entry?.form) return;
@@ -461,7 +791,7 @@
             if (typeof openAdminCategoryAccordion === 'function') openAdminCategoryAccordion();
             if (typeof applyCategoryFormState === 'function') applyCategoryFormState(item.entry.form, true);
             adminDraftSetActive('category', key);
-            showToast('Category draft opened — publish with Save or use Save as draft.');
+            showToast('Category draft opened — publish with Save Category.');
         } else if (type === 'product') {
             const modal = document.getElementById('prod-modal');
             if (modal?.style.display === 'flex' && typeof adminIsProductDirty === 'function' && adminIsProductDirty()) {
@@ -469,15 +799,25 @@
                 return;
             }
             if (modal) modal.style.display = 'flex';
-            if (typeof applyProductDraftForm === 'function') applyProductDraftForm(item.entry.form);
+            let form = item.entry.form;
+            if (adminCrudDraftsMediaEnabled()) {
+                try {
+                    form = await adminDraftHydrateProductForm(form);
+                } catch (e) {
+                    console.warn('adminDraftHydrateProductForm failed:', e);
+                }
+            }
+            if (typeof applyProductDraftForm === 'function') applyProductDraftForm(form);
             adminDraftSetActive('product', key);
             if (typeof adminBindProductDraftListeners === 'function') adminBindProductDraftListeners();
             if (typeof adminResetProductSnapshot === 'function') adminResetProductSnapshot();
             if (typeof renderProductModalDraftBanner === 'function') renderProductModalDraftBanner();
-            if (item.entry.form.hasPendingFiles) {
-                showToast('Draft opened — re-upload any files that were not saved.');
+            if (form.hasPendingFiles) {
+                showToast('Draft opened — some media could not be restored; re-upload if needed.');
+            } else if (form.hasSavedMedia) {
+                showToast('Draft opened with saved photos/videos — publish with Save Product.');
             } else {
-                showToast('Draft opened — publish with Save Product or Save as draft.');
+                showToast('Draft opened — publish with Save Product.');
             }
         }
 
@@ -492,8 +832,12 @@
     };
 
     window.adminDeleteAllDrafts = function() {
+        if (!adminCrudDraftsClearAllEnabled()) {
+            showToast('Clear all drafts is disabled in Superadmin settings.');
+            return;
+        }
         if (!adminDraftListEntries().length) return;
-        if (!window.confirm('Delete all drafts on this device?')) return;
+        if (!window.confirm('Delete all product and category drafts on this device?')) return;
         adminDraftRemoveAll();
         showToast('All drafts cleared.');
     };
@@ -576,6 +920,12 @@
     }
 
     window.adminCrudDraftsEnabled = adminCrudDraftsEnabled;
+    window.adminCrudDraftsMediaEnabled = adminCrudDraftsMediaEnabled;
+    window.adminCrudDraftsClearAllEnabled = adminCrudDraftsClearAllEnabled;
+    window.adminAutoSaveProductDraft = adminAutoSaveProductDraft;
+    window.adminAutoSaveCategoryDraft = adminAutoSaveCategoryDraft;
+    window.adminDraftPrepareProductFormForSave = adminDraftPrepareProductFormForSave;
+    window.adminDraftHydrateProductForm = adminDraftHydrateProductForm;
     window.adminPromptUnsavedChoice = (msg, withDraft) => adminPromptUnsaved(msg, withDraft);
     window.adminDraftUpsert = adminDraftUpsert;
     window.adminDraftRemove = adminDraftRemove;
@@ -701,16 +1051,35 @@
     };
 
     window.adminScheduleCategoryDraftSave = function() {
-        /* No per-keystroke auto-save — use Save as draft or close prompts. */
+        if (!adminCrudDraftsEnabled()) return;
+        clearTimeout(categoryDraftTimer);
+        categoryDraftTimer = setTimeout(() => {
+            adminAutoSaveCategoryDraft({ silent: true });
+        }, CATEGORY_AUTO_SAVE_MS);
     };
 
     window.adminScheduleProductDraftSave = function() {
-        /* No per-keystroke auto-save — avoids heavy payload builds while typing. */
+        if (!adminCrudDraftsEnabled()) return;
+        clearTimeout(productDraftTimer);
+        productDraftTimer = setTimeout(() => {
+            if (_productAutoSaveInFlight) return;
+            _productAutoSaveInFlight = adminAutoSaveProductDraft({ silent: true })
+                .catch(e => console.warn('adminAutoSaveProductDraft failed:', e))
+                .finally(() => { _productAutoSaveInFlight = null; });
+        }, PRODUCT_AUTO_SAVE_MS);
     };
 
     window.addEventListener('beforeunload', () => {
-        if (typeof flushProductDraft === 'function') flushProductDraft();
-        if (typeof flushCategoryDraft === 'function') flushCategoryDraft();
+        if (typeof adminAutoSaveProductDraft === 'function') {
+            adminAutoSaveProductDraft({ silent: true, force: true });
+        } else if (typeof flushProductDraft === 'function') {
+            flushProductDraft();
+        }
+        if (typeof adminAutoSaveCategoryDraft === 'function') {
+            adminAutoSaveCategoryDraft({ silent: true, force: true });
+        } else if (typeof flushCategoryDraft === 'function') {
+            flushCategoryDraft({ force: true });
+        }
     });
 
     window.addEventListener('beforeunload', (e) => {

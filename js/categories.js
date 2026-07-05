@@ -469,12 +469,18 @@ function categoryFormHasDraftableContent(state) {
     return !!(state.name || '').trim();
 }
 
-function flushCategoryDraft() {
+function flushCategoryDraft(opts) {
     if (!canManageProductCategories()) return false;
+    if (typeof adminAutoSaveCategoryDraft === 'function') {
+        adminAutoSaveCategoryDraft({ silent: true, force: !!(opts && opts.force) });
+        return true;
+    }
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return false;
-    if (!isCategoryModalOpen() || !adminIsCategoryDirty()) return false;
+    if (!isCategoryModalOpen()) return false;
     const state = serializeCategoryFormState();
     if (!categoryFormHasDraftableContent(state)) return false;
+    const isNew = !state.editingCategoryId;
+    if (!isNew && !(opts && opts.force) && !adminIsCategoryDirty()) return false;
     const key = getCategoryDraftKey(state.editingCategoryId);
     if (typeof adminDraftUpsert === 'function') {
         return adminDraftUpsert('category', key, {
@@ -1157,6 +1163,7 @@ function bindCategoryFormUi() {
                 adminSyncCategoryEditDraftUi();
             }
         }, 200);
+        if (typeof adminScheduleCategoryDraftSave === 'function') adminScheduleCategoryDraftSave();
     };
     if (nameEl && !nameEl.dataset.categoryUiBound) {
         nameEl.dataset.categoryUiBound = '1';
