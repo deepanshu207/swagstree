@@ -790,6 +790,13 @@ function applyProductDraftForm(form) {
     }
     syncAdmin360AccordionSummary('base');
     syncAdminMediaStatus('base');
+    if (!window._adminProductLiveBaseline && editingId) {
+        const liveProduct = (products || []).find(x => x.id === editingId);
+        window._adminProductLiveBaseline = adminBuildLiveProductSnapshot(liveProduct);
+    }
+    if (typeof adminActivateProductDraftUi === 'function') {
+        adminActivateProductDraftUi(editingId ? 'edit' : 'new');
+    }
     adminResetProductSnapshot();
 }
 window.applyProductDraftForm = applyProductDraftForm;
@@ -798,6 +805,171 @@ function getProductDraftKey(id) {
     const pid = id ?? editingId;
     return pid ? `edit:${pid}` : 'new';
 }
+
+window._adminProductLiveBaseline = window._adminProductLiveBaseline || null;
+window._adminProductDraftUiActive = window._adminProductDraftUiActive || false;
+
+let _productDraftUiTimer = null;
+
+function adminDraftHintValue(val, maxLen) {
+    const s = String(val ?? '').trim();
+    if (!s) return '(empty)';
+    return s.length > (maxLen || 48) ? `${s.slice(0, maxLen || 48)}…` : s;
+}
+
+function adminBuildLiveProductSnapshot(p) {
+    if (!p) return null;
+    const categoryIds = typeof getProductCategoryIds === 'function'
+        ? [...getProductCategoryIds(p)].sort()
+        : [];
+    return {
+        name: p.name || '',
+        price: String(p.price ?? ''),
+        desc: p.description || '',
+        hideMain: !!p.hideMainCarousel,
+        hideMainDet: !!p.hideMainDetailsCarousel,
+        mainPos: p.mainImagesPosition || 'end',
+        hidePlaceholder: !!p.hideNoImagePlaceholder,
+        is360: !!p.is360,
+        is360Pano: !!p.is360Panorama,
+        trackGlobal: !!p.trackGlobalStock,
+        globalQty: String(p.globalStockCount ?? 0),
+        categoryIds: categoryIds.join(','),
+        imageCount: (p.images || []).length,
+        spinCount: (p.spinImages || []).length,
+        panoCount: (p.panoramaImages || []).length,
+        videoCount: (p.videos || []).length,
+        variantCount: (p.variants || []).length
+    };
+}
+
+function adminBuildCurrentFormCompareSnapshot() {
+    const categoryContainer = document.getElementById('m-category-checkboxes');
+    const categoryIds = categoryContainer
+        ? [...categoryContainer.querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value).sort().join(',')
+        : '';
+    return {
+        name: document.getElementById('m-name')?.value || '',
+        price: document.getElementById('m-price')?.value || '',
+        desc: document.getElementById('m-desc')?.value || '',
+        hideMain: !!document.getElementById('m-hide-main')?.checked,
+        hideMainDet: !!document.getElementById('m-hide-main-details')?.checked,
+        mainPos: document.getElementById('m-main-pos')?.value || 'end',
+        hidePlaceholder: !!document.getElementById('m-hide-main-placeholder')?.checked,
+        is360: !!document.getElementById('m-is360')?.checked,
+        is360Pano: !!document.getElementById('m-is360-panorama')?.checked,
+        trackGlobal: !!document.getElementById('m-track-global-stock')?.checked,
+        globalQty: document.getElementById('m-global-stock-qty')?.value || '0',
+        categoryIds,
+        imageCount: (existingImageUrls || []).length,
+        spinCount: (existingSpinUrls || []).length,
+        panoCount: (existingPanoramaUrls || []).length,
+        videoCount: (existingVideoUrls || []).length,
+        variantCount: (variantBlocks || []).length
+    };
+}
+
+function adminMarkDraftFieldEl(el, isDraft, hint) {
+    if (!el) return;
+    el.classList.toggle('admin-field--draft', !!isDraft);
+    if (isDraft && hint) {
+        el.setAttribute('title', hint);
+        el.setAttribute('aria-description', hint);
+    } else {
+        el.removeAttribute('title');
+        el.removeAttribute('aria-description');
+    }
+}
+
+function adminMarkDraftSectionEl(el, isDraft, hint) {
+    if (!el) return;
+    el.classList.toggle('admin-section--draft', !!isDraft);
+    if (isDraft && hint) el.setAttribute('title', hint);
+    else el.removeAttribute('title');
+}
+
+function adminClearProductDraftUi() {
+    window._adminProductDraftUiActive = false;
+    const modal = document.getElementById('prod-modal');
+    if (modal) modal.classList.remove('prod-modal--draft-view');
+    const bar = document.getElementById('admin-product-draft-mode-bar');
+    if (bar) bar.hidden = true;
+    document.querySelectorAll('#prod-modal .admin-field--draft, #prod-modal .admin-section--draft').forEach(el => {
+        el.classList.remove('admin-field--draft', 'admin-section--draft');
+        el.removeAttribute('title');
+        el.removeAttribute('aria-description');
+    });
+}
+window.adminClearProductDraftUi = adminClearProductDraftUi;
+
+function adminActivateProductDraftUi(mode) {
+    window._adminProductDraftUiActive = true;
+    const modal = document.getElementById('prod-modal');
+    if (modal) modal.classList.add('prod-modal--draft-view');
+    const bar = document.getElementById('admin-product-draft-mode-bar');
+    const textEl = bar?.querySelector('.admin-draft-mode-bar__text');
+    if (bar) bar.hidden = false;
+    if (textEl) {
+        textEl.innerHTML = mode === 'edit'
+            ? '<strong>Draft loaded</strong> — amber fields differ from the published listing. Hover for the live value. Publish with <em>Save Product</em> to go live.'
+            : '<strong>New product draft</strong> — not on the storefront yet. Amber fields are draft-only until you publish.';
+    }
+    adminSyncProductDraftFieldUi();
+}
+window.adminActivateProductDraftUi = adminActivateProductDraftUi;
+
+function adminSyncProductDraftFieldUi() {
+    if (!window._adminProductDraftUiActive) return;
+    const live = window._adminProductLiveBaseline;
+    const isNew = !live;
+    const cur = adminBuildCurrentFormCompareSnapshot();
+
+    const differs = (key, emptyMeansDraft) => {
+        if (isNew) return emptyMeansDraft ? !!String(cur[key] ?? '').trim() || cur[key] === true : !!cur[key];
+        return String(cur[key] ?? '') !== String(live[key] ?? '');
+    };
+
+    const hint = (key, label, formatter) => {
+        if (isNew) return `Draft — ${label} is not published yet`;
+        const liveVal = formatter ? formatter(live[key]) : adminDraftHintValue(live[key]);
+        return `Draft ${label} — published: ${liveVal}`;
+    };
+
+    adminMarkDraftFieldEl(document.getElementById('m-name'), differs('name', true), hint('name', 'name'));
+    adminMarkDraftFieldEl(document.getElementById('m-price'), differs('price', true), hint('price', 'price', v => `₹${v || '0'}`));
+    adminMarkDraftFieldEl(document.getElementById('m-desc'), differs('desc', true), hint('desc', 'description'));
+
+    const catContainer = document.getElementById('m-category-container');
+    adminMarkDraftSectionEl(catContainer, differs('categoryIds', true), isNew
+        ? 'Draft categories — not published yet'
+        : `Draft categories — published selection differs`);
+
+    adminMarkDraftSectionEl(
+        document.getElementById('m-global-stock-container'),
+        differs('trackGlobal') || differs('globalQty'),
+        isNew ? 'Draft stock settings — not published' : 'Draft stock — differs from published product'
+    );
+
+    const galleryPanel = document.querySelector('#prod-modal .admin-media-panel--global');
+    const mediaDiff = differs('imageCount') || differs('spinCount') || differs('panoCount') || differs('videoCount');
+    adminMarkDraftSectionEl(galleryPanel, mediaDiff, isNew
+        ? 'Draft media — not on storefront until published'
+        : 'Draft media — differs from published listing');
+
+    adminMarkDraftSectionEl(
+        document.getElementById('m-variants-container'),
+        differs('variantCount'),
+        isNew ? 'Draft variants — not published' : 'Draft variants — differ from published product'
+    );
+
+    adminMarkDraftFieldEl(document.getElementById('m-hide-main'), differs('hideMain'), hint('hideMain', 'home carousel visibility', v => v ? 'hidden' : 'shown'));
+    adminMarkDraftFieldEl(document.getElementById('m-hide-main-details'), differs('hideMainDet'), hint('hideMainDet', 'details carousel visibility', v => v ? 'hidden' : 'shown'));
+    adminMarkDraftFieldEl(document.getElementById('m-main-pos'), differs('mainPos'), hint('mainPos', 'main image position'));
+    adminMarkDraftFieldEl(document.getElementById('m-hide-main-placeholder'), differs('hidePlaceholder'), hint('hidePlaceholder', 'placeholder visibility', v => v ? 'hidden' : 'shown'));
+    adminMarkDraftFieldEl(document.getElementById('m-is360'), differs('is360'), hint('is360', 'rotate 360°', v => v ? 'on' : 'off'));
+    adminMarkDraftFieldEl(document.getElementById('m-is360-panorama'), differs('is360Pano'), hint('is360Pano', 'look around panorama', v => v ? 'on' : 'off'));
+}
+window.adminSyncProductDraftFieldUi = adminSyncProductDraftFieldUi;
 
 function adminProductDraftPayloadHasContent(form) {
     if (!form) return false;
@@ -924,6 +1096,8 @@ async function saveProductAsDraft(silent) {
     }
     if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
     adminProductSnapshot = null;
+    if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+    window._adminProductLiveBaseline = null;
     if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
     closeModal('prod-modal');
     if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
@@ -936,7 +1110,8 @@ function discardProductDraft(silent) {
     clearProductDraftForCurrent();
     if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
     adminProductSnapshot = null;
-    if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
+    if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+    window._adminProductLiveBaseline = null;
     closeModal('prod-modal');
     if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
     if (!silent) showToast('Draft discarded.');
@@ -952,7 +1127,7 @@ function renderProductModalDraftBanner() {
         return;
     }
     const key = `edit:${editingId}`;
-    if (typeof adminDraftIsActive === 'function' && adminDraftIsActive('product', key)) {
+    if (typeof adminDraftIsActive === 'function' && adminDraftIsActive('product', key) && window._adminProductDraftUiActive) {
         el.hidden = true;
         el.innerHTML = '';
         return;
@@ -991,7 +1166,16 @@ window.adminDiscardEditProductDraft = function() {
 };
 
 function adminBindProductDraftListeners() {
-    /* Draft auto-save disabled — use Save as draft or the close prompt. */
+    const modal = document.getElementById('prod-modal');
+    if (!modal || modal.dataset.draftUiBound) return;
+    modal.dataset.draftUiBound = '1';
+    const onChange = () => {
+        if (!window._adminProductDraftUiActive) return;
+        clearTimeout(_productDraftUiTimer);
+        _productDraftUiTimer = setTimeout(() => adminSyncProductDraftFieldUi(), 200);
+    };
+    modal.addEventListener('input', onChange);
+    modal.addEventListener('change', onChange);
 }
 
 function adminTryRestoreProductDraft(expectedId) {
@@ -1012,6 +1196,8 @@ async function closeProductModal() {
     if (typeof adminGuardProductLeave === 'function') {
         await adminGuardProductLeave('Publish, save as draft, or discard your changes?', () => {
             adminProductSnapshot = null;
+            if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+            window._adminProductLiveBaseline = null;
             if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
             if (typeof flushProductDraft === 'function') flushProductDraft();
             if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
@@ -1733,6 +1919,9 @@ function renderVariantBlocks() {
                 renderVariantBlocks();
             }
         });
+    }
+    if (window._adminProductDraftUiActive && typeof adminSyncProductDraftFieldUi === 'function') {
+        adminSyncProductDraftFieldUi();
     }
 }
 
@@ -2606,6 +2795,8 @@ function openEdit(id) {
     if (typeof adminDraftSetActive === 'function') adminDraftSetActive('product', getProductDraftKey(id));
     const p = products.find(x => x.id === id);
     if (!p) return showToast('Product not found.');
+    window._adminProductLiveBaseline = adminBuildLiveProductSnapshot(p);
+    if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
     adminSetModalTitle('edit');
     adminShowValidationErrors([]); 
     document.getElementById('m-name').value = p.name;
@@ -2761,7 +2952,9 @@ function openAdd() {
         adminOpenNewProductDraft();
         return;
     }
-    editingId = null; 
+    editingId = null;
+    window._adminProductLiveBaseline = null;
+    if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
     adminSetModalTitle('add');
     adminShowValidationErrors([]);
     existingImageUrls = [];
@@ -2840,6 +3033,9 @@ function renderImagePreviews(targetId = 'base') {
             adminBindSortableThumbGrid(sortTarget, existingImageUrls, () => renderImagePreviews('base'));
         }
         syncAdminMediaStatus('base');
+        if (window._adminProductDraftUiActive && typeof adminSyncProductDraftFieldUi === 'function') {
+            adminSyncProductDraftFieldUi();
+        }
     } else {
         const v = variantBlocks.find(x => x.id === targetId);
         if (!v) return;
@@ -3463,6 +3659,8 @@ async function saveProduct() {
         
         adminHideSaveProgress();
         adminProductSnapshot = null;
+        if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
+        window._adminProductLiveBaseline = null;
         if (typeof clearProductDraftForCurrent === 'function') clearProductDraftForCurrent();
         showToast(editingId ? 'Product updated!' : 'Product created!');
         closeModal('prod-modal'); 

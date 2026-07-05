@@ -359,7 +359,7 @@
                 return;
             }
             if (typeof openAdminCategoryAccordion === 'function') openAdminCategoryAccordion();
-            if (typeof applyCategoryFormState === 'function') applyCategoryFormState(item.entry.form);
+            if (typeof applyCategoryFormState === 'function') applyCategoryFormState(item.entry.form, true);
             adminDraftSetActive('category', key);
             showToast('Category draft opened — publish with Add/Save or use Save as draft.');
         } else if (type === 'product') {

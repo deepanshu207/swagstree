@@ -132,6 +132,109 @@ function isAdminCategoryInlineEditing() {
 
 window.inlineEditingCategoryId = window.inlineEditingCategoryId || null;
 window._inlineCategoryBaseline = window._inlineCategoryBaseline || null;
+window._adminCategoryLiveBaseline = window._adminCategoryLiveBaseline || null;
+window._adminCategoryDraftUiActive = window._adminCategoryDraftUiActive || false;
+
+let _categoryDraftUiTimer = null;
+
+function adminBuildLiveCategorySnapshot(cat) {
+    if (!cat) return null;
+    return {
+        name: cat.name || '',
+        sortOrder: String(getCategorySortOrder(cat)),
+        isActive: cat.isActive !== false
+    };
+}
+
+function adminClearCategoryDraftUi() {
+    window._adminCategoryDraftUiActive = false;
+    window._adminCategoryLiveBaseline = null;
+    const bar = document.getElementById('admin-category-draft-mode-bar');
+    if (bar) bar.hidden = true;
+    document.querySelectorAll('.admin-field--draft, .admin-category-inline-field--draft').forEach(el => {
+        el.classList.remove('admin-field--draft', 'admin-category-inline-field--draft');
+        el.removeAttribute('title');
+        el.removeAttribute('aria-description');
+    });
+    const wrap = document.getElementById('admin-category-form-wrap');
+    if (wrap) wrap.classList.remove('admin-category-form-wrap--draft-view');
+}
+window.adminClearCategoryDraftUi = adminClearCategoryDraftUi;
+
+function adminActivateCategoryDraftUi(mode, liveBaseline) {
+    window._adminCategoryDraftUiActive = true;
+    window._adminCategoryLiveBaseline = liveBaseline || null;
+    const bar = document.getElementById('admin-category-draft-mode-bar');
+    const textEl = bar?.querySelector('.admin-draft-mode-bar__text');
+    const wrap = document.getElementById('admin-category-form-wrap');
+    if (bar) bar.hidden = false;
+    if (wrap && !window.inlineEditingCategoryId) wrap.classList.add('admin-category-form-wrap--draft-view');
+    if (textEl) {
+        textEl.innerHTML = mode === 'edit'
+            ? '<strong>Draft loaded</strong> — amber fields differ from the published category. Hover for the live value.'
+            : '<strong>New category draft</strong> — not on the storefront until you publish with Add.';
+    }
+    adminSyncCategoryDraftFieldUi();
+}
+window.adminActivateCategoryDraftUi = adminActivateCategoryDraftUi;
+
+function adminMarkCategoryInlineField(row, selector, isDraft, hint) {
+    if (!row) return;
+    const input = row.querySelector(selector);
+    const field = input?.closest('.admin-category-inline-field') ||
+        input?.closest('.admin-category-inline-active-wrap');
+    if (field) {
+        field.classList.toggle('admin-category-inline-field--draft', !!isDraft);
+        if (isDraft && hint) field.setAttribute('title', hint);
+        else field.removeAttribute('title');
+    }
+}
+
+function adminSyncCategoryDraftFieldUi() {
+    if (!window._adminCategoryDraftUiActive) return;
+    const live = window._adminCategoryLiveBaseline;
+    const isNew = !live;
+
+    const catHint = (label, liveVal, curVal) => {
+        if (isNew) return `Draft — ${label} is not published yet`;
+        return `Draft ${label} — published: ${liveVal || '(empty)'}`;
+    };
+
+    if (window.inlineEditingCategoryId) {
+        const row = getInlineCategoryRow(window.inlineEditingCategoryId);
+        const cur = serializeInlineCategoryState(window.inlineEditingCategoryId);
+        if (!row || !cur) return;
+        adminMarkCategoryInlineField(row, '.admin-category-inline-name',
+            isNew ? !!cur.name : cur.name !== live.name,
+            catHint('name', live?.name, cur.name));
+        adminMarkCategoryInlineField(row, '.admin-category-inline-order',
+            isNew ? !!String(cur.sortOrder).trim() : normalizeCategorySortOrderValue(cur.sortOrder) !== normalizeCategorySortOrderValue(live.sortOrder),
+            catHint('order', live?.sortOrder, cur.sortOrder));
+        adminMarkCategoryInlineField(row, '.admin-category-inline-active',
+            isNew ? cur.isActive !== true : !!cur.isActive !== !!live.isActive,
+            catHint('visibility', live?.isActive ? 'active' : 'hidden', cur.isActive ? 'active' : 'hidden'));
+        return;
+    }
+
+    const cur = serializeCategoryFormState();
+    const nameEl = document.getElementById('admin-category-name');
+    const orderEl = document.getElementById('admin-category-order');
+    const activeWrap = document.querySelector('#admin-category-form-wrap .admin-category-form-active');
+
+    if (typeof adminMarkDraftFieldEl === 'function') {
+        adminMarkDraftFieldEl(nameEl, isNew ? !!cur.name : cur.name !== live.name, catHint('name', live?.name, cur.name));
+        adminMarkDraftFieldEl(orderEl,
+            isNew ? !!String(cur.sortOrder).trim() : normalizeCategorySortOrderValue(cur.sortOrder) !== normalizeCategorySortOrderValue(live.sortOrder),
+            catHint('order', live?.sortOrder, cur.sortOrder));
+    }
+    if (activeWrap) {
+        const activeDiff = isNew ? cur.isActive !== true : !!cur.isActive !== !!live.isActive;
+        activeWrap.classList.toggle('admin-category-inline-field--draft', activeDiff);
+        if (activeDiff) activeWrap.setAttribute('title', catHint('visibility', live?.isActive ? 'active' : 'hidden', cur.isActive ? 'active' : 'hidden'));
+        else activeWrap.removeAttribute('title');
+    }
+}
+window.adminSyncCategoryDraftFieldUi = adminSyncCategoryDraftFieldUi;
 
 function getInlineCategoryRow(id) {
     return document.querySelector(`#admin-category-list .admin-category-row[data-category-id="${id}"]`);
@@ -263,10 +366,10 @@ function isCategoryFormDirty() {
 }
 window.isCategoryFormDirty = isCategoryFormDirty;
 
-function applyCategoryFormState(state) {
+function applyCategoryFormState(state, fromDraft) {
     if (!state) return;
     if (state.editingCategoryId) {
-        startInlineCategoryEditInternal(state.editingCategoryId, state);
+        startInlineCategoryEditInternal(state.editingCategoryId, fromDraft ? state : null);
         return;
     }
     const name = document.getElementById('admin-category-name');
@@ -279,6 +382,9 @@ function applyCategoryFormState(state) {
     }
     if (active) active.checked = state.isActive !== false;
     updateCategoryFormMode();
+    if (fromDraft && typeof adminActivateCategoryDraftUi === 'function') {
+        adminActivateCategoryDraftUi('new', null);
+    }
 }
 window.applyCategoryFormState = applyCategoryFormState;
 
@@ -452,16 +558,29 @@ function startInlineCategoryEditInternal(id, preset) {
     openAdminCategoryAccordion();
     window.inlineEditingCategoryId = id;
     if (typeof adminDraftSetActive === 'function') adminDraftSetActive('category', getCategoryDraftKey(id));
+    const liveSnapshot = adminBuildLiveCategorySnapshot(cat);
     const base = preset || {
         name: cat.name || '',
         sortOrder: String(getCategorySortOrder(cat)),
         isActive: cat.isActive !== false
     };
-    window._inlineCategoryBaseline = {
-        name: base.name || '',
-        sortOrder: String(base.sortOrder ?? getCategorySortOrder(cat)),
-        isActive: base.isActive !== false
-    };
+    if (preset) {
+        if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
+        window._adminCategoryLiveBaseline = liveSnapshot;
+        window._inlineCategoryBaseline = {
+            name: cat.name || '',
+            sortOrder: String(getCategorySortOrder(cat)),
+            isActive: cat.isActive !== false
+        };
+    } else {
+        if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
+        window._adminCategoryLiveBaseline = null;
+        window._inlineCategoryBaseline = {
+            name: base.name || '',
+            sortOrder: String(base.sortOrder ?? getCategorySortOrder(cat)),
+            isActive: base.isActive !== false
+        };
+    }
     renderAdminCategoryList();
     setTimeout(() => {
         const row = getInlineCategoryRow(id);
@@ -472,6 +591,9 @@ function startInlineCategoryEditInternal(id, preset) {
             if (nameInput) nameInput.value = base.name || '';
             if (orderInput) orderInput.value = String(base.sortOrder ?? '0');
             if (activeInput) activeInput.checked = base.isActive !== false;
+            if (typeof adminActivateCategoryDraftUi === 'function') {
+                adminActivateCategoryDraftUi('edit', window._adminCategoryLiveBaseline);
+            }
         }
         if (nameInput) {
             try { nameInput.focus({ preventScroll: true }); } catch (e) { nameInput.focus(); }
@@ -506,6 +628,7 @@ async function guardInlineCategorySwitch(next) {
 
 function finishCancelInlineCategoryEdit() {
     if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
     window.inlineEditingCategoryId = null;
     window._inlineCategoryBaseline = null;
     renderAdminCategoryList();
@@ -562,6 +685,7 @@ window.saveInlineCategory = async function(id) {
         }
         window.inlineEditingCategoryId = null;
         window._inlineCategoryBaseline = null;
+        if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
         clearCategoryDraftForCurrent();
         renderAdminCategoryList();
         showToast(linkedProducts.length ? `Saved (${linkedProducts.length} product${linkedProducts.length === 1 ? '' : 's'} synced).` : 'Category saved.');
@@ -1028,6 +1152,17 @@ function renderAdminCategoryList() {
 }
 
 function bindAdminCategoryInlineEditors() {
+    document.querySelectorAll('#admin-category-list .admin-category-inline-input').forEach(el => {
+        if (el.dataset.inlineDraftUiBound) return;
+        el.dataset.inlineDraftUiBound = '1';
+        const onEdit = () => {
+            if (!window._adminCategoryDraftUiActive) return;
+            clearTimeout(_categoryDraftUiTimer);
+            _categoryDraftUiTimer = setTimeout(() => adminSyncCategoryDraftFieldUi(), 200);
+        };
+        el.addEventListener('input', onEdit);
+        el.addEventListener('change', onEdit);
+    });
     document.querySelectorAll('#admin-category-list .admin-category-inline-name').forEach(el => {
         if (el.dataset.inlineBound) return;
         el.dataset.inlineBound = '1';
@@ -1146,7 +1281,10 @@ function bindCategoryFormUi() {
     const activeEl = document.getElementById('admin-category-active');
     const searchEl = document.getElementById('admin-category-search');
     const onChange = () => {
-        if (typeof adminScheduleCategoryDraftSave === 'function') adminScheduleCategoryDraftSave();
+        if (window._adminCategoryDraftUiActive) {
+            clearTimeout(_categoryDraftUiTimer);
+            _categoryDraftUiTimer = setTimeout(() => adminSyncCategoryDraftFieldUi(), 200);
+        }
     };
     if (nameEl && !nameEl.dataset.categoryUiBound) {
         nameEl.dataset.categoryUiBound = '1';
@@ -1205,6 +1343,7 @@ function resetCategoryFormInternal() {
     if (name) name.value = '';
     if (active) active.checked = true;
     setCategoryFormDefaultOrder();
+    if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
 }
 
 function resetCategoryForm() {

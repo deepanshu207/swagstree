@@ -7811,6 +7811,93 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-draft-indicator--warn {
     background: #c9a000;
 }
+
+/* Draft mode — field-level indicators (seller-style) */
+.admin-draft-mode-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(230, 168, 23, 0.12) 0%, rgba(255, 215, 0, 0.06) 100%);
+    border: 1px solid rgba(230, 168, 23, 0.35);
+    font-size: 12px;
+    color: #ccc;
+    line-height: 1.45;
+}
+.admin-draft-mode-bar--compact {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    font-size: 11px;
+}
+.admin-draft-mode-bar__icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(230, 168, 23, 0.2);
+    color: #e6a817;
+    font-size: 11px;
+}
+.admin-draft-mode-bar__text strong {
+    color: #e6a817;
+}
+#prod-modal.prod-modal--draft-view .modal-box {
+    box-shadow: inset 0 3px 0 #e6a817;
+}
+.admin-field--draft {
+    border-left: 3px solid #e6a817 !important;
+    background: rgba(230, 168, 23, 0.07) !important;
+    cursor: help;
+}
+.admin-field--draft:focus {
+    outline: 1px solid rgba(230, 168, 23, 0.45);
+    outline-offset: 1px;
+}
+.admin-section--draft {
+    position: relative;
+    border-left: 3px solid #e6a817 !important;
+    background: rgba(230, 168, 23, 0.04) !important;
+    border-radius: 8px;
+    cursor: help;
+}
+.admin-section--draft::after {
+    content: 'Draft';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #111;
+    background: #e6a817;
+    pointer-events: none;
+    z-index: 2;
+}
+.admin-category-form-wrap--draft-view {
+    border-color: rgba(230, 168, 23, 0.35) !important;
+    background: rgba(230, 168, 23, 0.04) !important;
+}
+.admin-category-inline-field--draft .admin-category-inline-input,
+.admin-category-inline-field--draft.admin-category-inline-active-wrap {
+    border-left: 3px solid #e6a817;
+    background: rgba(230, 168, 23, 0.07);
+    border-radius: 6px;
+    padding-left: 8px;
+    cursor: help;
+}
+.admin-category-inline-field--draft .admin-field-draft-chip {
+    display: inline-flex;
+    margin-left: 6px;
+}
+
 .admin-product-draft-hint {
     margin: 4px 0 0;
     font-size: 11px;
