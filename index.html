@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.41">
+    <link rel="stylesheet" href="css/style.css?v=9.42">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -699,7 +699,7 @@
     <div id="admin-view" class="section">
         <div id="admin-draft-recovery-panel" hidden></div>
 
-        <div class="admin-view-header">
+        <div id="admin-view-header" class="admin-view-header">
             <h3 class="admin-view-title">Admin Tools <span id="admin-product-count"
                     class="count-badge" style="display:none;">0 Products</span></h3>
             <div class="admin-view-actions">
@@ -811,7 +811,7 @@
                 <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
                 Admin layout &amp; favorites
             </h4>
-            <p style="margin:6px 0 14px; font-size:11px; color:#666; line-height:1.45;">Show or hide Admin sections on this device. Pin store tools below your product list — or use ★ on any block.</p>
+            <p style="margin:6px 0 14px; font-size:11px; color:#666; line-height:1.45;">Choose which sections to show and which tools to pin. Tap <strong>Save layout</strong> when done — or use ★ on any block to pin instantly.</p>
             <div class="admin-layout-settings__grid">
                 <div class="admin-layout-settings__group">
                     <h5 class="admin-layout-settings__group-title">Visible sections</h5>
@@ -822,6 +822,11 @@
                     <p class="admin-layout-settings__hint">Appear below Products, above this accordion</p>
                     <div id="admin-layout-pin-checkboxes" class="admin-layout-checkboxes" role="group" aria-label="Pinned store tools"></div>
                 </div>
+            </div>
+            <div class="admin-layout-settings__actions">
+                <button type="button" id="admin-layout-save-btn" class="btn-gold admin-layout-save-btn" onclick="adminSaveLayoutSettings()" disabled>Save layout</button>
+                <button type="button" class="admin-layout-reset-btn" onclick="adminResetLayoutDraft()">Discard changes</button>
+                <span id="admin-layout-unsaved-hint" class="admin-layout-unsaved-hint" hidden>Unsaved changes</span>
             </div>
         </div>
 
@@ -3406,7 +3411,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.5"></script>
     <script src="js/admin-draft-compare.js?v=1.3"></script>
-    <script src="js/admin-favorites.js?v=1.8"></script>
+    <script src="js/admin-favorites.js?v=1.9"></script>
     <script src="js/categories.js?v=11.8"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
