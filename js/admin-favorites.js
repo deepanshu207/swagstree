@@ -182,6 +182,16 @@
         renderAdminFavorites();
     };
 
+    window.adminIsToolBlockPinned = function(blockId) {
+        const el = typeof blockId === 'string' ? document.getElementById(blockId) : blockId;
+        return !!(el && el.closest('#admin-favorites-list'));
+    };
+
+    window.adminEnsureParentStoreToolsOpen = function(blockId) {
+        if (blockId && adminIsToolBlockPinned(blockId)) return;
+        if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    };
+
     window.renderAdminFavorites = renderAdminFavorites;
     window.adminFavoritesRead = adminFavoritesRead;
 

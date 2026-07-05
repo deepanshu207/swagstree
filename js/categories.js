@@ -323,6 +323,7 @@ function renderCategoryModalDraftBanner() {
             </div>
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditCategoryDraft()">Load draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-compare" onclick="adminOpenCategoryDraftCompare()"><i class="fa fa-columns"></i> Compare</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditCategoryDraft()">Delete draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-original" onclick="adminLoadOriginalCategory()">Load original</button>
             </div>

@@ -876,7 +876,8 @@ window.toggleCommentsModerationAccordion = function() {
     const icon = document.getElementById('admin-comments-accordion-icon');
     if (!content) return;
     const isHidden = content.style.display === 'none';
-    if (isHidden && typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    if (isHidden && typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-comments-moderation');
+    else if (isHidden && typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     content.style.display = isHidden ? 'flex' : 'none';
     if (icon) icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
     if (isHidden && typeof loadCommentsModeration === 'function') loadCommentsModeration();

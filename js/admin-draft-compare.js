@@ -124,24 +124,36 @@
         return null;
     }
 
-    window.adminOpenProductDraftCompare = function() {
+    window.adminOpenProductDraftCompare = async function() {
         if (!editingId || typeof adminBuildLiveProductSnapshot !== 'function') return;
+        if (typeof adminAutoSaveProductDraft === 'function') {
+            await adminAutoSaveProductDraft({ silent: true, force: true });
+        } else if (typeof flushProductDraft === 'function') {
+            flushProductDraft();
+        }
         const p = (products || []).find(x => x.id === editingId);
         const live = adminBuildLiveProductSnapshot(p);
         const draft = adminGetSavedProductDraftForm();
         if (!draft) return showToast('No draft to compare.');
         const rows = adminBuildProductCompareRows(live, draft);
         adminRenderCompareModal('Product — published vs draft', rows, window._adminProductViewMode);
+        if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
     };
 
-    window.adminOpenCategoryDraftCompare = function() {
+    window.adminOpenCategoryDraftCompare = async function() {
         if (!window.editingCategoryId || typeof getCategoryById !== 'function') return;
+        if (typeof adminAutoSaveCategoryDraft === 'function') {
+            await adminAutoSaveCategoryDraft({ silent: true, force: true });
+        } else if (typeof flushCategoryDraft === 'function') {
+            flushCategoryDraft({ force: true });
+        }
         const cat = getCategoryById(window.editingCategoryId);
         const live = typeof adminBuildLiveCategorySnapshot === 'function' ? adminBuildLiveCategorySnapshot(cat) : null;
         const draft = adminGetSavedCategoryDraftForm();
         if (!draft) return showToast('No draft to compare.');
         const rows = adminBuildCategoryCompareRows(live, draft);
         adminRenderCompareModal('Category — published vs draft', rows, window._adminCategoryViewMode);
+        if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
     };
 
     function adminUpdateProductSwitcherUi() {

@@ -1226,6 +1226,7 @@ function renderProductModalDraftBanner() {
             </div>
             <div class="admin-draft-banner__actions">
                 <button type="button" class="btn-gold admin-draft-btn-continue" onclick="adminLoadEditProductDraft()">Load draft</button>
+                <button type="button" class="admin-btn-secondary admin-draft-btn-compare" onclick="adminOpenProductDraftCompare()"><i class="fa fa-columns"></i> Compare</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-delete" onclick="adminDiscardEditProductDraft()">Delete draft</button>
                 <button type="button" class="admin-btn-secondary admin-draft-btn-original" onclick="adminLoadOriginalProduct()">Load original</button>
             </div>
@@ -6000,27 +6001,32 @@ window.openAdminStoreToolsAccordion = function() {
 };
 
 window.toggleAdminPromoAccordion = function() {
-    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-promo-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-promo-accordion-content', 'admin-promo-accordion-icon');
 };
 
 window.toggleAdminPaginationAccordion = function() {
-    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-pagination-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-pagination-accordion-content', 'admin-pagination-accordion-icon');
 };
 
 window.toggleAdminFeedbackAccordion = function() {
-    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-feedback-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-feedback-accordion-content', 'admin-feedback-accordion-icon');
 };
 
 window.openAdminFeedbackAccordion = function() {
-    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-feedback-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     openAdminSectionAccordion('admin-feedback-accordion-content', 'admin-feedback-accordion-icon');
 };
 
 function toggleAnnouncementAccordion() {
-    if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-announcement-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     const content = document.getElementById('announcement-accordion-content');
     const icon = document.getElementById('announcement-accordion-icon');
     if (!content) return;
@@ -6152,7 +6158,8 @@ async function editAnnouncementAdmin(id) {
         if (cancelBtn) cancelBtn.style.display = "block";
         
         // Open the accordion if it is currently closed
-        if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+        if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-announcement-settings');
+        else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
         const content = document.getElementById('announcement-accordion-content');
         const icon = document.getElementById('announcement-accordion-icon');
         if (content && content.style.display === 'none') {

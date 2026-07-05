@@ -8912,6 +8912,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-draft-btn-original {
     white-space: nowrap;
 }
+.admin-draft-btn-compare {
+    white-space: nowrap;
+}
+.admin-draft-btn-compare .fa {
+    margin-right: 4px;
+}
 
 @media (max-width: 520px) {
     .admin-modal-head {
