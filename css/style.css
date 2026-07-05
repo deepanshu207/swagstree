@@ -8623,13 +8623,17 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     .admin-above-settings-slot,
     .admin-below-settings-slot {
         margin: 0 12px 14px;
-        gap: 12px;
+        gap: 16px;
+    }
+    .admin-above-settings-slot .admin-view-header {
+        padding: 12px 0 4px;
     }
     .admin-above-settings-slot .admin-draft-recovery-panel {
         margin: 0 !important;
     }
-    .admin-above-settings-slot .admin-view-header {
-        padding: 12px 0 0;
+    .admin-above-settings-slot .admin-product-toolbar--placed,
+    .admin-below-settings-slot .admin-product-toolbar--placed {
+        flex-direction: column;
     }
     .admin-draft-accordion__head {
         flex-direction: column;
@@ -9086,6 +9090,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 .admin-layout-block-item--nested {
     margin-left: 8px;
+    margin-top: 8px;
     padding: 8px 10px;
     background: #121212;
     border-style: dashed;
@@ -9395,7 +9400,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0 20px 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
 }
 .admin-above-settings-slot[hidden],
 .admin-below-settings-slot[hidden],
@@ -9414,15 +9419,32 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     visibility: visible !important;
 }
 .admin-above-settings-slot .admin-view-header {
-    padding: 16px 0 0;
+    padding: 16px 0 4px;
 }
 .admin-above-settings-slot > .admin-view-actions {
-    padding: 0;
+    display: flex;
+    padding: 0 0 4px;
     gap: 8px;
 }
 .admin-above-settings-slot > .admin-view-actions .admin-view-btn {
     flex: 1;
     min-width: 0;
+}
+.admin-above-settings-slot .admin-product-toolbar--placed {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0;
+}
+.admin-below-settings-slot .admin-product-toolbar--placed {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0;
 }
 .admin-above-settings-slot #admin-products-area #admin-products-section,
 .admin-above-settings-slot #admin-products-area #admin-list,

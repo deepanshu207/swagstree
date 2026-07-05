@@ -459,6 +459,14 @@
         }
         el.hidden = false;
         el.style.display = '';
+        if (key === 'productSearch' || key === 'productFilter') {
+            const row = el.closest('.admin-product-toolbar--placed, #admin-product-toolbar');
+            if (row) {
+                row.classList.remove('admin-layout-hidden');
+                row.hidden = false;
+                row.style.display = '';
+            }
+        }
     }
 
     function adminMoveBlock(el, target, afterEl) {
@@ -473,15 +481,66 @@
         return el;
     }
 
-    function adminPlaceToolbarPair(target, searchEl, filterEl) {
+    function adminGetSourceProductToolbar() {
+        return document.getElementById('admin-product-toolbar');
+    }
+
+    function adminReleasePlacedToolbars(slot) {
+        const source = adminGetSourceProductToolbar();
+        if (!slot || !source) return;
+        slot.querySelectorAll(':scope > .admin-product-toolbar--placed').forEach(row => {
+            ['admin-product-search-wrap', 'admin-product-filter-wrap'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.parentNode === row) source.appendChild(el);
+            });
+            row.remove();
+        });
+    }
+
+    function adminEnsureToolbarRowAt(target, afterEl) {
         let row = target.querySelector(':scope > .admin-product-toolbar--placed');
         if (!row) {
             row = document.createElement('div');
             row.className = 'admin-product-toolbar admin-product-toolbar--placed';
-            target.appendChild(row);
+            if (afterEl && afterEl.parentNode === target) {
+                afterEl.insertAdjacentElement('afterend', row);
+            } else {
+                target.appendChild(row);
+            }
+        } else if (afterEl && afterEl.parentNode === target && row.previousElementSibling !== afterEl) {
+            afterEl.insertAdjacentElement('afterend', row);
         }
+        return row;
+    }
+
+    function adminPlaceToolbarPair(target, searchEl, filterEl, afterEl) {
+        const row = adminEnsureToolbarRowAt(target, afterEl);
         if (searchEl) adminMoveBlock(searchEl, row);
         if (filterEl) adminMoveBlock(filterEl, row);
+        return row;
+    }
+
+    function adminPlaceSearchFilterBlocks(keys, target, startIndex, insertAfter) {
+        let i = startIndex;
+        if (keys[i] !== 'productSearch' && keys[i] !== 'productFilter') {
+            return { nextIndex: i, insertAfter };
+        }
+        const row = adminEnsureToolbarRowAt(target, insertAfter);
+        let placed = false;
+        while (i < keys.length && (keys[i] === 'productSearch' || keys[i] === 'productFilter')) {
+            const key = keys[i];
+            const el = adminGetBlockNode(key);
+            if (!adminIsBlockShown(key)) {
+                adminHideBlockNode(key, el);
+            } else if (el) {
+                adminShowBlockNode(key, el);
+                adminMoveBlock(el, row);
+                placed = true;
+            }
+            i++;
+        }
+        if (!placed && row.parentNode === target && !row.children.length) row.remove();
+        return { nextIndex: i, insertAfter: placed ? row : insertAfter };
     }
 
     function adminPlaceOrderedBlocks(keys, target, opts = {}) {
@@ -501,25 +560,10 @@
             }
             if (key === 'categorySearch') { i++; continue; }
 
-            if (key === 'productSearch' && keys[i + 1] === 'productFilter') {
-                const searchEl = adminGetBlockNode('productSearch');
-                const filterEl = adminGetBlockNode('productFilter');
-                if (searchEl && filterEl && adminIsBlockShown('productSearch') && adminIsBlockShown('productFilter')) {
-                    adminShowBlockNode('productSearch', searchEl);
-                    adminShowBlockNode('productFilter', filterEl);
-                    adminPlaceToolbarPair(target, searchEl, filterEl);
-                    insertAfter = target.querySelector(':scope > .admin-product-toolbar--placed') || insertAfter;
-                } else {
-                    ['productSearch', 'productFilter'].forEach(k => {
-                        const el = adminGetBlockNode(k);
-                        if (!adminIsBlockShown(k)) adminHideBlockNode(k, el);
-                        else if (el) {
-                            adminShowBlockNode(k, el);
-                            insertAfter = adminMoveBlock(el, target, insertAfter);
-                        }
-                    });
-                }
-                i += 2;
+            if (key === 'productSearch' || key === 'productFilter') {
+                const result = adminPlaceSearchFilterBlocks(keys, target, i, insertAfter);
+                i = result.nextIndex;
+                insertAfter = result.insertAfter;
                 continue;
             }
 
@@ -610,8 +654,8 @@
 
         const placement = adminPlacementRead();
 
-        aboveSlot.querySelectorAll(':scope > .admin-product-toolbar--placed').forEach(n => n.remove());
-        belowSlot.querySelectorAll(':scope > .admin-product-toolbar--placed').forEach(n => n.remove());
+        adminReleasePlacedToolbars(aboveSlot);
+        adminReleasePlacedToolbars(belowSlot);
 
         adminPlaceOrderedBlocks(placement.above, aboveSlot);
 
