@@ -3168,6 +3168,7 @@ function renderAdmin() {
     `}).join('');
     if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
     if (typeof updateAdminNewProductDraftBadge === 'function') updateAdminNewProductDraftBadge();
+    adminMirrorProductCountBadge();
 }
 
 window.loadMoreAdminProducts = function() {

@@ -8539,7 +8539,14 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin-bottom: 0;
 }
 
-.admin-products-section {
+#admin-products-area.admin-panel-card {
+    margin: 0 20px 20px;
+    padding: 16px 0 8px;
+}
+.admin-products-section-count {
+    font-size: 10px;
+}
+
     margin-top: 4px;
 }
 
