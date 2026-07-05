@@ -799,18 +799,21 @@ function getProductDraftKey(id) {
     return pid ? `edit:${pid}` : 'new';
 }
 
-function adminProductFormHasDraftableContent(form) {
+function adminProductDraftPayloadHasContent(form) {
     if (!form) return false;
     if ((form.name || '').trim()) return true;
     if ((form.desc || '').trim()) return true;
     if (form.price !== '' && form.price != null) return true;
     if (form.images?.length || form.spins?.length || form.panos?.length || form.videos?.length) return true;
     if (form.variants?.length) return true;
+    if (form.hasPendingFiles) return true;
     return false;
 }
-window.adminProductFormHasDraftableContent = function() {
-    return adminProductFormHasDraftableContent(adminBuildProductDraftPayload());
-};
+
+function adminProductFormHasDraftableContent() {
+    return adminProductDraftPayloadHasContent(adminBuildProductDraftPayload());
+}
+window.adminProductFormHasDraftableContent = adminProductFormHasDraftableContent;
 
 function adminFinalizeProductModalClose() {
     if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
@@ -824,7 +827,7 @@ function flushProductDraft() {
     if (!modal || modal.style.display !== 'flex') return false;
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return false;
     const form = adminBuildProductDraftPayload();
-    if (!adminProductFormHasDraftableContent(form)) return false;
+    if (!adminProductDraftPayloadHasContent(form)) return false;
     const key = getProductDraftKey(form.editingId);
     if (typeof adminDraftUpsert === 'function') {
         return adminDraftUpsert('product', key, {
@@ -906,7 +909,7 @@ async function saveProductAsDraft(silent) {
         return false;
     }
     const form = adminBuildProductDraftPayload();
-    if (!adminProductFormHasDraftableContent(form)) {
+    if (!adminProductDraftPayloadHasContent(form)) {
         if (!silent) showToast('Add a name, price, or details before saving as draft.');
         return false;
     }
