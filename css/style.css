@@ -8870,6 +8870,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-favorites-section {
     margin: 8px 16px 16px;
     padding: 14px 16px !important;
+    display: block;
 }
 .admin-favorites-section[hidden] {
     display: none !important;
@@ -8913,9 +8914,12 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     display: flex;
     flex-direction: column;
     gap: 0;
+    min-height: 0;
 }
 .admin-favorites-list .admin-store-tools-block {
     margin-bottom: 12px !important;
+    display: block !important;
+    visibility: visible !important;
 }
 .admin-favorites-list .admin-store-tools-block:last-child {
     margin-bottom: 0 !important;

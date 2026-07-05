@@ -11,28 +11,55 @@
             title: 'Global Announcements',
             icon: 'fa-bullhorn',
             defaultFavorite: true,
-            expandFn: 'toggleAnnouncementAccordion'
+            expandFn: 'toggleAnnouncementAccordion',
+            accordionContentId: 'announcement-accordion-content',
+            accordionIconId: 'announcement-accordion-icon'
         },
         support: {
             id: 'admin-support-inbox-section',
             title: 'Support Chats',
             icon: 'fa-headset',
             defaultFavorite: true,
-            expandFn: 'toggleAdminSupportAccordion'
+            expandFn: 'toggleAdminSupportAccordion',
+            accordionContentId: 'admin-support-accordion-content',
+            accordionIconId: 'admin-support-accordion-icon'
         },
         comments: {
             id: 'admin-comments-moderation',
             title: 'Reviews Moderation',
             icon: 'fa-comments',
-            expandFn: 'toggleCommentsModerationAccordion'
+            expandFn: 'toggleCommentsModerationAccordion',
+            accordionContentId: 'admin-comments-accordion-content',
+            accordionIconId: 'admin-comments-accordion-icon'
         },
         bulk: { id: 'admin-bulk-settings', title: 'Bulk Catalog Actions', icon: 'fa-file-excel-o' },
         cod: { id: 'admin-cod-settings', title: 'COD Advance Payment', icon: 'fa-truck' },
         'max-qty': { id: 'admin-max-qty-settings', title: 'Global Max Cart Quantity', icon: 'fa-shopping-bag' },
-        promo: { id: 'admin-promo-settings', title: 'Promo Codes', icon: 'fa-ticket-alt', expandFn: 'toggleAdminPromoAccordion' },
-        pagination: { id: 'admin-pagination-settings', title: 'Pagination Settings', icon: 'fa-list-ol', expandFn: 'toggleAdminPaginationAccordion' },
+        promo: {
+            id: 'admin-promo-settings',
+            title: 'Promo Codes',
+            icon: 'fa-ticket-alt',
+            expandFn: 'toggleAdminPromoAccordion',
+            accordionContentId: 'admin-promo-accordion-content',
+            accordionIconId: 'admin-promo-accordion-icon'
+        },
+        pagination: {
+            id: 'admin-pagination-settings',
+            title: 'Pagination Settings',
+            icon: 'fa-list-ol',
+            expandFn: 'toggleAdminPaginationAccordion',
+            accordionContentId: 'admin-pagination-accordion-content',
+            accordionIconId: 'admin-pagination-accordion-icon'
+        },
         'feature-content': { id: 'admin-feature-content-settings', title: 'Storefront Content', icon: 'fa-paint-brush' },
-        feedback: { id: 'admin-feedback-settings', title: 'Customer Diaries', icon: 'fa-camera', expandFn: 'toggleAdminFeedbackAccordion' },
+        feedback: {
+            id: 'admin-feedback-settings',
+            title: 'Customer Diaries',
+            icon: 'fa-camera',
+            expandFn: 'toggleAdminFeedbackAccordion',
+            accordionContentId: 'admin-feedback-accordion-content',
+            accordionIconId: 'admin-feedback-accordion-icon'
+        },
         footer: { id: 'admin-footer-settings', title: 'Footer Settings', icon: 'fa-window-minimize' }
     };
 
@@ -64,35 +91,37 @@
         return adminFavoritesRead().includes(key);
     }
 
-    function adminFavoriteMeta(key) {
-        return ADMIN_FAVORITE_REGISTRY[key] || null;
+    function adminCollectToolBlocks() {
+        const blocks = {};
+        STORE_TOOLS_ORDER.forEach(key => {
+            const meta = ADMIN_FAVORITE_REGISTRY[key];
+            const el = meta && document.getElementById(meta.id);
+            if (el) blocks[key] = el;
+        });
+        return blocks;
     }
 
-    function adminExpandFavoriteBlock(key) {
+    function adminDetachToolBlock(el) {
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function adminExpandAccordionPanel(contentId, iconId) {
+        const content = contentId && document.getElementById(contentId);
+        const icon = iconId && document.getElementById(iconId);
+        if (content) content.style.display = 'flex';
+        if (icon) icon.style.transform = 'rotate(0deg)';
+    }
+
+    function adminExpandFavoriteBlock(key, opts) {
         const meta = ADMIN_FAVORITE_REGISTRY[key];
         if (!meta) return;
-        if (meta.expandFn && typeof window[meta.expandFn] === 'function') {
-            // Only auto-expand accordion-style blocks when first pinned to top
-            if (['announcements', 'support', 'comments'].includes(key)) {
-                const el = document.getElementById(meta.id);
-                if (!el) return;
-                if (key === 'announcements') {
-                    const content = document.getElementById('announcement-accordion-content');
-                    const icon = document.getElementById('announcement-accordion-icon');
-                    if (content) content.style.display = 'flex';
-                    if (icon) icon.style.transform = 'rotate(0deg)';
-                } else if (key === 'support') {
-                    const content = document.getElementById('admin-support-accordion-content');
-                    const icon = document.getElementById('admin-support-accordion-icon');
-                    if (content) content.style.display = 'flex';
-                    if (icon) icon.style.transform = 'rotate(0deg)';
-                } else if (key === 'comments') {
-                    const content = document.getElementById('admin-comments-accordion-content');
-                    const icon = document.getElementById('admin-comments-accordion-icon');
-                    if (content) content.style.display = 'flex';
-                    if (icon) icon.style.transform = 'rotate(0deg)';
-                }
-            }
+        const el = document.getElementById(meta.id);
+        if (el) {
+            el.style.display = '';
+            el.hidden = false;
+        }
+        if (meta.accordionContentId && (opts?.expandAccordion !== false)) {
+            adminExpandAccordionPanel(meta.accordionContentId, meta.accordionIconId);
         }
     }
 
@@ -141,20 +170,33 @@
     };
 
     function adminInjectFavoriteToggle(el, key) {
-        if (!el || el.querySelector('.admin-favorite-toggle')) return;
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'admin-favorite-toggle';
-        btn.title = adminIsFavorite(key) ? 'Unpin from top' : 'Pin above Store settings';
+        if (!el) return;
+        let btn = el.querySelector('.admin-favorite-toggle');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'admin-favorite-toggle';
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                adminToggleFavorite(key);
+            };
+            el.style.position = 'relative';
+            el.appendChild(btn);
+        }
+        const pinned = adminIsFavorite(key);
+        btn.title = pinned ? 'Unpin — move back to Store settings' : 'Pin above Store settings';
         btn.setAttribute('aria-label', btn.title);
-        btn.innerHTML = `<i class="fa fa-star${adminIsFavorite(key) ? '' : '-o'}"></i>`;
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            adminToggleFavorite(key);
-        };
-        el.style.position = 'relative';
-        el.appendChild(btn);
+        btn.innerHTML = `<i class="fa fa-star${pinned ? '' : '-o'}"></i>`;
+    }
+
+    function adminScrollToPinnedSection(pinned) {
+        const targetId = pinned ? 'admin-favorites-section' : 'admin-store-tools-section';
+        const target = document.getElementById(targetId);
+        if (!target || target.hidden) return;
+        requestAnimationFrame(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     }
 
     function renderAdminFavorites() {
@@ -163,30 +205,28 @@
         const storeContent = document.getElementById('admin-store-tools-accordion-content');
         if (!section || !favList || !storeContent) return;
 
-        const favorites = adminFavoritesRead().filter(adminIsBlockVisible);
-        favList.innerHTML = '';
+        let favorites = adminFavoritesRead().filter(k => adminIsBlockVisible(k));
+        const blocks = adminCollectToolBlocks();
+
+        const validFavorites = favorites.filter(k => blocks[k]);
+        if (validFavorites.length !== favorites.length) {
+            adminFavoritesWrite(validFavorites);
+            favorites = validFavorites;
+        }
 
         STORE_TOOLS_ORDER.forEach(key => {
-            const meta = ADMIN_FAVORITE_REGISTRY[key];
-            if (!meta) return;
-            const el = document.getElementById(meta.id);
+            const el = blocks[key];
+            if (el) adminDetachToolBlock(el);
+        });
+
+        STORE_TOOLS_ORDER.forEach(key => {
+            const el = blocks[key];
             if (!el || !adminIsBlockVisible(key)) return;
             adminInjectFavoriteToggle(el, key);
-            const star = el.querySelector('.admin-favorite-toggle i');
-            if (star) {
-                star.className = adminIsFavorite(key) ? 'fa fa-star' : 'fa fa-star-o';
-            }
-            const starBtn = el.querySelector('.admin-favorite-toggle');
-            if (starBtn) {
-                const pinned = adminIsFavorite(key);
-                starBtn.title = pinned ? 'Unpin — move back to Store settings' : 'Pin above Store settings';
-                starBtn.setAttribute('aria-label', starBtn.title);
-            }
         });
 
         favorites.forEach(key => {
-            const meta = ADMIN_FAVORITE_REGISTRY[key];
-            const el = meta && document.getElementById(meta.id);
+            const el = blocks[key];
             if (el && adminIsBlockVisible(key)) {
                 favList.appendChild(el);
                 adminExpandFavoriteBlock(key);
@@ -195,8 +235,7 @@
 
         STORE_TOOLS_ORDER.forEach(key => {
             if (favorites.includes(key)) return;
-            const meta = ADMIN_FAVORITE_REGISTRY[key];
-            const el = meta && document.getElementById(meta.id);
+            const el = blocks[key];
             if (el) storeContent.appendChild(el);
         });
 
@@ -215,16 +254,22 @@
 
         let list = adminFavoritesRead();
         const meta = ADMIN_FAVORITE_REGISTRY[key];
-        if (list.includes(key)) {
+        const wasPinned = list.includes(key);
+
+        if (wasPinned) {
             list = list.filter(k => k !== key);
             adminFavoritesWrite(list);
             renderAdminFavorites();
             showToast(`"${meta.title}" moved to Store settings.`);
+            if (typeof openAdminStoreToolsAccordion === 'function') openAdminStoreToolsAccordion();
+            adminScrollToPinnedSection(false);
         } else {
             list.push(key);
             adminFavoritesWrite(list);
             renderAdminFavorites();
+            adminExpandFavoriteBlock(key);
             showToast(`"${meta.title}" pinned above Store settings.`);
+            adminScrollToPinnedSection(true);
         }
     };
 
