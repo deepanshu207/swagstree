@@ -431,7 +431,7 @@
             if (typeof openAdminCategoryAccordion === 'function') openAdminCategoryAccordion();
             if (typeof applyCategoryFormState === 'function') applyCategoryFormState(item.entry.form, true);
             adminDraftSetActive('category', key);
-            showToast('Category draft opened — publish with Add/Save or use Save as draft.');
+            showToast('Category draft opened — publish with Save or use Save as draft.');
         } else if (type === 'product') {
             const modal = document.getElementById('prod-modal');
             if (modal?.style.display === 'flex' && typeof adminIsProductDirty === 'function' && adminIsProductDirty()) {
@@ -573,56 +573,39 @@
     window.adminAnyUnsavedDirty = adminAnyUnsavedDirty;
 
     window.adminGuardCategoryLeave = async function(message, next) {
-        if (window.inlineEditingCategoryId && typeof isInlineCategoryDirty === 'function' &&
-            !isInlineCategoryDirty(window.inlineEditingCategoryId) && typeof cancelInlineCategoryEdit === 'function') {
-            cancelInlineCategoryEdit();
-        }
-
-        if (typeof isAnyCategoryCrudDirty !== 'function' || !isAnyCategoryCrudDirty()) {
+        const modal = document.getElementById('category-modal');
+        const open = modal && modal.style.display === 'flex';
+        if (!open) {
             if (typeof next === 'function') await next();
             return true;
         }
 
-        const inlineId = window.inlineEditingCategoryId;
-        if (inlineId && typeof isInlineCategoryDirty === 'function' && isInlineCategoryDirty(inlineId)) {
-            const choice = await adminPromptUnsaved(message || 'Save category changes?', adminCrudDraftsEnabled());
-            if (choice === 'cancel') return false;
-            if (choice === 'save') {
-                if (typeof saveInlineCategory === 'function') await saveInlineCategory(inlineId);
-                if (isInlineCategoryDirty(inlineId)) return false;
-            } else if (choice === 'draft') {
-                if (typeof saveCategoryAsDraft === 'function') {
-                    const ok = await saveCategoryAsDraft(true);
-                    if (ok === false) return false;
-                }
-            } else if (typeof discardCategoryDraft === 'function') {
-                discardCategoryDraft(true);
-            } else if (typeof cancelInlineCategoryEdit === 'function') {
-                cancelInlineCategoryEdit();
+        const dirty = typeof adminIsCategoryDirty === 'function' && adminIsCategoryDirty();
+        if (!dirty) {
+            if (typeof next === 'function') await next();
+            return true;
+        }
+
+        const proceed = await adminHandleDirtyLeave(
+            message || 'You have unsaved category changes.',
+            {
+                onSave: async () => {
+                    if (typeof saveCategory !== 'function') return false;
+                    await saveCategory();
+                    return !(typeof adminIsCategoryDirty === 'function' && adminIsCategoryDirty());
+                },
+                onSaveDraft: async () => {
+                    if (typeof saveCategoryAsDraft !== 'function') return false;
+                    return await saveCategoryAsDraft(true);
+                },
+                onDiscard: () => { if (typeof discardCategoryDraft === 'function') discardCategoryDraft(true); }
             }
-        }
+        );
+        if (!proceed) return false;
 
-        if (typeof isCategoryFormDirty === 'function' && isCategoryFormDirty()) {
-            const proceed = await adminHandleDirtyLeave(
-                message || 'You have unsaved category changes.',
-                {
-                    onSave: async () => {
-                        if (typeof saveCategory !== 'function') return false;
-                        await saveCategory();
-                        return !(typeof isCategoryFormDirty === 'function' && isCategoryFormDirty());
-                    },
-                    onSaveDraft: async () => {
-                        if (typeof saveCategoryAsDraft !== 'function') return false;
-                        return await saveCategoryAsDraft(true);
-                    },
-                    onDiscard: () => { if (typeof discardCategoryDraft === 'function') discardCategoryDraft(true); }
-                }
-            );
-            if (!proceed) return false;
-        }
-
-        if (typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) return false;
-        if (typeof next === 'function') await next();
+        const stillOpen = document.getElementById('category-modal')?.style.display === 'flex';
+        if (stillOpen && typeof next === 'function') await next();
+        else if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
         return true;
     };
 
@@ -672,10 +655,15 @@
             });
             if (!ok) return false;
         }
-        const onAdmin = document.getElementById('admin-view')?.classList.contains('active');
-        const leavingAdmin = onAdmin && targetView !== 'admin';
-        if (leavingAdmin && typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) {
-            const ok = await adminGuardCategoryLeave('Save category changes before leaving Admin?', () => {});
+        const catOpen = document.getElementById('category-modal')?.style.display === 'flex';
+        if (catOpen) {
+            const ok = await adminGuardCategoryLeave('Save category changes before leaving Admin?', () => {
+                adminCategorySnapshot = null;
+                window.editingCategoryId = null;
+                if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
+                if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+                closeModal('category-modal');
+            });
             if (!ok) return false;
         }
         if (typeof navigateFn === 'function') navigateFn();
