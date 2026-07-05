@@ -808,8 +808,8 @@ function applyProductDraftForm(form) {
         adminActivateProductDraftUi(editingId ? 'edit' : 'new');
     }
     adminResetProductSnapshot();
-    if (editingId && window._adminProductLiveBaseline) {
-        setTimeout(() => adminSyncProductEditDraftUi(), 150);
+    if (editingId && window._adminProductLiveBaseline && typeof adminSyncProductDraftFieldUi === 'function') {
+        setTimeout(() => adminSyncProductDraftFieldUi(), 150);
     }
 }
 window.applyProductDraftForm = applyProductDraftForm;

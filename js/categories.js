@@ -257,7 +257,7 @@ function adminSyncCategoryEditDraftUi() {
 }
 
 function adminSyncCategoryDraftFieldUi() {
-    if (!window._adminCategoryDraftUiActive && !window._adminCategoryLiveBaseline) return;
+    if (!window._adminCategoryDraftUiActive && !window._adminCategoryDraftLoaded && !window._adminCategoryLiveBaseline) return;
     const live = window._adminCategoryLiveBaseline;
     const isNew = !live;
     const cur = serializeCategoryFormState();

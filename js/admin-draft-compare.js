@@ -5,6 +5,7 @@
 (function() {
     window._adminProductViewMode = window._adminProductViewMode || 'live';
     window._adminCategoryViewMode = window._adminCategoryViewMode || 'live';
+    const _compareObjectUrls = [];
 
     function adminEscapeHtml(s) {
         return String(s ?? '')
@@ -60,13 +61,60 @@
         return adminDraftGetEntry('category', `edit:${cid}`);
     }
 
-    function adminBuildProductCompareRows(live, draft) {
+    function adminRevokeCompareObjectUrls() {
+        _compareObjectUrls.forEach(url => {
+            try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+        });
+        _compareObjectUrls.length = 0;
+    }
+
+    function adminTrackCompareObjectUrl(url) {
+        if (url && String(url).startsWith('blob:')) _compareObjectUrls.push(url);
+        return url;
+    }
+
+    function adminMediaItemPreviewUrl(item, isVideo) {
+        if (!item) return '';
+        if (typeof item === 'string') return item;
+        if (item.url) return item.url;
+        if (item.file instanceof File || item.file instanceof Blob) {
+            return adminTrackCompareObjectUrl(URL.createObjectURL(item.file));
+        }
+        if (item.pendingFile || item.missingMedia || item.tooLarge) return '';
+        if (item.draftMediaRef && typeof adminCrudDraftsMediaEnabled === 'function' && adminCrudDraftsMediaEnabled()) {
+            return '';
+        }
+        return '';
+    }
+
+    function adminMediaPreviewList(arr, isVideo) {
+        const urls = (arr || []).map(item => adminMediaItemPreviewUrl(item, isVideo)).filter(Boolean);
+        return urls;
+    }
+
+    function adminRenderCompareMediaThumbs(urls, isVideo) {
+        if (!urls.length) return '<span class="admin-draft-compare-media__empty">(none)</span>';
+        return urls.map(url => {
+            if (isVideo) {
+                return `<span class="admin-draft-compare-media__thumb admin-draft-compare-media__thumb--video" title="Video"><i class="fa fa-play-circle"></i></span>`;
+            }
+            return `<img class="admin-draft-compare-media__thumb" src="${adminEscapeHtml(url)}" alt="" loading="lazy">`;
+        }).join('');
+    }
+
+    function adminMediaCountLabel(count, noun) {
+        const n = Number(count) || 0;
+        return `${n} ${noun}${n === 1 ? '' : 's'}`;
+    }
+
+    function adminBuildProductCompareRows(live, draft, liveProduct, draftHydrated) {
         if (!live || !draft) return [];
         const rows = [];
-        const add = (field, label, liveVal, draftVal) => {
+        const showMediaPreview = typeof adminCrudDraftsMediaEnabled === 'function' && adminCrudDraftsMediaEnabled();
+        const add = (field, label, liveVal, draftVal, extra) => {
             const l = adminFmtVal(liveVal);
             const d = adminFmtVal(draftVal);
-            if (l !== d) rows.push({ field, label, live: l, draft: d });
+            if (l !== d) rows.push({ field, label, live: l, draft: d, ...extra });
         };
         add('name', 'Name', live.name, draft.name);
         add('price', 'Price', live.price, draft.price);
@@ -91,17 +139,43 @@
         if (liveQty !== draftQty) {
             rows.push({ field: 'globalQty', label: 'Global stock qty', live: liveQty, draft: draftQty });
         }
-        const draftImg = (draft.images || []).length;
-        const draftSpin = (draft.spins || []).length;
-        const draftPano = (draft.panos || []).length;
-        const draftVid = (draft.videos || []).length;
-        const draftVar = (draft.variants || []).length;
-        add('images', 'Gallery images', live.imageCount, draftImg);
-        add('spins', 'Rotation frames', live.spinCount, draftSpin);
-        add('panos', 'Panorama images', live.panoCount, draftPano);
-        add('videos', 'Videos', live.videoCount, draftVid);
+
+        const draftForm = draftHydrated || draft;
+        const draftImg = (draftForm.images || []).length;
+        const draftSpin = (draftForm.spins || []).length;
+        const draftPano = (draftForm.panos || []).length;
+        const draftVid = (draftForm.videos || []).length;
+        const draftVar = (draftForm.variants || []).length;
+
+        const mediaDefs = [
+            { field: 'images', label: 'Gallery images', liveCount: live.imageCount, draftCount: draftImg, liveArr: liveProduct?.images, draftArr: draftForm.images, isVideo: false },
+            { field: 'spins', label: 'Rotation frames', liveCount: live.spinCount, draftCount: draftSpin, liveArr: liveProduct?.spinImages, draftArr: draftForm.spins, isVideo: false },
+            { field: 'panos', label: 'Panorama images', liveCount: live.panoCount, draftCount: draftPano, liveArr: liveProduct?.panoramaImages, draftArr: draftForm.panos, isVideo: false },
+            { field: 'videos', label: 'Videos', liveCount: live.videoCount, draftCount: draftVid, liveArr: liveProduct?.videos, draftArr: draftForm.videos, isVideo: true }
+        ];
+
+        mediaDefs.forEach(def => {
+            const liveCount = Number(def.liveCount) || 0;
+            const draftCount = Number(def.draftCount) || 0;
+            const rowExtra = {};
+            if (showMediaPreview) {
+                rowExtra.liveThumbs = adminMediaPreviewList(def.liveArr, def.isVideo);
+                rowExtra.draftThumbs = adminMediaPreviewList(def.draftArr, def.isVideo);
+                rowExtra.isVideo = def.isVideo;
+            }
+            const thumbsDiffer = showMediaPreview && rowExtra.liveThumbs?.join('|') !== rowExtra.draftThumbs?.join('|');
+            if (liveCount === draftCount && !thumbsDiffer && !draft.hasPendingFiles && !draftForm.hasPendingFiles) return;
+            rows.push({
+                field: def.field,
+                label: def.label,
+                live: adminMediaCountLabel(liveCount, def.isVideo ? 'video' : 'image'),
+                draft: adminMediaCountLabel(draftCount, def.isVideo ? 'video' : 'image'),
+                ...rowExtra
+            });
+        });
+
         add('variants', 'Variants', live.variantCount, draftVar);
-        if (draft.hasPendingFiles) {
+        if (draft.hasPendingFiles || draftForm.hasPendingFiles) {
             rows.push({ field: 'media', label: 'Uploaded files', live: 'Actual (live) URLs only', draft: 'Pending uploads in draft' });
         }
         return rows;
@@ -126,6 +200,7 @@
         const body = document.getElementById('admin-draft-compare-body');
         const titleEl = document.getElementById('admin-draft-compare-title');
         if (!modal || !body) return;
+        adminRevokeCompareObjectUrls();
         if (titleEl) titleEl.textContent = title;
         if (!rows.length) {
             body.innerHTML = '<p class="admin-draft-compare-empty">No differences — draft matches what is live on the storefront.</p>';
@@ -143,10 +218,12 @@
                             <div class="admin-draft-compare-col admin-draft-compare-col--actual">
                                 <span class="admin-draft-compare-col__label">Actual (live)</span>
                                 <span class="admin-draft-compare-col__value">${adminEscapeHtml(r.live)}</span>
+                                ${r.liveThumbs ? `<div class="admin-draft-compare-media">${adminRenderCompareMediaThumbs(r.liveThumbs, r.isVideo)}</div>` : ''}
                             </div>
                             <div class="admin-draft-compare-col admin-draft-compare-col--draft">
                                 <span class="admin-draft-compare-col__label">Draft (saved)</span>
                                 <span class="admin-draft-compare-col__value">${adminEscapeHtml(r.draft)}</span>
+                                ${r.draftThumbs ? `<div class="admin-draft-compare-media">${adminRenderCompareMediaThumbs(r.draftThumbs, r.isVideo)}</div>` : ''}
                             </div>
                         </div>
                     </div>`).join('')}
@@ -157,49 +234,60 @@
 
     function adminGetSavedProductDraftForm() {
         const entry = adminProductDraftEntry(editingId);
-        if (entry?.entry?.form) return entry.entry.form;
-        if (window._adminProductViewMode === 'draft' && typeof adminBuildProductDraftPayload === 'function') {
-            return adminBuildProductDraftPayload();
-        }
+        if (entry?.entry?.form) return { ...entry.entry.form };
         return null;
     }
 
     function adminGetSavedCategoryDraftForm() {
         const entry = adminCategoryDraftEntry(window.editingCategoryId);
-        if (entry?.entry?.form) return entry.entry.form;
-        if (window._adminCategoryViewMode === 'draft' && typeof serializeCategoryFormState === 'function') {
-            return serializeCategoryFormState();
-        }
+        if (entry?.entry?.form) return { ...entry.entry.form };
         return null;
+    }
+
+    async function adminMaybeSaveDirtyDraftBeforeCompare(entity) {
+        const inDraftView = entity === 'product'
+            ? window._adminProductViewMode === 'draft'
+            : window._adminCategoryViewMode === 'draft';
+        if (!inDraftView) return;
+        if (entity === 'product') {
+            if (typeof adminIsProductDirty === 'function' && adminIsProductDirty() && typeof adminAutoSaveProductDraft === 'function') {
+                await adminAutoSaveProductDraft({ silent: true, force: true });
+            }
+            return;
+        }
+        if (typeof adminIsCategoryDirty === 'function' && adminIsCategoryDirty() && typeof adminAutoSaveCategoryDraft === 'function') {
+            await adminAutoSaveCategoryDraft({ silent: true, force: true });
+        }
     }
 
     window.adminOpenProductDraftCompare = async function() {
         if (!editingId || typeof adminBuildLiveProductSnapshot !== 'function') return;
-        if (typeof adminAutoSaveProductDraft === 'function') {
-            await adminAutoSaveProductDraft({ silent: true, force: true });
-        } else if (typeof flushProductDraft === 'function') {
-            flushProductDraft();
-        }
+        await adminMaybeSaveDirtyDraftBeforeCompare('product');
         const p = (products || []).find(x => x.id === editingId);
         const live = adminBuildLiveProductSnapshot(p);
-        const draft = adminGetSavedProductDraftForm();
-        if (!draft) return showToast('No draft to compare.');
-        const rows = adminBuildProductCompareRows(live, draft);
+        let draft = adminGetSavedProductDraftForm();
+        if (!draft) return showToast('No saved draft to compare.');
+        let draftHydrated = draft;
+        if (typeof adminDraftHydrateProductForm === 'function' &&
+            typeof adminCrudDraftsMediaEnabled === 'function' && adminCrudDraftsMediaEnabled()) {
+            try {
+                draftHydrated = await adminDraftHydrateProductForm(draft);
+            } catch (e) {
+                console.warn('adminDraftHydrateProductForm compare failed:', e);
+            }
+        }
+        const rows = adminBuildProductCompareRows(live, draft, p, draftHydrated);
         adminRenderCompareModal('Product — actual vs draft', rows, window._adminProductViewMode);
         if (typeof adminRenderProductDraftSwitcher === 'function') adminRenderProductDraftSwitcher();
     };
 
     window.adminOpenCategoryDraftCompare = async function() {
         if (!window.editingCategoryId || typeof getCategoryById !== 'function') return;
-        if (typeof adminAutoSaveCategoryDraft === 'function') {
-            await adminAutoSaveCategoryDraft({ silent: true, force: true });
-        } else if (typeof flushCategoryDraft === 'function') {
-            flushCategoryDraft({ force: true });
-        }
+        await adminMaybeSaveDirtyDraftBeforeCompare('category');
         const cat = getCategoryById(window.editingCategoryId);
         const live = typeof adminBuildLiveCategorySnapshot === 'function' ? adminBuildLiveCategorySnapshot(cat) : null;
         const draft = adminGetSavedCategoryDraftForm();
-        if (!draft) return showToast('No draft to compare.');
+        if (!draft) return showToast('No saved draft to compare.');
         const rows = adminBuildCategoryCompareRows(live, draft);
         adminRenderCompareModal('Category — actual vs draft', rows, window._adminCategoryViewMode);
         if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
@@ -243,10 +331,18 @@
     async function adminSwitchProductView(mode) {
         if (!editingId) return;
         if (mode === window._adminProductViewMode) return;
-        if (typeof flushProductDraft === 'function') flushProductDraft();
+
+        if (window._adminProductViewMode === 'draft' && mode === 'live') {
+            if (typeof adminIsProductDirty === 'function' && adminIsProductDirty() && typeof adminAutoSaveProductDraft === 'function') {
+                await adminAutoSaveProductDraft({ silent: true, force: true });
+            }
+        }
+
         if (mode === 'draft') {
             const entry = adminProductDraftEntry(editingId);
             if (!entry?.entry?.form) return showToast('No draft saved for this product.');
+            const p = (products || []).find(x => x.id === editingId);
+            window._adminProductLiveBaseline = typeof adminBuildLiveProductSnapshot === 'function' ? adminBuildLiveProductSnapshot(p) : null;
             let form = entry.entry.form;
             if (typeof adminDraftHydrateProductForm === 'function' && typeof adminCrudDraftsMediaEnabled === 'function' && adminCrudDraftsMediaEnabled()) {
                 try { form = await adminDraftHydrateProductForm(form); } catch (e) { console.warn(e); }
@@ -256,7 +352,8 @@
             window._adminProductDraftLoaded = true;
             if (typeof adminActivateProductDraftUi === 'function') adminActivateProductDraftUi('edit');
             if (typeof adminDraftSetActive === 'function') adminDraftSetActive('product', `edit:${editingId}`);
-            showToast('Showing draft — switch to Actual anytime.');
+            if (typeof adminSyncProductDraftFieldUi === 'function') adminSyncProductDraftFieldUi();
+            showToast('Showing saved draft — switch to Actual anytime.');
         } else {
             const p = (products || []).find(x => x.id === editingId);
             if (!p) return showToast('Product not found.');
@@ -276,14 +373,24 @@
     async function adminSwitchCategoryView(mode) {
         if (!window.editingCategoryId) return;
         if (mode === window._adminCategoryViewMode) return;
-        if (typeof flushCategoryDraft === 'function') flushCategoryDraft({ force: true });
+
+        if (window._adminCategoryViewMode === 'draft' && mode === 'live') {
+            if (typeof adminIsCategoryDirty === 'function' && adminIsCategoryDirty() && typeof adminAutoSaveCategoryDraft === 'function') {
+                await adminAutoSaveCategoryDraft({ silent: true, force: true });
+            }
+        }
+
         if (mode === 'draft') {
             const entry = adminCategoryDraftEntry(window.editingCategoryId);
             if (!entry?.entry?.form) return showToast('No draft saved for this category.');
+            const cat = typeof getCategoryById === 'function' ? getCategoryById(window.editingCategoryId) : null;
+            window._adminCategoryLiveBaseline = typeof adminBuildLiveCategorySnapshot === 'function' ? adminBuildLiveCategorySnapshot(cat) : null;
             if (typeof applyCategoryFormState === 'function') applyCategoryFormState(entry.entry.form, true);
             if (typeof adminDraftSetActive === 'function') adminDraftSetActive('category', `edit:${window.editingCategoryId}`);
             window._adminCategoryViewMode = 'draft';
-            showToast('Showing draft — switch to Actual anytime.');
+            window._adminCategoryDraftLoaded = true;
+            if (typeof adminSyncCategoryDraftFieldUi === 'function') adminSyncCategoryDraftFieldUi();
+            showToast('Showing saved draft — switch to Actual anytime.');
         } else {
             const cat = typeof getCategoryById === 'function' ? getCategoryById(window.editingCategoryId) : null;
             if (!cat) return showToast('Category not found.');
@@ -304,4 +411,13 @@
     window.adminSwitchCategoryView = adminSwitchCategoryView;
     window.adminLoadOriginalProduct = function() { adminSwitchProductView('live'); };
     window.adminLoadOriginalCategory = function() { adminSwitchCategoryView('live'); };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const origCloseModal = window.closeModal;
+        if (typeof origCloseModal !== 'function') return;
+        window.closeModal = function(id) {
+            if (id === 'admin-draft-compare-modal') adminRevokeCompareObjectUrls();
+            return origCloseModal(id);
+        };
+    });
 })();
