@@ -12,8 +12,32 @@
     let unsavedResolver = null;
     let categoryDraftTimer = null;
     let productDraftTimer = null;
+    let _draftStoreCache = null;
+    let _legacyMigrated = false;
+    let _adminUiRefreshTimer = null;
 
     window._activeAdminDraftKey = window._activeAdminDraftKey || null;
+
+    function adminDraftInvalidateCache() {
+        _draftStoreCache = null;
+    }
+
+    function adminDraftCloneStore(store) {
+        return {
+            v: 2,
+            categories: { ...(store.categories || {}) },
+            products: { ...(store.products || {}) }
+        };
+    }
+
+    function scheduleAdminDraftUiRefresh() {
+        clearTimeout(_adminUiRefreshTimer);
+        _adminUiRefreshTimer = setTimeout(() => {
+            renderAdminDraftRecoveryPanel();
+            const prodOpen = document.getElementById('prod-modal')?.style.display === 'flex';
+            if (!prodOpen && typeof renderAdmin === 'function') renderAdmin();
+        }, 300);
+    }
 
     function adminCrudDraftsEnabled() {
         return !!(window.APP_FEATURES && window.APP_FEATURES.adminCrudDrafts !== false);
@@ -56,6 +80,8 @@
     }
 
     function adminDraftMigrateLegacy() {
+        if (_legacyMigrated) return;
+        _legacyMigrated = true;
         try {
             const legacyRaw = localStorage.getItem(ADMIN_DRAFTS_LEGACY_KEY);
             const archiveRaw = localStorage.getItem(ADMIN_DRAFTS_LEGACY_ARCHIVE_KEY);
@@ -91,26 +117,38 @@
                 localStorage.removeItem(ADMIN_DRAFTS_LEGACY_ARCHIVE_KEY);
                 changed = true;
             }
-            if (changed) adminDraftsWriteAll(store);
+            if (changed) {
+                adminDraftInvalidateCache();
+                adminDraftsWriteAll(store);
+            }
         } catch (e) {
             console.warn('adminDraftMigrateLegacy failed:', e);
         }
     }
 
     function adminDraftsReadAll() {
+        if (_draftStoreCache) return adminDraftCloneStore(_draftStoreCache);
         adminDraftMigrateLegacy();
         try {
             const raw = localStorage.getItem(ADMIN_DRAFTS_KEY);
-            if (!raw) return adminDraftEmptyStore();
+            if (!raw) {
+                _draftStoreCache = adminDraftEmptyStore();
+                return adminDraftCloneStore(_draftStoreCache);
+            }
             const store = JSON.parse(raw);
-            if (!store || typeof store !== 'object') return adminDraftEmptyStore();
+            if (!store || typeof store !== 'object') {
+                _draftStoreCache = adminDraftEmptyStore();
+                return adminDraftCloneStore(_draftStoreCache);
+            }
             store.categories = store.categories && typeof store.categories === 'object' ? store.categories : {};
             store.products = store.products && typeof store.products === 'object' ? store.products : {};
             store.v = 2;
-            return store;
+            _draftStoreCache = store;
+            return adminDraftCloneStore(store);
         } catch (e) {
             console.warn('adminDraftsReadAll failed:', e);
-            return adminDraftEmptyStore();
+            _draftStoreCache = adminDraftEmptyStore();
+            return adminDraftCloneStore(_draftStoreCache);
         }
     }
 
@@ -124,9 +162,11 @@
                 const trimmed = JSON.stringify(store);
                 if (trimmed.length > ADMIN_DRAFTS_MAX_BYTES) return false;
                 localStorage.setItem(ADMIN_DRAFTS_KEY, trimmed);
+                _draftStoreCache = adminDraftCloneStore(store);
                 return true;
             }
             localStorage.setItem(ADMIN_DRAFTS_KEY, json);
+            _draftStoreCache = adminDraftCloneStore(store);
             return true;
         } catch (e) {
             console.warn('adminDraftsWriteAll failed:', e);
@@ -175,9 +215,7 @@
         };
         adminDraftsEvictOldest(store);
         const ok = adminDraftsWriteAll(store);
-        if (ok && !(opts && opts.skipUi)) {
-            renderAdminDraftRecoveryPanel();
-        }
+        if (ok && !(opts && opts.skipUi)) scheduleAdminDraftUiRefresh();
         return ok;
     }
 
@@ -189,13 +227,40 @@
         if (store[bucket][key]) delete store[bucket][key];
         adminDraftsWriteAll(store);
         if (adminDraftIsActive(type, key)) adminDraftClearActive();
-        renderAdminDraftRecoveryPanel();
+        scheduleAdminDraftUiRefresh();
     }
 
     function adminDraftRemoveAll() {
         try { localStorage.removeItem(ADMIN_DRAFTS_KEY); } catch (e) { /* ignore */ }
+        adminDraftInvalidateCache();
         adminDraftClearActive();
-        renderAdminDraftRecoveryPanel();
+        scheduleAdminDraftUiRefresh();
+    }
+
+    function adminGetProductEditDraftIdSet() {
+        if (!adminCrudDraftsEnabled()) return new Set();
+        const active = window._activeAdminDraftKey;
+        const store = adminDraftsReadAll();
+        const ids = new Set();
+        Object.keys(store.products || {}).forEach(key => {
+            if (!key.startsWith('edit:')) return;
+            if (adminDraftComposeActiveKey('product', key) === active) return;
+            if (store.products[key]?.form) ids.add(key.slice(5));
+        });
+        return ids;
+    }
+
+    function adminGetCategoryEditDraftIdSet() {
+        if (!adminCrudDraftsEnabled()) return new Set();
+        const active = window._activeAdminDraftKey;
+        const store = adminDraftsReadAll();
+        const ids = new Set();
+        Object.keys(store.categories || {}).forEach(key => {
+            if (!key.startsWith('edit:')) return;
+            if (adminDraftComposeActiveKey('category', key) === active) return;
+            if (store.categories[key]?.form) ids.add(key.slice(5));
+        });
+        return ids;
     }
 
     function adminDraftListEntries() {
@@ -279,11 +344,6 @@
     }
 
     function renderAdminDraftRecoveryPanel() {
-        const el = document.getElementById('admin-draft-recovery-panel');
-        if (el) {
-            el.hidden = true;
-            el.innerHTML = '';
-        }
         updateAdminNewProductDraftBadge();
         updateSuperadminDraftStorageInfo();
     }
@@ -322,14 +382,13 @@
         }
 
         renderAdminDraftRecoveryPanel();
-        if (typeof renderAdmin === 'function') renderAdmin();
+        scheduleAdminDraftUiRefresh();
     };
 
     window.adminDeleteDraft = function(type, key) {
         adminDraftRemove(type, key);
         showToast('Draft deleted.');
-        if (typeof renderAdmin === 'function') renderAdmin();
-        if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+        scheduleAdminDraftUiRefresh();
     };
 
     window.adminDeleteAllDrafts = function() {
@@ -337,7 +396,6 @@
         if (!window.confirm('Delete all drafts on this device?')) return;
         adminDraftRemoveAll();
         showToast('All drafts cleared.');
-        if (typeof renderAdmin === 'function') renderAdmin();
     };
 
     function adminPromptUnsaved(message, withDraft) {
@@ -371,7 +429,10 @@
             const ok = handlers.onSave ? await handlers.onSave() : false;
             if (!ok) return false;
         } else if (choice === 'draft') {
-            if (handlers.onSaveDraft) await handlers.onSaveDraft();
+            if (handlers.onSaveDraft) {
+                const ok = await handlers.onSaveDraft();
+                if (ok === false) return false;
+            }
         } else if (choice === 'discard') {
             if (handlers.onDiscard) handlers.onDiscard();
         }
@@ -427,6 +488,9 @@
     window.adminGetVisibleCategoryDraft = adminGetVisibleCategoryDraft;
     window.adminGetOrphanedNewProductDraft = adminGetOrphanedNewProductDraft;
     window.adminGetOrphanedNewCategoryDraft = adminGetOrphanedNewCategoryDraft;
+    window.adminGetProductEditDraftIdSet = adminGetProductEditDraftIdSet;
+    window.adminGetCategoryEditDraftIdSet = adminGetCategoryEditDraftIdSet;
+    window.scheduleAdminDraftUiRefresh = scheduleAdminDraftUiRefresh;
     window.updateAdminNewProductDraftBadge = updateAdminNewProductDraftBadge;
     window.adminDraftsStorageInfo = adminDraftsStorageInfo;
     window.adminDraftFormatAge = adminDraftFormatAge;
@@ -457,7 +521,10 @@
                 if (typeof saveInlineCategory === 'function') await saveInlineCategory(inlineId);
                 if (isInlineCategoryDirty(inlineId)) return false;
             } else if (choice === 'draft') {
-                if (typeof saveCategoryAsDraft === 'function') await saveCategoryAsDraft(true);
+                if (typeof saveCategoryAsDraft === 'function') {
+                    const ok = await saveCategoryAsDraft(true);
+                    if (ok === false) return false;
+                }
             } else if (typeof discardCategoryDraft === 'function') {
                 discardCategoryDraft(true);
             } else if (typeof cancelInlineCategoryEdit === 'function') {
@@ -475,7 +542,8 @@
                         return !(typeof isCategoryFormDirty === 'function' && isCategoryFormDirty());
                     },
                     onSaveDraft: async () => {
-                        if (typeof saveCategoryAsDraft === 'function') await saveCategoryAsDraft(true);
+                        if (typeof saveCategoryAsDraft !== 'function') return false;
+                        return await saveCategoryAsDraft(true);
                     },
                     onDiscard: () => { if (typeof discardCategoryDraft === 'function') discardCategoryDraft(true); }
                 }
@@ -492,21 +560,12 @@
         const modal = document.getElementById('prod-modal');
         const open = modal && modal.style.display === 'flex';
         if (!open) {
-            if (typeof next === 'function') return next();
-            return true;
-        }
-
-        const dirty = typeof adminIsProductDirty === 'function' && adminIsProductDirty();
-        const hasContent = typeof adminProductFormHasDraftableContent === 'function' && adminProductFormHasDraftableContent();
-
-        if (!dirty && !hasContent) {
-            if (typeof adminFinalizeProductModalClose === 'function') adminFinalizeProductModalClose();
             if (typeof next === 'function') await next();
             return true;
         }
 
-        if (!dirty && hasContent) {
-            if (typeof adminFinalizeProductModalClose === 'function') adminFinalizeProductModalClose();
+        const dirty = typeof adminIsProductDirty === 'function' && adminIsProductDirty();
+        if (!dirty) {
             if (typeof next === 'function') await next();
             return true;
         }
@@ -520,13 +579,17 @@
                     return !(typeof adminIsProductDirty === 'function' && adminIsProductDirty());
                 },
                 onSaveDraft: async () => {
-                    if (typeof saveProductAsDraft === 'function') await saveProductAsDraft(true);
+                    if (typeof saveProductAsDraft !== 'function') return false;
+                    return await saveProductAsDraft(true);
                 },
                 onDiscard: () => { if (typeof discardProductDraft === 'function') discardProductDraft(true); }
             }
         );
         if (!proceed) return false;
-        if (typeof next === 'function') await next();
+
+        const stillOpen = document.getElementById('prod-modal')?.style.display === 'flex';
+        if (stillOpen && typeof next === 'function') await next();
+        else if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
         return true;
     };
 
@@ -550,20 +613,17 @@
     };
 
     window.adminScheduleCategoryDraftSave = function() {
-        if (!adminCrudDraftsEnabled()) return;
-        clearTimeout(categoryDraftTimer);
-        categoryDraftTimer = setTimeout(() => {
-            if (typeof persistCategoryDraft === 'function') persistCategoryDraft();
-        }, 800);
+        /* No per-keystroke auto-save — use Save as draft or close prompts. */
     };
 
     window.adminScheduleProductDraftSave = function() {
-        if (!adminCrudDraftsEnabled()) return;
-        clearTimeout(productDraftTimer);
-        productDraftTimer = setTimeout(() => {
-            if (typeof persistProductDraft === 'function') persistProductDraft();
-        }, 600);
+        /* No per-keystroke auto-save — avoids heavy payload builds while typing. */
     };
+
+    window.addEventListener('beforeunload', () => {
+        if (typeof flushProductDraft === 'function') flushProductDraft();
+        if (typeof flushCategoryDraft === 'function') flushCategoryDraft();
+    });
 
     window.addEventListener('beforeunload', (e) => {
         if (adminAnyUnsavedDirty()) {

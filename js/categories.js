@@ -328,6 +328,7 @@ function flushCategoryDraft() {
     }
     return false;
 }
+window.flushCategoryDraft = flushCategoryDraft;
 
 function persistCategoryDraft() {
     flushCategoryDraft();
@@ -505,7 +506,6 @@ async function guardInlineCategorySwitch(next) {
 
 function finishCancelInlineCategoryEdit() {
     if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
-    if (typeof flushCategoryDraft === 'function') flushCategoryDraft();
     window.inlineEditingCategoryId = null;
     window._inlineCategoryBaseline = null;
     renderAdminCategoryList();
@@ -611,7 +611,7 @@ function adminCategoryInlineRowHtml(cat, counts) {
     </div>`;
 }
 
-function adminCategoryViewRowHtml(cat, counts, categories) {
+function adminCategoryViewRowHtml(cat, counts, categories, editDraftIds) {
     const count = counts[cat.id] || 0;
     const active = cat.isActive !== false;
     const sortOrder = getCategorySortOrder(cat);
@@ -619,11 +619,12 @@ function adminCategoryViewRowHtml(cat, counts, categories) {
     const canMoveUp = globalIndex > 0;
     const canMoveDown = globalIndex >= 0 && globalIndex < categories.length - 1;
     const inlineBusy = !!window.inlineEditingCategoryId;
-    const editDraftBadge = adminCategoryHasEditDraft(cat.id)
+    const hasEditDraft = editDraftIds ? editDraftIds.has(cat.id) : adminCategoryHasEditDraft(cat.id);
+    const editDraftBadge = hasEditDraft
         ? ' <span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>'
         : '';
     return `
-    <div class="admin-category-row${!active ? ' is-hidden-cat' : ''}${adminCategoryHasEditDraft(cat.id) ? ' admin-category-row--has-edit-draft' : ''}" data-category-id="${cat.id}">
+    <div class="admin-category-row${!active ? ' is-hidden-cat' : ''}${hasEditDraft ? ' admin-category-row--has-edit-draft' : ''}" data-category-id="${cat.id}">
         <div class="admin-category-row-main" onclick="startInlineCategoryEdit('${cat.id}')" role="button" tabindex="0" aria-label="Edit ${escapeCategoryHtml(cat.name)}">
             <span class="admin-category-order-badge" title="Display order">${sortOrder}</span>
             <div class="admin-category-main">
@@ -1012,9 +1013,12 @@ function renderAdminCategoryList() {
 
     const counts = getProductCountsByCategory();
     const inlineId = window.inlineEditingCategoryId || '';
+    const categoryEditDraftIds = typeof adminGetCategoryEditDraftIdSet === 'function'
+        ? adminGetCategoryEditDraftIdSet()
+        : new Set();
     list.innerHTML = adminCategoryNewDraftRowHtml() + filtered.map(cat => {
         if (inlineId === cat.id) return adminCategoryInlineRowHtml(cat, counts);
-        return adminCategoryViewRowHtml(cat, counts, categories);
+        return adminCategoryViewRowHtml(cat, counts, categories, categoryEditDraftIds);
     }).join('');
 
     bindAdminCategoryRowKeys();
@@ -1024,15 +1028,6 @@ function renderAdminCategoryList() {
 }
 
 function bindAdminCategoryInlineEditors() {
-    document.querySelectorAll('#admin-category-list .admin-category-inline-input').forEach(el => {
-        if (el.dataset.inlineDraftBound) return;
-        el.dataset.inlineDraftBound = '1';
-        const onEdit = () => {
-            if (typeof adminScheduleCategoryDraftSave === 'function') adminScheduleCategoryDraftSave();
-        };
-        el.addEventListener('input', onEdit);
-        el.addEventListener('change', onEdit);
-    });
     document.querySelectorAll('#admin-category-list .admin-category-inline-name').forEach(el => {
         if (el.dataset.inlineBound) return;
         el.dataset.inlineBound = '1';

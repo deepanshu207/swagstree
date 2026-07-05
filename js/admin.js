@@ -816,9 +816,9 @@ function adminProductFormHasDraftableContent() {
 window.adminProductFormHasDraftableContent = adminProductFormHasDraftableContent;
 
 function adminFinalizeProductModalClose() {
-    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
     if (typeof flushProductDraft === 'function') flushProductDraft();
-    if (typeof renderAdmin === 'function') renderAdmin();
+    if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+    if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
 }
 window.adminFinalizeProductModalClose = adminFinalizeProductModalClose;
 
@@ -826,6 +826,7 @@ function flushProductDraft() {
     const modal = document.getElementById('prod-modal');
     if (!modal || modal.style.display !== 'flex') return false;
     if (typeof adminCrudDraftsEnabled === 'function' && !adminCrudDraftsEnabled()) return false;
+    if (typeof adminIsProductDirty === 'function' && !adminIsProductDirty()) return false;
     const form = adminBuildProductDraftPayload();
     if (!adminProductDraftPayloadHasContent(form)) return false;
     const key = getProductDraftKey(form.editingId);
@@ -919,13 +920,13 @@ async function saveProductAsDraft(silent) {
             entityId: form.editingId || null,
             label: (form.name || '').trim() || (form.editingId ? 'Product edit' : 'New product'),
             form
-        });
+        }, { skipUi: true });
     }
     if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
     adminProductSnapshot = null;
     if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
     closeModal('prod-modal');
-    if (typeof renderAdmin === 'function') renderAdmin();
+    if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
     if (!silent) showToast('Saved as draft.');
     return true;
 }
@@ -937,7 +938,7 @@ function discardProductDraft(silent) {
     adminProductSnapshot = null;
     if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
     closeModal('prod-modal');
-    if (typeof renderAdmin === 'function') renderAdmin();
+    if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
     if (!silent) showToast('Draft discarded.');
 }
 window.discardProductDraft = discardProductDraft;
@@ -990,15 +991,7 @@ window.adminDiscardEditProductDraft = function() {
 };
 
 function adminBindProductDraftListeners() {
-    const modal = document.getElementById('prod-modal');
-    if (!modal || modal.dataset.draftBound) return;
-    modal.dataset.draftBound = '1';
-    modal.addEventListener('input', () => {
-        if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
-    });
-    modal.addEventListener('change', () => {
-        if (typeof adminScheduleProductDraftSave === 'function') adminScheduleProductDraftSave();
-    });
+    /* Draft auto-save disabled — use Save as draft or the close prompt. */
 }
 
 function adminTryRestoreProductDraft(expectedId) {
@@ -1020,8 +1013,10 @@ async function closeProductModal() {
         await adminGuardProductLeave('Publish, save as draft, or discard your changes?', () => {
             adminProductSnapshot = null;
             if (typeof adminHideSaveProgress === 'function') adminHideSaveProgress();
-            if (typeof adminFinalizeProductModalClose === 'function') adminFinalizeProductModalClose();
+            if (typeof flushProductDraft === 'function') flushProductDraft();
+            if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
             closeModal('prod-modal');
+            if (typeof scheduleAdminDraftUiRefresh === 'function') scheduleAdminDraftUiRefresh();
         });
         return;
     }
@@ -2458,6 +2453,10 @@ function renderAdmin() {
         itemsToRender = itemsToRender.slice(pageStart, pageStart + pageSize);
     }
     renderAdminProductsPagination(totalFiltered);
+
+    const productEditDraftIds = typeof adminGetProductEditDraftIdSet === 'function'
+        ? adminGetProductEditDraftIdSet()
+        : new Set();
     
     if (!itemsToRender.length && products.length > 0) {
         container.innerHTML = `${adminNewProductDraftRowHtml()}<div class="admin-product-empty">No products match your search. <button type="button" class="admin-product-empty__clear" onclick="document.getElementById('admin-product-search').value='';document.getElementById('admin-product-filter').value='all';adminFilterProducts();">Clear filters</button></div>`;
@@ -2567,11 +2566,12 @@ function renderAdmin() {
         const safeName = (p.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const priceLabel = `₹${Number(p.price) || 0}`;
         const mediaBadges = adminProductMediaBadges(p);
-        const editDraftBadge = adminProductHasEditDraft(p.id)
+        const hasEditDraft = productEditDraftIds.has(p.id);
+        const editDraftBadge = hasEditDraft
             ? '<span class="admin-draft-indicator admin-draft-indicator--inline">Draft</span>'
             : '';
         return `
-        <div class="admin-product-row${adminProductHasEditDraft(p.id) ? ' admin-product-row--has-edit-draft' : ''}">
+        <div class="admin-product-row${hasEditDraft ? ' admin-product-row--has-edit-draft' : ''}">
             <div class="admin-product-thumb-wrap">
                 <img src="${thumbUrl}" class="admin-product-thumb" alt="" loading="lazy">
             </div>
