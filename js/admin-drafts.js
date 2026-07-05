@@ -1143,14 +1143,14 @@
 
     window.addEventListener('beforeunload', () => {
         if (typeof adminAutoSaveProductDraft === 'function') {
-            adminAutoSaveProductDraft({ silent: true, force: true });
+            adminAutoSaveProductDraft({ silent: true });
         } else if (typeof flushProductDraft === 'function') {
             flushProductDraft();
         }
         if (typeof adminAutoSaveCategoryDraft === 'function') {
-            adminAutoSaveCategoryDraft({ silent: true, force: true });
+            adminAutoSaveCategoryDraft({ silent: true });
         } else if (typeof flushCategoryDraft === 'function') {
-            flushCategoryDraft({ force: true });
+            flushCategoryDraft();
         }
     });
 

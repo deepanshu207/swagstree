@@ -236,24 +236,61 @@ window.adminActivateCategoryDraftUi = adminActivateCategoryDraftUi;
 
 function adminSyncCategoryEditDraftUi() {
     if (!window._adminCategoryLiveBaseline) return;
+    if (window._adminCategoryViewMode === 'draft' || window._adminCategoryDraftLoaded) {
+        adminSyncCategoryDraftFieldUi();
+        return;
+    }
     const dirty = adminIsCategoryDirty();
-    if (!dirty && !window._adminCategoryDraftLoaded) {
+    const live = window._adminCategoryLiveBaseline;
+    const saved = typeof adminDraftGetEntry === 'function' && window.editingCategoryId
+        ? adminDraftGetEntry('category', `edit:${window.editingCategoryId}`)?.entry?.form
+        : null;
+    const savedDiffersFromLive = !!(saved && (
+        (saved.name || '') !== (live.name || '')
+        || normalizeCategorySortOrderValue(saved.sortOrder) !== normalizeCategorySortOrderValue(live.sortOrder)
+        || !!saved.isActive !== !!live.isActive
+    ));
+    if (!dirty && !savedDiffersFromLive) {
         adminShowCategoryDraftBar(false);
         document.querySelectorAll('#category-modal .admin-field--draft').forEach(el => {
             el.classList.remove('admin-field--draft');
             el.removeAttribute('title');
             el.removeAttribute('aria-description');
         });
+        document.querySelectorAll('#category-modal .admin-category-inline-field--draft').forEach(el => {
+            el.classList.remove('admin-category-inline-field--draft');
+            el.removeAttribute('title');
+        });
         window._adminCategoryDraftUiActive = false;
+        const modal = document.getElementById('category-modal');
+        if (modal) modal.classList.remove('category-modal--draft-view');
         return;
     }
     window._adminCategoryDraftUiActive = true;
     const modal = document.getElementById('category-modal');
     if (modal) modal.classList.add('category-modal--draft-view');
-    adminShowCategoryDraftBar(true, window._adminCategoryDraftLoaded
-        ? '<strong>Draft view</strong> — amber fields differ from actual (live).'
-        : '<strong>Actual view</strong> — amber fields differ from what is live. Save or save as draft.');
-    adminSyncCategoryDraftFieldUi();
+    const cur = serializeCategoryFormState();
+    const compare = dirty ? cur : saved;
+    const catHint = (label, liveVal) => `Draft ${label} — published: ${liveVal || '(empty)'}`;
+    adminShowCategoryDraftBar(true, dirty
+        ? '<strong>Actual view</strong> — amber fields differ from what is live. Save or save as draft.'
+        : '<strong>Actual view</strong> — saved draft differs from live (amber). Switch to <strong>Draft</strong> tab to view or edit.');
+    const nameEl = document.getElementById('admin-category-name');
+    const orderEl = document.getElementById('admin-category-order');
+    const activeWrap = document.querySelector('#category-modal .admin-category-form-active');
+    const mark = typeof window.adminMarkDraftFieldEl === 'function' ? window.adminMarkDraftFieldEl : null;
+    if (mark) {
+        mark(nameEl, (compare.name || '') !== (live.name || ''), catHint('name', live.name));
+        mark(orderEl,
+            normalizeCategorySortOrderValue(compare.sortOrder) !== normalizeCategorySortOrderValue(live.sortOrder),
+            catHint('order', live.sortOrder));
+    }
+    if (activeWrap) {
+        const activeDiff = !!compare.isActive !== !!live.isActive;
+        activeWrap.classList.toggle('admin-category-inline-field--draft', activeDiff);
+        if (activeDiff) activeWrap.setAttribute('title', catHint('visibility', live.isActive ? 'active' : 'hidden'));
+        else activeWrap.removeAttribute('title');
+    }
 }
 
 function adminSyncCategoryDraftFieldUi() {
@@ -564,6 +601,8 @@ async function saveCategoryAsDraft(silent) {
         });
     }
     adminCategorySnapshot = null;
+    window._adminCategoryViewMode = 'live';
+    window._adminCategoryDraftLoaded = false;
     if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
     if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
     closeModal('category-modal');
@@ -668,6 +707,7 @@ window.openCategoryEdit = function(id) {
     adminResetCategorySnapshot();
     focusAdminCategoryForm();
     if (typeof adminRenderCategoryDraftSwitcher === 'function') adminRenderCategoryDraftSwitcher();
+    adminSyncCategoryEditDraftUi();
 };
 
 window.closeCategoryModal = async function() {

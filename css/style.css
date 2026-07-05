@@ -9416,8 +9416,23 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-above-settings-slot .admin-view-header {
     padding: 16px 0 0;
 }
-.admin-above-settings-slot .admin-view-actions {
+.admin-above-settings-slot > .admin-view-actions {
     padding: 0;
+    gap: 8px;
+}
+.admin-above-settings-slot > .admin-view-actions .admin-view-btn {
+    flex: 1;
+    min-width: 0;
+}
+.admin-above-settings-slot #admin-products-area #admin-products-section,
+.admin-above-settings-slot #admin-products-area #admin-list,
+.admin-above-settings-slot #admin-products-area #admin-load-more-container {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+.admin-above-settings-slot #admin-category-section,
+.admin-below-settings-slot #admin-category-section {
+    margin: 0 !important;
 }
 .admin-product-toolbar--placed {
     margin: 0;

@@ -181,6 +181,11 @@
         return rows;
     }
 
+    function adminNormSortOrder(v) {
+        const n = parseInt(v, 10);
+        return String(Number.isFinite(n) ? n : 0);
+    }
+
     function adminBuildCategoryCompareRows(live, draft) {
         if (!live || !draft) return [];
         const rows = [];
@@ -190,7 +195,7 @@
             if (l !== d) rows.push({ field, label, live: l, draft: d });
         };
         add('name', 'Name', live.name, draft.name);
-        add('sortOrder', 'Display order', live.sortOrder, draft.sortOrder);
+        add('sortOrder', 'Display order', adminNormSortOrder(live.sortOrder), adminNormSortOrder(draft.sortOrder));
         add('isActive', 'Active on storefront', live.isActive, draft.isActive);
         return rows;
     }
@@ -363,6 +368,7 @@
             if (typeof adminClearProductDraftUi === 'function') adminClearProductDraftUi();
             window._adminProductLiveBaseline = typeof adminBuildLiveProductSnapshot === 'function' ? adminBuildLiveProductSnapshot(p) : null;
             if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+            if (typeof adminSyncProductEditDraftUi === 'function') adminSyncProductEditDraftUi();
             showToast('Showing actual (live) version.');
         }
         if (typeof renderProductModalDraftBanner === 'function') renderProductModalDraftBanner();
@@ -400,6 +406,7 @@
             if (typeof adminClearCategoryDraftUi === 'function') adminClearCategoryDraftUi();
             window._adminCategoryLiveBaseline = typeof adminBuildLiveCategorySnapshot === 'function' ? adminBuildLiveCategorySnapshot(cat) : null;
             if (typeof adminDraftClearActive === 'function') adminDraftClearActive();
+            if (typeof adminSyncCategoryEditDraftUi === 'function') adminSyncCategoryEditDraftUi();
             showToast('Showing actual (live) version.');
         }
         if (typeof renderCategoryModalDraftBanner === 'function') renderCategoryModalDraftBanner();
