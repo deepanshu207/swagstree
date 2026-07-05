@@ -107,6 +107,21 @@
         return `${n} ${noun}${n === 1 ? '' : 's'}`;
     }
 
+    function adminNormCompareText(val) {
+        return String(val ?? '').replace(/\s+/g, ' ').trim();
+    }
+
+    function adminFmtLongCompareText(val, maxLen) {
+        const n = adminNormCompareText(val);
+        if (!n) return '(empty)';
+        const max = maxLen || 320;
+        return n.length > max ? `${n.slice(0, max)}…` : n;
+    }
+
+    function adminDraftDescription(draft) {
+        return draft?.desc ?? draft?.description ?? '';
+    }
+
     function adminBuildProductCompareRows(live, draft, liveProduct, draftHydrated) {
         if (!live || !draft) return [];
         const rows = [];
@@ -118,7 +133,16 @@
         };
         add('name', 'Name', live.name, draft.name);
         add('price', 'Price', live.price, draft.price);
-        add('desc', 'Description', live.desc, (draft.desc || '').slice(0, 120));
+        const liveDesc = adminNormCompareText(live.desc);
+        const draftDesc = adminNormCompareText(adminDraftDescription(draft));
+        if (liveDesc !== draftDesc) {
+            rows.push({
+                field: 'desc',
+                label: 'Description',
+                live: adminFmtLongCompareText(live.desc),
+                draft: adminFmtLongCompareText(adminDraftDescription(draft))
+            });
+        }
         if (!adminCategoryIdsEqual(live.categoryIds, draft.categoryIds)) {
             rows.push({
                 field: 'categories',

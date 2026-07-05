@@ -13,10 +13,10 @@
         headerActions: { title: 'Quick actions', hint: '+ Category and + New item', icon: 'fa-plus-circle', selector: '#admin-view .admin-view-actions' },
         productSearch: { title: 'Product search', icon: 'fa-search', ids: ['admin-product-search-wrap'] },
         productFilter: { title: 'Product filter dropdown', icon: 'fa-filter', ids: ['admin-product-filter-wrap'] },
-        productSort: { title: 'Product sort', icon: 'fa-sort', ids: ['admin-product-sort-wrap'] },
+        productSort: { title: 'Product sort', hint: 'Sort dropdown in admin toolbar', icon: 'fa-sort', ids: ['admin-product-sort-wrap'] },
         categories: { title: 'Product Categories', icon: 'fa-tags', ids: ['admin-category-section'] },
         categorySearch: { title: 'Category search', hint: 'Inside Categories (3+ items)', icon: 'fa-search', ids: ['admin-category-list-tools'], parentKey: 'categories', sortable: false },
-        products: { title: 'Products list', hint: 'Rows and pagination', icon: 'fa-box-open', ids: ['admin-products-area'] }
+        products: { title: 'Products list', hint: 'Rows, pagination & accordion', icon: 'fa-box-open', ids: ['admin-products-area'] }
     };
 
     const TOOL_REGISTRY = {
@@ -69,6 +69,11 @@
                     if (typeof parsed.blockVisible[key] === 'boolean') defaults[key] = parsed.blockVisible[key];
                 });
             }
+            ['productSort', 'catalog'].forEach(key => {
+                if (!parsed?.blockVisible || typeof parsed.blockVisible[key] !== 'boolean') {
+                    defaults[key] = true;
+                }
+            });
         } catch (e) { /* ignore */ }
         return defaults;
     }

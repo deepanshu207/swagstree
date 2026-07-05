@@ -632,8 +632,8 @@ function adminSortProducts(list) {
 }
 
 const ADMIN_PRODUCT_SORT_LABELS = {
-    latest: 'Latest edited first',
-    newest: 'Newest added first',
+    latest: 'Latest activity (new or edited)',
+    newest: 'Date first added',
     oldest: 'Oldest first',
     name: 'Name A–Z',
     name_desc: 'Name Z–A',
@@ -649,6 +649,29 @@ function adminUpdateCatalogSettingsSummary() {
     const sortLabel = ADMIN_PRODUCT_SORT_LABELS[sort] || sort;
     el.textContent = `${sortLabel} · ${limit} per page · saved to database`;
 }
+
+function adminSyncProductsAccordionDom() {
+    const open = window._adminProductsAccordionOpen !== false;
+    const content = document.getElementById('admin-products-accordion-content');
+    const icon = document.getElementById('admin-products-accordion-icon');
+    if (content) {
+        content.style.display = open ? 'flex' : 'none';
+        content.style.flexDirection = 'column';
+    }
+    if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
+
+function openAdminProductsAccordion() {
+    window._adminProductsAccordionOpen = true;
+    adminSyncProductsAccordionDom();
+}
+
+window.toggleAdminProductsAccordion = function() {
+    window._adminProductsAccordionOpen = window._adminProductsAccordionOpen === false;
+    adminSyncProductsAccordionDom();
+};
+
+window.openAdminProductsAccordion = openAdminProductsAccordion;
 
 function adminSyncProductSortUi() {
     const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
@@ -2936,7 +2959,16 @@ function removeVariant(id) {
     renderVariantBlocks();
 }
 
+function adminMirrorProductCountBadge() {
+    const countContainer = document.getElementById('admin-product-count');
+    const sectionCount = document.getElementById('admin-products-section-count');
+    if (!sectionCount || !countContainer) return;
+    sectionCount.textContent = countContainer.textContent;
+    sectionCount.style.display = countContainer.style.display;
+}
+
 function renderAdmin() { 
+    if (typeof adminSyncProductsAccordionDom === 'function') adminSyncProductsAccordionDom();
     const container = document.getElementById('admin-list');
     if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
     if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
@@ -2953,11 +2985,13 @@ function renderAdmin() {
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
         container.innerHTML = `${adminNewProductDraftRowHtml()}<div class="admin-product-empty">No products in your catalog yet. Tap <strong>+ NEW ITEM</strong> to add one.</div>`;
         if (typeof renderAdminCategoryList === 'function') renderAdminCategoryList();
+        adminMirrorProductCountBadge();
         return;
     }
 
     if (products.length === 0 && !window.productsLoaded) {
         if (countContainer) countContainer.style.display = 'none';
+        adminMirrorProductCountBadge();
         if (loadMoreContainer) loadMoreContainer.innerHTML = '';
         container.innerHTML = `
             <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; gap: 12px; width: 100%;">
@@ -4437,6 +4471,7 @@ window.loadPaginationSettings = async function() {
         if (typeof window.loadAdminFeatureContent === 'function') {
             window.loadAdminFeatureContent();
         }
+        adminUpdateCatalogSettingsSummary();
     } catch(e) {
         console.error('loadPaginationSettings error:', e);
     }
