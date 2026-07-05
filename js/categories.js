@@ -137,6 +137,25 @@ function getInlineCategoryRow(id) {
     return document.querySelector(`#admin-category-list .admin-category-row[data-category-id="${id}"]`);
 }
 
+function normalizeCategorySortOrderValue(val, fallback = 0) {
+    return String(parseCategorySortOrder(val, fallback));
+}
+
+function categoryFormStatesEqual(a, b) {
+    if (!a || !b) return false;
+    return a.name === b.name &&
+        normalizeCategorySortOrderValue(a.sortOrder) === normalizeCategorySortOrderValue(b.sortOrder) &&
+        !!a.isActive === !!b.isActive &&
+        (a.editingCategoryId || null) === (b.editingCategoryId || null);
+}
+
+function inlineCategoryStatesEqual(a, b) {
+    if (!a || !b) return false;
+    return a.name === b.name &&
+        normalizeCategorySortOrderValue(a.sortOrder) === normalizeCategorySortOrderValue(b.sortOrder) &&
+        !!a.isActive === !!b.isActive;
+}
+
 function serializeInlineCategoryState(id) {
     const row = getInlineCategoryRow(id);
     if (!row) return null;
@@ -152,7 +171,7 @@ function isInlineCategoryDirty(id) {
     if (!id || !window._inlineCategoryBaseline) return false;
     const current = serializeInlineCategoryState(id);
     if (!current) return false;
-    return JSON.stringify(current) !== JSON.stringify(window._inlineCategoryBaseline);
+    return !inlineCategoryStatesEqual(current, window._inlineCategoryBaseline);
 }
 window.isInlineCategoryDirty = isInlineCategoryDirty;
 
@@ -240,9 +259,7 @@ function getCategoryFormBaseline() {
 }
 
 function isCategoryFormDirty() {
-    const current = serializeCategoryFormState();
-    const baseline = getCategoryFormBaseline();
-    return JSON.stringify(current) !== JSON.stringify(baseline);
+    return !categoryFormStatesEqual(serializeCategoryFormState(), getCategoryFormBaseline());
 }
 window.isCategoryFormDirty = isCategoryFormDirty;
 
@@ -284,6 +301,7 @@ function persistCategoryDraft() {
             }
         };
         if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
+        if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
         return;
     }
 
@@ -303,10 +321,18 @@ function persistCategoryDraft() {
         form: state
     };
     if (typeof adminDraftWrite === 'function') adminDraftWrite(draft);
+    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
 }
 window.persistCategoryDraft = persistCategoryDraft;
 
+function clearCategoryDraftStorage() {
+    if (typeof adminDraftClear === 'function') adminDraftClear();
+    if (typeof adminDraftClearArchive === 'function') adminDraftClearArchive();
+    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
+}
+
 function discardCategoryDraft(silent) {
+    if (typeof adminDraftArchiveFromActive === 'function') adminDraftArchiveFromActive();
     if (window.inlineEditingCategoryId) {
         cancelInlineCategoryEdit();
     } else {
@@ -314,28 +340,73 @@ function discardCategoryDraft(silent) {
         renderAdminCategoryList();
     }
     if (typeof adminDraftClear === 'function') adminDraftClear();
-    if (!silent) showToast('Draft discarded.');
+    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
+    if (!silent) showToast('Draft discarded — use Restore below if you need it back.');
 }
 window.discardCategoryDraft = discardCategoryDraft;
 
-function tryOfferCategoryDraftRestore() {
-    if (!canManageProductCategories() || window._categoryDraftOffered) return;
-    const draft = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
-    if (!draft || draft.type !== 'category' || !draft.form) return;
-    if (isAnyCategoryCrudDirty()) return;
-    if (!draft.form.name && !draft.form.editingCategoryId) {
-        if (typeof adminDraftClear === 'function') adminDraftClear();
+function getRecoverableCategoryDraft() {
+    const active = typeof adminDraftRead === 'function' ? adminDraftRead() : null;
+    if (active?.type === 'category' && active.form && (active.form.name || active.form.editingCategoryId)) {
+        return { draft: active, source: 'active' };
+    }
+    const archived = typeof adminDraftReadArchive === 'function' ? adminDraftReadArchive() : null;
+    if (archived?.type === 'category' && archived.form && (archived.form.name || archived.form.editingCategoryId)) {
+        return { draft: archived, source: 'archive' };
+    }
+    return null;
+}
+
+function renderAdminCategoryDraftRecovery() {
+    const el = document.getElementById('admin-category-draft-recovery');
+    if (!el) return;
+    const rec = getRecoverableCategoryDraft();
+    if (!rec) {
+        el.hidden = true;
+        el.innerHTML = '';
         return;
     }
-    window._categoryDraftOffered = true;
+    const { draft, source } = rec;
     const label = draft.form.name || getCategoryById(draft.form.editingCategoryId)?.name || 'category';
-    if (window.confirm(`Resume unsaved work on "${label}"?`)) {
-        applyCategoryFormState(draft.form);
-        showToast('Draft restored — tap Save when ready.');
-    } else if (typeof adminDraftClear === 'function') {
-        adminDraftClear();
-    }
+    const ts = draft.updatedAt || draft.archivedAt || Date.now();
+    const age = typeof adminDraftFormatAge === 'function' ? adminDraftFormatAge(ts) : '';
+    const sourceNote = source === 'archive' ? ' (discarded)' : '';
+    el.hidden = false;
+    el.className = 'admin-draft-banner admin-draft-recovery';
+    el.innerHTML = `
+        <div class="admin-draft-banner__text">
+            <strong>Saved draft${sourceNote}:</strong> ${escapeCategoryHtml(label)}
+            <span class="admin-draft-age">${escapeCategoryHtml(age)}</span>
+            <div class="admin-draft-recovery-hint">Survives reload — tap Restore to continue editing</div>
+        </div>
+        <div class="admin-draft-banner__actions">
+            <button type="button" class="btn-gold admin-draft-btn-approve" onclick="restoreCategoryDraft()">Restore</button>
+            <button type="button" class="btn-gold admin-category-btn admin-category-btn-muted admin-draft-btn-reject" onclick="deleteCategoryDraftRecovery()">Delete</button>
+        </div>`;
 }
+window.renderAdminCategoryDraftRecovery = renderAdminCategoryDraftRecovery;
+
+window.restoreCategoryDraft = function() {
+    const rec = getRecoverableCategoryDraft();
+    if (!rec) return;
+    if (isAnyCategoryCrudDirty()) {
+        showToast('Save or discard your current edits first.');
+        return;
+    }
+    openAdminCategoryAccordion();
+    applyCategoryFormState(rec.draft.form);
+    if (rec.source === 'archive' && typeof adminDraftWrite === 'function') {
+        adminDraftWrite(rec.draft);
+        if (typeof adminDraftClearArchive === 'function') adminDraftClearArchive();
+    }
+    renderAdminCategoryDraftRecovery();
+    showToast('Draft restored — tap Save when ready.');
+};
+
+window.deleteCategoryDraftRecovery = function() {
+    clearCategoryDraftStorage();
+    showToast('Draft deleted.');
+};
 
 function startInlineCategoryEditInternal(id, preset) {
     const cat = getCategoryById(id);
@@ -439,6 +510,8 @@ window.saveInlineCategory = async function(id) {
         }
         window.inlineEditingCategoryId = null;
         window._inlineCategoryBaseline = null;
+        clearCategoryDraftStorage();
+        renderAdminCategoryList();
         showToast(linkedProducts.length ? `Saved (${linkedProducts.length} product${linkedProducts.length === 1 ? '' : 's'} synced).` : 'Category saved.');
     } catch (e) {
         console.error('saveInlineCategory failed:', e);
@@ -894,6 +967,15 @@ function renderAdminCategoryList() {
 }
 
 function bindAdminCategoryInlineEditors() {
+    document.querySelectorAll('#admin-category-list .admin-category-inline-input').forEach(el => {
+        if (el.dataset.inlineDraftBound) return;
+        el.dataset.inlineDraftBound = '1';
+        const onEdit = () => {
+            if (typeof adminScheduleCategoryDraftSave === 'function') adminScheduleCategoryDraftSave();
+        };
+        el.addEventListener('input', onEdit);
+        el.addEventListener('change', onEdit);
+    });
     document.querySelectorAll('#admin-category-list .admin-category-inline-name').forEach(el => {
         if (el.dataset.inlineBound) return;
         el.dataset.inlineBound = '1';
@@ -933,30 +1015,65 @@ function updateAdminCategoryCountBadge(count) {
     }
 }
 
+function closeAdminCategoryAccordion() {
+    const content = document.getElementById('admin-category-accordion-content');
+    const icon = document.getElementById('admin-category-accordion-icon');
+    if (!content) return;
+    content.style.display = 'none';
+    if (icon) icon.style.transform = 'rotate(-90deg)';
+}
+
+async function tryCloseAdminCategoryAccordion() {
+    if (window.inlineEditingCategoryId && !isInlineCategoryDirty(window.inlineEditingCategoryId)) {
+        cancelInlineCategoryEdit();
+    }
+
+    if (!isAnyCategoryCrudDirty()) {
+        closeAdminCategoryAccordion();
+        return;
+    }
+
+    const choice = typeof adminPromptUnsavedChoice === 'function'
+        ? await adminPromptUnsavedChoice('Save category changes before closing?')
+        : (window.confirm('Save changes? OK = Save, Cancel = Keep editing') ? 'save' : 'cancel');
+    if (choice === 'cancel') return;
+
+    if (choice === 'save') {
+        const inlineId = window.inlineEditingCategoryId;
+        if (inlineId && isInlineCategoryDirty(inlineId)) {
+            await saveInlineCategory(inlineId);
+            if (isInlineCategoryDirty(inlineId)) return;
+        }
+        if (isCategoryFormDirty()) {
+            await saveCategory();
+            if (isCategoryFormDirty()) return;
+        }
+    } else {
+        discardCategoryDraft(true);
+    }
+
+    if (isAnyCategoryCrudDirty()) return;
+    closeAdminCategoryAccordion();
+}
+
 function openAdminCategoryAccordion() {
     const content = document.getElementById('admin-category-accordion-content');
     const icon = document.getElementById('admin-category-accordion-icon');
     if (!content) return;
     content.style.display = 'flex';
     if (icon) icon.style.transform = 'rotate(0deg)';
+    renderAdminCategoryDraftRecovery();
 }
 
 window.toggleAdminCategoryAccordion = async function() {
     const content = document.getElementById('admin-category-accordion-content');
-    const icon = document.getElementById('admin-category-accordion-icon');
     if (!content) return;
 
     if (content.style.display === 'none' || !content.style.display) {
         openAdminCategoryAccordion();
-        tryOfferCategoryDraftRestore();
         return;
     }
-    if (typeof adminGuardCategoryLeave === 'function') {
-        const ok = await adminGuardCategoryLeave('Save category changes before closing?', () => {});
-        if (!ok) return;
-    }
-    content.style.display = 'none';
-    if (icon) icon.style.transform = 'rotate(-90deg)';
+    await tryCloseAdminCategoryAccordion();
 };
 
 function updateCategoryFormMode() {
@@ -1090,7 +1207,7 @@ window.saveCategory = async function() {
         showToast('Category added.');
         resetCategoryForm();
         renderAdminCategoryList();
-        if (typeof adminDraftClear === 'function') adminDraftClear();
+        clearCategoryDraftStorage();
         focusAdminCategoryForm();
     } catch (e) {
         console.error('saveCategory failed:', e);
@@ -1158,6 +1275,7 @@ function loadProductCategories() {
     window._categoriesListenerStarted = true;
     initCategoryFormKeyboard();
     setCategoryFormDefaultOrder();
+    if (typeof renderAdminCategoryDraftRecovery === 'function') renderAdminCategoryDraftRecovery();
 
     db.collection('categories').onSnapshot(snap => {
         window.productCategories = snap.docs.map(doc => {

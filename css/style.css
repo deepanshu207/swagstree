@@ -7727,6 +7727,11 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0 !important;
     font-size: 11px !important;
 }
+.admin-draft-recovery-hint {
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+}
 .admin-draft-btn-reject {
     width: auto !important;
     padding: 8px 14px !important;
