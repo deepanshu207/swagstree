@@ -8590,6 +8590,109 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     color: var(--gold, #c9a227);
 }
 
+.admin-store-settings-divider__hint {
+    font-size: 0.72rem;
+    color: #777;
+    line-height: 1.4;
+}
+
+.admin-layout-zone-map {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+}
+
+.admin-layout-zone-map__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 10px;
+    line-height: 1.45;
+    color: #999;
+}
+
+.admin-layout-zone-map__tag {
+    flex-shrink: 0;
+    min-width: 52px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: center;
+    color: #fff;
+    background: #333;
+    border: 1px solid #444;
+}
+
+.admin-layout-zone-map__row--above .admin-layout-zone-map__tag {
+    background: rgba(46, 204, 113, 0.15);
+    border-color: rgba(46, 204, 113, 0.35);
+    color: #8fd9a8;
+}
+
+.admin-layout-zone-map__row--inside .admin-layout-zone-map__tag {
+    background: rgba(201, 162, 39, 0.12);
+    border-color: rgba(201, 162, 39, 0.35);
+    color: var(--gold, #c9a227);
+}
+
+.admin-layout-zone-map__row--below .admin-layout-zone-map__tag {
+    background: rgba(52, 152, 219, 0.12);
+    border-color: rgba(52, 152, 219, 0.35);
+    color: #7ec8e3;
+}
+
+.admin-layout-zone-map__text strong {
+    color: #ccc;
+    font-weight: 600;
+}
+
+.admin-layout-block-item__badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.admin-layout-block-item__badge--above {
+    background: rgba(46, 204, 113, 0.12);
+    color: #8fd9a8;
+    border: 1px solid rgba(46, 204, 113, 0.25);
+}
+
+.admin-layout-block-item__badge--inside {
+    background: rgba(201, 162, 39, 0.1);
+    color: var(--gold, #c9a227);
+    border: 1px solid rgba(201, 162, 39, 0.25);
+}
+
+.admin-layout-block-item__badge--below {
+    background: rgba(52, 152, 219, 0.1);
+    color: #7ec8e3;
+    border: 1px solid rgba(52, 152, 219, 0.25);
+}
+
+.admin-layout-block-item__badge--group {
+    background: rgba(255, 255, 255, 0.04);
+    color: #aaa;
+    border: 1px solid #333;
+    text-transform: none;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
 .admin-settings-field-group {
     margin-bottom: 16px;
     padding-bottom: 14px;

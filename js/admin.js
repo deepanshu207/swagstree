@@ -662,7 +662,7 @@ function adminUpdatePaginationSettingsSummary() {
     const customersInp = document.getElementById('admin-customers-page-limit');
     const orders = ordersInp ? parseInt(ordersInp.value, 10) : 20;
     const customers = customersInp ? parseInt(customersInp.value, 10) : 10;
-    el.textContent = `Orders ${orders || 20}/page · Customers ${customers || 10}/page`;
+    el.textContent = `Profile orders ${orders || 20}/page · Super customers ${customers || 10}/page`;
 }
 
 function adminSyncProductsAccordionSettingUi() {
