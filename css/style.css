@@ -8573,6 +8573,23 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin-bottom: 4px;
 }
 
+.admin-store-settings-divider {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 20px 0 10px;
+    padding: 10px 0 4px;
+    border-top: 2px solid #e2e8f0;
+}
+
+.admin-store-settings-divider__label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+}
+
 .admin-settings-field-group {
     margin-bottom: 16px;
     padding-bottom: 14px;

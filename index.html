@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.65">
+    <link rel="stylesheet" href="css/style.css?v=9.66">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -898,12 +898,25 @@
             style="margin: 0 0 16px 0; background:#0d0d0d; border:1px solid rgba(201,162,39,0.25); border-radius:18px; padding:14px 18px;">
             <h4 style="margin:0 0 8px; font-size:12px; color:var(--gold); font-weight:700; letter-spacing:0.3px;">New here? Start with these</h4>
             <ul class="admin-store-settings-guide__list">
-                <li><strong>Products &amp; catalog</strong> — sort order, how many products per page, flat list vs accordion on Admin</li>
-                <li><strong>Checkout &amp; cart</strong> — COD advance, max cart quantity, promo codes</li>
-                <li><strong>Orders &amp; customers lists</strong> — page sizes for Profile orders and customer tables</li>
-                <li><strong>Storefront content</strong> — announcement bar, chatbot, newsletter &amp; wheel</li>
+                <li><strong>Catalog &amp; lists</strong> — products sort/page sizes, bulk Excel, orders &amp; customer tables</li>
+                <li><strong>Checkout &amp; cart</strong> — COD advance, max quantity per item, promo codes</li>
+                <li><strong>Storefront</strong> — announcement bar, chatbot, footer, global banners</li>
+                <li><strong>Customer engagement</strong> — diaries feed, support inbox, review moderation</li>
             </ul>
-            <p style="margin:8px 0 0; font-size:10px; color:#555; line-height:1.45;">Reorder sections in <strong>Admin layout</strong> above. Each section has its own <strong>Save</strong> button — changes are not applied until you save.</p>
+            <p style="margin:8px 0 0; font-size:10px; color:#555; line-height:1.45;">Sections below are grouped with gold labels. Reorder in <strong>Admin layout</strong>. Tap a section header to expand — then change values and tap <strong>Save</strong>.</p>
+        </div>
+
+        <div id="admin-store-divider-catalog" class="admin-store-settings-divider" hidden>
+            <span class="admin-store-settings-divider__label">Catalog &amp; product lists</span>
+        </div>
+        <div id="admin-store-divider-checkout" class="admin-store-settings-divider" hidden>
+            <span class="admin-store-settings-divider__label">Checkout &amp; cart</span>
+        </div>
+        <div id="admin-store-divider-storefront" class="admin-store-settings-divider" hidden>
+            <span class="admin-store-settings-divider__label">Storefront appearance</span>
+        </div>
+        <div id="admin-store-divider-engagement" class="admin-store-settings-divider" hidden>
+            <span class="admin-store-settings-divider__label">Customer engagement</span>
         </div>
 
         <!-- Bulk Operations -->
@@ -929,47 +942,43 @@
         </div>
 
 
-        <!-- COD Settings -->
-        <div id="admin-cod-settings" class="admin-store-tools-block"
+        <!-- Checkout & cart (COD + max quantity) -->
+        <div id="admin-checkout-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-truck" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">COD Advance Payment</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Minimum UPI payment required to confirm a COD
-                        order</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminCheckoutAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-shopping-cart" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Checkout &amp; cart</h4>
+                        <p id="admin-checkout-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">COD advance &amp; max quantity per item</p>
+                    </div>
                 </div>
+                <i id="admin-checkout-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
-            <div style="display:flex; gap:10px; align-items:center;">
-                <div style="position:relative; flex:1;">
-                    <span
-                        style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:700; font-size:14px; pointer-events:none;">&#8377;</span>
-                    <input id="admin-cod-min-payment" type="number" min="0" step="10" value="100"
-                        style="padding-left:30px; margin:0;" placeholder="Min amount (default 100)">
+            <div id="admin-checkout-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+                <div class="admin-settings-field-group">
+                    <p class="admin-settings-field-group__title">COD advance payment</p>
+                    <p class="admin-settings-field-group__hint">Minimum UPI amount a customer must pay to confirm a Cash on Delivery order.</p>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <div style="position:relative; flex:1;">
+                            <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:700; font-size:14px; pointer-events:none;">&#8377;</span>
+                            <input id="admin-cod-min-payment" type="number" min="0" step="10" value="100"
+                                style="padding-left:30px; margin:0; width:100%; box-sizing:border-box;" placeholder="Default 100">
+                        </div>
+                    </div>
                 </div>
-                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
-                    onclick="saveCodSettings()">Save</button>
-            </div>
-        </div>
-
-        <!-- Global Max Quantity Settings -->
-        <div id="admin-max-qty-settings" class="admin-store-tools-block"
-            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-shopping-bag" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Global Max Cart Quantity</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Max allowed per item if stock tracking is OFF
-                        (default 1)</p>
+                <div class="admin-settings-field-group">
+                    <p class="admin-settings-field-group__title">Max cart quantity</p>
+                    <p class="admin-settings-field-group__hint">Maximum units per product when stock tracking is off (most stores use 1).</p>
+                    <input id="admin-max-cart-qty" type="number" min="1" step="1" value="1"
+                        style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 1">
                 </div>
-            </div>
-            <div style="display:flex; gap:10px; align-items:center;">
-                <div style="position:relative; flex:1;">
-                    <input id="admin-max-cart-qty" type="number" min="1" step="1" value="1" style="margin:0;"
-                        placeholder="Default is 1">
-                </div>
-                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
-                    onclick="saveMaxQtySettings()">Save</button>
+                <button class="btn-gold"
+                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
+                    onclick="saveAdminCheckoutSettings()">Save checkout &amp; cart settings</button>
             </div>
         </div>
 
@@ -981,8 +990,8 @@
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo codes</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Discount codes shown at checkout</p>
                     </div>
                 </div>
                 <i id="admin-promo-accordion-icon" class="fa fa-chevron-down"
@@ -1165,8 +1174,8 @@
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <i class="fa fa-sliders" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Announcement bar, chatbot messages, newsletter &amp; wheel</p>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront content</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Announcement bar, chatbot, newsletter popup &amp; spin wheel</p>
                     </div>
                 </div>
                 <i id="admin-feature-content-accordion-icon" class="fa fa-chevron-down"
@@ -1175,25 +1184,28 @@
 
             <div id="admin-feature-content-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+            <p class="admin-settings-field-group__hint" style="margin:0 0 12px;">Text and timing for what shoppers see on the live store (not the Admin tab).</p>
             <div
                 style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
+                <div class="admin-settings-field-group" style="margin:0; padding:0; border:none;">
+                    <p class="admin-settings-field-group__title">Announcement bar</p>
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Marquee Announcement
-                        Message</span>
-                    <input id="admin-announcement-text" type="text" style="margin:0; font-size:12px;"
+                    <span class="admin-settings-field-label">Marquee message</span>
+                    <input id="admin-announcement-text" type="text" style="margin:0; font-size:12px; width:100%; box-sizing:border-box;"
                         placeholder="e.g. 🚚 FREE SHIPPING ON ORDERS ABOVE ₹999!">
                 </div>
+                </div>
 
+                <div class="admin-settings-field-group" style="margin:0; padding:0; border:none;">
+                    <p class="admin-settings-field-group__title">AI chatbot</p>
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Welcome
-                        Message</span>
+                    <span class="admin-settings-field-label">Welcome message</span>
                     <input id="admin-bot-welcome" type="text" style="margin:0; font-size:12px;"
                         placeholder="e.g. Hi! How can I help you style your day today?">
                 </div>
 
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Reply Chips
-                        (Comma-separated)</span>
+                    <span class="admin-settings-field-label">Quick reply chips (comma-separated)</span>
                     <input id="admin-bot-chips" type="text" style="margin:0; font-size:12px;"
                         placeholder="e.g. Best Sellers, Get Discount, Size Guide, Track Order">
                 </div>
@@ -1218,24 +1230,25 @@
                     </div>
                 </div>
 
+                <div class="admin-settings-field-group" style="margin:0; padding:0; border:none;">
+                    <p class="admin-settings-field-group__title">Newsletter &amp; spin wheel</p>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <div style="flex:1; min-width:140px;">
-                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Newsletter Popup
-                            Delay (seconds)</span>
+                        <span class="admin-settings-field-label">Newsletter popup delay (seconds)</span>
                         <input id="admin-newsletter-delay" type="number" min="1" value="5"
                             style="margin:0; font-size:12px;">
                     </div>
                     <div style="flex:1; min-width:140px;">
-                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Spin Wheel Jackpot
-                            Code</span>
+                        <span class="admin-settings-field-label">Spin wheel jackpot code</span>
                         <input id="admin-wheel-jackpot" type="text" style="margin:0; font-size:12px;"
                             placeholder="e.g. SWAGJACKPOT">
                     </div>
                 </div>
+                </div>
 
                 <button class="btn-gold"
                     style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:14px;"
-                    onclick="saveAdminFeatureContent()">Save Storefront Content</button>
+                    onclick="saveAdminFeatureContent()">Save storefront content</button>
             </div>
             </div>
         </div>
@@ -3539,7 +3552,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
-    <script src="js/admin-favorites.js?v=4.0"></script>
+    <script src="js/admin-favorites.js?v=4.1"></script>
     <script src="js/categories.js?v=12.3"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
@@ -3547,7 +3560,7 @@
     <script src="js/comments.js?v=10.5"></script>
     <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=16.0"></script>
+    <script src="js/admin.js?v=16.1"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
