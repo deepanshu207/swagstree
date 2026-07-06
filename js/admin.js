@@ -722,10 +722,34 @@ window.toggleAdminProductsAccordion = function() {
 window.openAdminProductsAccordion = openAdminProductsAccordion;
 window.adminApplyProductsSectionMode = adminApplyProductsSectionMode;
 
-window.adminOnProductsAccordionSettingChange = function(checked) {
-    window.adminProductsAccordionSetting = !!checked;
+function adminMigrateLegacyProductsAccordion() {
+    try {
+        const raw = localStorage.getItem('swagstree_admin_layout_v1');
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        return parsed?.productsAccordion === true;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function adminPersistProductsAccordionSetting(enabled) {
+    window.adminProductsAccordionSetting = !!enabled;
     adminSyncProductsAccordionSettingUi();
     if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
+    try {
+        await db.collection('settings').doc('pagination').set({
+            adminProductsAccordion: window.adminProductsAccordionSetting
+        }, { merge: true });
+        showToast(window.adminProductsAccordionSetting ? 'Products accordion saved' : 'Products flat list saved');
+    } catch (e) {
+        console.error('adminPersistProductsAccordionSetting error:', e);
+        showToast('Failed to save products accordion setting');
+    }
+}
+
+window.adminOnProductsAccordionSettingChange = function(checked) {
+    adminPersistProductsAccordionSetting(checked);
 };
 
 function adminSyncProductSortUi() {
@@ -4479,6 +4503,7 @@ window.saveAdminCatalogSettings = async function() {
 
 // ── Products & Orders Pagination Settings ─────────────────────────────────────
 window.loadPaginationSettings = async function() {
+    let migratedLegacyAccordion = false;
     try {
         const snap = await db.collection('settings').doc('pagination').get();
         if (snap.exists) {
@@ -4509,12 +4534,12 @@ window.loadPaginationSettings = async function() {
 
             if (typeof data.adminProductsAccordion === 'boolean') {
                 window.adminProductsAccordionSetting = data.adminProductsAccordion;
+            } else if (adminMigrateLegacyProductsAccordion()) {
+                window.adminProductsAccordionSetting = true;
+                migratedLegacyAccordion = true;
             } else {
                 window.adminProductsAccordionSetting = false;
             }
-            adminSyncProductSortUi();
-            adminSyncProductsAccordionSettingUi();
-            if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
             
             // Orders limit
             if (typeof data.ordersLimit !== 'undefined') {
@@ -4534,13 +4559,29 @@ window.loadPaginationSettings = async function() {
                 if (typeof displayedAllCustomersLimit !== 'undefined') displayedAllCustomersLimit = val;
                 if (typeof displayedSuperCustomersLimit !== 'undefined') displayedSuperCustomersLimit = val;
             }
+        } else {
+            window.adminProductsAccordionSetting = adminMigrateLegacyProductsAccordion();
+            migratedLegacyAccordion = window.adminProductsAccordionSetting === true;
         }
+
+        if (migratedLegacyAccordion) {
+            await db.collection('settings').doc('pagination').set({
+                adminProductsAccordion: true
+            }, { merge: true });
+        }
+
+        adminSyncProductSortUi();
+        adminSyncProductsAccordionSettingUi();
+        if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
+
         if (typeof window.loadAdminFeatureContent === 'function') {
             window.loadAdminFeatureContent();
         }
         adminUpdateCatalogSettingsSummary();
     } catch(e) {
         console.error('loadPaginationSettings error:', e);
+        adminSyncProductsAccordionSettingUi();
+        if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
     }
 }
 
@@ -4586,14 +4627,14 @@ window.savePaginationSettings = async function() {
     adminSyncProductSortUi();
     
     try {
-        const payload = {
+        await db.collection('settings').doc('pagination').set({
             limit: val,
             adminProductsLimit: valAdmin,
             adminProductsSort,
+            adminProductsAccordion: window.adminProductsAccordionSetting === true,
             ordersLimit: valOrders,
             customersLimit: valCustomers
-        };
-        await db.collection('settings').doc('pagination').set(payload, { merge: true });
+        }, { merge: true });
         
         if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
         if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
