@@ -642,28 +642,38 @@ const ADMIN_PRODUCT_SORT_LABELS = {
     price_high: 'Price high–low'
 };
 
-function adminUpdateProductsDisplaySummary() {
-    const el = document.getElementById('admin-products-display-summary');
+function adminUpdateProductsCatalogSummary() {
+    const el = document.getElementById('admin-products-catalog-summary');
     if (!el) return;
-    el.textContent = window.adminProductsAccordionSetting === true
-        ? 'Accordion panel (collapsed by default)'
-        : 'Flat list (default)';
+    const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
+    const limit = getAdminProductsPageSize();
+    const sortLabel = ADMIN_PRODUCT_SORT_LABELS[sort] || sort;
+    const listMode = window.adminProductsAccordionSetting === true ? 'accordion' : 'flat list';
+    const storefrontInp = document.getElementById('admin-products-page-limit');
+    const storefront = storefrontInp ? parseInt(storefrontInp.value, 10) : (typeof productsPageLimitSetting !== 'undefined' ? productsPageLimitSetting : 20);
+    const storefrontVal = (!storefront || storefront < 1) ? 20 : storefront;
+    el.textContent = `${sortLabel} · Admin ${limit}/page · Shop ${storefrontVal}/scroll · ${listMode}`;
+}
+
+function adminUpdatePaginationSettingsSummary() {
+    const el = document.getElementById('admin-pagination-settings-summary');
+    if (!el) return;
+    const ordersInp = document.getElementById('admin-orders-page-limit');
+    const customersInp = document.getElementById('admin-customers-page-limit');
+    const orders = ordersInp ? parseInt(ordersInp.value, 10) : 20;
+    const customers = customersInp ? parseInt(customersInp.value, 10) : 10;
+    el.textContent = `Orders ${orders || 20}/page · Customers ${customers || 10}/page`;
 }
 
 function adminSyncProductsAccordionSettingUi() {
     const enabled = window.adminProductsAccordionSetting === true;
     const checkbox = document.getElementById('admin-products-accordion-setting');
     if (checkbox) checkbox.checked = enabled;
-    adminUpdateProductsDisplaySummary();
+    adminUpdateProductsCatalogSummary();
 }
 
 function adminUpdateCatalogSettingsSummary() {
-    const el = document.getElementById('admin-catalog-settings-summary');
-    if (!el) return;
-    const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
-    const limit = getAdminProductsPageSize();
-    const sortLabel = ADMIN_PRODUCT_SORT_LABELS[sort] || sort;
-    el.textContent = `${sortLabel} · ${limit} per page`;
+    adminUpdateProductsCatalogSummary();
 }
 
 function adminProductsAccordionEnabled() {
@@ -743,26 +753,62 @@ function adminMigrateLegacyProductsAccordion() {
     }
 }
 
-window.saveAdminProductsDisplaySettings = async function() {
+window.saveAdminProductsCatalogSettings = async function() {
+    const inpAdmin = document.getElementById('admin-editing-products-page-limit');
+    const inpStorefront = document.getElementById('admin-products-page-limit');
+    const sortSetting = document.getElementById('admin-products-sort-setting');
     const checkbox = document.getElementById('admin-products-accordion-setting');
-    const next = checkbox ? checkbox.checked : false;
+
+    let valAdmin = 20;
+    if (inpAdmin) {
+        valAdmin = parseInt(inpAdmin.value, 10);
+        if (isNaN(valAdmin) || valAdmin < 1) valAdmin = 20;
+        inpAdmin.value = valAdmin;
+    }
+
+    let valStorefront = 20;
+    if (inpStorefront) {
+        valStorefront = parseInt(inpStorefront.value, 10);
+        if (isNaN(valStorefront) || valStorefront < 1) valStorefront = 20;
+        inpStorefront.value = valStorefront;
+    }
+
+    const adminProductsSort = adminNormalizeProductSort(
+        sortSetting ? sortSetting.value : window.adminProductsSortSetting
+    );
+    const nextAccordion = checkbox ? checkbox.checked : false;
     const wasAccordion = window.adminProductsAccordionSetting === true;
-    window.adminProductsAccordionSetting = next;
+
+    window.adminProductsSortSetting = adminProductsSort;
+    window.adminProductsAccordionSetting = nextAccordion;
+    adminSyncProductSortUi();
     adminSyncProductsAccordionSettingUi();
 
     try {
         await db.collection('settings').doc('pagination').set({
-            adminProductsAccordion: next
+            adminProductsLimit: valAdmin,
+            adminProductsSort,
+            adminProductsAccordion: nextAccordion,
+            limit: valStorefront
         }, { merge: true });
-        if (next) window._adminProductsAccordionOpen = false;
-        adminApplyProductsSectionMode({ forceCollapse: next });
-        showToast('Products display settings saved.');
-        if (next !== wasAccordion && typeof renderAdmin === 'function') renderAdmin();
+        window.adminProductsPageLimitSetting = valAdmin;
+        window.adminProductsPage = 1;
+        if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = valStorefront;
+        if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = valStorefront;
+        if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = valStorefront;
+        adminApplyProductsSectionMode({ forceCollapse: nextAccordion });
+        showToast('Products & catalog settings saved.');
+        if (typeof renderStore === 'function') renderStore();
+        if (nextAccordion !== wasAccordion && typeof renderAdmin === 'function') renderAdmin();
+        else if (typeof renderAdmin === 'function') renderAdmin();
     } catch (e) {
-        console.error('saveAdminProductsDisplaySettings error:', e);
-        showToast('Failed to save products display settings');
+        console.error('saveAdminProductsCatalogSettings error:', e);
+        showToast('Failed to save products & catalog settings');
     }
 };
+
+window.saveAdminCatalogSettings = window.saveAdminProductsCatalogSettings;
+window.saveAdminProductsDisplaySettings = window.saveAdminProductsCatalogSettings;
 
 function adminSyncProductSortUi() {
     const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
@@ -4476,38 +4522,6 @@ window.saveMaxQtySettings = async function() {
     }
 }
 
-window.saveAdminCatalogSettings = async function() {
-    const inpAdmin = document.getElementById('admin-editing-products-page-limit');
-    const sortSetting = document.getElementById('admin-products-sort-setting');
-
-    let valAdmin = 20;
-    if (inpAdmin) {
-        valAdmin = parseInt(inpAdmin.value, 10);
-        if (isNaN(valAdmin) || valAdmin < 1) valAdmin = 20;
-        inpAdmin.value = valAdmin;
-    }
-
-    const adminProductsSort = adminNormalizeProductSort(
-        sortSetting ? sortSetting.value : window.adminProductsSortSetting
-    );
-    window.adminProductsSortSetting = adminProductsSort;
-    adminSyncProductSortUi();
-
-    try {
-        await db.collection('settings').doc('pagination').set({
-            adminProductsLimit: valAdmin,
-            adminProductsSort
-        }, { merge: true });
-        window.adminProductsPageLimitSetting = valAdmin;
-        window.adminProductsPage = 1;
-        showToast('Admin catalog settings saved to database.');
-        if (typeof renderAdmin === 'function') renderAdmin();
-    } catch (e) {
-        console.error('saveAdminCatalogSettings error:', e);
-        showToast('Failed to save admin catalog settings');
-    }
-};
-
 // ── Products & Orders Pagination Settings ─────────────────────────────────────
 window.loadPaginationSettings = async function() {
     let migratedLegacyAccordion = false;
@@ -4586,10 +4600,12 @@ window.loadPaginationSettings = async function() {
         if (typeof window.loadAdminFeatureContent === 'function') {
             window.loadAdminFeatureContent();
         }
-        adminUpdateCatalogSettingsSummary();
+        adminUpdateProductsCatalogSummary();
+        adminUpdatePaginationSettingsSummary();
     } catch(e) {
         console.error('loadPaginationSettings error:', e);
         adminSyncProductsAccordionSettingUi();
+        adminUpdatePaginationSettingsSummary();
         if (typeof adminApplyProductsSectionMode === 'function') {
             adminApplyProductsSectionMode({ forceCollapse: window.adminProductsAccordionSetting === true });
         }
@@ -4597,25 +4613,9 @@ window.loadPaginationSettings = async function() {
 }
 
 window.savePaginationSettings = async function() {
-    const inp = document.getElementById('admin-products-page-limit');
-    const inpAdmin = document.getElementById('admin-editing-products-page-limit');
     const inpOrders = document.getElementById('admin-orders-page-limit');
     const inpCustomers = document.getElementById('admin-customers-page-limit');
-    
-    let val = 20;
-    if (inp) {
-        val = parseInt(inp.value, 10);
-        if (isNaN(val) || val < 1) val = 20;
-        inp.value = val;
-    }
 
-    let valAdmin = 20;
-    if (inpAdmin) {
-        valAdmin = parseInt(inpAdmin.value, 10);
-        if (isNaN(valAdmin) || valAdmin < 1) valAdmin = 20;
-        inpAdmin.value = valAdmin;
-    }
-    
     let valOrders = 20;
     if (inpOrders) {
         valOrders = parseInt(inpOrders.value, 10);
@@ -4630,48 +4630,28 @@ window.savePaginationSettings = async function() {
         inpCustomers.value = valCustomers;
     }
 
-    const sortSetting = document.getElementById('admin-products-sort-setting');
-    const adminProductsSort = adminNormalizeProductSort(
-        sortSetting ? sortSetting.value : window.adminProductsSortSetting
-    );
-    window.adminProductsSortSetting = adminProductsSort;
-    adminSyncProductSortUi();
-    
     try {
         await db.collection('settings').doc('pagination').set({
-            limit: val,
-            adminProductsLimit: valAdmin,
-            adminProductsSort,
-            adminProductsAccordion: window.adminProductsAccordionSetting === true,
             ordersLimit: valOrders,
             customersLimit: valCustomers
         }, { merge: true });
-        
-        if (typeof productsPageLimitSetting !== 'undefined') productsPageLimitSetting = val;
-        if (typeof displayedProductsLimit !== 'undefined') displayedProductsLimit = val;
-        if (typeof displayedWishlistLimit !== 'undefined') displayedWishlistLimit = val;
-        window.adminProductsPageLimitSetting = valAdmin;
-        window.adminProductsPage = 1;
-        
+
         if (typeof ordersPageLimitSetting !== 'undefined') ordersPageLimitSetting = valOrders;
         if (typeof displayedOrdersLimit !== 'undefined') displayedOrdersLimit = valOrders;
-
         if (typeof customersPageLimitSetting !== 'undefined') customersPageLimitSetting = valCustomers;
         if (typeof displayedAllCustomersLimit !== 'undefined') displayedAllCustomersLimit = valCustomers;
         if (typeof displayedSuperCustomersLimit !== 'undefined') displayedSuperCustomersLimit = valCustomers;
-        
-        showToast('✅ Pagination settings saved successfully!');
-        adminUpdateCatalogSettingsSummary();
-        if (typeof renderStore === 'function') renderStore();
+
+        adminUpdatePaginationSettingsSummary();
+        showToast('Orders & customers settings saved.');
         if (typeof loadOrders === 'function') loadOrders();
         if (typeof filterSuperCustomers === 'function') filterSuperCustomers();
         if (typeof filterAllCustomers === 'function') filterAllCustomers();
-        if (typeof renderAdmin === 'function') renderAdmin();
     } catch(e) {
         console.error('savePaginationSettings error:', e);
-        showToast('Failed to save pagination settings');
+        showToast('Failed to save orders & customers settings');
     }
-}
+};
 
 // ── Promo Code Settings ─────────────────────────────────────────────────────
 let adminPromoList = [];
@@ -6473,17 +6453,14 @@ window.toggleAdminPaginationAccordion = function() {
     toggleAdminSectionAccordion('admin-pagination-accordion-content', 'admin-pagination-accordion-icon');
 };
 
-window.toggleAdminCatalogAccordion = function() {
-    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-catalog-settings');
+window.toggleAdminProductsCatalogAccordion = function() {
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-products-catalog-settings');
     else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
-    toggleAdminSectionAccordion('admin-catalog-accordion-content', 'admin-catalog-accordion-icon');
+    toggleAdminSectionAccordion('admin-products-catalog-accordion-content', 'admin-products-catalog-accordion-icon');
 };
 
-window.toggleAdminProductsDisplayAccordion = function() {
-    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-products-display-settings');
-    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
-    toggleAdminSectionAccordion('admin-products-display-accordion-content', 'admin-products-display-accordion-icon');
-};
+window.toggleAdminCatalogAccordion = window.toggleAdminProductsCatalogAccordion;
+window.toggleAdminProductsDisplayAccordion = window.toggleAdminProductsCatalogAccordion;
 
 window.toggleAdminFeatureContentAccordion = function() {
     if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-feature-content-settings');
