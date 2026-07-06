@@ -10,7 +10,7 @@
     const SECTION_REGISTRY = {
         drafts: { title: 'Saved drafts', hint: 'Above · draft recovery panel', icon: 'fa-file-text-o', ids: ['admin-draft-recovery-panel'] },
         viewHeader: { title: 'Admin Tools header', hint: 'Above · title and product count', icon: 'fa-wrench', ids: ['admin-view-header'] },
-        headerActions: { title: 'Quick actions', hint: 'Above · + Category and + New item', icon: 'fa-plus-circle', selector: '#admin-view .admin-view-actions' },
+        headerActions: { title: 'Quick actions', hint: 'Above · + Category and + New item (stays with header)', icon: 'fa-plus-circle', selector: '#admin-view .admin-view-actions', parentKey: 'viewHeader', sortable: false },
         productSearch: { title: 'Product search', hint: 'Above · search box in toolbar', icon: 'fa-search', ids: ['admin-product-search-wrap'] },
         productFilter: { title: 'Product filter dropdown', hint: 'Above · stock / media filters', icon: 'fa-filter', ids: ['admin-product-filter-wrap'] },
         productSort: { title: 'Product sort', hint: 'Above · sort dropdown (saved default in Products & catalog)', icon: 'fa-sort', ids: ['admin-product-sort-wrap'] },
@@ -55,11 +55,12 @@
         engagement: 'Customer engagement'
     };
 
+    const TOOLBAR_ONLY_ABOVE_KEYS = new Set(['productSearch', 'productFilter', 'productSort', 'headerActions', 'viewHeader']);
+
     const ADMIN_STORE_SECTION_DIVIDERS = {
         productsCatalog: 'admin-store-divider-catalog',
         bulk: 'admin-store-divider-catalog',
         pagination: 'admin-store-divider-lists',
-        checkout: 'admin-store-divider-checkout',
         cod: 'admin-store-divider-checkout',
         'max-qty': 'admin-store-divider-checkout',
         promo: 'admin-store-divider-checkout',
@@ -140,6 +141,7 @@
             seen.add(key);
         });
         adminEnsureToolbarKeysPlacement(clean);
+        adminEnsureHeaderActionsPlacement(clean);
         adminMigrateLayoutToolKeys(clean);
         adminEnsureProductsCatalogPlacement(clean);
         adminEnsureCheckoutBlocksPlacement(clean);
@@ -199,6 +201,19 @@
             if (headerIdx >= 0) clean.above.splice(headerIdx + 1, 0, key);
             else clean.above.push(key);
         });
+    }
+
+    function adminEnsureHeaderActionsPlacement(clean) {
+        ['inside', 'below'].forEach(zone => {
+            clean[zone] = clean[zone].filter(k => k !== 'headerActions');
+        });
+        if (!clean.above.includes('viewHeader')) {
+            clean.above = clean.above.filter(k => k !== 'headerActions');
+            return;
+        }
+        clean.above = clean.above.filter(k => k !== 'headerActions');
+        const headerIdx = clean.above.indexOf('viewHeader');
+        clean.above.splice(headerIdx + 1, 0, 'headerActions');
     }
 
     function adminPreprocessLayoutOrder(arr) {
@@ -361,6 +376,9 @@
     }
 
     function adminZonePillsHtml(key, zone) {
+        if (TOOLBAR_ONLY_ABOVE_KEYS.has(key)) {
+            return '<span class="admin-layout-zone-pill-note" title="This block stays in the Above zone">Above only</span>';
+        }
         const labels = { above: 'Above', inside: 'Inside', below: 'Below' };
         const titles = {
             above: 'Show at top of Admin — visible without opening Store settings',
@@ -489,9 +507,12 @@
         const allKeys = new Set([...draft.above, ...draft.inside, ...draft.below]);
         SORTABLE_BLOCK_KEYS.forEach(key => { if (!allKeys.has(key)) draft.inside.push(key); });
 
-        const buildZoneHtml = (keys, zone) => keys.map(key => {
+        const buildZoneHtml = (keys, zone) => keys
+            .filter(key => key !== 'headerActions')
+            .map(key => {
             let html = adminBlockItemHtml(key, draft.visible, false, zone);
             if (key === 'categories') html += adminBlockItemHtml('categorySearch', draft.visible, true, zone);
+            if (key === 'viewHeader') html += adminBlockItemHtml('headerActions', draft.visible, true, zone);
             return html;
         }).join('');
 
@@ -539,7 +560,8 @@
         draft.above = next.above;
         draft.inside = next.inside;
         draft.below = next.below;
-        adminLayoutWrite(draft.visible, draft.above, draft.inside, draft.below);
+        const normalized = adminNormalizePlacement(draft.above, draft.inside, draft.below, draft.visible);
+        adminLayoutWrite(normalized.visible, normalized.above, normalized.inside, normalized.below);
         adminLayoutDraftClear();
         renderAdminFavorites();
         if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
@@ -596,15 +618,6 @@
     function adminIsRuntimeToolVisible(key, el) {
         if (key !== 'support' && key !== 'comments') return true;
         return el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
-    }
-
-    function adminExpandToolAccordion(key) {
-        const meta = TOOL_REGISTRY[key];
-        if (!meta?.accordionContentId) return;
-        const content = document.getElementById(meta.accordionContentId);
-        const icon = meta.accordionIconId && document.getElementById(meta.accordionIconId);
-        if (content) content.style.display = 'flex';
-        if (icon) icon.style.transform = 'rotate(0deg)';
     }
 
     function adminHideBlockNode(key, el) {
@@ -722,7 +735,7 @@
                 i++;
                 continue;
             }
-            if (key === 'categorySearch') { i++; continue; }
+            if (key === 'categorySearch' || key === 'headerActions') { i++; continue; }
 
             if (key === 'productSearch' || key === 'productFilter' || key === 'productSort') {
                 const result = adminPlaceSearchFilterBlocks(keys, target, i, insertAfter);
@@ -751,6 +764,13 @@
             adminSanitizeBlock(el);
             adminShowBlockNode(key, el);
             insertAfter = adminMoveBlock(el, target, insertAfter);
+            if (key === 'viewHeader') {
+                const header = document.getElementById('admin-view-header');
+                const actions = document.querySelector('#admin-view .admin-view-actions');
+                if (header && actions && actions.parentNode !== header) {
+                    header.appendChild(actions);
+                }
+            }
             i++;
         }
         if (emptyToolbar) {
@@ -790,10 +810,18 @@
 
     function adminUpdateBelowSlotHeading(belowSlot, belowKeys) {
         if (!belowSlot) return;
-        const heading = document.getElementById('admin-below-slot-heading');
-        if (heading) {
-            heading.hidden = true;
-            heading.remove();
+        let heading = document.getElementById('admin-below-slot-heading');
+        const has = belowKeys.some(k => adminIsBlockShown(k) && k !== 'categorySearch');
+        if (!has) {
+            if (heading) heading.remove();
+            return;
+        }
+        if (!heading) {
+            heading = document.createElement('h4');
+            heading.id = 'admin-below-slot-heading';
+            heading.className = 'admin-layout-slot-heading';
+            heading.textContent = 'Pinned below store settings';
+            belowSlot.insertBefore(heading, belowSlot.firstChild);
         }
     }
 
@@ -832,17 +860,18 @@
 
         adminPlaceOrderedBlocks(placement.above, aboveSlot);
 
-        if (layoutSettings && layoutSettings.parentNode !== storeContent) {
-            storeContent.insertBefore(layoutSettings, storeContent.firstChild);
-        } else if (layoutSettings) {
-            storeContent.insertBefore(layoutSettings, storeContent.firstChild);
+        if (layoutSettings && storeSection.parentNode) {
+            if (layoutSettings.nextElementSibling !== storeSection) {
+                storeSection.parentNode.insertBefore(layoutSettings, storeSection);
+            }
         }
-        let guideAfter = layoutSettings;
+
+        let guideAfter = null;
         if (storeGuide) {
             if (storeGuide.parentNode !== storeContent) {
-                storeContent.insertBefore(storeGuide, layoutSettings ? layoutSettings.nextSibling : storeContent.firstChild);
-            } else if (layoutSettings) {
-                layoutSettings.insertAdjacentElement('afterend', storeGuide);
+                storeContent.insertBefore(storeGuide, storeContent.firstChild);
+            } else {
+                storeContent.insertBefore(storeGuide, storeContent.firstChild);
             }
             guideAfter = storeGuide;
         }
@@ -889,6 +918,7 @@
     window.applyAdminLayout = applyAdminLayout;
     window.renderAdminLayoutSettings = renderAdminLayoutSettings;
     window.adminLayoutMoveBlockToZone = adminLayoutMoveBlockToZone;
+    window.adminLayoutDraftClear = adminLayoutDraftClear;
 
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.admin-favorite-toggle, .admin-pinned-badge').forEach(el => el.remove());

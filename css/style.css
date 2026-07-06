@@ -8044,8 +8044,42 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 
 /* ===== Admin tab layout ===== */
 #admin-view {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 20px;
 }
+
+@media (max-width: 1024px), (pointer: coarse) {
+    #admin-view {
+        padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+.admin-layout-settings--pinned {
+    margin-left: 20px !important;
+    margin-right: 20px !important;
+}
+
+.admin-layout-zone-pill-note {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #8fd9a8;
+    background: rgba(46, 204, 113, 0.1);
+    border: 1px solid rgba(46, 204, 113, 0.25);
+    border-radius: 6px;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+.admin-layout-slot-heading {
+    margin: 0 20px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+    color: #7ec8e3;
+}
+
 .admin-view-header {
     display: flex;
     align-items: center;
@@ -8773,8 +8807,6 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 
 .admin-products-section-count {
     font-size: 10px;
-}
-
     margin-top: 4px;
 }
 

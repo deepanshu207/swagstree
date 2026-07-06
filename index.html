@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.69">
+    <link rel="stylesheet" href="css/style.css?v=9.70">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -817,26 +817,9 @@
             </div>
         </div>
 
-        <!-- Store settings & tools (bulk, checkout, promos, storefront, support) -->
-        <div id="admin-store-tools-section" class="admin-store-tools-section admin-panel-card">
-            <div class="admin-store-tools-header" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
-                onclick="toggleAdminStoreToolsAccordion()">
-                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
-                    <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
-                        <p id="admin-store-tools-subtitle" style="margin:2px 0 0; font-size:11px; color:#666;">Catalog, checkout, lists &amp; storefront — expand a section, change values, tap Save</p>
-                    </div>
-                </div>
-                <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
-                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
-            </div>
-            <div id="admin-store-tools-accordion-content" class="admin-store-tools-body"
-                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
-
-        <!-- Admin layout settings -->
-        <div id="admin-layout-settings" class="admin-store-tools-block admin-layout-settings"
-            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <!-- Admin layout (always visible — configure Above / Inside / Below zones) -->
+        <div id="admin-layout-settings" class="admin-store-tools-block admin-layout-settings admin-layout-settings--pinned"
+            style="margin: 0 20px 16px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px;">
                 <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
                 Admin layout
@@ -907,7 +890,24 @@
             </div>
         </div>
 
-        <!-- Store settings quick guide (always at top) -->
+        <!-- Store settings & tools (bulk, checkout, promos, storefront, support) -->
+        <div id="admin-store-tools-section" class="admin-store-tools-section admin-panel-card">
+            <div class="admin-store-tools-header" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminStoreToolsAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
+                        <p id="admin-store-tools-subtitle" style="margin:2px 0 0; font-size:11px; color:#666;">Catalog, checkout, lists &amp; storefront — expand a section, change values, tap Save</p>
+                    </div>
+                </div>
+                <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
+            </div>
+            <div id="admin-store-tools-accordion-content" class="admin-store-tools-body"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+
+        <!-- Store settings quick guide (always at top of accordion) -->
         <div id="admin-store-settings-guide" class="admin-store-settings-guide admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#0d0d0d; border:1px solid rgba(201,162,39,0.25); border-radius:18px; padding:14px 18px;">
             <h4 style="margin:0 0 8px; font-size:12px; color:var(--gold); font-weight:700; letter-spacing:0.3px;">New here? Start with these</h4>
@@ -918,7 +918,7 @@
                 <li><strong>Storefront</strong> — announcement bar, chatbot, footer, global banners</li>
                 <li><strong>Customer engagement</strong> — diaries feed, support inbox, review moderation</li>
             </ul>
-            <p style="margin:8px 0 0; font-size:10px; color:#555; line-height:1.45;">Gold labels group related settings below. Use <strong>Admin layout → Above / Inside / Below</strong> to choose where each block appears. Tap a section header to expand — then change values and tap <strong>Save</strong>.</p>
+            <p style="margin:8px 0 0; font-size:10px; color:#555; line-height:1.45;">Gold labels group related settings below. Use <strong>Admin layout</strong> (above this panel) for Above / Inside / Below placement. Tap a section header to expand — then change values and tap <strong>Save</strong>.</p>
         </div>
 
         <div id="admin-store-divider-catalog" class="admin-store-settings-divider" hidden>
@@ -972,7 +972,7 @@
                 <i class="fa fa-truck" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">COD advance payment</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Minimum UPI payment required to confirm a COD order</p>
+                    <p id="admin-cod-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Minimum UPI to confirm COD</p>
                 </div>
             </div>
             <div style="display:flex; gap:10px; align-items:center;">
@@ -993,7 +993,7 @@
                 <i class="fa fa-shopping-bag" style="color:var(--gold); font-size:15px;"></i>
                 <div>
                     <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Max cart quantity</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Max allowed per item when stock tracking is off (default 1)</p>
+                    <p id="admin-max-qty-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Max units per item when stock is off</p>
                 </div>
             </div>
             <div style="display:flex; gap:10px; align-items:center;">
@@ -1107,10 +1107,10 @@
                     <p class="admin-settings-field-group__hint">Controls the Products section at the top of this Admin tab (search, categories, product rows).</p>
 
                     <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting">
-                        <input id="admin-products-accordion-setting" type="checkbox">
+                        <input id="admin-products-accordion-setting" type="checkbox" onchange="adminPreviewProductsAccordionSetting()">
                         <span class="admin-catalog-accordion-toggle__text">
                             <span class="admin-catalog-accordion-toggle__label">Collapsible Products panel</span>
-                            <span class="admin-catalog-accordion-toggle__hint">Off = flat list (recommended). On = accordion like Categories, collapsed until you expand it.</span>
+                            <span class="admin-catalog-accordion-toggle__hint">Off = flat list (recommended). On = accordion like Categories. Preview updates instantly — tap Save below to keep.</span>
                         </span>
                     </label>
 
@@ -3577,7 +3577,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
-    <script src="js/admin-favorites.js?v=4.3"></script>
+    <script src="js/admin-favorites.js?v=4.4"></script>
     <script src="js/categories.js?v=12.3"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
@@ -3585,7 +3585,7 @@
     <script src="js/comments.js?v=10.5"></script>
     <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=16.3"></script>
+    <script src="js/admin.js?v=16.4"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
