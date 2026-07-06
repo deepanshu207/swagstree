@@ -4472,23 +4472,22 @@ async function importProducts(input) {
 
 // ── COD Settings ────────────────────────────────────────────────────────────
 
-function adminUpdateCodSettingsSummary() {
-    const el = document.getElementById('admin-cod-settings-summary');
+// ── Checkout settings (COD + max quantity) ────────────────────────────────────
+
+function adminUpdateCheckoutSettingsSummary() {
+    const el = document.getElementById('admin-checkout-settings-summary');
     if (!el) return;
     const codInp = document.getElementById('admin-cod-min-payment');
+    const qtyInp = document.getElementById('admin-max-cart-qty');
     const cod = codInp ? Number(codInp.value) : (typeof codMinPayment !== 'undefined' ? codMinPayment : 100);
+    const qty = qtyInp ? parseInt(qtyInp.value, 10) : (typeof globalMaxCartQty !== 'undefined' ? globalMaxCartQty : 1);
     const codVal = isNaN(cod) || cod < 0 ? 100 : cod;
-    el.textContent = `Minimum UPI \u20b9${codVal} to confirm COD`;
+    const qtyVal = isNaN(qty) || qty < 1 ? 1 : qty;
+    el.textContent = `COD \u20b9${codVal} · Max ${qtyVal} per item`;
 }
 
-function adminUpdateMaxQtySettingsSummary() {
-    const el = document.getElementById('admin-max-qty-settings-summary');
-    if (!el) return;
-    const qtyInp = document.getElementById('admin-max-cart-qty');
-    const qty = qtyInp ? parseInt(qtyInp.value, 10) : (typeof globalMaxCartQty !== 'undefined' ? globalMaxCartQty : 1);
-    const qtyVal = isNaN(qty) || qty < 1 ? 1 : qty;
-    el.textContent = `Max ${qtyVal} unit${qtyVal === 1 ? '' : 's'} per item (stock off)`;
-}
+function adminUpdateCodSettingsSummary() { adminUpdateCheckoutSettingsSummary(); }
+function adminUpdateMaxQtySettingsSummary() { adminUpdateCheckoutSettingsSummary(); }
 
 async function loadCodSettings() {
     try {
@@ -4499,7 +4498,7 @@ async function loadCodSettings() {
         const inp = document.getElementById('admin-cod-min-payment');
         if (inp) inp.value = val;
         if (typeof codMinPayment !== 'undefined') codMinPayment = val;
-        adminUpdateCodSettingsSummary();
+        adminUpdateCheckoutSettingsSummary();
     } catch(e) {
         console.error('loadCodSettings error:', e);
     }
@@ -4513,13 +4512,37 @@ async function saveCodSettings() {
     try {
         await db.collection('settings').doc('cod').set({ minPayment: val }, { merge: true });
         if (typeof codMinPayment !== 'undefined') codMinPayment = val;
-        adminUpdateCodSettingsSummary();
+        adminUpdateCheckoutSettingsSummary();
         showToast('COD minimum payment saved: \u20b9' + val);
     } catch(e) {
         console.error('saveCodSettings error:', e);
         showToast('Failed to save COD settings');
     }
 }
+
+window.saveCheckoutSettings = async function() {
+    const codInp = document.getElementById('admin-cod-min-payment');
+    const qtyInp = document.getElementById('admin-max-cart-qty');
+    if (!codInp || !qtyInp) return;
+    const codVal = Number(codInp.value);
+    if (isNaN(codVal) || codVal < 0) return showToast('Enter a valid COD amount (0 or more)');
+    let qtyVal = parseInt(qtyInp.value, 10);
+    if (isNaN(qtyVal) || qtyVal < 1) qtyVal = 1;
+    qtyInp.value = qtyVal;
+    try {
+        await Promise.all([
+            db.collection('settings').doc('cod').set({ minPayment: codVal }, { merge: true }),
+            db.collection('settings').doc('cart').set({ globalMaxQty: qtyVal }, { merge: true })
+        ]);
+        if (typeof codMinPayment !== 'undefined') codMinPayment = codVal;
+        if (typeof globalMaxCartQty !== 'undefined') globalMaxCartQty = qtyVal;
+        adminUpdateCheckoutSettingsSummary();
+        showToast('Checkout settings saved');
+    } catch(e) {
+        console.error('saveCheckoutSettings error:', e);
+        showToast('Failed to save checkout settings');
+    }
+};
 
 // ── Global Max Quantity Settings ─────────────────────────────────────────────
 async function loadMaxQtySettings() {
@@ -4531,7 +4554,7 @@ async function loadMaxQtySettings() {
             if (inp) inp.value = val;
             if (typeof globalMaxCartQty !== 'undefined') globalMaxCartQty = val;
         }
-        adminUpdateMaxQtySettingsSummary();
+        adminUpdateCheckoutSettingsSummary();
     } catch(e) {
         console.error('loadMaxQtySettings error:', e);
     }
@@ -4546,7 +4569,7 @@ window.saveMaxQtySettings = async function() {
     try {
         await db.collection('settings').doc('cart').set({ globalMaxQty: val }, { merge: true });
         if (typeof globalMaxCartQty !== 'undefined') globalMaxCartQty = val;
-        adminUpdateMaxQtySettingsSummary();
+        adminUpdateCheckoutSettingsSummary();
         showToast('Global max cart quantity saved: ' + val);
     } catch(e) {
         console.error('saveMaxQtySettings error:', e);
@@ -5019,6 +5042,7 @@ window.saveInlinePromoChanges = async function(index) {
 // Bind settings loaders to window for cross-script execution
 window.loadCodSettings = loadCodSettings;
 window.saveCodSettings = saveCodSettings;
+window.adminUpdateCheckoutSettingsSummary = adminUpdateCheckoutSettingsSummary;
 window.loadMaxQtySettings = loadMaxQtySettings;
 window.loadPromoSettings = loadPromoSettings;
 

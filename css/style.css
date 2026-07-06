@@ -8058,6 +8058,44 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin-right: 20px !important;
 }
 
+.admin-layout-settings--compact {
+    overflow: hidden;
+}
+
+.admin-layout-settings__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 15px 20px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.admin-layout-settings__head:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-layout-settings__chevron {
+    color: var(--gold);
+    font-size: 12px;
+    transition: transform 0.3s;
+    transform: rotate(-90deg);
+    flex-shrink: 0;
+}
+
+.admin-layout-settings__body {
+    padding: 0 20px 15px;
+    border-top: 1px solid #222;
+}
+
+.admin-layout-settings__intro {
+    margin: 12px 0 10px;
+    font-size: 11px;
+    color: #666;
+    line-height: 1.45;
+}
+
 .admin-layout-zone-pill-note {
     font-size: 9px;
     font-weight: 700;
