@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.62">
+    <link rel="stylesheet" href="css/style.css?v=9.63">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -841,7 +841,7 @@
                 <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
                 Admin layout
             </h4>
-            <p style="margin:6px 0 12px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> = on/off. <strong>Place</strong> = where it appears on Admin (tap a pill). <strong>Products list display</strong> = accordion toggle in store settings. Drag or ↑↓ to reorder. Tap <strong>Save layout</strong> when done.</p>
+            <p style="margin:6px 0 12px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> = on/off. <strong>Place</strong> = where it appears on Admin (tap a pill). <strong>Products accordion</strong> toggle is below. Drag or ↑↓ to reorder. Tap <strong>Save layout</strong> when done.</p>
             <div class="admin-layout-settings__zones">
                 <div class="admin-layout-zone-accordion">
                     <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('above')" aria-expanded="false" aria-controls="admin-layout-above-content">
@@ -885,6 +885,17 @@
                         <div id="admin-layout-below-list" class="admin-layout-sortable-list" role="list" aria-label="Sections below store settings"></div>
                     </div>
                 </div>
+            </div>
+            <div class="admin-layout-settings__products-display">
+                <p class="admin-layout-settings__group-title" style="margin-top:14px; padding-top:14px; border-top:1px solid #2a2a2a;">Products list display</p>
+                <p id="admin-products-display-summary" class="admin-layout-settings__hint" style="margin-bottom:10px;">Flat list (default) · saved to database</p>
+                <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting">
+                    <input id="admin-products-accordion-setting" type="checkbox" onchange="adminOnProductsAccordionSettingChange(this.checked)">
+                    <span class="admin-catalog-accordion-toggle__text">
+                        <span class="admin-catalog-accordion-toggle__label">Use accordion for Products list</span>
+                        <span class="admin-catalog-accordion-toggle__hint">Off = flat list on Admin. On = collapsible Products panel like Categories. Saves automatically.</span>
+                    </span>
+                </label>
             </div>
             <div class="admin-layout-settings__actions">
                 <button type="button" id="admin-layout-save-btn" class="btn-gold admin-layout-save-btn" onclick="adminSaveLayoutSettings()" disabled>Save layout</button>
@@ -1038,25 +1049,6 @@
             </div>
         </div>
 
-        <!-- Products list display (flat vs accordion) -->
-        <div id="admin-products-display-settings" class="admin-store-tools-block admin-products-display-settings"
-            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-box-open" style="color:var(--gold); font-size:15px;"></i>
-                <div style="min-width:0;">
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Products list display</h4>
-                    <p id="admin-products-display-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Flat list (default) · saved to database</p>
-                </div>
-            </div>
-            <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting">
-                <input id="admin-products-accordion-setting" type="checkbox" onchange="adminOnProductsAccordionSettingChange(this.checked)">
-                <span class="admin-catalog-accordion-toggle__text">
-                    <span class="admin-catalog-accordion-toggle__label">Use accordion for Products list</span>
-                    <span class="admin-catalog-accordion-toggle__hint">Off = flat list on Admin. On = collapsible Products panel like Categories. Saves automatically.</span>
-                </span>
-            </label>
-        </div>
-
         <!-- Admin Catalog (sort & list — saved to database) -->
         <div id="admin-catalog-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
@@ -1094,6 +1086,15 @@
                     <p style="margin:0 0 6px; font-size:10px; color:#666;">How many products show per page in the Admin catalog below</p>
                     <input id="admin-editing-products-page-limit" type="number" min="1" step="1" value="20"
                         style="margin:0; font-size:12px;" placeholder="Default is 20">
+                </div>
+                <div>
+                    <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting-catalog">
+                        <input id="admin-products-accordion-setting-catalog" type="checkbox" onchange="adminOnProductsAccordionSettingChange(this.checked)">
+                        <span class="admin-catalog-accordion-toggle__text">
+                            <span class="admin-catalog-accordion-toggle__label">Use accordion for Products list</span>
+                            <span class="admin-catalog-accordion-toggle__hint">Same setting as Admin layout above. Saves automatically.</span>
+                        </span>
+                    </label>
                 </div>
             </div>
             <button class="btn-gold"
@@ -3528,7 +3529,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
-    <script src="js/admin-favorites.js?v=3.7"></script>
+    <script src="js/admin-favorites.js?v=3.8"></script>
     <script src="js/categories.js?v=12.3"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
@@ -3536,7 +3537,7 @@
     <script src="js/comments.js?v=10.5"></script>
     <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=15.7"></script>
+    <script src="js/admin.js?v=15.8"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

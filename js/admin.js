@@ -643,11 +643,14 @@ const ADMIN_PRODUCT_SORT_LABELS = {
 };
 
 function adminSyncProductsAccordionSettingUi() {
-    const checkbox = document.getElementById('admin-products-accordion-setting');
-    if (checkbox) checkbox.checked = window.adminProductsAccordionSetting === true;
+    const enabled = window.adminProductsAccordionSetting === true;
+    ['admin-products-accordion-setting', 'admin-products-accordion-setting-catalog'].forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) checkbox.checked = enabled;
+    });
     const displaySummary = document.getElementById('admin-products-display-summary');
     if (displaySummary) {
-        displaySummary.textContent = window.adminProductsAccordionSetting === true
+        displaySummary.textContent = enabled
             ? 'Accordion panel · saved to database'
             : 'Flat list (default) · saved to database';
     }
@@ -4484,7 +4487,8 @@ window.saveAdminCatalogSettings = async function() {
         sortSetting ? sortSetting.value : window.adminProductsSortSetting
     );
     window.adminProductsSortSetting = adminProductsSort;
-    const accordionSetting = document.getElementById('admin-products-accordion-setting');
+    const accordionSetting = document.getElementById('admin-products-accordion-setting')
+        || document.getElementById('admin-products-accordion-setting-catalog');
     window.adminProductsAccordionSetting = accordionSetting ? accordionSetting.checked : false;
     adminSyncProductSortUi();
     adminSyncProductsAccordionSettingUi();
