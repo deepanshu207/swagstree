@@ -24,6 +24,7 @@
         cod: { title: 'COD Advance Payment', icon: 'fa-truck', id: 'admin-cod-settings' },
         'max-qty': { title: 'Global Max Cart Quantity', icon: 'fa-shopping-bag', id: 'admin-max-qty-settings' },
         promo: { title: 'Promo Codes', icon: 'fa-ticket-alt', id: 'admin-promo-settings', accordionContentId: 'admin-promo-accordion-content', accordionIconId: 'admin-promo-accordion-icon' },
+        productsDisplay: { title: 'Products list display', hint: 'Flat list or accordion', icon: 'fa-box-open', id: 'admin-products-display-settings', accordionContentId: 'admin-products-display-accordion-content', accordionIconId: 'admin-products-display-accordion-icon' },
         pagination: { title: 'Pagination Settings', icon: 'fa-list-ol', id: 'admin-pagination-settings', accordionContentId: 'admin-pagination-accordion-content', accordionIconId: 'admin-pagination-accordion-icon' },
         catalog: { title: 'Admin Catalog', icon: 'fa-sort-amount-desc', id: 'admin-catalog-settings', accordionContentId: 'admin-catalog-accordion-content', accordionIconId: 'admin-catalog-accordion-icon' },
         'feature-content': { title: 'Storefront Content', icon: 'fa-paint-brush', id: 'admin-feature-content-settings', accordionContentId: 'admin-feature-content-accordion-content', accordionIconId: 'admin-feature-content-accordion-icon' },
@@ -35,7 +36,7 @@
     };
 
     const SECTION_KEYS = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'categorySearch', 'products'];
-    const TOOL_KEYS = ['bulk', 'cod', 'max-qty', 'promo', 'catalog', 'pagination', 'feature-content', 'feedback', 'footer', 'announcements', 'support', 'comments'];
+    const TOOL_KEYS = ['bulk', 'cod', 'max-qty', 'promo', 'productsDisplay', 'catalog', 'pagination', 'feature-content', 'feedback', 'footer', 'announcements', 'support', 'comments'];
     const SORTABLE_BLOCK_KEYS = [...SECTION_KEYS.filter(k => SECTION_REGISTRY[k]?.sortable !== false), ...TOOL_KEYS];
 
     const DEFAULT_ABOVE = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'products'];
@@ -73,7 +74,7 @@
                     if (typeof parsed.blockVisible[key] === 'boolean') defaults[key] = parsed.blockVisible[key];
                 });
             }
-            ['productSort', 'catalog'].forEach(key => {
+            ['productSort', 'catalog', 'productsDisplay'].forEach(key => {
                 if (!parsed?.blockVisible || typeof parsed.blockVisible[key] !== 'boolean') {
                     defaults[key] = true;
                 }
@@ -110,6 +111,7 @@
             seen.add(key);
         });
         adminEnsureToolbarKeysPlacement(clean);
+        adminEnsureProductsDisplayPlacement(clean);
         const vis = { ...(visible || adminBlockVisibilityRead()) };
         if (vis.categories !== false) vis.categorySearch = vis.categorySearch !== false;
         return { above: clean.above, inside: clean.inside, below: clean.below, visible: vis };
@@ -153,6 +155,13 @@
             if (headerIdx >= 0) clean.above.splice(headerIdx + 1, 0, key);
             else clean.above.push(key);
         });
+    }
+
+    function adminEnsureProductsDisplayPlacement(clean) {
+        if (clean.inside.includes('productsDisplay')) return;
+        const catalogIdx = clean.inside.indexOf('catalog');
+        if (catalogIdx >= 0) clean.inside.splice(catalogIdx, 0, 'productsDisplay');
+        else clean.inside.unshift('productsDisplay');
     }
 
     function adminPlacementRead() {
