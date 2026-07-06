@@ -8562,7 +8562,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 }
 
 .admin-layout-settings__products-display {
-    margin-bottom: 4px;
+    display: none !important;
 }
 
 .admin-catalog-accordion-toggle {

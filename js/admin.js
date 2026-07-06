@@ -642,19 +642,19 @@ const ADMIN_PRODUCT_SORT_LABELS = {
     price_high: 'Price high–low'
 };
 
+function adminUpdateProductsDisplaySummary() {
+    const el = document.getElementById('admin-products-display-summary');
+    if (!el) return;
+    el.textContent = window.adminProductsAccordionSetting === true
+        ? 'Accordion panel (collapsed by default)'
+        : 'Flat list (default)';
+}
+
 function adminSyncProductsAccordionSettingUi() {
     const enabled = window.adminProductsAccordionSetting === true;
-    ['admin-products-accordion-setting', 'admin-products-accordion-setting-catalog'].forEach(id => {
-        const checkbox = document.getElementById(id);
-        if (checkbox) checkbox.checked = enabled;
-    });
-    const displaySummary = document.getElementById('admin-products-display-summary');
-    if (displaySummary) {
-        displaySummary.textContent = enabled
-            ? 'Accordion panel · saved to database'
-            : 'Flat list (default) · saved to database';
-    }
-    adminUpdateCatalogSettingsSummary();
+    const checkbox = document.getElementById('admin-products-accordion-setting');
+    if (checkbox) checkbox.checked = enabled;
+    adminUpdateProductsDisplaySummary();
 }
 
 function adminUpdateCatalogSettingsSummary() {
@@ -670,11 +670,13 @@ function adminProductsAccordionEnabled() {
     return window.adminProductsAccordionSetting === true;
 }
 
-function adminApplyProductsSectionMode() {
+function adminApplyProductsSectionMode(opts = {}) {
     const useAccordion = adminProductsAccordionEnabled();
     const area = document.getElementById('admin-products-area');
     const head = document.getElementById('admin-products-accordion-head');
     if (!area) return;
+
+    const wasAccordion = area.classList.contains('admin-products-area--accordion');
 
     area.classList.toggle('admin-products-area--accordion', useAccordion);
     area.classList.toggle('admin-products-area--flat', !useAccordion);
@@ -688,7 +690,7 @@ function adminApplyProductsSectionMode() {
 
     if (!useAccordion) {
         window._adminProductsAccordionOpen = true;
-    } else if (window._adminProductsAccordionOpen !== true) {
+    } else if (opts.forceCollapse || !wasAccordion) {
         window._adminProductsAccordionOpen = false;
     }
 
@@ -741,23 +743,25 @@ function adminMigrateLegacyProductsAccordion() {
     }
 }
 
-async function adminPersistProductsAccordionSetting(enabled) {
-    window.adminProductsAccordionSetting = !!enabled;
+window.saveAdminProductsDisplaySettings = async function() {
+    const checkbox = document.getElementById('admin-products-accordion-setting');
+    const next = checkbox ? checkbox.checked : false;
+    const wasAccordion = window.adminProductsAccordionSetting === true;
+    window.adminProductsAccordionSetting = next;
     adminSyncProductsAccordionSettingUi();
-    if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
+
     try {
         await db.collection('settings').doc('pagination').set({
-            adminProductsAccordion: window.adminProductsAccordionSetting
+            adminProductsAccordion: next
         }, { merge: true });
-        showToast(window.adminProductsAccordionSetting ? 'Products accordion saved' : 'Products flat list saved');
+        if (next) window._adminProductsAccordionOpen = false;
+        adminApplyProductsSectionMode({ forceCollapse: next });
+        showToast('Products display settings saved.');
+        if (next !== wasAccordion && typeof renderAdmin === 'function') renderAdmin();
     } catch (e) {
-        console.error('adminPersistProductsAccordionSetting error:', e);
-        showToast('Failed to save products accordion setting');
+        console.error('saveAdminProductsDisplaySettings error:', e);
+        showToast('Failed to save products display settings');
     }
-}
-
-window.adminOnProductsAccordionSettingChange = function(checked) {
-    adminPersistProductsAccordionSetting(checked);
 };
 
 function adminSyncProductSortUi() {
@@ -4487,22 +4491,16 @@ window.saveAdminCatalogSettings = async function() {
         sortSetting ? sortSetting.value : window.adminProductsSortSetting
     );
     window.adminProductsSortSetting = adminProductsSort;
-    const accordionSetting = document.getElementById('admin-products-accordion-setting')
-        || document.getElementById('admin-products-accordion-setting-catalog');
-    window.adminProductsAccordionSetting = accordionSetting ? accordionSetting.checked : false;
     adminSyncProductSortUi();
-    adminSyncProductsAccordionSettingUi();
 
     try {
         await db.collection('settings').doc('pagination').set({
             adminProductsLimit: valAdmin,
-            adminProductsSort,
-            adminProductsAccordion: window.adminProductsAccordionSetting === true
+            adminProductsSort
         }, { merge: true });
         window.adminProductsPageLimitSetting = valAdmin;
         window.adminProductsPage = 1;
         showToast('Admin catalog settings saved to database.');
-        if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
         if (typeof renderAdmin === 'function') renderAdmin();
     } catch (e) {
         console.error('saveAdminCatalogSettings error:', e);
@@ -4581,7 +4579,9 @@ window.loadPaginationSettings = async function() {
 
         adminSyncProductSortUi();
         adminSyncProductsAccordionSettingUi();
-        if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
+        if (typeof adminApplyProductsSectionMode === 'function') {
+            adminApplyProductsSectionMode({ forceCollapse: window.adminProductsAccordionSetting === true });
+        }
 
         if (typeof window.loadAdminFeatureContent === 'function') {
             window.loadAdminFeatureContent();
@@ -4590,7 +4590,9 @@ window.loadPaginationSettings = async function() {
     } catch(e) {
         console.error('loadPaginationSettings error:', e);
         adminSyncProductsAccordionSettingUi();
-        if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
+        if (typeof adminApplyProductsSectionMode === 'function') {
+            adminApplyProductsSectionMode({ forceCollapse: window.adminProductsAccordionSetting === true });
+        }
     }
 }
 
@@ -6475,6 +6477,12 @@ window.toggleAdminCatalogAccordion = function() {
     if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-catalog-settings');
     else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     toggleAdminSectionAccordion('admin-catalog-accordion-content', 'admin-catalog-accordion-icon');
+};
+
+window.toggleAdminProductsDisplayAccordion = function() {
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-products-display-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    toggleAdminSectionAccordion('admin-products-display-accordion-content', 'admin-products-display-accordion-icon');
 };
 
 window.toggleAdminFeatureContentAccordion = function() {
