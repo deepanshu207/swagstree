@@ -8579,7 +8579,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     gap: 2px;
     margin: 20px 0 10px;
     padding: 10px 0 4px;
-    border-top: 2px solid #e2e8f0;
+    border-top: 2px solid rgba(201, 162, 39, 0.35);
 }
 
 .admin-store-settings-divider__label {
@@ -8587,7 +8587,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #64748b;
+    color: var(--gold, #c9a227);
 }
 
 .admin-settings-field-group {

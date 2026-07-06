@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.66">
+    <link rel="stylesheet" href="css/style.css?v=9.67">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -942,43 +942,44 @@
         </div>
 
 
-        <!-- Checkout & cart (COD + max quantity) -->
-        <div id="admin-checkout-settings" class="admin-store-tools-block"
+        <!-- COD Settings -->
+        <div id="admin-cod-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
-                onclick="toggleAdminCheckoutAccordion()">
-                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <i class="fa fa-shopping-cart" style="color:var(--gold); font-size:15px;"></i>
-                    <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Checkout &amp; cart</h4>
-                        <p id="admin-checkout-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">COD advance &amp; max quantity per item</p>
-                    </div>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-truck" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">COD advance payment</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Minimum UPI payment required to confirm a COD order</p>
                 </div>
-                <i id="admin-checkout-accordion-icon" class="fa fa-chevron-down"
-                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
-            <div id="admin-checkout-accordion-content"
-                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
-                <div class="admin-settings-field-group">
-                    <p class="admin-settings-field-group__title">COD advance payment</p>
-                    <p class="admin-settings-field-group__hint">Minimum UPI amount a customer must pay to confirm a Cash on Delivery order.</p>
-                    <div style="display:flex; gap:10px; align-items:center;">
-                        <div style="position:relative; flex:1;">
-                            <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:700; font-size:14px; pointer-events:none;">&#8377;</span>
-                            <input id="admin-cod-min-payment" type="number" min="0" step="10" value="100"
-                                style="padding-left:30px; margin:0; width:100%; box-sizing:border-box;" placeholder="Default 100">
-                        </div>
-                    </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:700; font-size:14px; pointer-events:none;">&#8377;</span>
+                    <input id="admin-cod-min-payment" type="number" min="0" step="10" value="100"
+                        style="padding-left:30px; margin:0; width:100%; box-sizing:border-box;" placeholder="Default 100">
                 </div>
-                <div class="admin-settings-field-group">
-                    <p class="admin-settings-field-group__title">Max cart quantity</p>
-                    <p class="admin-settings-field-group__hint">Maximum units per product when stock tracking is off (most stores use 1).</p>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveCodSettings()">Save</button>
+            </div>
+        </div>
+
+        <!-- Global Max Quantity Settings -->
+        <div id="admin-max-qty-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <i class="fa fa-shopping-bag" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Max cart quantity</h4>
+                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Max allowed per item when stock tracking is off (default 1)</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="position:relative; flex:1;">
                     <input id="admin-max-cart-qty" type="number" min="1" step="1" value="1"
-                        style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 1">
+                        style="margin:0; width:100%; box-sizing:border-box;" placeholder="Default is 1">
                 </div>
-                <button class="btn-gold"
-                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
-                    onclick="saveAdminCheckoutSettings()">Save checkout &amp; cart settings</button>
+                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
+                    onclick="saveMaxQtySettings()">Save</button>
             </div>
         </div>
 
@@ -3552,7 +3553,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
-    <script src="js/admin-favorites.js?v=4.1"></script>
+    <script src="js/admin-favorites.js?v=4.2"></script>
     <script src="js/categories.js?v=12.3"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
@@ -3560,7 +3561,7 @@
     <script src="js/comments.js?v=10.5"></script>
     <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=16.1"></script>
+    <script src="js/admin.js?v=16.2"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
