@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.1">
+    <link rel="stylesheet" href="css/style.css?v=9.63">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -697,23 +697,220 @@
 
     <!-- SECTION: Admin -->
     <div id="admin-view" class="section">
-        <div style="padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <h3 style="display:flex; align-items:center; gap:10px; margin:0;">Admin Tools <span id="admin-product-count"
+        <!-- Ordered blocks: above store settings (filled by admin-favorites.js) -->
+        <div id="admin-above-settings-slot" class="admin-above-settings-slot"></div>
+
+        <!-- Source nodes (moved into slots on load) -->
+        <div id="admin-draft-recovery-panel" hidden></div>
+
+        <div id="admin-view-header" class="admin-view-header">
+            <h3 class="admin-view-title">Admin Tools <span id="admin-product-count"
                     class="count-badge" style="display:none;">0 Products</span></h3>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn-gold" style="width:auto; padding:8px 16px;" onclick="scrollToCategoryAdmin()">+ Category</button>
-                <button class="btn-gold" style="width:auto; padding:8px 20px" onclick="openAdd()">+ NEW ITEM</button>
+            <div class="admin-view-actions">
+                <button type="button" class="btn-gold admin-view-btn" onclick="openCategoryAdd()">+ Category</button>
+                <button type="button" id="admin-new-product-btn" class="btn-gold admin-view-btn" onclick="openAdd()">+ New item</button>
+            </div>
+        </div>
+
+        <div id="admin-product-toolbar" class="admin-product-toolbar">
+            <div id="admin-product-search-wrap" class="admin-product-search-wrap">
+            <input type="search" id="admin-product-search" class="admin-product-search" placeholder="Search by name, price, category, or ID…" oninput="adminFilterProducts()" aria-label="Search products">
+            </div>
+            <div id="admin-product-filter-wrap" class="admin-product-filter-wrap">
+            <select id="admin-product-filter" class="admin-product-filter" onchange="adminFilterProducts()" aria-label="Filter products">
+                <option value="all">All products</option>
+                <option value="in_stock">In stock</option>
+                <option value="oos">Out of stock</option>
+                <option value="no_variants">No variants (simple)</option>
+                <option value="variants">Has variants</option>
+                <option value="no_images">No gallery images</option>
+                <option value="no_category">No category assigned</option>
+                <option value="no_media">No video / 360°</option>
+                <option value="media">Has video / 360°</option>
+                <option value="has_video">Has video</option>
+                <option value="has_spin">Has rotation frames</option>
+                <option value="has_panorama">Has panorama</option>
+            </select>
+            </div>
+            <div id="admin-product-sort-wrap" class="admin-product-sort-wrap">
+            <label for="admin-product-sort" class="admin-product-sort-label">Sort</label>
+            <select id="admin-product-sort" class="admin-product-filter admin-product-sort" onchange="adminChangeProductSort()" aria-label="Sort products">
+                <option value="latest">Latest activity (new or edited)</option>
+                <option value="newest">Date first added</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name">Name A–Z</option>
+                <option value="name_desc">Name Z–A</option>
+                <option value="price_low">Price low–high</option>
+                <option value="price_high">Price high–low</option>
+            </select>
+            </div>
+        </div>
+
+        <!-- Product Categories -->
+        <div id="admin-category-section" class="admin-primary-section admin-panel-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminCategoryAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-tags" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            Product Categories
+                            <span id="admin-category-count-badge" class="admin-category-count-badge" style="display:none;">0</span>
+                        </h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Tap a row to edit · + Add opens a popup (no scrolling)</p>
+                    </div>
+                </div>
+                <i id="admin-category-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
+            </div>
+
+            <div id="admin-category-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+                <div id="admin-category-storefront-banner" style="display:none; margin-bottom:12px;"></div>
+
+                <div class="admin-category-toolbar admin-category-toolbar--list-only">
+                    <button type="button" class="btn-gold admin-category-add-btn" onclick="openCategoryAdd()">
+                        <i class="fa fa-plus"></i> Add category
+                    </button>
+                </div>
+
+                <div id="admin-category-list-tools" class="admin-category-list-tools" hidden>
+                    <div class="admin-category-search-wrap">
+                        <i class="fa fa-search admin-category-search-icon" aria-hidden="true"></i>
+                        <input id="admin-category-search" type="search" class="admin-category-search-input" placeholder="Search categories…" autocomplete="off" aria-label="Search categories">
+                        <button type="button" id="admin-category-search-clear" class="admin-category-search-clear" onclick="clearAdminCategorySearch()" hidden aria-label="Clear search"><i class="fa fa-times"></i></button>
+                    </div>
+                    <span id="admin-category-list-meta" class="admin-category-list-meta"></span>
+                </div>
+
+                <div id="admin-category-list-scroll" class="admin-category-list-scroll">
+                    <div id="admin-category-list" class="admin-category-list-inner"></div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="admin-products-area" class="admin-products-area admin-products-area--flat">
+            <div id="admin-products-accordion-head" class="admin-products-accordion-head" hidden>
+                <div class="admin-products-accordion-head__inner"
+                    onclick="toggleAdminProductsAccordion()">
+                    <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                        <i class="fa fa-box-open" style="color:var(--gold); font-size:15px;"></i>
+                        <div style="min-width:0;">
+                            <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                Products
+                                <span id="admin-products-section-count" class="count-badge admin-products-section-count" style="display:none;">0</span>
+                            </h4>
+                            <p style="margin:2px 0 0; font-size:11px; color:#666;">Product rows &amp; pagination · tap to expand</p>
+                        </div>
+                    </div>
+                    <i id="admin-products-accordion-icon" class="fa fa-chevron-down"
+                        style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0; margin-right:16px;"></i>
+                </div>
+            </div>
+
+            <div id="admin-products-accordion-content" class="admin-products-body"
+                style="display:flex; flex-direction:column; gap:0;">
+        <div id="admin-products-section" class="admin-products-section" hidden aria-hidden="true"></div>
+        <div id="admin-list" style="padding:0 20px"></div>
+        <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
+            </div>
+        </div>
+
+        <!-- Store settings & tools (bulk, checkout, promos, storefront, support) -->
+        <div id="admin-store-tools-section" class="admin-store-tools-section admin-panel-card">
+            <div class="admin-store-tools-header" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminStoreToolsAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
+                        <p id="admin-store-tools-subtitle" style="margin:2px 0 0; font-size:11px; color:#666;">Bulk Excel, checkout, promos &amp; more — order tools in Admin layout below</p>
+                    </div>
+                </div>
+                <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
+            </div>
+            <div id="admin-store-tools-accordion-content" class="admin-store-tools-body"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+
+        <!-- Admin layout settings -->
+        <div id="admin-layout-settings" class="admin-store-tools-block admin-layout-settings"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px;">
+                <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
+                Admin layout
+            </h4>
+            <p style="margin:6px 0 12px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> = on/off. <strong>Place</strong> = where it appears on Admin (tap a pill). <strong>Products accordion</strong> toggle is below. Drag or ↑↓ to reorder. Tap <strong>Save layout</strong> when done.</p>
+            <div class="admin-layout-settings__zones">
+                <div class="admin-layout-zone-accordion">
+                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('above')" aria-expanded="false" aria-controls="admin-layout-above-content">
+                        <span class="admin-layout-zone-accordion__title-wrap">
+                            <i class="fa fa-arrow-up" aria-hidden="true"></i>
+                            <span class="admin-layout-zone-accordion__title">Above store settings</span>
+                            <span id="admin-layout-above-count" class="admin-layout-zone-accordion__count"></span>
+                        </span>
+                        <i id="admin-layout-above-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                    </button>
+                    <p class="admin-layout-zone__hint">Top of Admin — visible without opening Store settings</p>
+                    <div id="admin-layout-above-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                        <div id="admin-layout-above-list" class="admin-layout-sortable-list" role="list" aria-label="Sections above store settings"></div>
+                    </div>
+                </div>
+                <div class="admin-layout-zone-accordion admin-layout-zone-accordion--inside">
+                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('inside')" aria-expanded="false" aria-controls="admin-layout-inside-content">
+                        <span class="admin-layout-zone-accordion__title-wrap">
+                            <i class="fa fa-sliders-h" aria-hidden="true"></i>
+                            <span class="admin-layout-zone-accordion__title">Inside store settings</span>
+                            <span id="admin-layout-inside-count" class="admin-layout-zone-accordion__count"></span>
+                        </span>
+                        <i id="admin-layout-inside-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                    </button>
+                    <p class="admin-layout-zone__hint">Inside Store settings — expand that accordion on Admin to see these</p>
+                    <div id="admin-layout-inside-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                        <div id="admin-layout-inside-list" class="admin-layout-sortable-list" role="list" aria-label="Sections inside store settings"></div>
+                    </div>
+                </div>
+                <div class="admin-layout-zone-accordion admin-layout-zone-accordion--below">
+                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('below')" aria-expanded="false" aria-controls="admin-layout-below-content">
+                        <span class="admin-layout-zone-accordion__title-wrap">
+                            <i class="fa fa-arrow-down" aria-hidden="true"></i>
+                            <span class="admin-layout-zone-accordion__title">Below store settings</span>
+                            <span id="admin-layout-below-count" class="admin-layout-zone-accordion__count"></span>
+                        </span>
+                        <i id="admin-layout-below-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                    </button>
+                    <p class="admin-layout-zone__hint">After Store settings — always visible, no accordion needed</p>
+                    <div id="admin-layout-below-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                        <div id="admin-layout-below-list" class="admin-layout-sortable-list" role="list" aria-label="Sections below store settings"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="admin-layout-settings__products-display">
+                <p class="admin-layout-settings__group-title" style="margin-top:14px; padding-top:14px; border-top:1px solid #2a2a2a;">Products list display</p>
+                <p id="admin-products-display-summary" class="admin-layout-settings__hint" style="margin-bottom:10px;">Flat list (default) · saved to database</p>
+                <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting">
+                    <input id="admin-products-accordion-setting" type="checkbox" onchange="adminOnProductsAccordionSettingChange(this.checked)">
+                    <span class="admin-catalog-accordion-toggle__text">
+                        <span class="admin-catalog-accordion-toggle__label">Use accordion for Products list</span>
+                        <span class="admin-catalog-accordion-toggle__hint">Off = flat list on Admin. On = collapsible Products panel like Categories. Saves automatically.</span>
+                    </span>
+                </label>
+            </div>
+            <div class="admin-layout-settings__actions">
+                <button type="button" id="admin-layout-save-btn" class="btn-gold admin-layout-save-btn" onclick="adminSaveLayoutSettings()" disabled>Save layout</button>
+                <button type="button" class="admin-layout-reset-btn" onclick="adminResetLayoutDraft()">Discard changes</button>
+                <span id="admin-layout-unsaved-hint" class="admin-layout-unsaved-hint" hidden>Unsaved changes</span>
             </div>
         </div>
 
         <!-- Bulk Operations -->
-        <div
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:flex; gap:15px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+        <div id="admin-bulk-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:flex; gap:15px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div>
                 <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; letter-spacing:0.5px;">Bulk Catalog
                     Actions</h4>
-                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export or batch update/import products Excel
-                    (.xlsx)</p>
+                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export full catalog (variants, media, stock) or batch import/update via Excel (.xlsx)</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn-gold" style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px;"
@@ -729,61 +926,10 @@
             </div>
         </div>
 
-        <!-- Product Categories -->
-        <div id="admin-category-section"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
-                onclick="toggleAdminCategoryAccordion()">
-                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <i class="fa fa-tags" style="color:var(--gold); font-size:15px;"></i>
-                    <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                            Product Categories
-                            <span id="admin-category-count-badge" class="admin-category-count-badge" style="display:none;">0</span>
-                        </h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Edit inline in the list, or use the form below to add / edit</p>
-                    </div>
-                </div>
-                <i id="admin-category-accordion-icon" class="fa fa-chevron-down"
-                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
-            </div>
-
-            <div id="admin-category-accordion-content"
-                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
-                <div id="admin-category-storefront-banner" style="display:none; margin-bottom:12px;"></div>
-                <div id="admin-category-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
-                <p style="margin:0 0 12px; font-size:10px; color:#666;">Inline: tap outside a row or press Enter to save. Form below: use for add or full edit.</p>
-
-                <div id="admin-category-form-wrap" class="admin-category-form-wrap">
-                    <div id="admin-category-form-mode" class="admin-category-form-mode">Add a new category</div>
-                    <div style="display:grid; grid-template-columns:1fr 90px; gap:10px; align-items:end;">
-                        <div>
-                            <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Category name</label>
-                            <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses, Accessories" style="margin:0;">
-                        </div>
-                        <div>
-                            <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:4px;">Order (optional)</label>
-                            <input id="admin-category-order" type="number" value="0" style="margin:0;">
-                        </div>
-                    </div>
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap;">
-                        <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#aaa; cursor:pointer; margin:0;">
-                            <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;"> Active on storefront
-                        </label>
-                        <div style="display:flex; gap:8px;">
-                            <button type="button" id="admin-category-clear-btn" class="btn-gold" style="width:auto; padding:10px 16px; margin:0; font-size:12px; background:#222; border:1px solid #444;"
-                                onclick="openCategoryForm()">Clear Form</button>
-                            <button type="button" id="admin-category-save-btn" class="btn-gold admin-category-save-btn" style="width:auto; padding:10px 16px; margin:0; font-size:12px;"
-                                onclick="saveCategory()">Add Category</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- COD Settings -->
-        <div id="admin-cod-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-cod-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                 <i class="fa fa-truck" style="color:var(--gold); font-size:15px;"></i>
                 <div>
@@ -805,8 +951,8 @@
         </div>
 
         <!-- Global Max Quantity Settings -->
-        <div id="admin-max-qty-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-max-qty-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                 <i class="fa fa-shopping-bag" style="color:var(--gold); font-size:15px;"></i>
                 <div>
@@ -826,8 +972,8 @@
         </div>
 
         <!-- Promo Code Settings -->
-        <div id="admin-promo-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-promo-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
                 onclick="toggleAdminPromoAccordion()">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
@@ -903,9 +1049,63 @@
             </div>
         </div>
 
+        <!-- Admin Catalog (sort & list — saved to database) -->
+        <div id="admin-catalog-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminCatalogAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-sort-amount-desc" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Admin Catalog</h4>
+                        <p id="admin-catalog-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Default product sort &amp; page size (saved to database)</p>
+                    </div>
+                </div>
+                <i id="admin-catalog-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
+            </div>
+            <div id="admin-catalog-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
+                <div>
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Default product sort</span>
+                    <p style="margin:0 0 6px; font-size:10px; color:#666;">How products are ordered in the Admin catalog list for all admins. Stored in Firestore <code style="font-size:9px;color:#888;">settings/pagination.adminProductsSort</code></p>
+                    <select id="admin-products-sort-setting" class="admin-product-filter" style="margin:0; width:100%; max-width:100%; box-sizing:border-box;"
+                        onchange="adminChangeProductSort(this.value, { fromPagination: true })">
+                        <option value="latest">Latest activity (new or edited)</option>
+                        <option value="newest">Date first added</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="name">Name A–Z</option>
+                        <option value="name_desc">Name Z–A</option>
+                        <option value="price_low">Price low–high</option>
+                        <option value="price_high">Price high–low</option>
+                    </select>
+                </div>
+                <div>
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Products per page (Admin list)</span>
+                    <p style="margin:0 0 6px; font-size:10px; color:#666;">How many products show per page in the Admin catalog below</p>
+                    <input id="admin-editing-products-page-limit" type="number" min="1" step="1" value="20"
+                        style="margin:0; font-size:12px;" placeholder="Default is 20">
+                </div>
+                <div>
+                    <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting-catalog">
+                        <input id="admin-products-accordion-setting-catalog" type="checkbox" onchange="adminOnProductsAccordionSettingChange(this.checked)">
+                        <span class="admin-catalog-accordion-toggle__text">
+                            <span class="admin-catalog-accordion-toggle__label">Use accordion for Products list</span>
+                            <span class="admin-catalog-accordion-toggle__hint">Same setting as Admin layout above. Saves automatically.</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+            <button class="btn-gold"
+                style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
+                onclick="saveAdminCatalogSettings()">Save admin catalog settings</button>
+            </div>
+        </div>
+
         <!-- Global Pagination Settings -->
-        <div id="admin-pagination-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-pagination-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
                 onclick="toggleAdminPaginationAccordion()">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
@@ -922,8 +1122,9 @@
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Products Page
+                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Storefront Products Page
                         Limit</span>
+                    <p style="margin:0 0 6px; font-size:10px; color:#666;">Home grid and wishlist — how many products load per scroll batch</p>
                     <input id="admin-products-page-limit" type="number" min="1" step="1" value="20"
                         style="margin:0; font-size:12px;" placeholder="Default is 20">
                 </div>
@@ -947,18 +1148,23 @@
         </div>
 
         <!-- Admin: Content Settings for Features -->
-        <div id="admin-feature-content-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-sliders" style="color:var(--gold); font-size:15px;"></i>
-                <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization
-                    </h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Set announcement bar text, chatbot messages,
-                        and promotional settings</p>
+        <div id="admin-feature-content-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminFeatureContentAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-sliders" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Announcement bar, chatbot messages, newsletter &amp; wheel</p>
+                    </div>
                 </div>
+                <i id="admin-feature-content-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
 
+            <div id="admin-feature-content-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div
                 style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
                 <div>
@@ -1018,14 +1224,15 @@
                 </div>
 
                 <button class="btn-gold"
-                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:5px;"
+                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:14px;"
                     onclick="saveAdminFeatureContent()">Save Storefront Content</button>
+            </div>
             </div>
         </div>
 
         <!-- Feedback / Instagram Feed Settings -->
-        <div id="admin-feedback-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-feedback-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
                 onclick="toggleAdminFeedbackAccordion()">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
@@ -1163,8 +1370,8 @@
         </div>
 
         <!-- Footer Settings Accordion -->
-        <div id="admin-footer-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-footer-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                 <i class="fa fa-circle-info" style="color:var(--gold); font-size:15px;"></i>
                 <div>
@@ -1429,8 +1636,8 @@
         </div>
 
         <!-- Section: Global Announcements -->
-        <div id="admin-announcement-settings"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-announcement-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <!-- Accordion Header -->
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
                 onclick="toggleAnnouncementAccordion()">
@@ -1491,7 +1698,7 @@
         </div>
 
         <!-- Support Chats Inbox -->
-        <div id="admin-support-inbox-section" style="display:none; margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-support-inbox-section" class="admin-store-tools-block" style="display:none; margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
                 onclick="toggleAdminSupportAccordion()">
                 <div style="display:flex; align-items:center; gap:10px;">
@@ -1535,7 +1742,7 @@
         </div>
 
         <!-- Product Comments Moderation -->
-        <div id="admin-comments-moderation" style="display:none; margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+        <div id="admin-comments-moderation" class="admin-store-tools-block" style="display:none; margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;"
                 onclick="toggleCommentsModerationAccordion()">
                 <div style="display:flex; align-items:center; gap:10px;">
@@ -1600,8 +1807,14 @@
             </div>
         </div>
 
-        <div id="admin-list" style="padding:0 20px"></div>
-        <div id="admin-load-more-container" style="text-align:center; padding: 15px 0 30px 0;"></div>
+
+
+            </div>
+        </div>
+
+        <!-- Ordered blocks: below store settings -->
+        <div id="admin-below-settings-slot" class="admin-below-settings-slot"></div>
+
     </div>
 
     <!-- SECTION: Superadmin -->
@@ -1918,7 +2131,25 @@
                         <input type="checkbox" id="toggle-admin-storefront-content" style="margin:0; width:16px; height:16px;">
                         Storefront Content (Admin)
                     </label>
+                    <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
+                        <input type="checkbox" id="toggle-admin-crud-drafts" style="margin:0; width:16px; height:16px;" checked>
+                        Admin CRUD Drafts (auto-save recovery)
+                    </label>
                 </div>
+                <div class="admin-super-draft-options" style="margin:8px 0 0; padding:10px 12px; background:#1a1a1a; border-radius:10px; border:1px solid #2a2a2a; display:flex; flex-direction:column; gap:8px;">
+                    <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#ccc; cursor:pointer;">
+                        <input type="checkbox" id="toggle-admin-crud-drafts-media" style="margin:0; width:16px; height:16px;">
+                        Save images &amp; videos in product drafts (more storage)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#ccc; cursor:pointer;">
+                        <input type="checkbox" id="toggle-admin-crud-drafts-clear-all" style="margin:0; width:16px; height:16px;" checked>
+                        Show &quot;Clear all drafts&quot; button for admins
+                    </label>
+                </div>
+                <p id="admin-drafts-storage-info" style="margin:4px 0 0; font-size:10px; color:#666; line-height:1.4;">
+                    Auto-saves while you edit. Text-only by default; enable media drafts to keep photos/videos (uses more storage).
+                </p>
 
                 <div style="height:1px; background:#333; margin:12px 0 8px;"></div>
                 <span style="font-size:11px; color:#aaa; font-weight:700; display:block; margin-bottom:8px;">Catalog
@@ -2404,7 +2635,7 @@
                 <div id="det-gallery-side-actions" class="det-gallery-side-actions">
                     <button id="det-zoom-trigger" class="det-side-action det-side-left" type="button" onclick="openProductDetailImageZoom(window.detailGalleryZoomIndex ?? 0, event)" aria-label="Zoom product photo" style="display:none;"><span class="det-side-icon"><i class="fa fa-magnifying-glass-plus"></i></span><span class="det-side-label">Zoom</span></button>
                     <button id="det-play-trigger" class="det-side-action det-side-right det-side-video" type="button" onclick="event.stopPropagation(); openCurrentDetailVideo()" aria-label="Play product video" style="display:none;"><span class="det-side-icon"><i class="fa fa-play"></i></span><span class="det-side-label">Video</span></button>
-                    <button id="det-360-trigger" class="det-side-action det-side-right det-side-spin" type="button" onclick="event.stopPropagation(); open360Viewer(activeProductId)" aria-label="360 degree product spin" style="display:none;"><span class="det-side-icon"><i class="fa fa-arrows-rotate"></i></span><span class="det-side-label">360°</span></button>
+                    <button id="det-360-trigger" class="det-side-action det-side-right det-side-spin" type="button" onclick="event.stopPropagation(); open360Viewer(activeProductId)" aria-label="Rotate product or look around in 360" style="display:none;"><span class="det-side-icon"><i class="fa fa-arrows-rotate"></i></span><span class="det-side-label">Rotate</span></button>
                 </div>
             </div>
             <!-- Thumbnail Previews List -->
@@ -2443,9 +2674,24 @@
     <!-- MODAL: Admin Edit Product -->
     <div id="prod-modal" class="modal">
         <div class="modal-box">
-            <h3>Product Details</h3>
-            <input id="m-name" placeholder="Name">
-            <input id="m-price" type="number" placeholder="Price">
+            <div class="admin-modal-head">
+                <h3 id="m-modal-title">Add New Product</h3>
+                <div id="admin-product-draft-switcher" class="admin-draft-switcher" hidden>
+                    <div class="admin-draft-switcher__tabs" role="tablist" aria-label="Actual or draft">
+                        <button type="button" id="admin-product-view-live" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchProductView('live')">Actual</button>
+                        <button type="button" id="admin-product-view-draft" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchProductView('draft')">Draft</button>
+                    </div>
+                    <button type="button" id="admin-product-compare-btn" class="admin-draft-compare-btn" onclick="adminOpenProductDraftCompare()" title="Compare actual vs draft">
+                        <i class="fa fa-columns" aria-hidden="true"></i><span>Compare</span>
+                    </button>
+                </div>
+            </div>
+            <div id="admin-product-draft-mode-bar" class="admin-draft-mode-bar" hidden role="status" aria-live="polite">
+                <span class="admin-draft-mode-bar__icon" aria-hidden="true"><i class="fa fa-file-text-o"></i></span>
+                <span class="admin-draft-mode-bar__text"></span>
+            </div>
+            <input id="m-name" placeholder="Product name (required)" aria-required="true">
+            <input id="m-price" type="number" min="0" step="1" placeholder="Base price ₹ (required)" aria-required="true">
             <div id="m-category-container" style="margin-bottom:12px;">
                 <label style="font-size:10px; color:#666; text-transform:uppercase; display:block; margin-bottom:5px;">Categories</label>
                 <p style="margin:0 0 8px; font-size:10px; color:#777;">Select one or more categories for this product</p>
@@ -2457,42 +2703,144 @@
                 <div class="admin-product-guide-header" onclick="toggleProductGuideAccordion()" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-product-guide-content" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleProductGuideAccordion();}">
                     <div class="admin-product-guide-header-text">
                         <i class="fa fa-book" aria-hidden="true"></i>
-                        <span>Quick guide — variants, media &amp; stock</span>
+                        <span>Quick guide — when to use Rotate vs Look Around</span>
                     </div>
                     <i id="admin-product-guide-icon" class="fa fa-chevron-down admin-product-guide-chevron" aria-hidden="true"></i>
                 </div>
                 <div id="admin-product-guide-content" class="admin-product-guide-content" style="display:none;">
                 <div class="admin-guide-body">
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--gold">Variants</span>
-                        <p>Each block is one sellable line. Comma-separate <strong>Size</strong>, <strong>Color</strong>, or <strong>Pattern</strong> to create combos (S,M × Red,Blue = 4 SKUs). Customer picks chips on the detail page — price, photos, video, 360° and stock follow that exact combo.</p>
+                    <p class="admin-guide-lead">New here? Open each section below. Only <strong>name + price</strong> are required to save — everything else is optional.</p>
+
+                    <div id="admin-guide-section-accord-media-types" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('media-types')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-media-types" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('media-types');}">
+                            <span><i class="fa fa-th-large"></i> What each media type does on the shop</span>
+                            <i id="admin-guide-section-icon-media-types" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-media-types" class="admin-guide-section-content" style="display:none;">
+                            <div class="admin-guide-matrix">
+                                <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
+                                    <span>Type</span><span>You upload</span><span>Customer taps</span><span>Scope</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag">Gallery</span>
+                                    <span>Regular product photos</span>
+                                    <span>Swipe in carousel</span>
+                                    <span>Main or variant</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--green">Swatch</span>
+                                    <span>Small color/pattern thumb</span>
+                                    <span>On size/color chip</span>
+                                    <span>Variant only</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--gold">Rotation frames</span>
+                                    <span>12–72 stills (or extract from video)</span>
+                                    <span><strong>Rotate</strong> — spin the item</span>
+                                    <span>Main or variant</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
+                                    <span>MP4 / MOV clip</span>
+                                    <span><strong>Video</strong> — plays clip</span>
+                                    <span>Main or variant</span>
+                                </div>
+                                <div class="admin-guide-matrix-row">
+                                    <span class="admin-guide-tag admin-guide-tag--blue">Panorama</span>
+                                    <span>One 2:1 equirectangular image</span>
+                                    <span><strong>Look Around</strong> — drag like Street View</span>
+                                    <span>Main or variant</span>
+                                </div>
+                            </div>
+                            <p class="admin-guide-note">Badges: <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span> = default for every combo · <span class="admin-media-scope admin-media-scope--variant">🎯 This variant</span> = overrides when customer picks that combo. Tap 👁 or ▶ to preview before saving.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag">Main images</span>
-                        <p>Shared photos for <strong>home carousel</strong> + detail fallback. If a variant has no gallery photos, mains fill in. Otherwise mains append at <strong>start or end</strong> (setting below).</p>
+
+                    <div id="admin-guide-section-accord-extract-frames" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('extract-frames')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-extract-frames" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('extract-frames');}">
+                            <span><i class="fa fa-refresh"></i> When to use <strong>Extract frames</strong> → Rotate button</span>
+                            <i id="admin-guide-section-icon-extract-frames" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-extract-frames" class="admin-guide-section-content" style="display:none;">
+                            <p class="admin-guide-when"><strong>Use when:</strong> You have a <strong>normal flat product video</strong> (person holding item, tabletop spin, model walk) and want shoppers to <strong>swipe to turn the product</strong> like a 360° product spin.</p>
+                            <p class="admin-guide-why"><strong>Why:</strong> Extract frames pulls 16 (or Auto/Custom) still images from your video into <strong>rotation frames</strong>. On the shop this powers the <strong>Rotate</strong> button — not video playback, not Street View.</p>
+                            <p class="admin-guide-how"><strong>How:</strong> Upload video (always visible on the form) → on the video card open <strong>Create rotation frames from video</strong> → pick <strong>16 frames</strong> (default), <strong>Auto</strong>, or <strong>Custom</strong> → enable <strong>Rotate Product</strong> under Additional 360° → expand <strong>Rotation frames</strong> accordion to review thumbs → Save.</p>
+                            <p class="admin-guide-example"><strong>Example:</strong> 15-second clip of a handbag on a turntable → extract 16 frames → customer swipes to see all sides of the bag.</p>
+                            <p class="admin-guide-caution"><strong>Do not use for:</strong> Room tours, shop interiors, or “look around the scene” — that is <strong>panorama / Look Around</strong>, not rotation frames.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--green">Variant gallery</span>
-                        <p>Full photos for this block’s size/color/pattern — shown when customer selects a matching combo.</p>
+
+                    <div id="admin-guide-section-accord-panorama" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('panorama')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-panorama" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('panorama');}">
+                            <span><i class="fa fa-street-view"></i> When to use <strong>Panorama</strong> → Look Around (Street View)</span>
+                            <i id="admin-guide-section-icon-panorama" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-panorama" class="admin-guide-section-content" style="display:none;">
+                            <p class="admin-guide-when"><strong>Use when:</strong> You want a <strong>Google Street View–style experience</strong> — shoppers <strong>drag to look around a 360° scene</strong> (room, boutique interior, styled setup, outdoor space).</p>
+                            <p class="admin-guide-why"><strong>Why:</strong> Panorama is one wide <strong>2:1 equirectangular</strong> image. It immerses customers in the <strong>environment</strong>, not a product spin. On the shop they tap <strong>Look Around</strong> and drag left/right/up/down.</p>
+                            <p class="admin-guide-how"><strong>How:</strong> Under <strong>Additional 360°</strong> → enable <strong>Look Around (panorama)</strong> → upload a 2:1 panorama photo <em>or</em> from a <strong>360° equirectangular video</strong> use <strong>Extract panorama for Look Around</strong> on the video card (flat video cannot be converted).</p>
+                            <p class="admin-guide-example"><strong>Example:</strong> 360° photo of your store’s fitting room → customer drags to see mirrors, racks, and lighting — like walking through on Google Maps Street View.</p>
+                            <p class="admin-guide-caution"><strong>Do not use for:</strong> Spinning a single SKU with swipe stills — use <strong>Extract frames</strong> and <strong>Rotate</strong> instead. Panorama ≠ product rotation ≠ flat video play.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--green">Swatches</span>
-                        <p>Small pattern/color preview images — used on pattern chips only, not the main gallery.</p>
+
+                    <div id="admin-guide-section-accord-video" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('video')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-video" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('video');}">
+                            <span><i class="fa fa-video"></i> Video uploads</span>
+                            <i id="admin-guide-section-icon-video" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-video" class="admin-guide-section-content" style="display:none;">
+                            <p>Video sits <strong>outside</strong> the 360° accordion — always easy to find. Upload → preview the clip on the card.</p>
+                            <p>Same 2:1 equirectangular video can feed <strong>Extract panorama</strong> (Look Around) <em>and</em> <strong>Extract frames</strong> (Rotate). Flat video only supports rotation frames. The clip itself still plays via the <strong>Video</strong> button on the shop.</p>
+                            <p>Immersive <strong>360° video playback</strong> (customer inside the sphere) only works for true 2:1 equirectangular files — otherwise it plays as flat video.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--blue">Video</span>
-                        <p><strong>Global</strong> video plays for every selection (last in gallery). A <strong>variant</strong> video replaces global for that color/block.</p>
+
+                    <div id="admin-guide-section-accord-360-panel" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('360-panel')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-360-panel" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('360-panel');}">
+                            <span><i class="fa fa-cube"></i> Additional 360° panel (Rotate &amp; panorama)</span>
+                            <i id="admin-guide-section-icon-360-panel" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-360-panel" class="admin-guide-section-content" style="display:none;">
+                            <p>Optional — collapse when you do not need it. Contains two separate features:</p>
+                            <ul class="admin-guide-list">
+                                <li><strong>Rotate Product</strong> — checkbox + <strong>Rotation frames</strong> nested accordion (thumbs hidden until you expand).</li>
+                                <li><strong>Look Around (panorama)</strong> — checkbox + upload or extract from 360° video.</li>
+                            </ul>
+                            <p>Drag thumbs to reorder · 👁 previews work on saved Cloudinary images too.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--gold">360° spin</span>
-                        <p>Separate rotation frames — opens via side <strong>360°</strong> button (product spin, not Street View). Not mixed into photo carousel.</p>
+
+                    <div id="admin-guide-section-accord-variants" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('variants')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-variants" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('variants');}">
+                            <span><i class="fa fa-layer-group"></i> Variants, gallery &amp; stock</span>
+                            <i id="admin-guide-section-icon-variants" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-variants" class="admin-guide-section-content" style="display:none;">
+                            <p><strong>Variants:</strong> Each block = one sellable line. Comma-separate Size, Color, or Pattern (e.g. S,M × Red,Blue = 4 SKUs). Price, photos, video, 360° and stock follow the selected combo.</p>
+                            <p><strong>Main gallery:</strong> Product-wide photos for home + detail. Variant gallery overrides when set; else mains fill in at start or end.</p>
+                            <p><strong>Stock (most specific wins):</strong></p>
+                            <ul class="admin-guide-list">
+                                <li><strong>Level 1 · Global</strong> — one qty for whole product</li>
+                                <li><strong>Level 2 · Variant block</strong> — per variant row</li>
+                                <li><strong>Level 3 · Per combo</strong> — per size/color/pattern line</li>
+                            </ul>
+                            <p>Red ⓘ on variant = fix stock/price before save. Blue ⓘ = duplicate combo merges on save.</p>
+                        </div>
                     </div>
-                    <div class="admin-guide-row">
-                        <span class="admin-guide-tag admin-guide-tag--stock">Stock</span>
-                        <p>Three levels — <strong>most specific wins</strong>:<br>
-                        <strong>Level 1 · Product global</strong> — one pool for the entire product.<br>
-                        <strong>Level 2 · Whole variant</strong> — one pool per variant block (all sizes/colors in that block share it). Overrides product global.<br>
-                        <strong>Level 3 · Per combination</strong> — separate qty per size / color / pattern row. Overrides whole-variant.</p>
+
+                    <div id="admin-guide-section-accord-admin-tools" class="admin-guide-section-accordion">
+                        <div class="admin-guide-section-header" onclick="toggleAdminGuideSection('admin-tools')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-guide-section-admin-tools" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminGuideSection('admin-tools');}">
+                            <span><i class="fa fa-tools"></i> Save, product list &amp; Excel</span>
+                            <i id="admin-guide-section-icon-admin-tools" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                        </div>
+                        <div id="admin-guide-section-admin-tools" class="admin-guide-section-content" style="display:none;">
+                            <p><strong>Save:</strong> Progress bar shows upload % and extraction %. Unsaved changes prompt if you cancel.</p>
+                            <p><strong>Product list:</strong> Search name, price, category, ID. Filter dropdown for stock, no variants, missing images/category, video, rotation, panorama.</p>
+                            <p><strong>Admin screen:</strong> Categories accordion + Products list on top. Bulk Excel, promos, pagination (storefront + admin page size), and more under <strong>Store settings &amp; tools</strong> at the bottom.</p>
+                            <p><strong>Excel:</strong> Store settings → Bulk Catalog Actions. Export includes VariantsJSON, videos, spin/panorama URLs, stock. Re-import with matching <strong>ID</strong> to update.</p>
+                            <p><strong>CRUD:</strong> + NEW ITEM · pencil = edit · copy = duplicate (shares URLs until re-upload) · trash = delete with confirm.</p>
+                        </div>
                     </div>
                 </div>
                 </div>
@@ -2521,43 +2869,122 @@
                 style="width:100%; padding:10px; background:#222; color:#fff; border:1px dashed #555; border-radius:8px; cursor:pointer; font-size:12px; margin-bottom: 15px;">+
                 Add Variant</button>
 
-            <p style="font-size:10px; color:#666; margin-bottom:5px; text-transform: uppercase;">Main Product Images</p>
-            <p style="margin:-2px 0 8px; font-size:10px; color:#777; line-height:1.4;">Home screen + shared detail photos (see guide above).</p>
-            <div id="m-preview" style="display:flex; gap:10px; margin:10px 0; flex-wrap: wrap;"></div>
-            <label
-                style="display:block; padding:10px; border-radius:8px; border:1px dashed #666; background:#222; color:#ccc; text-align:center; cursor:pointer; font-size:12px; margin-bottom: 15px;">
-                Upload Main Images
-                <input type="file" id="m-files" multiple accept="image/*" style="display:none;"
-                    onchange="handleFileSelect(this, 'base')">
-            </label>
-            <div id="m-is360-container"
-                style="display:flex; align-items:center; gap:8px; margin-bottom:10px; justify-content:flex-start;">
-                <input type="checkbox" id="m-is360" style="width:auto; margin:0;"
-                    onchange="toggle360Badge('base', this.checked);">
-                <label for="m-is360"
-                    style="font-size:12px; color:#aaa; cursor:pointer; margin:0; display:flex; align-items:center; gap:6px;">
-                    <span>Enable 360° Product Spin</span>
-                    <span id="base-360-badge"
-                        style="display:none; padding:2px 6px; font-size:9px; font-weight:800; border-radius:4px; background:rgba(255,215,0,0.15); color:var(--gold); border:1px solid rgba(255,215,0,0.3); letter-spacing:0.5px;">360°
-                        ACTIVE</span>
-                </label>
+            <div class="admin-media-panel admin-media-panel--global">
+                <p class="admin-media-panel-intro">🌐 <strong>Product-wide media</strong> — shared across all variants unless a variant has its own override</p>
+                <p id="admin-media-status-base" class="admin-media-status-line">No extra media yet — gallery photos are enough for most products</p>
+
+                <div class="admin-media-block">
+                    <div class="admin-media-section-head">
+                        <div class="admin-media-section-badges">
+                            <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                            <span class="admin-media-type admin-media-type--gallery">🖼️ Gallery photo</span>
+                        </div>
+                        <p class="admin-media-section-title">Main gallery photos</p>
+                        <p class="admin-media-section-sub">Home screen carousel + shared detail photos (optional). Tap 👁 to preview · 🔄 on a thumb adds it to rotation frames.</p>
+                    </div>
+                    <div id="m-preview" class="admin-media-preview-grid"></div>
+                    <label class="admin-media-upload">
+                        <span class="admin-media-upload__icon">🖼️</span>
+                        <span class="admin-media-upload__text">Upload main gallery photos</span>
+                        <input type="file" id="m-files" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'base')">
+                    </label>
+                </div>
+
+                <div class="admin-media-block admin-media-block--video">
+                    <div class="admin-media-section-head">
+                        <div class="admin-media-section-badges">
+                            <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                            <span class="admin-media-type admin-media-type--video">🎬 Video file</span>
+                        </div>
+                        <p class="admin-media-section-title">Product video</p>
+                        <p class="admin-media-section-sub">Default clip for all variants · shoppers tap Video on the detail page</p>
+                    </div>
+                    <div id="m-video-preview" class="admin-media-preview-grid admin-media-preview-grid--video"></div>
+                    <label class="admin-media-upload admin-media-upload--video">
+                        <span class="admin-media-upload__icon">🎬</span>
+                        <span class="admin-media-upload__text">Upload product video</span>
+                        <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, 'base')">
+                    </label>
+                    <button type="button" onclick="loadDemo360Video('base')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo 360° video (JFK sample)</button>
+                    <p class="admin-extra-media-tip">After upload you can <strong>preview the clip</strong> and optionally <strong>create rotation frames</strong> for the Rotate button — video still plays separately.</p>
+                </div>
+
+                <div class="admin-media-360-accordion" id="admin-360-accord-base">
+                    <div class="admin-media-360-accord-header" onclick="toggleAdmin360Accordion('base')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-360-accord-content-base" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdmin360Accordion('base');}">
+                        <div class="admin-media-360-accord-header-text">
+                            <i class="fa fa-street-view" aria-hidden="true"></i>
+                            <span>Additional 360° — rotate &amp; panorama</span>
+                            <span id="admin-360-accord-summary-base" class="admin-media-360-accord-summary">Optional — rotate &amp; look-around</span>
+                        </div>
+                        <i id="admin-360-accord-icon-base" class="fa fa-chevron-down admin-media-360-chevron" aria-hidden="true"></i>
+                    </div>
+                    <div id="admin-360-accord-content-base" class="admin-media-360-accord-content" style="display:none;">
+                        <p class="admin-extra-media-intro">Not needed for every product. <strong>Rotate</strong> = swipe stills to turn the item. <strong>Look Around</strong> = drag a 360° panorama. Copy from gallery or extract from your video above.</p>
+
+                        <div class="admin-extra-media-section">
+                            <div id="m-is360-container" class="admin-media-360-toggle-row">
+                                <input type="checkbox" id="m-is360" style="width:auto; margin:0;" onchange="toggle360Badge('base', this.checked);">
+                                <label for="m-is360" class="admin-media-360-toggle-label">
+                                    <span>Enable Rotate Product (spin frames)</span>
+                                    <span id="base-360-badge" class="admin-media-active-badge" style="display:none;">ACTIVE</span>
+                                </label>
+                            </div>
+                            <div id="m-spin-upload-container" style="display:none;">
+                                <div class="admin-spin-frames-accordion" id="admin-spin-accord-base">
+                                    <div class="admin-spin-frames-accord-header" onclick="toggleAdminSpinFramesAccordion('base')" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-spin-accord-content-base" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAdminSpinFramesAccordion('base');}">
+                                        <div class="admin-spin-frames-accord-header-text">
+                                            <span class="admin-spin-frames-accord-title"><i class="fa fa-refresh" aria-hidden="true"></i> Rotation frames</span>
+                                            <span id="admin-spin-accord-summary-base" class="admin-spin-frames-accord-summary">Tap to manage spin photos</span>
+                                        </div>
+                                        <i id="admin-spin-accord-icon-base" class="fa fa-chevron-down admin-spin-frames-chevron" aria-hidden="true"></i>
+                                    </div>
+                                    <div id="admin-spin-accord-content-base" class="admin-spin-frames-accord-content" style="display:none;">
+                                        <p class="admin-media-section-sub admin-spin-frames-accord-intro">Still images — drag to reorder · 👁 to preview · powers the <strong>Rotate</strong> button on the shop</p>
+                                        <div id="m-spin-preview" class="admin-media-preview-grid admin-media-preview-grid--spin"></div>
+                                        <label class="admin-media-upload admin-media-upload--spin">
+                                            <span class="admin-media-upload__icon">🔄</span>
+                                            <span class="admin-media-upload__text">Add your own rotation photos</span>
+                                            <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
+                                        </label>
+                                        <button type="button" onclick="useGalleryImagesAsSpinFrames('base', true)" class="admin-media-action-btn admin-media-action-btn--gold" style="width:100%; margin-bottom:6px;">Use gallery photos as rotation frames</button>
+                                        <button type="button" onclick="loadDemo360Spin('base')" class="admin-media-demo-btn admin-media-demo-btn--gold">Use demo spin (16 Vespa frames)</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="admin-extra-media-divider"></div>
+                        <div class="admin-extra-media-section">
+                            <div id="m-is360-panorama-container" class="admin-media-360-toggle-row">
+                                <input type="checkbox" id="m-is360-panorama" style="width:auto; margin:0;" onchange="toggle360PanoramaBadge('base', this.checked);">
+                                <label for="m-is360-panorama" class="admin-media-360-toggle-label">
+                                    <span>Enable Look Around (panorama)</span>
+                                    <span id="base-360-pano-badge" class="admin-media-active-badge admin-media-active-badge--blue" style="display:none;">ACTIVE</span>
+                                </label>
+                            </div>
+                            <div id="m-panorama-upload-container" style="display:none;">
+                                <div class="admin-media-section-head">
+                                    <div class="admin-media-section-badges">
+                                        <span class="admin-media-scope admin-media-scope--global">🌐 All variants</span>
+                                        <span class="admin-media-type admin-media-type--panorama">🌐 Panorama</span>
+                                    </div>
+                                    <p class="admin-media-section-title">Immersive panorama</p>
+                                    <p class="admin-media-section-sub">2:1 equirectangular — drag thumbs to reorder scenes · 👁 to preview</p>
+                                </div>
+                                <div id="m-panorama-preview" class="admin-media-preview-grid admin-media-preview-grid--panorama"></div>
+                                <label class="admin-media-upload admin-media-upload--pano">
+                                    <span class="admin-media-upload__icon">🌐</span>
+                                    <span class="admin-media-upload__text">Upload panorama</span>
+                                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handlePanoramaFileSelect(this, 'base')">
+                                </label>
+                                <button type="button" onclick="loadDemo360Panorama('base')" class="admin-media-demo-btn admin-media-demo-btn--blue">Use demo panoramas (3 scenes)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="m-spin-upload-container" style="display:none; margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(255,215,0,0.2); border-radius:10px;">
-                <p style="font-size:10px; color:var(--gold); margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">360° Product Spin Frames <span style="color:#666; text-transform:none;">(12–36 photos in rotation order — like Amazon product spin, not street view)</span></p>
-                <div id="m-spin-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
-                <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed var(--gold); background:#1a1a1a; color:var(--gold); text-align:center; cursor:pointer; font-size:12px;">
-                    <span>🔄</span> Upload 360° Frames
-                    <input type="file" multiple accept="image/*" style="display:none;" onchange="handleSpinFileSelect(this, 'base')">
-                </label>
-            </div>
-            <div style="margin-bottom:15px; padding:12px; background:#141414; border:1px solid rgba(100,181,246,0.2); border-radius:10px;">
-                <p style="font-size:10px; color:#64b5f6; margin:0 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;">Global Product Video <span style="color:#666; text-transform:none;">(optional)</span></p>
-                <div id="m-video-preview" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;"></div>
-                <label style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:8px; border:1.5px dashed #64b5f6; background:#1a1a1a; color:#64b5f6; text-align:center; cursor:pointer; font-size:12px;">
-                    <span>🎬</span> Upload Product Video
-                    <input type="file" accept="video/*" style="display:none;" onchange="handleVideoFileSelect(this, 'base')">
-                </label>
-            </div>
+
+            <p style="font-size:10px; color:#666; margin:12px 0 5px; text-transform: uppercase;">Gallery display options</p>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:flex-start;">
                 <input type="checkbox" id="m-hide-main" style="width:auto; margin:0;">
                 <label for="m-hide-main" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide Main Images
@@ -2584,8 +3011,17 @@
                 <label for="m-hide-main-placeholder" style="font-size:12px; color:#aaa; cursor:pointer; margin:0;">Hide
                     default placeholder for no image</label>
             </div>
+            <div id="admin-product-draft-banner" hidden></div>
+            <div id="m-validation-errors" class="admin-validation-errors" style="display:none;" role="alert"></div>
+            <div id="admin-save-progress" class="admin-save-progress" style="display:none;" aria-live="polite">
+                <div class="admin-save-progress__track">
+                    <div id="admin-save-progress-bar" class="admin-save-progress__bar"></div>
+                </div>
+                <p id="admin-save-progress-text" class="admin-save-progress__text">Saving…</p>
+            </div>
             <button class="btn-gold" id="m-save" onclick="saveProduct()">Save Product</button>
-            <button onclick="closeModal('prod-modal')"
+            <button type="button" class="btn-gold admin-btn-draft-save" id="m-save-draft" onclick="saveProductAsDraft()">Save as draft</button>
+            <button type="button" onclick="closeProductModal()"
                 style="width:100%; margin-top:15px; background:none; color:#555; border:none; cursor:pointer;">Cancel</button>
         </div>
     </div>
@@ -3027,19 +3463,81 @@
         </div>
     </div>
 
+    <!-- MODAL: Admin Category (add / edit — like products) -->
+    <div id="category-modal" class="modal">
+        <div class="modal-box admin-category-modal-box">
+            <div class="admin-modal-head">
+                <h3 id="admin-category-modal-title">Add Category</h3>
+                <div id="admin-category-draft-switcher" class="admin-draft-switcher" hidden>
+                    <div class="admin-draft-switcher__tabs" role="tablist" aria-label="Actual or draft">
+                        <button type="button" id="admin-category-view-live" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchCategoryView('live')">Actual</button>
+                        <button type="button" id="admin-category-view-draft" class="admin-draft-switcher__tab" role="tab" onclick="adminSwitchCategoryView('draft')">Draft</button>
+                    </div>
+                    <button type="button" id="admin-category-compare-btn" class="admin-draft-compare-btn" onclick="adminOpenCategoryDraftCompare()" title="Compare actual vs draft">
+                        <i class="fa fa-columns" aria-hidden="true"></i><span>Compare</span>
+                    </button>
+                </div>
+            </div>
+            <div id="admin-category-draft-mode-bar" class="admin-draft-mode-bar admin-draft-mode-bar--compact" hidden role="status" aria-live="polite">
+                <span class="admin-draft-mode-bar__icon" aria-hidden="true"><i class="fa fa-file-text-o"></i></span>
+                <span class="admin-draft-mode-bar__text"></span>
+            </div>
+            <div id="admin-category-draft-banner" hidden></div>
+            <p id="admin-category-modal-meta" class="admin-category-modal-meta"></p>
+            <label class="admin-category-form-label" for="admin-category-name">Name</label>
+            <input id="admin-category-name" type="text" placeholder="e.g. Kurtas, Dresses" style="margin:0 0 12px;">
+            <label class="admin-category-form-label" for="admin-category-order" title="Lower numbers appear first">Display order</label>
+            <input id="admin-category-order" type="number" value="0" min="0" step="1" inputmode="numeric" style="margin:0 0 12px;" aria-label="Display order">
+            <label class="admin-category-form-active" for="admin-category-active" style="margin-bottom:16px;">
+                <input type="checkbox" id="admin-category-active" checked style="width:auto; margin:0;">
+                <span>Active on storefront</span>
+            </label>
+            <button type="button" class="btn-gold" id="admin-category-save-btn" onclick="saveCategory()">Save Category</button>
+            <button type="button" class="btn-gold admin-btn-draft-save" onclick="saveCategoryAsDraft()">Save as draft</button>
+            <button type="button" class="admin-btn-danger-muted admin-category-modal-delete" id="admin-category-delete-btn" onclick="deleteCategoryFromModal()" style="display:none;">Delete category</button>
+            <button type="button" class="admin-btn-cancel-text" onclick="closeCategoryModal()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Modal: Draft compare summary -->
+    <div id="admin-draft-compare-modal" class="modal" style="display:none;">
+        <div class="modal-box admin-draft-compare-modal-box">
+            <h3 id="admin-draft-compare-title" class="admin-draft-compare-title">Changes summary</h3>
+            <div id="admin-draft-compare-body" class="admin-draft-compare-body"></div>
+            <button type="button" class="btn-gold" onclick="closeModal('admin-draft-compare-modal')" style="width:100%; margin-top:12px;">Close</button>
+        </div>
+    </div>
+
+    <!-- Modal: Unsaved admin changes -->
+    <div id="admin-unsaved-modal" class="modal" style="display:none; z-index:10050;">
+        <div class="modal-box admin-unsaved-modal-box">
+            <h3 style="margin:0 0 8px; font-size:15px; color:#fff;">Unsaved changes</h3>
+            <p id="admin-unsaved-message" style="margin:0 0 16px; font-size:13px; color:#aaa; line-height:1.45;"></p>
+            <div class="admin-unsaved-actions">
+                <button type="button" class="btn-gold admin-unsaved-btn-save" onclick="adminUnsavedResolve('save')">Publish / Save</button>
+                <button type="button" class="btn-gold admin-btn-draft-save admin-unsaved-btn-draft" id="admin-unsaved-btn-draft" onclick="adminUnsavedResolve('draft')">Save as draft</button>
+                <button type="button" class="admin-btn-secondary admin-unsaved-btn-discard" onclick="adminUnsavedResolve('discard')">Discard</button>
+                <button type="button" class="admin-unsaved-btn-cancel" onclick="adminUnsavedResolve('cancel')">Keep editing</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=10.7"></script>
-    <script src="js/app.js?v=10.5"></script>
+    <script src="js/features.js?v=12.0"></script>
+    <script src="js/app.js?v=10.9"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
-    <script src="js/categories.js?v=10.6"></script>
-    <script src="js/store.js?v=10.10"></script>
+    <script src="js/admin-drafts.js?v=3.9"></script>
+    <script src="js/admin-draft-compare.js?v=1.7"></script>
+    <script src="js/admin-favorites.js?v=3.8"></script>
+    <script src="js/categories.js?v=12.3"></script>
+    <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.4"></script>
-    <script src="js/auth.js?v=10.5"></script>
-    <script src="js/comments.js?v=10.2"></script>
-    <script src="js/support-chat.js?v=10.7"></script>
+    <script src="js/auth.js?v=10.7"></script>
+    <script src="js/comments.js?v=10.5"></script>
+    <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=10.5"></script>
+    <script src="js/admin.js?v=15.8"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

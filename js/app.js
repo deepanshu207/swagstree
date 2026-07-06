@@ -321,7 +321,7 @@ function updateWhatsAppVisibility() {
 }
 
 // 4. NAVIGATION SYSTEM
-function navigateTo(id, el) { 
+function navigateToCore(id, el) { 
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active')); 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); 
     document.getElementById(id + '-view').classList.add('active'); 
@@ -404,6 +404,8 @@ function navigateTo(id, el) {
     }
 
     if (id === 'home') {
+        const deepOverlay = document.getElementById('deep-link-overlay');
+        if (deepOverlay) deepOverlay.style.display = 'none';
         if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
         if (typeof renderHomeCatalog === 'function') renderHomeCatalog();
         else if (typeof ensureHomeGridHydrated === 'function') ensureHomeGridHydrated();
@@ -415,6 +417,7 @@ function navigateTo(id, el) {
 
     // Render admin list on navigation to admin view
     if (id === 'admin') {
+        if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
         renderAdmin();
         if (typeof loadCodSettings === 'function') loadCodSettings();
         if (typeof loadMaxQtySettings === 'function') loadMaxQtySettings();
@@ -425,6 +428,7 @@ function navigateTo(id, el) {
         if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
         if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
         if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+        if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
     }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
@@ -438,6 +442,14 @@ function navigateTo(id, el) {
 
     // Update WhatsApp floating icon visibility based on current tab and user role
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+}
+
+function navigateTo(id, el) {
+    if (typeof adminTryNavigateAway === 'function') {
+        adminTryNavigateAway(id, () => navigateToCore(id, el));
+        return;
+    }
+    navigateToCore(id, el);
 }
 window.navigateTo = navigateTo;
 
@@ -468,6 +480,12 @@ window.onload = () => {
             if (msg) msg.textContent = 'Still loading… check your connection';
         }
     }, 12000);
+
+    // Never leave storefront/admin stuck on infinite loader if Firestore never responds
+    setTimeout(() => {
+        if (window.productsLoaded) return;
+        settleCatalogLoad();
+    }, 22000);
 
     // Real-time Sync of App Features Configuration
     if (typeof startFeaturesConfigListener === 'function') {

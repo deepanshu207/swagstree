@@ -371,9 +371,11 @@ window.renderWishlistCatalog = renderWishlistCatalog;
 
 function renderHomeCatalog() {
     if (!window.productsLoaded) {
+        if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) return;
         renderProducts(products, 'product-grid');
         return;
     }
+    if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) return;
     if (typeof applySortAndFilter === 'function') {
         applySortAndFilter();
     } else {
@@ -398,6 +400,42 @@ function refreshHomeGridIfVisible() {
 }
 window.refreshHomeGridIfVisible = refreshHomeGridIfVisible;
 
+function paramsHasDetailId() {
+    return new URLSearchParams(window.location.search).has('id');
+}
+
+function isGridStuckOnInitialLoader(gridId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return false;
+    return !!grid.querySelector('.premium-loader-container') && !grid.querySelector('.card');
+}
+
+function settleStuckGridLoader(gridId, fallbackHtml) {
+    if (!isGridStuckOnInitialLoader(gridId)) return;
+    const grid = document.getElementById(gridId);
+    if (grid) grid.innerHTML = fallbackHtml;
+}
+
+function settleCatalogLoad(options = {}) {
+    const message = options.message || 'Products are taking longer than usual. Check your connection and refresh.';
+    window.productsLoaded = true;
+    const overlay = document.getElementById('deep-link-overlay');
+    if (overlay) overlay.style.display = 'none';
+    const stuckMsg = `<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">${message}</p>`;
+    settleStuckGridLoader('product-grid', stuckMsg);
+    settleStuckGridLoader('wish-grid', '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load wishlist. Check your connection and refresh.</p>');
+    if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) {
+        if (typeof renderAdmin === 'function') renderAdmin();
+        return;
+    }
+    if (typeof ensureHomeGridHydrated === 'function') ensureHomeGridHydrated();
+    else if (typeof applySortAndFilter === 'function') applySortAndFilter();
+    else if (typeof renderProducts === 'function') renderProducts(products, 'product-grid');
+    if (typeof renderWishlistCatalog === 'function') renderWishlistCatalog();
+    if (typeof renderAdmin === 'function') renderAdmin();
+}
+window.settleCatalogLoad = settleCatalogLoad;
+
 function handleProductsSnapshot(snap) {
     // Ignore empty offline cache before the first real payload (prevents false "no products" / flicker)
     if (snap.empty && snap.metadata && snap.metadata.fromCache && !window.productsLoaded) {
@@ -410,6 +448,11 @@ function handleProductsSnapshot(snap) {
         return p;
     });
     window.productsLoaded = true;
+
+    const deepOverlay = document.getElementById('deep-link-overlay');
+    if (deepOverlay && deepOverlay.style.display !== 'none' && !paramsHasDetailId()) {
+        deepOverlay.style.display = 'none';
+    }
 
     renderStore();
     ensureHomeGridHydrated();
@@ -446,13 +489,7 @@ function loadData() {
     if (_productsSnapshotUnsub) _productsSnapshotUnsub();
     _productsSnapshotUnsub = db.collection('products').onSnapshot(handleProductsSnapshot, error => {
         console.error('Firestore products onSnapshot error:', error);
-        if (!window.productsLoaded) {
-            window.productsLoaded = true;
-            const container = document.getElementById('product-grid');
-            if (container) {
-                container.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load products. Please check your connection and refresh.</p>';
-            }
-        }
+        settleCatalogLoad({ message: 'Could not load products. Please check your connection and refresh.' });
     });
 
     db.collection("feedbacks").orderBy("timestamp", "desc").onSnapshot(snap => {
@@ -553,7 +590,10 @@ function productCardHtml(p, options = {}) {
     const isOutOfStock = typeof isProductOutOfStock === 'function' ? isProductOutOfStock(p) : false;
 
     const is360Enabled = !!(window.APP_FEATURES && window.APP_FEATURES.threeSixtyViewer);
-    const has360 = is360Enabled && (!!p.is360 || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && v.is360)));
+    const has360 = is360Enabled && (
+        !!p.is360 || !!p.is360Panorama
+        || (p.normalizedVariants && p.normalizedVariants.some(v => v.isActive !== false && (v.is360 || v.is360Panorama)))
+    );
 
     let quickAddHtml = `<div class="quick-add" onclick="event.stopPropagation(); addToBag('${p.id}')" style="${isOutOfStock ? 'opacity:0.5; pointer-events:none;' : ''}">
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
@@ -1780,8 +1820,9 @@ function buildDetailGallerySlides(p, productMedia) {
         }];
     }
 
-    if (productMedia.has360 && photoSlides.length === 0) {
-        const preview = productMedia.spinFrames[0];
+    if ((productMedia.has360 || productMedia.hasPanorama360) && photoSlides.length === 0) {
+        const preview = (productMedia.spinFrames && productMedia.spinFrames[0])
+            || (productMedia.panoramaImages && productMedia.panoramaImages[0]);
         photoSlides = [preview];
         photoMap = [{ url: preview, color: '', size: '', type: 'image', is360Preview: true, scope: 'main' }];
     }
@@ -1789,18 +1830,22 @@ function buildDetailGallerySlides(p, productMedia) {
     const poster = variantPhotos[0] || sharedMain[0] || (productMedia.spinFrames && productMedia.spinFrames[0]) || '';
     const videoSlides = [];
     const videoMap = [];
-    const variantVideoUrls = (selectedVariant?.videos || []).filter(v => v && String(v).trim());
-    const globalVideoUrls = (p.videos || []).filter(v => v && String(v).trim());
-    const videosToShow = variantVideoUrls.length > 0 ? variantVideoUrls : globalVideoUrls;
-    const videoScope = variantVideoUrls.length > 0 ? 'variant' : 'global';
+    const normalizeVid = (v) => (typeof window.normalizeStoredVideo === 'function'
+        ? window.normalizeStoredVideo(v)
+        : (typeof v === 'string' && v.trim() ? { url: v.trim(), is360: false } : (v && v.url ? { url: String(v.url).trim(), is360: !!v.is360 } : null)));
+    const variantVideos = (selectedVariant?.videos || []).map(normalizeVid).filter(v => v && v.url);
+    const globalVideos = (p.videos || []).map(normalizeVid).filter(v => v && v.url);
+    const videosToShow = variantVideos.length > 0 ? variantVideos : globalVideos;
+    const videoScope = variantVideos.length > 0 ? 'variant' : 'global';
 
-    videosToShow.forEach((vidUrl, vi) => {
-        videoSlides.push(vidUrl);
+    videosToShow.forEach((vidEntry, vi) => {
+        videoSlides.push(vidEntry.url);
         videoMap.push({
-            url: vidUrl,
+            url: vidEntry.url,
             color: selectedColor || '',
             size: selectedSize || '',
             type: 'video',
+            is360Video: !!vidEntry.is360,
             poster,
             videoIndex: vi,
             scope: videoScope
@@ -1862,14 +1907,24 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
             if (mapInfo.type === 'video') {
                 const poster = mapInfo.poster || '';
-                return `<div class="det-gallery-video" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
+                const badge360 = mapInfo.is360Video ? '<span class="det-gallery-360-badge" title="Immersive 360° video"><i class="fa fa-street-view"></i></span>' : '';
+                return `<div class="det-gallery-video${mapInfo.is360Video ? ' det-gallery-video--360' : ''}" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
                     ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
+                    ${badge360}
                     <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
                 </div>`;
             }
             const zoomIdx = imageOnlyIdx++;
             if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
                 return `<img src="${img}" class="det-gallery-placeholder" data-type="image" alt="No image">`;
+            }
+            if (mapInfo.is360Preview && activeProductId) {
+                return `<div class="det-gallery-360-preview" data-type="image" data-index="${index}" onclick="open360Viewer(activeProductId)" role="button" aria-label="Rotate product" style="position:relative; width:100%; height:100%; flex-shrink:0; scroll-snap-align:center; cursor:pointer; background:#000; display:flex; align-items:center; justify-content:center;">
+                    <img src="${img}" alt="Rotation preview" style="max-width:100%; max-height:100%; object-fit:contain; pointer-events:none;">
+                    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); border:1px solid var(--gold); color:var(--gold); padding:6px 14px; border-radius:999px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:6px; pointer-events:none;">
+                        <i class="fa fa-arrows-rotate"></i> Tap to rotate
+                    </div>
+                </div>`;
             }
             return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
         }).join('')
@@ -2073,25 +2128,38 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     const hasRealPhotos = galleryHasRealPhotos(map);
     const media = p ? resolveProductMedia(p) : null;
-    const hasSpin = !!(media && media.has360 && hasRealPhotos);
+    const hasSpinOrPano = !!(media && (media.has360 || media.hasPanorama360));
+    const has360View = hasSpinOrPano;
+    const hasVideoInGallery = map.some(m => m && m.type === 'video');
     const isVideoSlide = !!(slide && slide.type === 'video');
-    const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && hasRealPhotos);
+    const canZoom = !!(slide && slide.type !== 'video' && !slide.isPlaceholder && !slide.is360Preview && hasRealPhotos);
 
     if (zoomBtn) {
         zoomBtn.style.display = canZoom ? 'flex' : 'none';
-        zoomBtn.classList.toggle('det-side-left', canZoom && hasSpin);
-        zoomBtn.classList.toggle('det-side-right', canZoom && !hasSpin);
+        zoomBtn.classList.toggle('det-side-left', canZoom && has360View);
+        zoomBtn.classList.toggle('det-side-right', canZoom && !has360View);
     }
     if (playBtn) {
-        playBtn.style.display = isVideoSlide ? 'flex' : 'none';
+        // On a video slide the gallery card already has a play overlay — avoid duplicate side button
+        playBtn.style.display = (hasVideoInGallery && !isVideoSlide) ? 'flex' : 'none';
     }
     if (spinBtn) {
-        spinBtn.style.display = (hasSpin && !isVideoSlide) ? 'flex' : 'none';
+        spinBtn.style.display = (has360View && !isVideoSlide) ? 'flex' : 'none';
+        const labelEl = spinBtn.querySelector('.det-side-label');
+        if (labelEl && media) {
+            const hasSpin = !!media.has360;
+            const hasPano = !!media.hasPanorama360;
+            if (hasSpin && hasPano) labelEl.textContent = '360°';
+            else if (hasSpin) labelEl.textContent = 'Rotate';
+            else if (hasPano) labelEl.textContent = 'Look Around';
+            else labelEl.textContent = '360°';
+        }
     }
 
     const sideActions = document.getElementById('det-gallery-side-actions');
     if (sideActions) {
-        const anySideAction = canZoom || isVideoSlide || (hasSpin && !isVideoSlide);
+        const showVideoSide = hasVideoInGallery && !isVideoSlide;
+        const anySideAction = canZoom || showVideoSide || (has360View && !isVideoSlide);
         sideActions.style.display = anySideAction ? '' : 'none';
     }
 }
@@ -2102,13 +2170,20 @@ function openCurrentDetailVideoAt(index, event) {
     const map = window.detailGallerySlideMap || [];
     const slide = map[index];
     if (slide && slide.type === 'video' && slide.url) {
-        openProductVideo(activeProductId, slide.url);
+        openProductVideo(activeProductId, slide.url, { is360: !!slide.is360Video });
     }
 }
 window.openCurrentDetailVideoAt = openCurrentDetailVideoAt;
 
 function openCurrentDetailVideo() {
-    openCurrentDetailVideoAt(window.detailGalleryActiveIndex || 0);
+    const map = window.detailGallerySlideMap || [];
+    const idx = window.detailGalleryActiveIndex || 0;
+    if (map[idx]?.type === 'video') {
+        openCurrentDetailVideoAt(idx);
+        return;
+    }
+    const firstVideoIdx = map.findIndex(m => m && m.type === 'video');
+    if (firstVideoIdx >= 0) openCurrentDetailVideoAt(firstVideoIdx);
 }
 window.openCurrentDetailVideo = openCurrentDetailVideo;
 
@@ -2136,9 +2211,11 @@ function closeDetail(options = {}) {
     if (typeof stopProductCommentsListener === 'function') stopProductCommentsListener();
     window.selectedCommentRating = 0;
 
-    if (window.productsLoaded && products.length > 0) {
+    if (window.productsLoaded) {
         if (typeof applySortAndFilter === 'function') applySortAndFilter();
-        else if (typeof renderHomeCatalog === 'function') renderHomeCatalog();
+        else if (typeof renderProducts === 'function') renderProducts(products, 'product-grid');
+    } else if (typeof ensureHomeGridHydrated === 'function') {
+        ensureHomeGridHydrated();
     } else if (typeof renderHomeCatalog === 'function') {
         renderHomeCatalog();
     }
@@ -3468,6 +3545,7 @@ function resolveProductMedia(p) {
     let spinFrames = null;
     let spinCols = 1;
     let spinRows = 1;
+    let panoramaImages = null;
     let videos = [];
 
     function getSpinFrames(source) {
@@ -3479,8 +3557,16 @@ function resolveProductMedia(p) {
         return { frames, cols: frames.length, rows: 1 };
     }
 
+    function getPanoramaImages(source) {
+        if (!source || !source.is360Panorama || !is360Enabled) return null;
+        const imgs = source.panoramaImages && source.panoramaImages.length ? source.panoramaImages : null;
+        return imgs && imgs.length ? imgs : null;
+    }
+
     const variantSpin = v ? getSpinFrames(v) : null;
     const productSpin = getSpinFrames(p);
+    const variantPanorama = v ? getPanoramaImages(v) : null;
+    const productPanorama = getPanoramaImages(p);
 
     if (variantSpin) {
         spinFrames = variantSpin.frames;
@@ -3495,6 +3581,13 @@ function resolveProductMedia(p) {
         spinFrames.forEach(url => spinSet.add(url));
     }
 
+    if (variantPanorama) {
+        panoramaImages = [...variantPanorama];
+        if (v.videos && v.videos.length) videos = [...v.videos];
+    } else if (productPanorama) {
+        panoramaImages = [...productPanorama];
+    }
+
     if (!videos.length) {
         if (v && v.videos && v.videos.length) videos = [...v.videos];
         else if (p.videos && p.videos.length) videos = [...p.videos];
@@ -3505,7 +3598,17 @@ function resolveProductMedia(p) {
         spinRows = 1;
     }
 
-    return { spinFrames, spinCols, spinRows, spinSet, videos, has360: !!(spinFrames && spinFrames.length >= 2), productVideos: p.videos || [] };
+    return {
+        spinFrames,
+        spinCols,
+        spinRows,
+        spinSet,
+        panoramaImages,
+        videos,
+        has360: !!(spinFrames && spinFrames.length >= 2),
+        hasPanorama360: !!(panoramaImages && panoramaImages.length >= 1),
+        productVideos: p.videos || []
+    };
 }
 window.resolveProductMedia = resolveProductMedia;
 

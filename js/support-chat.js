@@ -2199,6 +2199,8 @@ window.toggleAdminSupportAccordion = function() {
     const icon = document.getElementById('admin-support-accordion-icon');
     if (!content) return;
     const isHidden = content.style.display === 'none';
+    if (isHidden && typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-support-inbox-section');
+    else if (isHidden && typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     content.style.display = isHidden ? 'flex' : 'none';
     if (icon) icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
     if (isHidden) loadAdminSupportInbox();
@@ -2231,6 +2233,7 @@ function updateSupportChatVisibility() {
         const showInbox = isAdmin && hasSupportChatCapability() && isAdminSupportChatEnabled();
         adminSection.style.display = showInbox ? 'block' : 'none';
     }
+    if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
     if (isAnySupportChatEnabled()) startSupportCustomerWatcher();
     else stopSupportCustomerWatcher();
 
