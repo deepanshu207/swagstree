@@ -8561,6 +8561,10 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     padding: 0 4px 0 20px;
 }
 
+.admin-products-display-settings {
+    border-color: rgba(201, 162, 39, 0.35) !important;
+}
+
 .admin-catalog-accordion-toggle {
     display: flex;
     align-items: flex-start;

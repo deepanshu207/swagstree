@@ -642,20 +642,25 @@ const ADMIN_PRODUCT_SORT_LABELS = {
     price_high: 'Price high–low'
 };
 
+function adminSyncProductsAccordionSettingUi() {
+    const checkbox = document.getElementById('admin-products-accordion-setting');
+    if (checkbox) checkbox.checked = window.adminProductsAccordionSetting === true;
+    const displaySummary = document.getElementById('admin-products-display-summary');
+    if (displaySummary) {
+        displaySummary.textContent = window.adminProductsAccordionSetting === true
+            ? 'Accordion panel · saved to database'
+            : 'Flat list (default) · saved to database';
+    }
+    adminUpdateCatalogSettingsSummary();
+}
+
 function adminUpdateCatalogSettingsSummary() {
     const el = document.getElementById('admin-catalog-settings-summary');
     if (!el) return;
     const sort = adminNormalizeProductSort(window.adminProductsSortSetting);
     const limit = getAdminProductsPageSize();
     const sortLabel = ADMIN_PRODUCT_SORT_LABELS[sort] || sort;
-    const listMode = window.adminProductsAccordionSetting === true ? 'accordion' : 'flat list';
-    el.textContent = `${sortLabel} · ${limit} per page · ${listMode}`;
-}
-
-function adminSyncProductsAccordionSettingUi() {
-    const checkbox = document.getElementById('admin-products-accordion-setting');
-    if (checkbox) checkbox.checked = window.adminProductsAccordionSetting === true;
-    adminUpdateCatalogSettingsSummary();
+    el.textContent = `${sortLabel} · ${limit} per page`;
 }
 
 function adminProductsAccordionEnabled() {
