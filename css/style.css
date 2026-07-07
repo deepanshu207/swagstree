@@ -1873,6 +1873,70 @@ body.body-footer-pos-scroll .storefront-load-more {
     padding-bottom: 0 !important;
 }
 .order-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 15px; margin-bottom: 15px; }
+
+.order-customer-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.order-customer-actions__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 32px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    box-sizing: border-box;
+}
+
+.order-customer-actions__btn--copy {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #ccc;
+}
+
+.order-customer-actions__btn--call {
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    color: var(--gold);
+    font-weight: 700;
+}
+
+.order-customer-actions__btn--wa,
+.order-customer-actions__btn--wa-send {
+    background: rgba(37, 211, 102, 0.08);
+    border: 1px solid rgba(37, 211, 102, 0.2);
+    color: #25D366;
+    font-weight: 700;
+}
+
+.order-customer-actions__wa-send-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.order-customer-actions__wa-send-icons .fa-share {
+    font-size: 9px;
+    opacity: 0.9;
+}
+
+@media (max-width: 380px) {
+    .order-customer-actions__btn {
+        font-size: 9px;
+        padding: 6px 4px;
+    }
+}
 .thumb-wrap { position: relative; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
 .thumb-del { position: absolute; top: 2px; right: 2px; background: rgba(255,0,0,0.8); color: white; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; cursor: pointer; font-weight: bold; }
 .qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 5px 10px; border-radius: 8px; }
