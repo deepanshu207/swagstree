@@ -1744,14 +1744,16 @@ window.copyTextToClipboard = function(text, successMessage) {
 };
 
 window.openWhatsApp = function(phone, text) {
-    const cleanPhone = (phone || '').replace(/\D/g, '');
+    let cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
         showToast("No valid phone number for WhatsApp.");
         return;
     }
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    else if (cleanPhone.startsWith('0') && cleanPhone.length === 11) cleanPhone = '91' + cleanPhone.slice(1);
     const encodedText = encodeURIComponent(text || '');
-    const webUrl = `https://wa.me/91${cleanPhone}?text=${encodedText}`;
-    const appUrl = `whatsapp://send?phone=91${cleanPhone}&text=${encodedText}`;
+    const webUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+    const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodedText}`;
     
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (isMobile) {
@@ -1777,6 +1779,131 @@ window.openWhatsApp = function(phone, text) {
     } else {
         window.open(webUrl, '_blank');
     }
+};
+
+function buildOrderDetailsWhatsAppText(orderData, docId) {
+    const statusVal = orderData.status || 'pending';
+    const statusInfo = ORDER_STATUSES.find(s => s.value === statusVal) || { label: statusVal };
+    const orderId = orderData.orderId || (docId ? docId.slice(-6).toUpperCase() : 'N/A');
+
+    const itemsList = (orderData.items || []).map(i => {
+        const iStatus = i.status || statusVal || 'placed';
+        const iStatusLabel = ORDER_STATUSES.find(s => s.value === iStatus)?.label || iStatus;
+        const trackingStr = i.trackingId ? `\n   ↳ 🚚 ${i.courier || i.courierCustom || 'Courier'}: ${i.trackingId}` : '';
+
+        const specs = [];
+        if (i.variantSize && i.variantSize !== 'Standard' && i.variantSize !== 'N/A') specs.push(i.variantSize);
+        const colorLabel = i.variantColorName || (i.variantColor && typeof formatColorName === 'function' ? formatColorName(i.variantColor) : '');
+        if (colorLabel) specs.push(colorLabel);
+        if (i.variantPattern && !String(i.variantPattern).startsWith('Design-')) specs.push(i.variantPattern);
+        const specStr = specs.length > 0 ? ` (${specs.join(' • ')})` : '';
+
+        const itemSubtotal = (i.price || 0) * (i.qty || 1);
+        return `• ${i.name || 'Item'}${specStr} (×${i.qty || 1}) - ₹${itemSubtotal} - ${iStatusLabel}${trackingStr}`;
+    }).join('\n');
+
+    let refundLine = '';
+    if (orderData.refundAmount && orderData.refundAmount > 0) {
+        if (orderData.paymentMethod && orderData.paymentMethod.toLowerCase() === 'cod') {
+            const adjustedCod = Math.max(0, (orderData.total || 0) - orderData.refundAmount);
+            refundLine = `\n⚖️ Adjusted COD Collection: ₹${adjustedCod} (₹${orderData.refundAmount} deducted)`;
+        } else {
+            refundLine = `\n💸 Refund Due: ₹${orderData.refundAmount}`;
+        }
+    }
+
+    let codAdvanceLine = '';
+    if (orderData.paymentMethod && orderData.paymentMethod.toLowerCase() === 'cod' && orderData.codMinAmount) {
+        codAdvanceLine = `\n⚖️ COD Advance Required: ₹${orderData.codMinAmount} (via UPI before delivery)`;
+    }
+
+    let discountLine = '';
+    if (orderData.discount && orderData.discount > 0) {
+        const promoStr = orderData.promoCode ? ` via code ${orderData.promoCode}` : '';
+        discountLine = `\n🎟️ Discount: -₹${orderData.discount}${promoStr}`;
+    }
+
+    const placedAt = orderData.timestamp && orderData.timestamp.toDate
+        ? orderData.timestamp.toDate().toLocaleString('en-IN')
+        : '';
+
+    return [
+        '🛍️ SWAG STREE — Order Details',
+        '',
+        `📋 Order ID: #${orderId}`,
+        placedAt ? `🕒 Placed: ${placedAt}` : '',
+        `📦 Overall Status: ${statusInfo.label}`,
+        '',
+        `👤 Customer: ${orderData.recipient || 'N/A'}`,
+        `📱 Phone: ${orderData.phone || 'N/A'}`,
+        `📧 Email: ${orderData.email || 'N/A'}${orderData.isGuest ? ' (Guest Checkout)' : ''}`,
+        `📍 Address: ${orderData.address || 'N/A'}`,
+        '',
+        '🧾 Fulfillment Details & Items:',
+        itemsList || '• No items listed',
+        '',
+        `💰 Subtotal: ₹${orderData.subtotal || orderData.total || 0}`,
+        discountLine,
+        `💵 Grand Total: ₹${orderData.total || 0}${refundLine}${codAdvanceLine}`,
+        `💳 Payment: ${orderData.paymentMethod ? orderData.paymentMethod.toUpperCase() : 'N/A'}`,
+    ].filter(line => line !== '').join('\n');
+}
+
+window.buildOrderDetailsWhatsAppText = buildOrderDetailsWhatsAppText;
+
+window.openWhatsAppOrderSend = async function(docId) {
+    let orderData = window._adminOrdersCache?.[docId];
+    if (!orderData) {
+        try {
+            const snap = await db.collection('orders').doc(docId).get();
+            if (!snap.exists) {
+                showToast('Order not found.');
+                return;
+            }
+            orderData = snap.data();
+        } catch (e) {
+            console.error('openWhatsAppOrderSend error:', e);
+            showToast('Could not load order details.');
+            return;
+        }
+    }
+    const phone = orderData.phone;
+    if (!phone) {
+        showToast('No phone number on this order.');
+        return;
+    }
+    const text = buildOrderDetailsWhatsAppText(orderData, docId);
+    window.openWhatsApp(phone, text);
+};
+
+window.copyOrderCustomerField = function(docId, field) {
+    const o = window._adminOrdersCache?.[docId];
+    if (!o) {
+        showToast('Order not loaded. Refresh and try again.');
+        return;
+    }
+    const labels = {
+        email: 'Customer email copied!',
+        address: 'Customer address copied!',
+        phone: 'Customer phone number copied!'
+    };
+    const val = (o[field] || '').trim();
+    if (!val) {
+        showToast(`No ${field} on this order.`);
+        return;
+    }
+    window.copyTextToClipboard(val, labels[field] || 'Copied!');
+};
+
+window.openWhatsAppOrderQuick = function(docId) {
+    const o = window._adminOrdersCache?.[docId];
+    if (!o || !o.phone) {
+        showToast('No phone number on this order.');
+        return;
+    }
+    const orderId = o.orderId || docId.slice(-6).toUpperCase();
+    const name = o.recipient || 'there';
+    window.openWhatsApp(o.phone, `Hi ${name}, this is Swag Stree regarding your order #${orderId}`);
 };
 
 const ORDER_STATUSES = [
@@ -1983,6 +2110,11 @@ function renderOrdersList(docs) {
     let renderDocs = docs;
     if (hasMoreToShow) {
         renderDocs = docs.slice(0, displayedOrdersLimit);
+    }
+
+    if (isAdmin) {
+        window._adminOrdersCache = {};
+        renderDocs.forEach(doc => { window._adminOrdersCache[doc.id] = doc.data(); });
     }
     
     container.innerHTML = renderDocs.map(doc => {
@@ -2204,22 +2336,24 @@ function renderOrdersList(docs) {
                     <div style="margin-top:4px;">💳 Payment: <b style="color:#ccc;">${o.paymentMethod ? o.paymentMethod.toUpperCase() : 'N/A'}</b>${o.paymentMethod === 'cod' && o.codMinAmount ? ` <span style="color:#e67e22;">(Advance: ₹${o.codMinAmount})</span>` : ''}</div>
                     
                     <!-- Quick Customer Action Bar -->
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
-                        <button onclick="window.copyTextToClipboard('${(o.phone || '').replace(/'/g, "\\'")}', 'Customer phone number copied!')" 
-                            style="background:#1a1a1a; border:1px solid #333; color:#ccc; padding:5px 9px; border-radius:6px; font-size:10px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
-                            <i class="fa fa-copy" style="font-size:10px;"></i> Copy Phone
+                    <div class="order-customer-actions">
+                        <button type="button" onclick="window.copyOrderCustomerField('${docId}', 'email')" class="order-customer-actions__btn order-customer-actions__btn--copy">
+                            <i class="fa fa-copy" aria-hidden="true"></i> Copy Email
                         </button>
-                        <button onclick="window.copyTextToClipboard(\`${(o.address || '').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, 'Customer address copied!')" 
-                            style="background:#1a1a1a; border:1px solid #333; color:#ccc; padding:5px 9px; border-radius:6px; font-size:10px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
-                            <i class="fa fa-map-marker-alt" style="font-size:10px;"></i> Copy Address
+                        <button type="button" onclick="window.copyOrderCustomerField('${docId}', 'address')" class="order-customer-actions__btn order-customer-actions__btn--copy">
+                            <i class="fa fa-map-marker-alt" aria-hidden="true"></i> Copy Address
                         </button>
-                        <a href="tel:${o.phone || ''}" 
-                            style="background:rgba(255, 215, 0, 0.08); border:1px solid rgba(255, 215, 0, 0.2); color:var(--gold); padding:5px 9px; border-radius:6px; font-size:10px; font-weight:700; text-decoration:none; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
-                            <i class="fa fa-phone" style="font-size:10px;"></i> Call
+                        <button type="button" onclick="window.copyOrderCustomerField('${docId}', 'phone')" class="order-customer-actions__btn order-customer-actions__btn--copy">
+                            <i class="fa fa-copy" aria-hidden="true"></i> Copy Phone
+                        </button>
+                        <a href="tel:${(o.phone || '').replace(/[^\d+]/g, '')}" class="order-customer-actions__btn order-customer-actions__btn--call">
+                            <i class="fa fa-phone" aria-hidden="true"></i> Call
                         </a>
-                        <button onclick="window.openWhatsApp('${(o.phone || '').replace(/'/g, "\\'")}', 'Hi ${(o.recipient || '').replace(/'/g, "\\'")}, this is Swag Stree regarding your order #${orderIdStr}')"
-                            style="background:rgba(37, 211, 102, 0.08); border:1px solid rgba(37, 211, 102, 0.2); color:#25D366; padding:5px 9px; border-radius:6px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; transition: all 0.2s;">
-                            <i class="fab fa-whatsapp" style="font-size:10px;"></i> WhatsApp
+                        <button type="button" onclick="window.openWhatsAppOrderQuick('${docId}')" class="order-customer-actions__btn order-customer-actions__btn--wa">
+                            <i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp
+                        </button>
+                        <button type="button" onclick="window.openWhatsAppOrderSend('${docId}')" class="order-customer-actions__btn order-customer-actions__btn--wa-send" title="Open WhatsApp with full order details">
+                            <span class="order-customer-actions__wa-send-icons" aria-hidden="true"><i class="fab fa-whatsapp"></i><i class="fa fa-share"></i></span> WhatsApp Send
                         </button>
                     </div>
                 </div>

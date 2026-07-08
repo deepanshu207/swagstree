@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.65">
+    <link rel="stylesheet" href="css/style.css?v=9.73">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -817,15 +817,15 @@
             </div>
         </div>
 
-        <!-- Store settings & tools (bulk, checkout, promos, storefront, support) -->
+        <!-- Store settings -->
         <div id="admin-store-tools-section" class="admin-store-tools-section admin-panel-card">
             <div class="admin-store-tools-header" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
                 onclick="toggleAdminStoreToolsAccordion()">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <i class="fa fa-sliders-h" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings &amp; tools</h4>
-                        <p id="admin-store-tools-subtitle" style="margin:2px 0 0; font-size:11px; color:#666;">Catalog, checkout, lists &amp; storefront — expand a section, change values, tap Save</p>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store settings</h4>
+                        <p id="admin-store-tools-subtitle" style="margin:2px 0 0; font-size:11px; color:#666;">Products, checkout, lists &amp; storefront</p>
                     </div>
                 </div>
                 <i id="admin-store-tools-accordion-icon" class="fa fa-chevron-down"
@@ -834,146 +834,156 @@
             <div id="admin-store-tools-accordion-content" class="admin-store-tools-body"
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
 
-        <!-- Admin layout settings -->
-        <div id="admin-layout-settings" class="admin-store-tools-block admin-layout-settings"
+        <!-- Products & catalog -->
+        <div id="admin-products-catalog-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px;">
-                <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
-                Admin layout
-            </h4>
-            <p style="margin:6px 0 12px; font-size:11px; color:#666; line-height:1.45;"><strong>Show</strong> = on/off. <strong>Place</strong> = where it appears on Admin (tap a pill). Drag or ↑↓ to reorder within a zone. Tap <strong>Save layout</strong> when done.</p>
-            <div class="admin-layout-settings__zones">
-                <div class="admin-layout-zone-accordion">
-                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('above')" aria-expanded="false" aria-controls="admin-layout-above-content">
-                        <span class="admin-layout-zone-accordion__title-wrap">
-                            <i class="fa fa-arrow-up" aria-hidden="true"></i>
-                            <span class="admin-layout-zone-accordion__title">Above store settings</span>
-                            <span id="admin-layout-above-count" class="admin-layout-zone-accordion__count"></span>
-                        </span>
-                        <i id="admin-layout-above-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
-                    </button>
-                    <p class="admin-layout-zone__hint">Top of Admin — visible without opening Store settings</p>
-                    <div id="admin-layout-above-content" class="admin-layout-zone-accordion__body" style="display:none;">
-                        <div id="admin-layout-above-list" class="admin-layout-sortable-list" role="list" aria-label="Sections above store settings"></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminProductsCatalogAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-box-open" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Product page settings</h4>
+                        <p id="admin-products-catalog-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Sort order &amp; page sizes</p>
                     </div>
                 </div>
-                <div class="admin-layout-zone-accordion admin-layout-zone-accordion--inside">
-                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('inside')" aria-expanded="false" aria-controls="admin-layout-inside-content">
-                        <span class="admin-layout-zone-accordion__title-wrap">
-                            <i class="fa fa-sliders-h" aria-hidden="true"></i>
-                            <span class="admin-layout-zone-accordion__title">Inside store settings</span>
-                            <span id="admin-layout-inside-count" class="admin-layout-zone-accordion__count"></span>
-                        </span>
-                        <i id="admin-layout-inside-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
-                    </button>
-                    <p class="admin-layout-zone__hint">Inside Store settings — expand that accordion on Admin to see these</p>
-                    <div id="admin-layout-inside-content" class="admin-layout-zone-accordion__body" style="display:none;">
-                        <div id="admin-layout-inside-list" class="admin-layout-sortable-list" role="list" aria-label="Sections inside store settings"></div>
-                    </div>
-                </div>
-                <div class="admin-layout-zone-accordion admin-layout-zone-accordion--below">
-                    <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('below')" aria-expanded="false" aria-controls="admin-layout-below-content">
-                        <span class="admin-layout-zone-accordion__title-wrap">
-                            <i class="fa fa-arrow-down" aria-hidden="true"></i>
-                            <span class="admin-layout-zone-accordion__title">Below store settings</span>
-                            <span id="admin-layout-below-count" class="admin-layout-zone-accordion__count"></span>
-                        </span>
-                        <i id="admin-layout-below-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
-                    </button>
-                    <p class="admin-layout-zone__hint">After Store settings — always visible, no accordion needed</p>
-                    <div id="admin-layout-below-content" class="admin-layout-zone-accordion__body" style="display:none;">
-                        <div id="admin-layout-below-list" class="admin-layout-sortable-list" role="list" aria-label="Sections below store settings"></div>
-                    </div>
-                </div>
+                <i id="admin-products-catalog-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
             </div>
-            <div class="admin-layout-settings__actions">
-                <button type="button" id="admin-layout-save-btn" class="btn-gold admin-layout-save-btn" onclick="adminSaveLayoutSettings()" disabled>Save layout</button>
-                <button type="button" class="admin-layout-reset-btn" onclick="adminResetLayoutDraft()">Discard changes</button>
-                <span id="admin-layout-unsaved-hint" class="admin-layout-unsaved-hint" hidden>Unsaved changes</span>
+            <div id="admin-products-catalog-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+
+                <div class="admin-settings-field-group">
+                    <p class="admin-settings-field-group__title">Admin product list</p>
+
+                    <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting">
+                        <input id="admin-products-accordion-setting" type="checkbox" onchange="adminPreviewProductsAccordionSetting()">
+                        <span class="admin-catalog-accordion-toggle__text">
+                            <span class="admin-catalog-accordion-toggle__label">Collapsible Products panel</span>
+                            <span class="admin-catalog-accordion-toggle__hint">Off = flat list (recommended). Preview updates instantly — tap Save to keep.</span>
+                        </span>
+                    </label>
+
+                    <div style="margin-top:12px;">
+                        <span class="admin-settings-field-label">Default sort</span>
+                        <select id="admin-products-sort-setting" class="admin-product-filter" style="margin:0; width:100%; max-width:100%; box-sizing:border-box;">
+                            <option value="latest">Latest activity (new or edited)</option>
+                            <option value="newest">Date first added</option>
+                            <option value="oldest">Oldest first</option>
+                            <option value="name">Name A–Z</option>
+                            <option value="name_desc">Name Z–A</option>
+                            <option value="price_low">Price low–high</option>
+                            <option value="price_high">Price high–low</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-top:12px;">
+                        <span class="admin-settings-field-label">Products per page (Admin)</span>
+                        <input id="admin-editing-products-page-limit" type="number" min="1" step="1" value="20"
+                            style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 20">
+                    </div>
+                </div>
+
+                <div class="admin-settings-field-group">
+                    <p class="admin-settings-field-group__title">Shop product pages</p>
+                    <div>
+                        <span class="admin-settings-field-label">Products per scroll (storefront)</span>
+                        <input id="admin-products-page-limit" type="number" min="1" step="1" value="12"
+                            style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 12">
+                    </div>
+                </div>
+
+                <button class="btn-gold"
+                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:14px;"
+                    onclick="saveAdminProductsCatalogSettings()">Save products &amp; catalog</button>
             </div>
         </div>
 
-        <!-- Store settings quick guide (always at top) -->
-        <div id="admin-store-settings-guide" class="admin-store-settings-guide admin-store-tools-block"
-            style="margin: 0 0 16px 0; background:#0d0d0d; border:1px solid rgba(201,162,39,0.25); border-radius:18px; padding:14px 18px;">
-            <h4 style="margin:0 0 8px; font-size:12px; color:var(--gold); font-weight:700; letter-spacing:0.3px;">New here? Start with these</h4>
-            <ul class="admin-store-settings-guide__list">
-                <li><strong>Products &amp; catalog</strong> — sort order, how many products per page, flat list vs accordion on Admin</li>
-                <li><strong>Checkout &amp; cart</strong> — COD advance, max cart quantity, promo codes</li>
-                <li><strong>Orders &amp; customers lists</strong> — page sizes for Profile orders and customer tables</li>
-                <li><strong>Storefront content</strong> — announcement bar, chatbot, newsletter &amp; wheel</li>
-            </ul>
-            <p style="margin:8px 0 0; font-size:10px; color:#555; line-height:1.45;">Reorder sections in <strong>Admin layout</strong> above. Each section has its own <strong>Save</strong> button — changes are not applied until you save.</p>
-        </div>
-
-        <!-- Bulk Operations -->
+        <!-- Bulk catalog -->
         <div id="admin-bulk-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #222; border-radius:18px; padding:15px 20px; display:flex; gap:15px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
             <div>
-                <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; letter-spacing:0.5px;">Bulk Catalog
-                    Actions</h4>
-                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export full catalog (variants, media, stock) or batch import/update via Excel (.xlsx)</p>
+                <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Bulk catalog</h4>
+                <p style="margin:3px 0 0 0; font-size:11px; color:#666;">Export or import products via Excel</p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn-gold" style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px;"
-                    onclick="exportProducts()">Export Excel</button>
+                    onclick="exportProducts()">Export</button>
                 <button class="btn-gold"
                     style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px; background:#222; border:1px solid #444; color:#fff;"
-                    onclick="triggerImport()">Import Excel</button>
+                    onclick="triggerImport()">Import</button>
                 <button class="btn-gold"
                     style="width:auto; padding:8px 16px; font-size:11px; letter-spacing:0.5px; background:#e74c3c; border:1px solid #c0392b; color:#fff;"
-                    onclick="deleteAllProducts()">Delete All Products</button>
+                    onclick="deleteAllProducts()">Delete all</button>
                 <input type="file" id="import-file-input" accept=".xlsx, .xls" style="display:none;"
                     onchange="importProducts(this)">
             </div>
         </div>
 
-
-        <!-- COD Settings -->
-        <div id="admin-cod-settings" class="admin-store-tools-block"
+        <!-- Orders & customers list sizes -->
+        <div id="admin-pagination-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-truck" style="color:var(--gold); font-size:15px;"></i>
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminPaginationAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Orders &amp; customers</h4>
+                        <p id="admin-pagination-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Page sizes for orders &amp; customer tables</p>
+                    </div>
+                </div>
+                <i id="admin-pagination-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
+            </div>
+            <div id="admin-pagination-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
+            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
                 <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">COD Advance Payment</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Minimum UPI payment required to confirm a COD
-                        order</p>
+                    <span class="admin-settings-field-label">Orders per page</span>
+                    <input id="admin-orders-page-limit" type="number" min="1" step="1" value="20"
+                        style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 20">
+                </div>
+                <div>
+                    <span class="admin-settings-field-label">Customers per page (Super Admin)</span>
+                    <input id="admin-customers-page-limit" type="number" min="1" step="1" value="10"
+                        style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 10">
                 </div>
             </div>
-            <div style="display:flex; gap:10px; align-items:center;">
-                <div style="position:relative; flex:1;">
-                    <span
-                        style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:700; font-size:14px; pointer-events:none;">&#8377;</span>
+            <button class="btn-gold"
+                style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
+                onclick="savePaginationSettings()">Save</button>
+            </div>
+        </div>
+
+        <!-- Checkout settings (COD + max quantity) -->
+        <div id="admin-checkout-settings" class="admin-store-tools-block"
+            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+                <i class="fa fa-shopping-cart" style="color:var(--gold); font-size:15px;"></i>
+                <div>
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Checkout</h4>
+                    <p id="admin-checkout-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">COD advance &amp; cart limits</p>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div>
+                    <span class="admin-settings-field-label">COD minimum UPI (&#8377;)</span>
                     <input id="admin-cod-min-payment" type="number" min="0" step="10" value="100"
-                        style="padding-left:30px; margin:0;" placeholder="Min amount (default 100)">
+                        style="margin:0; width:100%; box-sizing:border-box;" placeholder="Default 100"
+                        oninput="adminUpdateCheckoutSettingsSummary()">
                 </div>
-                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
-                    onclick="saveCodSettings()">Save</button>
-            </div>
-        </div>
-
-        <!-- Global Max Quantity Settings -->
-        <div id="admin-max-qty-settings" class="admin-store-tools-block"
-            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <i class="fa fa-shopping-bag" style="color:var(--gold); font-size:15px;"></i>
                 <div>
-                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Global Max Cart Quantity</h4>
-                    <p style="margin:2px 0 0; font-size:11px; color:#666;">Max allowed per item if stock tracking is OFF
-                        (default 1)</p>
+                    <span class="admin-settings-field-label">Max units per item (stock off)</span>
+                    <input id="admin-max-cart-qty" type="number" min="1" step="1" value="1"
+                        style="margin:0; width:100%; box-sizing:border-box;" placeholder="Default is 1"
+                        oninput="adminUpdateCheckoutSettingsSummary()">
                 </div>
-            </div>
-            <div style="display:flex; gap:10px; align-items:center;">
-                <div style="position:relative; flex:1;">
-                    <input id="admin-max-cart-qty" type="number" min="1" step="1" value="1" style="margin:0;"
-                        placeholder="Default is 1">
-                </div>
-                <button class="btn-gold" style="width:auto; padding:15px 20px; font-size:12px; white-space:nowrap;"
-                    onclick="saveMaxQtySettings()">Save</button>
+                <button class="btn-gold"
+                    style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
+                    onclick="saveCheckoutSettings()">Save checkout</button>
             </div>
         </div>
 
-        <!-- Promo Code Settings -->
+        <!-- Promo codes -->
         <div id="admin-promo-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
@@ -981,8 +991,8 @@
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <i class="fa fa-ticket-alt" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo Codes</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Manage active discount codes</p>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Promo codes</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Discount codes shown at checkout</p>
                     </div>
                 </div>
                 <i id="admin-promo-accordion-icon" class="fa fa-chevron-down"
@@ -1051,113 +1061,7 @@
             </div>
         </div>
 
-        <!-- Products & catalog (admin list + storefront product pages) -->
-        <div id="admin-products-catalog-settings" class="admin-store-tools-block"
-            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
-                onclick="toggleAdminProductsCatalogAccordion()">
-                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <i class="fa fa-box-open" style="color:var(--gold); font-size:15px;"></i>
-                    <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Products &amp; catalog</h4>
-                        <p id="admin-products-catalog-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Sort, page sizes &amp; Admin list layout</p>
-                    </div>
-                </div>
-                <i id="admin-products-catalog-accordion-icon" class="fa fa-chevron-down"
-                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
-            </div>
-            <div id="admin-products-catalog-accordion-content"
-                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
-
-                <div class="admin-settings-field-group">
-                    <p class="admin-settings-field-group__title">On Admin — your product list</p>
-                    <p class="admin-settings-field-group__hint">Controls the Products section at the top of this Admin tab (search, categories, product rows).</p>
-
-                    <label class="admin-catalog-accordion-toggle" for="admin-products-accordion-setting">
-                        <input id="admin-products-accordion-setting" type="checkbox">
-                        <span class="admin-catalog-accordion-toggle__text">
-                            <span class="admin-catalog-accordion-toggle__label">Collapsible Products panel</span>
-                            <span class="admin-catalog-accordion-toggle__hint">Off = flat list (recommended). On = accordion like Categories, collapsed until you expand it.</span>
-                        </span>
-                    </label>
-
-                    <div style="margin-top:12px;">
-                        <span class="admin-settings-field-label">Default sort order</span>
-                        <p class="admin-settings-field-note">Latest activity = newly added or recently edited items first. Date first added = order items were created only.</p>
-                        <select id="admin-products-sort-setting" class="admin-product-filter" style="margin:0; width:100%; max-width:100%; box-sizing:border-box;">
-                            <option value="latest">Latest activity (new or edited)</option>
-                            <option value="newest">Date first added</option>
-                            <option value="oldest">Oldest first</option>
-                            <option value="name">Name A–Z</option>
-                            <option value="name_desc">Name Z–A</option>
-                            <option value="price_low">Price low–high</option>
-                            <option value="price_high">Price high–low</option>
-                        </select>
-                    </div>
-
-                    <div style="margin-top:12px;">
-                        <span class="admin-settings-field-label">Products per page (Admin list)</span>
-                        <p class="admin-settings-field-note">How many rows load before “Load more” in the Admin catalog.</p>
-                        <input id="admin-editing-products-page-limit" type="number" min="1" step="1" value="20"
-                            style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 20">
-                    </div>
-                </div>
-
-                <div class="admin-settings-field-group">
-                    <p class="admin-settings-field-group__title">On storefront — shop &amp; wishlist</p>
-                    <p class="admin-settings-field-group__hint">How many products customers see per scroll batch on Home and Wishlist.</p>
-                    <div>
-                        <span class="admin-settings-field-label">Products per scroll (storefront)</span>
-                        <input id="admin-products-page-limit" type="number" min="1" step="1" value="20"
-                            style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 20">
-                    </div>
-                </div>
-
-                <button class="btn-gold"
-                    style="width:100%; margin-top:4px; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
-                    onclick="saveAdminProductsCatalogSettings()">Save products &amp; catalog settings</button>
-            </div>
-        </div>
-
-        <!-- Orders & customers list sizes -->
-        <div id="admin-pagination-settings" class="admin-store-tools-block"
-            style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
-                onclick="toggleAdminPaginationAccordion()">
-                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <i class="fa fa-list-ol" style="color:var(--gold); font-size:15px;"></i>
-                    <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Orders &amp; customers lists</h4>
-                        <p id="admin-pagination-settings-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Page sizes for Profile orders &amp; customer tables</p>
-                    </div>
-                </div>
-                <i id="admin-pagination-accordion-icon" class="fa fa-chevron-down"
-                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
-            </div>
-            <div id="admin-pagination-accordion-content"
-                style="display:none; margin-top:15px; flex-direction:column; gap:0;">
-            <p class="admin-settings-field-group__hint" style="margin:0 0 12px;">Product page sizes are in <strong>Products &amp; catalog</strong> above. These control lists in Profile and Super Admin.</p>
-            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
-                <div>
-                    <span class="admin-settings-field-label">Orders per page (Profile)</span>
-                    <p class="admin-settings-field-note">My Orders list in the customer Profile tab.</p>
-                    <input id="admin-orders-page-limit" type="number" min="1" step="1" value="20"
-                        style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 20">
-                </div>
-                <div>
-                    <span class="admin-settings-field-label">Customers per page (Super Admin)</span>
-                    <p class="admin-settings-field-note">Customer tables when you use the Super Admin tab.</p>
-                    <input id="admin-customers-page-limit" type="number" min="1" step="1" value="10"
-                        style="margin:0; font-size:12px; width:100%; box-sizing:border-box;" placeholder="Default is 10">
-                </div>
-            </div>
-            <button class="btn-gold"
-                style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
-                onclick="savePaginationSettings()">Save orders &amp; customers settings</button>
-            </div>
-        </div>
-
-        <!-- Admin: Content Settings for Features -->
+        <!-- Storefront content -->
         <div id="admin-feature-content-settings" class="admin-store-tools-block"
             style="margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
@@ -1165,8 +1069,8 @@
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <i class="fa fa-sliders" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront Content Customization</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Announcement bar, chatbot messages, newsletter &amp; wheel</p>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Storefront content</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Bar, chatbot &amp; newsletter</p>
                     </div>
                 </div>
                 <i id="admin-feature-content-accordion-icon" class="fa fa-chevron-down"
@@ -1177,23 +1081,25 @@
                 style="display:none; margin-top:15px; flex-direction:column; gap:0;">
             <div
                 style="display:flex; flex-direction:column; gap:12px; background:#1a1a1a; padding:15px; border-radius:12px; border:1px solid #333;">
+                <div class="admin-settings-field-group" style="margin:0; padding:0; border:none;">
+                    <p class="admin-settings-field-group__title">Announcement bar</p>
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Marquee Announcement
-                        Message</span>
-                    <input id="admin-announcement-text" type="text" style="margin:0; font-size:12px;"
+                    <span class="admin-settings-field-label">Marquee message</span>
+                    <input id="admin-announcement-text" type="text" style="margin:0; font-size:12px; width:100%; box-sizing:border-box;"
                         placeholder="e.g. 🚚 FREE SHIPPING ON ORDERS ABOVE ₹999!">
                 </div>
+                </div>
 
+                <div class="admin-settings-field-group" style="margin:0; padding:0; border:none;">
+                    <p class="admin-settings-field-group__title">AI chatbot</p>
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Welcome
-                        Message</span>
+                    <span class="admin-settings-field-label">Welcome message</span>
                     <input id="admin-bot-welcome" type="text" style="margin:0; font-size:12px;"
                         placeholder="e.g. Hi! How can I help you style your day today?">
                 </div>
 
                 <div>
-                    <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">AI Chatbot Reply Chips
-                        (Comma-separated)</span>
+                    <span class="admin-settings-field-label">Quick reply chips (comma-separated)</span>
                     <input id="admin-bot-chips" type="text" style="margin:0; font-size:12px;"
                         placeholder="e.g. Best Sellers, Get Discount, Size Guide, Track Order">
                 </div>
@@ -1217,25 +1123,27 @@
                             placeholder="e.g. AIzaSy...">
                     </div>
                 </div>
+                </div>
 
+                <div class="admin-settings-field-group" style="margin:0; padding:0; border:none;">
+                    <p class="admin-settings-field-group__title">Newsletter &amp; spin wheel</p>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <div style="flex:1; min-width:140px;">
-                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Newsletter Popup
-                            Delay (seconds)</span>
+                        <span class="admin-settings-field-label">Newsletter popup delay (seconds)</span>
                         <input id="admin-newsletter-delay" type="number" min="1" value="5"
                             style="margin:0; font-size:12px;">
                     </div>
                     <div style="flex:1; min-width:140px;">
-                        <span style="font-size:11px; color:#aaa; display:block; margin-bottom:4px;">Spin Wheel Jackpot
-                            Code</span>
+                        <span class="admin-settings-field-label">Spin wheel jackpot code</span>
                         <input id="admin-wheel-jackpot" type="text" style="margin:0; font-size:12px;"
                             placeholder="e.g. SWAGJACKPOT">
                     </div>
                 </div>
+                </div>
 
                 <button class="btn-gold"
                     style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:14px;"
-                    onclick="saveAdminFeatureContent()">Save Storefront Content</button>
+                    onclick="saveAdminFeatureContent()">Save storefront content</button>
             </div>
             </div>
         </div>
@@ -1817,8 +1725,69 @@
             </div>
         </div>
 
+            </div>
+        </div>
 
-
+        <!-- Customize layout (optional, collapsed by default) -->
+        <div id="admin-layout-settings" class="admin-store-tools-block admin-layout-settings admin-layout-settings--compact"
+            style="margin: 0 20px 16px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:0;">
+            <div class="admin-layout-settings__head" onclick="toggleAdminLayoutPanel()" role="button" tabindex="0" aria-expanded="false" aria-controls="admin-layout-panel-content">
+                <div style="min-width:0;">
+                    <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700; display:flex; align-items:center; gap:8px;">
+                        <i class="fa fa-th-large" style="color:var(--gold); font-size:13px;"></i>
+                        Customize layout
+                    </h4>
+                    <p style="margin:4px 0 0; font-size:11px; color:#666;">Optional — show, hide, or reorder sections</p>
+                </div>
+                <i id="admin-layout-panel-icon" class="fa fa-chevron-down admin-layout-settings__chevron" aria-hidden="true"></i>
+            </div>
+            <div id="admin-layout-panel-content" class="admin-layout-settings__body" style="display:none;">
+                <p class="admin-layout-settings__intro"><strong>Main area</strong> = daily workspace (product rows, categories, search). <strong>Store settings</strong> = configuration panels inside the Store settings accordion. They never overlap — use Show to hide, drag to reorder.</p>
+                <div class="admin-layout-settings__zones">
+                    <div class="admin-layout-zone-accordion">
+                        <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('above')" aria-expanded="false" aria-controls="admin-layout-above-content">
+                            <span class="admin-layout-zone-accordion__title-wrap">
+                                <span class="admin-layout-zone-accordion__title">Main area</span>
+                                <span id="admin-layout-above-count" class="admin-layout-zone-accordion__count"></span>
+                            </span>
+                            <i id="admin-layout-above-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                        </button>
+                        <p class="admin-layout-zone__hint admin-layout-zone__hint--compact">Product rows, categories, search &amp; sort — what you use every day</p>
+                        <div id="admin-layout-above-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                            <div id="admin-layout-above-list" class="admin-layout-sortable-list" role="list" aria-label="Main area sections"></div>
+                        </div>
+                    </div>
+                    <div class="admin-layout-zone-accordion admin-layout-zone-accordion--inside">
+                        <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('inside')" aria-expanded="false" aria-controls="admin-layout-inside-content">
+                            <span class="admin-layout-zone-accordion__title-wrap">
+                                <span class="admin-layout-zone-accordion__title">Store settings</span>
+                                <span id="admin-layout-inside-count" class="admin-layout-zone-accordion__count"></span>
+                            </span>
+                            <i id="admin-layout-inside-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                        </button>
+                        <p class="admin-layout-zone__hint admin-layout-zone__hint--compact">Sort, page sizes, checkout, promos — inside Store settings accordion</p>
+                        <div id="admin-layout-inside-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                            <div id="admin-layout-inside-list" class="admin-layout-sortable-list" role="list" aria-label="Store settings sections"></div>
+                        </div>
+                    </div>
+                    <div class="admin-layout-zone-accordion admin-layout-zone-accordion--below">
+                        <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('below')" aria-expanded="false" aria-controls="admin-layout-below-content">
+                            <span class="admin-layout-zone-accordion__title-wrap">
+                                <span class="admin-layout-zone-accordion__title">Pinned below</span>
+                                <span id="admin-layout-below-count" class="admin-layout-zone-accordion__count"></span>
+                            </span>
+                            <i id="admin-layout-below-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
+                        </button>
+                        <div id="admin-layout-below-content" class="admin-layout-zone-accordion__body" style="display:none;">
+                            <div id="admin-layout-below-list" class="admin-layout-sortable-list" role="list" aria-label="Pinned below sections"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-layout-settings__actions">
+                    <button type="button" id="admin-layout-save-btn" class="btn-gold admin-layout-save-btn" onclick="adminSaveLayoutSettings()" disabled>Save layout</button>
+                    <button type="button" class="admin-layout-reset-btn" onclick="adminResetLayoutDraft()">Discard</button>
+                    <span id="admin-layout-unsaved-hint" class="admin-layout-unsaved-hint" hidden>Unsaved changes</span>
+                </div>
             </div>
         </div>
 
@@ -3539,15 +3508,15 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
-    <script src="js/admin-favorites.js?v=4.0"></script>
+    <script src="js/admin-favorites.js?v=4.6"></script>
     <script src="js/categories.js?v=12.3"></script>
     <script src="js/store.js?v=10.19"></script>
-    <script src="js/checkout.js?v=10.4"></script>
+    <script src="js/checkout.js?v=10.6"></script>
     <script src="js/auth.js?v=10.7"></script>
     <script src="js/comments.js?v=10.5"></script>
     <script src="js/support-chat.js?v=11.0"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=16.0"></script>
+    <script src="js/admin.js?v=16.5"></script>
     <script src="js/cloudinary-admin.js?v=9.89"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->

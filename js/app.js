@@ -417,6 +417,7 @@ function navigateToCore(id, el) {
 
     // Render admin list on navigation to admin view
     if (id === 'admin') {
+        if (typeof adminLayoutDraftClear === 'function') adminLayoutDraftClear();
         if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
         renderAdmin();
         if (typeof loadCodSettings === 'function') loadCodSettings();
@@ -428,7 +429,6 @@ function navigateToCore(id, el) {
         if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
         if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
         if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
-        if (typeof renderAdminFavorites === 'function') renderAdminFavorites();
     }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
