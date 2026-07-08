@@ -1744,14 +1744,16 @@ window.copyTextToClipboard = function(text, successMessage) {
 };
 
 window.openWhatsApp = function(phone, text) {
-    const cleanPhone = (phone || '').replace(/\D/g, '');
+    let cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
         showToast("No valid phone number for WhatsApp.");
         return;
     }
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    else if (cleanPhone.startsWith('0') && cleanPhone.length === 11) cleanPhone = '91' + cleanPhone.slice(1);
     const encodedText = encodeURIComponent(text || '');
-    const webUrl = `https://wa.me/91${cleanPhone}?text=${encodedText}`;
-    const appUrl = `whatsapp://send?phone=91${cleanPhone}&text=${encodedText}`;
+    const webUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+    const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodedText}`;
     
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (isMobile) {
@@ -1872,6 +1874,36 @@ window.openWhatsAppOrderSend = async function(docId) {
     }
     const text = buildOrderDetailsWhatsAppText(orderData, docId);
     window.openWhatsApp(phone, text);
+};
+
+window.copyOrderCustomerField = function(docId, field) {
+    const o = window._adminOrdersCache?.[docId];
+    if (!o) {
+        showToast('Order not loaded. Refresh and try again.');
+        return;
+    }
+    const labels = {
+        email: 'Customer email copied!',
+        address: 'Customer address copied!',
+        phone: 'Customer phone number copied!'
+    };
+    const val = (o[field] || '').trim();
+    if (!val) {
+        showToast(`No ${field} on this order.`);
+        return;
+    }
+    window.copyTextToClipboard(val, labels[field] || 'Copied!');
+};
+
+window.openWhatsAppOrderQuick = function(docId) {
+    const o = window._adminOrdersCache?.[docId];
+    if (!o || !o.phone) {
+        showToast('No phone number on this order.');
+        return;
+    }
+    const orderId = o.orderId || docId.slice(-6).toUpperCase();
+    const name = o.recipient || 'there';
+    window.openWhatsApp(o.phone, `Hi ${name}, this is Swag Stree regarding your order #${orderId}`);
 };
 
 const ORDER_STATUSES = [
@@ -2305,19 +2337,19 @@ function renderOrdersList(docs) {
                     
                     <!-- Quick Customer Action Bar -->
                     <div class="order-customer-actions">
-                        <button type="button" onclick="window.copyTextToClipboard('${(o.email || '').replace(/'/g, "\\'")}', 'Customer email copied!')" class="order-customer-actions__btn order-customer-actions__btn--copy">
+                        <button type="button" onclick="window.copyOrderCustomerField('${docId}', 'email')" class="order-customer-actions__btn order-customer-actions__btn--copy">
                             <i class="fa fa-copy" aria-hidden="true"></i> Copy Email
                         </button>
-                        <button type="button" onclick="window.copyTextToClipboard(\`${(o.address || '').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, 'Customer address copied!')" class="order-customer-actions__btn order-customer-actions__btn--copy">
+                        <button type="button" onclick="window.copyOrderCustomerField('${docId}', 'address')" class="order-customer-actions__btn order-customer-actions__btn--copy">
                             <i class="fa fa-map-marker-alt" aria-hidden="true"></i> Copy Address
                         </button>
-                        <button type="button" onclick="window.copyTextToClipboard('${(o.phone || '').replace(/'/g, "\\'")}', 'Customer phone number copied!')" class="order-customer-actions__btn order-customer-actions__btn--copy">
+                        <button type="button" onclick="window.copyOrderCustomerField('${docId}', 'phone')" class="order-customer-actions__btn order-customer-actions__btn--copy">
                             <i class="fa fa-copy" aria-hidden="true"></i> Copy Phone
                         </button>
-                        <a href="tel:${o.phone || ''}" class="order-customer-actions__btn order-customer-actions__btn--call">
+                        <a href="tel:${(o.phone || '').replace(/[^\d+]/g, '')}" class="order-customer-actions__btn order-customer-actions__btn--call">
                             <i class="fa fa-phone" aria-hidden="true"></i> Call
                         </a>
-                        <button type="button" onclick="window.openWhatsApp('${(o.phone || '').replace(/'/g, "\\'")}', 'Hi ${(o.recipient || '').replace(/'/g, "\\'")}, this is Swag Stree regarding your order #${orderIdStr}')" class="order-customer-actions__btn order-customer-actions__btn--wa">
+                        <button type="button" onclick="window.openWhatsAppOrderQuick('${docId}')" class="order-customer-actions__btn order-customer-actions__btn--wa">
                             <i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp
                         </button>
                         <button type="button" onclick="window.openWhatsAppOrderSend('${docId}')" class="order-customer-actions__btn order-customer-actions__btn--wa-send" title="Open WhatsApp with full order details">
