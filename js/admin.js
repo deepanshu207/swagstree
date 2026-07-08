@@ -676,7 +676,11 @@ function adminSyncProductsAccordionSettingUi() {
 window.adminPreviewProductsAccordionSetting = function() {
     const checkbox = document.getElementById('admin-products-accordion-setting');
     if (!checkbox) return;
-    adminApplyProductsSectionMode({ previewAccordion: checkbox.checked, forceCollapse: checkbox.checked });
+    const enabling = checkbox.checked === true;
+    adminApplyProductsSectionMode({
+        previewAccordion: enabling,
+        forceCollapse: enabling
+    });
     adminUpdateProductsCatalogSummary();
 };
 
@@ -718,7 +722,8 @@ function adminApplyProductsSectionMode(opts = {}) {
 }
 
 function adminSyncProductsAccordionDom() {
-    const useAccordion = adminProductsAccordionEnabled();
+    const area = document.getElementById('admin-products-area');
+    const useAccordion = !!(area && area.classList.contains('admin-products-area--accordion'));
     const content = document.getElementById('admin-products-accordion-content');
     const icon = document.getElementById('admin-products-accordion-icon');
     if (!useAccordion) {
@@ -727,6 +732,7 @@ function adminSyncProductsAccordionDom() {
             content.style.flexDirection = 'column';
             content.style.marginTop = '0';
         }
+        if (icon) icon.style.transform = 'rotate(-90deg)';
         return;
     }
     const open = window._adminProductsAccordionOpen === true;
@@ -4579,7 +4585,6 @@ window.saveMaxQtySettings = async function() {
 
 // ── Products & Orders Pagination Settings ─────────────────────────────────────
 window.loadPaginationSettings = async function() {
-    let migratedLegacyAccordion = false;
     try {
         const snap = await db.collection('settings').doc('pagination').get();
         if (snap.exists) {
@@ -4610,9 +4615,6 @@ window.loadPaginationSettings = async function() {
 
             if (typeof data.adminProductsAccordion === 'boolean') {
                 window.adminProductsAccordionSetting = data.adminProductsAccordion;
-            } else if (adminMigrateLegacyProductsAccordion()) {
-                window.adminProductsAccordionSetting = true;
-                migratedLegacyAccordion = true;
             } else {
                 window.adminProductsAccordionSetting = false;
             }
@@ -4636,14 +4638,7 @@ window.loadPaginationSettings = async function() {
                 if (typeof displayedSuperCustomersLimit !== 'undefined') displayedSuperCustomersLimit = val;
             }
         } else {
-            window.adminProductsAccordionSetting = adminMigrateLegacyProductsAccordion();
-            migratedLegacyAccordion = window.adminProductsAccordionSetting === true;
-        }
-
-        if (migratedLegacyAccordion) {
-            await db.collection('settings').doc('pagination').set({
-                adminProductsAccordion: true
-            }, { merge: true });
+            window.adminProductsAccordionSetting = false;
         }
 
         adminSyncProductSortUi();

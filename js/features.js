@@ -268,46 +268,89 @@ function parseMarkdown(text) {
 }
 
 function generateSystemPrompt(limitLength = false) {
+    const productLimit = limitLength ? 6 : 20;
     let catalogContext = "";
     if (window.products && window.products.length > 0) {
-        catalogContext = "Here is our product catalog:\n";
-        window.products.forEach((p, idx) => {
-            if (limitLength && idx >= 3) return;
+        catalogContext = "Product catalog (name, price, category, sizes, colors):\n";
+        window.products.slice(0, productLimit).forEach((p) => {
             const price = p.price;
-            const colors = p.sizes && p.sizeColorMap ? Object.values(p.sizeColorMap).flat() : [];
+            const cat = typeof resolveProductCategoryLabel === 'function'
+                ? resolveProductCategoryLabel(p)
+                : (p.categoryName || '');
+            const colors = [];
+            if (p.sizeColorMap && typeof p.sizeColorMap === 'object') {
+                Object.values(p.sizeColorMap).forEach(arr => {
+                    if (Array.isArray(arr)) colors.push(...arr);
+                });
+            }
+            if (Array.isArray(p.variants)) {
+                p.variants.forEach(v => { if (v.colorName) colors.push(v.colorName); });
+            }
             const uniqueColors = [...new Set(colors)].filter(Boolean).join(', ');
-            const uniqueSizes = p.sizes ? p.sizes.join(', ') : '';
-            catalogContext += `- Name: ${p.name}, Price: ₹${price}, Colors available: [${uniqueColors}], Sizes: [${uniqueSizes}]\n`;
+            const uniqueSizes = Array.isArray(p.sizes) ? p.sizes.join(', ') : '';
+            catalogContext += `- ${p.name} | ₹${price} | ${cat} | Sizes: [${uniqueSizes}] | Colors: [${uniqueColors}]\n`;
         });
+        if (window.products.length > productLimit) {
+            catalogContext += `(${window.products.length - productLimit} more products on the storefront)\n`;
+        }
     } else {
-        catalogContext = "The catalog is currently empty.";
+        catalogContext = "The catalog is currently empty or still loading.";
     }
+
+    const cats = (window.productCategories || []).map(c => c.name).filter(Boolean);
+    const categoryContext = cats.length
+        ? `Store categories: ${cats.join(', ')}\n`
+        : '';
+
+    const prices = (window.products || []).map(p => Number(p.price) || 0).filter(n => n > 0);
+    const priceContext = prices.length
+        ? `Price range: ₹${Math.min(...prices)} – ₹${Math.max(...prices)}\n`
+        : '';
 
     let cartContext = "";
     if (window.cart && window.cart.length > 0) {
-        cartContext = "The user currently has these items in their cart:\n";
+        cartContext = "User cart:\n";
         window.cart.forEach(item => {
-            cartContext += `- ${item.name} (Size: ${item.variantSize || 'Standard'}, Color: ${item.variantColorName || item.variantColor || 'None'}, Qty: ${item.qty})\n`;
+            cartContext += `- ${item.name} (Size: ${item.variantSize || 'Standard'}, Color: ${item.variantColorName || item.variantColor || 'None'}, Qty: ${item.qty}, ₹${(Number(item.price) || 0) * (item.qty || 1)})\n`;
         });
     } else {
-        cartContext = "The user's shopping cart is currently empty.";
+        cartContext = "User cart is empty.";
     }
 
-    return `You are "Swag Stree AI Support", a highly professional, helpful, and friendly fashion styling chatbot for the Swag Stree premium clothing e-commerce storefront.
-Your goal is to guide visitors, suggest outfits, answer sizing/styling questions, and help them find products.
+    const promos = (typeof activePromosList !== 'undefined' && Array.isArray(activePromosList))
+        ? activePromosList.slice(0, 5).map(p => p.code).filter(Boolean)
+        : [];
+    const promoContext = promos.length
+        ? `Active promo codes: ${promos.join(', ')}. Also mention WELCOME10 and the Discount Wheel on Home.\n`
+        : 'Suggest promo code WELCOME10 (10% off) or the Discount Wheel on Home.\n';
 
-${catalogContext}
+    const loggedIn = !!(typeof currentUser !== 'undefined' && currentUser && currentUser.uid);
+    const accountContext = loggedIn
+        ? `User is signed in (${currentUser.email || 'account'}). Orders: Profile → My Orders.\n`
+        : 'User may be a guest. Suggest sign-in for order tracking; guest checkout is available.\n';
+
+    return `You are "Swag Stree AI Help", a friendly fashion shopping assistant for Swag Stree (Indian clothing e-commerce).
+
+You help customers with:
+- Product suggestions, best sellers, new arrivals, categories, prices, sizes & colors
+- Cart summary, wishlist, how to order, payment (UPI, cards, COD)
+- Order tracking (Profile → My Orders), delivery questions
+- Promo codes & discount wheel
+- Escalation: suggest "Talk to admin" / Live Support tab for human help
+
+${categoryContext}${priceContext}${catalogContext}
 
 ${cartContext}
 
-IMPORTANT GUIDELINES:
-1. ALWAYS respond politely, briefly, and professionally. Keep responses within 2-3 concise paragraphs.
-2. Recommend products that are actually in the catalog, matching the user's styling or color query.
-3. If they ask about sizes or colors, check the catalog to see what colors and sizes are available for that specific item.
-4. If they ask to track or check order status, tell them they can view it under the 'Profile & Orders' tab at the top right of the page.
-5. If they ask for discounts/coupons, recommend using the code 'WELCOME10' for 10% off, or spinning the Discount Wheel on the screen.
-6. Use simple formatting (bullet points, bold text). Keep HTML/Markdown simple (e.g. **bold** or *italic*). Don't use complicated markdown.
-7. If the user asks about something completely unrelated to fashion, clothing, Swag Stree, or order help, politely bring the conversation back to how you can help them style their outfits.`;
+${promoContext}${accountContext}
+
+GUIDELINES:
+1. Be brief (2-3 short paragraphs max). Use **bold** for emphasis.
+2. Only recommend products that exist in the catalog above.
+3. For sizes/colors, use catalog data for that product.
+4. For order status: Profile → My Orders (sign in if needed).
+5. For returns/refunds/complaints: suggest Live Support / Talk to admin.
+6. Stay on topic: fashion, shopping, Swag Stree store help.`;
 }
 
 async function getAIResponse() {
@@ -2210,8 +2253,8 @@ window.submitNewsletter = submitNewsletter;
 // Global features content configuration object fallback
 window.APP_FEATURES_CONTENT = window.APP_FEATURES_CONTENT || {
     announcementText: "✨ EXTRA 10% OFF ON PRE-PAID ORDERS! CODE: PREPAID10 ✨",
-    chatbotWelcome: "Hi! How can I help you style your day today?",
-    chatbotChips: "Sizes, Price, Track Order, Discount Code",
+    chatbotWelcome: "Hi! I'm your Swag Stree AI Help. Ask about products, prices, orders, cart, or promos.",
+    chatbotChips: "What can you help with?, Best sellers, What's new?, Suggest outfits under ₹1000, My cart, Track my order, Payment & COD, Talk to admin",
     chatbotEngine: 'local',
     newsletterDelay: 5,
     wheelJackpotCode: "WIN50"
@@ -2624,6 +2667,15 @@ if (typeof document !== 'undefined') {
 }
 
 function renderChatbotChips(chipsStr) {
+    if (typeof window.renderSupportQuickChips === 'function') {
+        const tab = window.supportChatState?.activeTab === 'admin' ? 'admin' : 'ai';
+        if (chipsStr && chipsStr.trim()) {
+            window.APP_FEATURES_CONTENT = window.APP_FEATURES_CONTENT || {};
+            window.APP_FEATURES_CONTENT.chatbotChips = chipsStr;
+        }
+        window.renderSupportQuickChips(tab);
+        return;
+    }
     const container = document.getElementById('ai-chat-chips');
     if (!container) return;
     if (!chipsStr) {
@@ -2651,12 +2703,12 @@ function applyFeatureContentUI() {
         annMarquee.innerText = content.announcementText || "✨ WELCOME TO SWAG STREE STOREFRONT! ✨";
     }
     
-    const welcomeText = content.chatbotWelcome || "Hi! How can I help you style your day today?";
+    const welcomeText = content.chatbotWelcome || "Hi! I'm your Swag Stree AI Help. Ask about products, prices, orders, cart, or promos.";
     if (typeof I18N_DICTIONARY !== 'undefined' && I18N_DICTIONARY.en) {
         I18N_DICTIONARY.en.ai_chat_welcome = welcomeText;
     }
     
-    const chipsStr = content.chatbotChips || "Sizes, Price, Track Order, Discount Code";
+    const chipsStr = content.chatbotChips || "What can you help with?, Best sellers, What's new?, Suggest outfits under ₹1000, My cart, Track my order, Payment & COD, Talk to admin";
     renderChatbotChips(chipsStr);
 }
 window.applyFeatureContentUI = applyFeatureContentUI;
