@@ -153,7 +153,9 @@ function applySupportChatTabsVisibility() {
 }
 window.applySupportChatTabsVisibility = applySupportChatTabsVisibility;
 
-const CHAT_PRODUCT_DISPLAY_LIMIT = 10;
+const CHAT_PRODUCT_PAGE_SIZE = 5;
+const CHAT_PRODUCT_QUERY_LIMIT = 500;
+const CHAT_PRODUCT_DISPLAY_LIMIT = CHAT_PRODUCT_QUERY_LIMIT;
 
 function getProductSearchHaystack(p) {
     const colors = [];
@@ -1325,21 +1327,6 @@ function searchProducts(query, maxPrice, displayLimit = CHAT_PRODUCT_DISPLAY_LIM
     };
 }
 
-function buildExploreMoreHtml(total, shown, maxPrice) {
-    if (total <= shown) return '';
-    const more = total - shown;
-    const filterBtn = maxPrice != null
-        ? `<button type="button" class="btn-gold ai-chat-filter-btn" onclick="applyChatPriceFilter(${maxPrice})">Apply under ₹${maxPrice} filter</button>`
-        : '';
-    return `<div class="ai-chat-explore-hint" style="margin-top:8px;font-size:11px;color:#aaa;line-height:1.5;">
-        <strong style="color:var(--gold);">${more} more</strong> style${more > 1 ? 's' : ''} match — explore the full catalog or let me filter Home for you.
-        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-            ${filterBtn}
-            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>
-        </div>
-    </div>`;
-}
-
 window.applyChatPriceFilter = function(maxPrice) {
     const max = Number(maxPrice);
     if (!max || max <= 0) return;
@@ -1405,28 +1392,134 @@ function detectSupportIntent(text) {
     if (/in stock|available now|out of stock|stock/.test(q)) return 'stock';
     if (/categor|collection|section/.test(q) && !/suggest|recommend|under/.test(q)) return 'category';
     if (/best seller|best sellers|best selling|top selling|popular picks|most popular/.test(q)) return 'best_sellers';
+    if (/all products?|full (catalog|list)|entire catalog|every product|whole catalog|complete (catalog|list)|products? list|give all|show all products?|list all products?|see all products?|browse all|view all products?|entire (stock|range|collection)/.test(q)) return 'full_catalog';
     if (maxPrice != null) return { type: 'price_filter', max: maxPrice };
     if (/suggest|recommend|show me|outfit|dress|kurta|saree|coord|shirt|product|styles|looking for/.test(q)) return 'suggest';
     if (/price|cost|how much|₹|budget|cheap|affordable/.test(q)) return 'price';
     return 'ai';
 }
 
-function buildProductCardsHtml(products) {
-    if (!products.length) return '<p style="margin:0;font-size:12px;color:#888;">No matching products found right now.</p>';
-    const cards = products.map(p => {
-        const img = (p.images && p.images[0]) || (p.variants && p.variants[0]?.images?.[0]) || '';
-        return `
+function getFullCatalogProducts(limit = CHAT_PRODUCT_QUERY_LIMIT) {
+    return (window.products || []).slice(0, limit);
+}
+
+function formatChatProductListIntro(count, label = 'product') {
+    if (!count) return '';
+    const plural = count === 1 ? label : `${label}s`;
+    const initial = Math.min(CHAT_PRODUCT_PAGE_SIZE, count);
+    if (count <= CHAT_PRODUCT_PAGE_SIZE) return `**${count}** ${plural}`;
+    return `**${count}** ${plural} — showing **${initial}** (tap **Show more** for ${CHAT_PRODUCT_PAGE_SIZE} more)`;
+}
+
+function chatCatalogOverflowExtra(total, stored, maxPrice) {
+    return stored < total ? buildExploreMoreHtml(total, stored, maxPrice) : '';
+}
+
+function getChatProductImage(p) {
+    if (!p) return '';
+    return (p.images && p.images[0]) || (p.variants && p.variants[0]?.images?.[0]) || '';
+}
+
+window.supportChatProductLists = window.supportChatProductLists || {};
+
+function registerChatProductList(productIds) {
+    const id = 'cpl_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+    const ids = (productIds || []).filter(Boolean).slice(0, CHAT_PRODUCT_QUERY_LIMIT);
+    window.supportChatProductLists[id] = {
+        ids,
+        shown: Math.min(CHAT_PRODUCT_PAGE_SIZE, ids.length)
+    };
+    return id;
+}
+
+function getProductsForChatList(listId) {
+    const state = window.supportChatProductLists[listId];
+    if (!state) return [];
+    const catalog = window.products || [];
+    return state.ids.map(pid => catalog.find(p => p.id === pid)).filter(Boolean);
+}
+
+function buildSingleProductCardHtml(p) {
+    const img = getChatProductImage(p);
+    const thumb = img
+        ? `<div class="ai-chat-product-card-img-wrap"><img src="${escHtml(img)}" alt="${escHtml(p.name || 'Product')}" loading="lazy"></div>`
+        : `<div class="ai-chat-product-card-img-wrap ai-chat-product-card-img-wrap--empty"><i class="fa fa-shopping-bag" style="color:var(--gold);"></i></div>`;
+    return `
         <div class="ai-chat-product-card" onclick="showDetail('${p.id}'); toggleAIChat();">
-            ${img ? `<img src="${escHtml(img)}" alt="">` : `<div style="width:52px;height:52px;background:#222;border-radius:8px;display:flex;align-items:center;justify-content:center;"><i class="fa fa-shopping-bag" style="color:var(--gold);"></i></div>`}
+            ${thumb}
             <div class="ai-chat-product-info">
                 <div class="ai-chat-product-name">${escHtml(p.name)}</div>
                 <div class="ai-chat-product-price">₹${p.price}</div>
                 <div class="ai-chat-product-btn">View product →</div>
             </div>
         </div>`;
-    }).join('');
-    const scrollClass = products.length > 4 ? ' ai-chat-product-scroll' : '';
-    return `<div class="${scrollClass.trim()}">${cards}</div>`;
+}
+
+function buildShowMoreButtonHtml(listId, shown, total) {
+    const remaining = total - shown;
+    if (remaining <= 0) return '';
+    const next = Math.min(CHAT_PRODUCT_PAGE_SIZE, remaining);
+    return `<button type="button" class="btn-gold ai-chat-show-more-btn" data-list-id="${escHtml(listId)}" onclick="showMoreChatProducts('${escHtml(listId)}')">Show more (${shown} of ${total} · +${next})</button>`;
+}
+
+function buildPaginatedProductListHtml(listId) {
+    const state = window.supportChatProductLists[listId];
+    if (!state) return '';
+    const all = getProductsForChatList(listId);
+    const visible = all.slice(0, state.shown);
+    const cards = visible.map(p => buildSingleProductCardHtml(p)).join('');
+    const showMore = buildShowMoreButtonHtml(listId, state.shown, all.length);
+    const endHint = !showMore && all.length > CHAT_PRODUCT_PAGE_SIZE
+        ? `<p class="ai-chat-list-end-hint">All ${all.length} products shown</p>`
+        : '';
+    return `<div class="ai-chat-product-list" id="${escHtml(listId)}">${cards}${showMore}${endHint}</div>`;
+}
+
+window.showMoreChatProducts = function(listId) {
+    const state = window.supportChatProductLists[listId];
+    const container = document.getElementById(listId);
+    if (!state || !container) return;
+    const all = getProductsForChatList(listId);
+    const prevShown = state.shown;
+    state.shown = Math.min(state.shown + CHAT_PRODUCT_PAGE_SIZE, all.length);
+    const newItems = all.slice(prevShown, state.shown);
+
+    container.querySelectorAll('.ai-chat-show-more-btn, .ai-chat-list-end-hint').forEach(el => el.remove());
+
+    if (newItems.length) {
+        container.insertAdjacentHTML('beforeend', newItems.map(p => buildSingleProductCardHtml(p)).join(''));
+    }
+
+    const showMore = buildShowMoreButtonHtml(listId, state.shown, all.length);
+    if (showMore) {
+        container.insertAdjacentHTML('beforeend', showMore);
+    } else if (all.length > CHAT_PRODUCT_PAGE_SIZE) {
+        container.insertAdjacentHTML('beforeend', `<p class="ai-chat-list-end-hint">All ${all.length} products shown</p>`);
+    }
+
+    const body = getChatBody(AI_CHANNEL);
+    if (body) body.scrollTop = body.scrollHeight;
+};
+
+function buildProductCardsHtml(products) {
+    if (!products.length) return '<p style="margin:0;font-size:12px;color:#888;">No matching products found right now.</p>';
+    const listId = registerChatProductList(products.map(p => p.id));
+    return buildPaginatedProductListHtml(listId);
+}
+
+function buildExploreMoreHtml(total, storedCount, maxPrice) {
+    if (total <= storedCount) return '';
+    const more = total - storedCount;
+    const filterBtn = maxPrice != null
+        ? `<button type="button" class="btn-gold ai-chat-filter-btn" onclick="applyChatPriceFilter(${maxPrice})">Apply under ₹${maxPrice} filter</button>`
+        : '';
+    return `<div class="ai-chat-explore-hint" style="margin-top:8px;font-size:11px;color:#aaa;line-height:1.5;">
+        <strong style="color:var(--gold);">${more} more</strong> style${more > 1 ? 's' : ''} in catalog — open Home to browse all, or refine your search.
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+            ${filterBtn}
+            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>
+        </div>
+    </div>`;
 }
 
 function renderSupportQuickChips(tab) {
@@ -1758,24 +1851,34 @@ async function generateSmartSupportReply(userText) {
         const filterDesc = parts.length ? ` (${parts.join(', ')})` : '';
         return {
             text: items.length
-                ? `Found **${items.length}${total > items.length ? ` of ${total}` : ''}** match${total !== 1 ? 'es' : ''}${filterDesc}:`
+                ? `Found ${formatChatProductListIntro(total, 'match')}${filterDesc}:`
                 : `No exact matches${filterDesc}. Try fewer filters or browse **Best sellers**.`,
             products: items,
             totalCount: total,
             filterMaxPrice: meta.maxPrice ?? null,
-            extraHtml: buildExploreMoreHtml(total, items.length, meta.maxPrice ?? null)
+            extraHtml: chatCatalogOverflowExtra(total, items.length, meta.maxPrice ?? null)
+        };
+    }
+    if (intent === 'full_catalog') {
+        const catalogTotal = (window.products || []).length;
+        const all = getFullCatalogProducts();
+        return {
+            text: all.length
+                ? `Here is our **full catalog** — ${formatChatProductListIntro(catalogTotal || all.length)}:`
+                : 'Products are still loading — try again in a moment, or browse Home.',
+            products: all,
+            totalCount: catalogTotal || all.length,
+            extraHtml: chatCatalogOverflowExtra(catalogTotal, all.length, null)
         };
     }
     if (intent === 'new_arrivals') {
         const matched = getNewArrivalProducts();
-        const catalogTotal = (window.products || []).length;
         return {
             text: matched.length
-                ? `Here are our **latest arrivals**:`
+                ? `Here are our **latest arrivals** — ${formatChatProductListIntro(matched.length, 'item')}:`
                 : 'Products are still loading — try again in a moment, or browse Home.',
             products: matched,
-            totalCount: catalogTotal,
-            extraHtml: matched.length ? buildExploreMoreHtml(catalogTotal, matched.length, null) : ''
+            totalCount: matched.length
         };
     }
     if (intent === 'stock') {
@@ -1786,7 +1889,7 @@ async function generateSmartSupportReply(userText) {
         }
         return {
             text: inStock.length
-                ? `**${inStock.length}** style${inStock.length === 1 ? '' : 's'} in stock right now${oos > 0 ? ` (${oos} may be limited)` : ''}:`
+                ? `${formatChatProductListIntro(inStock.length, 'style')} in stock right now${oos > 0 ? ` (${oos} may be limited)` : ''}:`
                 : 'Catalog is loading — check Home in a moment.',
             products: inStock,
             totalCount: inStock.length
@@ -1798,10 +1901,10 @@ async function generateSmartSupportReply(userText) {
         const result = q.length > 2 ? searchProductsByCategory(q) : { items: [], total: 0 };
         if (result.items.length) {
             return {
-                text: `**${result.total} product${result.total === 1 ? '' : 's'}** in matching categories:`,
+                text: `${formatChatProductListIntro(result.total, 'product')} in matching categories:`,
                 products: result.items,
                 totalCount: result.total,
-                extraHtml: buildExploreMoreHtml(result.total, result.items.length, null)
+                extraHtml: chatCatalogOverflowExtra(result.total, result.items.length, null)
             };
         }
         return {
@@ -1856,16 +1959,12 @@ async function generateSmartSupportReply(userText) {
     }
     if (intent === 'best_sellers') {
         const matched = getBestSellerProducts();
-        const catalogTotal = (window.products || []).length;
         return {
             text: matched.length
-                ? `Here are our **${matched.length} best-selling pick${matched.length > 1 ? 's' : ''}** right now:`
+                ? `Here are our **best-selling picks** — ${formatChatProductListIntro(matched.length, 'pick')}:`
                 : 'Products are still loading — try again in a moment, or browse Home.',
             products: matched,
-            totalCount: catalogTotal,
-            extraHtml: matched.length >= CHAT_PRODUCT_DISPLAY_LIMIT && catalogTotal > matched.length
-                ? buildExploreMoreHtml(catalogTotal, matched.length, null)
-                : ''
+            totalCount: matched.length
         };
     }
     if (intent === 'suggest' || intent === 'price') {
@@ -1874,16 +1973,17 @@ async function generateSmartSupportReply(userText) {
         const result = advanced.items.length ? advanced : searchProducts(userText, max);
         const items = result.items || result;
         const total = result.total ?? items.length;
+        const budgetTxt = max != null ? ` under **₹${max}**` : '';
         return {
             text: items.length
-                ? `Showing **${items.length}${total > items.length ? ` of ${total}` : ''}** style${total !== 1 ? 's' : ''}${max != null ? ` under **₹${max}**` : ''}:`
+                ? `Showing ${formatChatProductListIntro(total, 'style')}${budgetTxt}:`
                 : max != null
                     ? `No products under **₹${max}** right now. Try a higher budget or browse Home.`
                     : "I couldn't find an exact match. Try a product name, color, or budget (e.g. under ₹800).",
             products: items,
             totalCount: total,
             filterMaxPrice: max,
-            extraHtml: buildExploreMoreHtml(total, items.length, max)
+            extraHtml: chatCatalogOverflowExtra(total, items.length, max)
         };
     }
     if (typeof intent === 'object' && intent.type === 'price_filter') {
@@ -1891,12 +1991,12 @@ async function generateSmartSupportReply(userText) {
         const { items, total } = result;
         return {
             text: items.length
-                ? `Showing **${items.length} of ${total}** styles under **₹${intent.max}**:`
+                ? `Showing ${formatChatProductListIntro(total, 'style')} under **₹${intent.max}**:`
                 : `No products under **₹${intent.max}** right now. Try a higher budget or browse our full catalog.`,
             products: items,
             totalCount: total,
             filterMaxPrice: intent.max,
-            extraHtml: buildExploreMoreHtml(total, items.length, intent.max)
+            extraHtml: chatCatalogOverflowExtra(total, items.length, intent.max)
         };
     }
 
@@ -1922,6 +2022,18 @@ function generateLocalFallbackReply(userText) {
             extraHtml: buildChatHelpMenuHtml()
         };
     }
+    if (/all products?|full catalog|products? list|give all|show all products?|list all|entire catalog/.test(q)) {
+        const catalogTotal = (window.products || []).length;
+        const all = getFullCatalogProducts();
+        return {
+            text: all.length
+                ? `Here is our **full catalog** — ${formatChatProductListIntro(catalogTotal || all.length)}:`
+                : 'Products are still loading — try again in a moment.',
+            products: all,
+            totalCount: catalogTotal || all.length,
+            extraHtml: chatCatalogOverflowExtra(catalogTotal, all.length, null)
+        };
+    }
     const max = extractMaxPrice(userText);
     const advanced = searchProductsAdvanced(userText, CHAT_PRODUCT_DISPLAY_LIMIT);
     if (advanced.items.length) {
@@ -1931,22 +2043,22 @@ function generateLocalFallbackReply(userText) {
         if (meta.maxPrice != null) parts.push(`under ₹${meta.maxPrice}`);
         const filterDesc = parts.length ? ` (${parts.join(', ')})` : '';
         return {
-            text: `Here are **${items.length}${total > items.length ? ` of ${total}` : ''}** item${total !== 1 ? 's' : ''} that may match${filterDesc}:`,
+            text: `Here are ${formatChatProductListIntro(total, 'item')} that may match${filterDesc}:`,
             products: items,
             totalCount: total,
             filterMaxPrice: meta.maxPrice ?? max,
-            extraHtml: buildExploreMoreHtml(total, items.length, meta.maxPrice ?? max)
+            extraHtml: chatCatalogOverflowExtra(total, items.length, meta.maxPrice ?? max)
         };
     }
     const result = searchProducts(userText.replace(/help|please|want|need|show|find/gi, ''), max);
     const { items, total } = result;
     if (items.length) {
         return {
-            text: `Here are **${items.length}${total > items.length ? ` of ${total}` : ''} item${total !== 1 ? 's' : ''}** that may match${max != null ? ` under ₹${max}` : ''}:`,
+            text: `Here are ${formatChatProductListIntro(total, 'item')} that may match${max != null ? ` under ₹${max}` : ''}:`,
             products: items,
             totalCount: total,
             filterMaxPrice: max,
-            extraHtml: buildExploreMoreHtml(total, items.length, max)
+            extraHtml: chatCatalogOverflowExtra(total, items.length, max)
         };
     }
     if (/size|fit|measurement/.test(q)) {
@@ -1999,6 +2111,7 @@ function rebuildAiReplyProducts(customerText, msg) {
     if (msg.type !== 'product_suggest' || !customerText) return [];
     const intent = detectSupportIntent(customerText);
     if (intent === 'best_sellers') return getBestSellerProducts();
+    if (intent === 'full_catalog') return getFullCatalogProducts();
     if (intent === 'new_arrivals') return getNewArrivalProducts();
     if (intent === 'stock') return getInStockProducts();
     if (intent === 'cheapest') {
