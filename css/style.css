@@ -8153,6 +8153,13 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     border-top: 1px solid #222;
 }
 
+.admin-layout-settings__intro {
+    margin: 12px 0 10px;
+    font-size: 11px;
+    color: #666;
+    line-height: 1.45;
+}
+
 .admin-layout-zone-accordion .admin-layout-zone__hint--compact {
     margin: 0 0 8px;
     padding: 0 4px;
