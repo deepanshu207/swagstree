@@ -1906,6 +1906,148 @@ window.openWhatsAppOrderQuick = function(docId) {
     window.openWhatsApp(o.phone, `Hi ${name}, this is Swag Stree regarding your order #${orderId}`);
 };
 
+const ORDER_NOTE_MAX_LENGTH = 500;
+
+function escOrderNoteText(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function parseOrderCustomerNote(order) {
+    if (!order) return { text: '', updatedAt: null };
+    const raw = order.customerNote;
+    if (!raw) return { text: '', updatedAt: null };
+    if (typeof raw === 'string') return { text: raw.trim(), updatedAt: null };
+    return {
+        text: (raw.text || '').trim(),
+        updatedAt: raw.updatedAt || null
+    };
+}
+
+function isOrderDelivered(order) {
+    const status = (order.status || '').toLowerCase();
+    if (status === 'delivered') return true;
+    const items = order.items || [];
+    if (items.length > 0) {
+        return items.every(i => (i.status || status).toLowerCase() === 'delivered');
+    }
+    return false;
+}
+
+function isOrderCustomerNoteEditable(order) {
+    const status = (order.status || 'pending').toLowerCase();
+    if (['cancelled', 'returned'].includes(status)) return false;
+    return !isOrderDelivered(order);
+}
+
+function formatOrderNoteTimestamp(ts) {
+    if (!ts) return '';
+    try {
+        const d = ts.toDate ? ts.toDate() : new Date(ts);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleString('en-IN');
+    } catch (e) {
+        return '';
+    }
+}
+
+function buildAdminOrderCustomerNoteHtml(order) {
+    const note = parseOrderCustomerNote(order);
+    if (!note.text) {
+        return `<div class="order-customer-note order-customer-note--admin order-customer-note--empty">
+            <div class="order-customer-note__label">📝 Customer delivery notes</div>
+            <p class="order-customer-note__readonly-text order-customer-note__readonly-text--muted">No notes from customer yet.</p>
+        </div>`;
+    }
+    const updatedStr = formatOrderNoteTimestamp(note.updatedAt);
+    const locked = isOrderDelivered(order);
+    return `<div class="order-customer-note order-customer-note--admin${locked ? ' order-customer-note--readonly' : ''}">
+        <div class="order-customer-note__label">📝 Customer delivery notes ${locked ? '<span class="order-customer-note__badge">Delivered — read only</span>' : '<span class="order-customer-note__badge order-customer-note__badge--live">Active</span>'}</div>
+        <div class="order-customer-note__readonly-text">${escOrderNoteText(note.text)}</div>
+        ${updatedStr ? `<div class="order-customer-note__meta">Last updated: ${escOrderNoteText(updatedStr)}</div>` : ''}
+    </div>`;
+}
+
+function buildCustomerOrderNoteHtml(docId, order) {
+    const note = parseOrderCustomerNote(order);
+    const editable = isOrderCustomerNoteEditable(order);
+    const updatedStr = formatOrderNoteTimestamp(note.updatedAt);
+
+    if (editable) {
+        return `<div class="order-customer-note" id="order-note-block-${docId}">
+            <div class="order-customer-note__label">📝 Delivery instructions</div>
+            <p class="order-customer-note__hint">Add gate code, landmark, or preferences. You can edit until the order is delivered.</p>
+            <textarea id="order-note-input-${docId}" class="order-customer-note__input" maxlength="${ORDER_NOTE_MAX_LENGTH}" placeholder="e.g. Call before delivery, ring bell twice, leave with security...">${escOrderNoteText(note.text)}</textarea>
+            <div class="order-customer-note__footer">
+                <span class="order-customer-note__meta" id="order-note-meta-${docId}">${updatedStr ? `Saved ${updatedStr}` : 'Not saved yet'}</span>
+                <button type="button" class="btn-gold order-customer-note__save" onclick="saveOrderCustomerNote('${docId}')">Save note</button>
+            </div>
+        </div>`;
+    }
+
+    return `<div class="order-customer-note order-customer-note--readonly" id="order-note-block-${docId}">
+        <div class="order-customer-note__label">📝 Your delivery notes</div>
+        ${note.text
+            ? `<div class="order-customer-note__readonly-text">${escOrderNoteText(note.text)}</div>
+               ${updatedStr ? `<div class="order-customer-note__meta">Saved ${escOrderNoteText(updatedStr)}</div>` : ''}`
+            : `<p class="order-customer-note__readonly-text order-customer-note__readonly-text--muted">No delivery notes were added for this order.</p>`}
+        <p class="order-customer-note__hint order-customer-note__hint--locked">Notes are locked after delivery.</p>
+    </div>`;
+}
+
+window.saveOrderCustomerNote = async function(orderDocId) {
+    if (!currentUser) return showToast('Please sign in to save notes.');
+    const textarea = document.getElementById(`order-note-input-${orderDocId}`);
+    if (!textarea) return;
+
+    const text = textarea.value.trim();
+    if (text.length > ORDER_NOTE_MAX_LENGTH) {
+        return showToast(`Note must be under ${ORDER_NOTE_MAX_LENGTH} characters.`);
+    }
+
+    const btn = document.querySelector(`#order-note-block-${orderDocId} .order-customer-note__save`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+    }
+
+    try {
+        const ref = db.collection('orders').doc(orderDocId);
+        const snap = await ref.get();
+        if (!snap.exists) return showToast('Order not found.');
+        const order = snap.data();
+        if (order.uid !== currentUser.uid) return showToast('You can only edit your own orders.');
+
+        if (!isOrderCustomerNoteEditable(order)) {
+            return showToast('Notes are locked after delivery.');
+        }
+
+        await ref.set({
+            customerNote: {
+                text,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: currentUser.uid
+            }
+        }, { merge: true });
+
+        const meta = document.getElementById(`order-note-meta-${orderDocId}`);
+        if (meta) meta.textContent = 'Saved just now';
+        showToast(text ? 'Delivery note saved' : 'Note cleared');
+    } catch (err) {
+        console.error('Save order note failed:', err);
+        showToast('Could not save note. Try again.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Save note';
+        }
+    }
+};
+
 const ORDER_STATUSES = [
     { value: 'pending', label: '⏳ Pending' },
     { value: 'partially_confirmed', label: '🟡 Partially Confirmed' },
@@ -2365,6 +2507,8 @@ function renderOrdersList(docs) {
                 </div>
 
                 ${refundSectionHtml}
+
+                ${buildAdminOrderCustomerNoteHtml(o)}
                 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid #222;">
                     ${o.showOverallStatus === true 
@@ -2459,6 +2603,8 @@ function renderOrdersList(docs) {
                     <div style="font-weight:700; color:#666; font-size:9px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.5px;">📦 Items</div>
                     ${itemsHtml}
                 </div>
+
+                ${buildCustomerOrderNoteHtml(docId, o)}
 
                 ${promoInfo}
 
@@ -2784,6 +2930,7 @@ window.showAdminOrderDetailsModal = async function(docId) {
         </div>`;
 
         document.getElementById('adm-ord-modal-content').innerHTML = `
+            ${buildAdminOrderCustomerNoteHtml(o)}
             ${globalShippingHtml}
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <div style="font-weight:700; color:#fff; font-size:13px; margin:5px 0 0;">📦 Order Items Fulfillment</div>

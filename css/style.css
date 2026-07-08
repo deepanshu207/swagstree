@@ -1931,6 +1931,101 @@ body.body-footer-pos-scroll .storefront-load-more {
     opacity: 0.9;
 }
 
+.order-customer-note {
+    margin: 10px 0;
+    padding: 12px;
+    background: #0a0a0a;
+    border: 1px solid #252525;
+    border-radius: 10px;
+}
+.order-customer-note--admin {
+    background: rgba(255, 215, 0, 0.04);
+    border-color: rgba(255, 215, 0, 0.15);
+}
+.order-customer-note--readonly {
+    background: #0d0d0d;
+}
+.order-customer-note__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.order-customer-note__badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(46, 204, 113, 0.12);
+    color: #2ecc71;
+}
+.order-customer-note__badge--live {
+    background: rgba(255, 215, 0, 0.12);
+    color: var(--gold);
+}
+.order-customer-note__hint {
+    margin: 0 0 8px;
+    font-size: 10px;
+    color: #777;
+    line-height: 1.4;
+}
+.order-customer-note__hint--locked {
+    margin: 8px 0 0;
+    margin-bottom: 0;
+}
+.order-customer-note__input {
+    width: 100%;
+    min-height: 72px;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #111;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.45;
+    resize: vertical;
+    margin: 0;
+    font-family: inherit;
+}
+.order-customer-note__input:focus {
+    outline: none;
+    border-color: var(--gold);
+}
+.order-customer-note__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+.order-customer-note__meta {
+    font-size: 10px;
+    color: #666;
+}
+.order-customer-note__save {
+    width: auto !important;
+    padding: 8px 14px !important;
+    font-size: 11px !important;
+    margin: 0 !important;
+}
+.order-customer-note__readonly-text {
+    font-size: 12px;
+    color: #ddd;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.order-customer-note__readonly-text--muted {
+    color: #666;
+    font-style: italic;
+}
+
 @media (max-width: 380px) {
     .order-customer-actions__btn {
         font-size: 9px;

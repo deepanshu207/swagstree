@@ -1694,18 +1694,29 @@ window.openSuperViewOrders = async function(uid, email) {
             let itemsText = '';
             if (o.items && Array.isArray(o.items)) {
                 itemsText = o.items.map(item => {
-                    const sizeStr = item.size ? ` (Size: ${item.size})` : '';
-                    return `<div style="font-size:11px; color:#ccc; margin-top:2px;">• ${item.name} x ${item.quantity || 1}${sizeStr}</div>`;
+                    const qty = item.qty || item.quantity || 1;
+                    const sizeStr = item.variantSize || item.size ? ` (${item.variantSize || item.size})` : '';
+                    return `<div style="font-size:11px; color:#ccc; margin-top:2px;">• ${item.name} × ${qty}${sizeStr}</div>`;
                 }).join('');
             } else {
                 itemsText = `<div style="font-size:11px; color:#666;">No items details.</div>`;
             }
             
+            const note = parseOrderCustomerNote(o);
+            const noteUpdated = formatOrderNoteTimestamp(note.updatedAt);
+            const noteBlock = note.text
+                ? `<div style="margin-top:8px; padding:8px 10px; background:rgba(255,215,0,0.06); border:1px solid rgba(255,215,0,0.18); border-radius:8px;">
+                        <div style="font-size:9px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:4px;">📝 Customer note</div>
+                        <div style="font-size:11px; color:#ddd; line-height:1.45; white-space:pre-wrap;">${escOrderNoteText(note.text)}</div>
+                        ${noteUpdated ? `<div style="font-size:9px; color:#666; margin-top:4px;">Updated: ${escOrderNoteText(noteUpdated)}</div>` : ''}
+                   </div>`
+                : `<div style="margin-top:8px; font-size:10px; color:#555; font-style:italic;">No customer delivery note</div>`;
+
             html += `
                 <div style="background:#111; border:1px solid #333; padding:12px; border-radius:10px; display:flex; flex-direction:column; gap:8px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <span style="font-size:11px; font-weight:700; color:var(--gold);">#${o.id}</span>
+                            <span style="font-size:11px; font-weight:700; color:var(--gold);">#${o.orderId || o.id}</span>
                             <div style="font-size:10px; color:#555; margin-top:2px;">${dateStr}</div>
                         </div>
                         <div style="text-align:right;">
@@ -1719,6 +1730,7 @@ window.openSuperViewOrders = async function(uid, email) {
                         <div style="font-size:9px; color:#666; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Items:</div>
                         ${itemsText}
                     </div>
+                    ${noteBlock}
                     ${o.trackingId ? `
                         <div style="font-size:10px; color:#aaa; display:flex; gap:4px; align-items:center;">
                             <span>🚚</span> Tracking: <code style="color:var(--gold); font-size:10px;">${o.trackingId}</code>

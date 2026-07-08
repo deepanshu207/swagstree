@@ -2698,36 +2698,31 @@ function renderAdminChatMessages(messages, customerName) {
     body.scrollTop = body.scrollHeight;
 }
 
-async function ensureProductsForChat() {
+async function ensureProductsForChat(maxAttempts = 6) {
     if ((window.products || []).length) return true;
-    for (let i = 0; i < 24; i++) {
-        await new Promise(resolve => setTimeout(resolve, 125));
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(resolve => setTimeout(resolve, 80));
         if ((window.products || []).length) return true;
     }
     return false;
+}
+
+function chatMessageNeedsCatalog(text) {
+    return /best seller|suggest|recommend|outfit|under|styles|show me|price filter|what.?s new|categor|cart|stock|promo|discount|compare|similar|gift|wedding|party|cheapest|premium|all product|full catalog|product list|give all|show all|complaint|issue|order problem|product issue|kurta|saree|dress|shirt/i.test(text || '');
 }
 
 async function handleAiSupportMessage(text) {
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
 
-    await ensureSupportThread(threadId, profile);
-
     window.supportChatState.loaded = true;
     appendSupportBubble('customer', text, '', AI_CHANNEL);
 
-    const customerMsg = {
-        sender: 'customer',
-        text,
-        type: 'text'
-    };
-    try {
-        await persistAiChatMessage(threadId, customerMsg);
-    } catch (e) {
-        console.warn('Could not persist AI chat message:', e);
-    }
-
     const typing = typeof appendTypingIndicator === 'function' ? appendTypingIndicator() : null;
+
+    ensureSupportThread(threadId, profile).catch(e => console.warn('Support thread sync:', e));
+    persistAiChatMessage(threadId, { sender: 'customer', text, type: 'text' }).catch(e => console.warn('Could not persist AI chat message:', e));
+
     try {
         const orderPickId = resolveChatOrderPickIndex(text);
         if (orderPickId) {
@@ -2743,10 +2738,12 @@ async function handleAiSupportMessage(text) {
             return;
         }
 
-        if (/best seller|suggest|recommend|outfit|under|styles|show me|price filter|what.?s new|categor|cart|stock|promo|discount|compare|similar|gift|wedding|party|cheapest|premium|all product|full catalog|product list|give all|show all|complaint|issue|order problem|product issue/i.test(text)) {
-            await ensureProductsForChat();
-        }
-        const reply = await generateSmartSupportReply(text);
+        const catalogPromise = chatMessageNeedsCatalog(text) && !(window.products || []).length
+            ? ensureProductsForChat()
+            : Promise.resolve(true);
+        const replyPromise = generateSmartSupportReply(text);
+        const [, reply] = await Promise.all([catalogPromise, replyPromise]);
+
         if (reply.pickIntercept) {
             if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
             appendSupportBubble('bot', 'Please **Select** a product from the list above, or reply **1–5**.', '', AI_CHANNEL);
@@ -2763,17 +2760,11 @@ async function handleAiSupportMessage(text) {
             });
         }
 
-        const aiMsg = {
+        persistAiChatMessage(threadId, {
             sender: 'bot',
             text: reply.text,
             ...buildAiPersistMeta(reply)
-        };
-
-        try {
-            await persistAiChatMessage(threadId, aiMsg);
-        } catch (persistErr) {
-            console.warn('Could not persist AI reply (shown locally):', persistErr);
-        }
+        }).catch(persistErr => console.warn('Could not persist AI reply (shown locally):', persistErr));
     } catch (e) {
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
         console.error('Support chat reply failed:', e);
@@ -2947,7 +2938,7 @@ window.sendChatMessageWithText = async function(text) {
     try {
         await handleSupportCustomerMessage(text);
     } finally {
-        setTimeout(() => { window.supportChatState.sendLock = false; }, 500);
+        window.supportChatState.sendLock = false;
     }
 };
 
