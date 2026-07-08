@@ -44,13 +44,30 @@ const AI_SUPPORT_CHIPS = [
     'Suggest outfits under ₹1000',
     'Best sellers',
     "What's new?",
+    'Gift ideas under ₹1500',
+    'Complete outfit under ₹3000',
     'Browse categories',
     'Track my order',
     'My cart',
     'Offers & promos',
     'Payment & COD',
-    'Size guide',
     'Talk to admin'
+];
+
+const CHAT_OCCASION_KEYWORDS = {
+    wedding: ['wedding', 'shaadi', 'bridal', 'reception', 'sangeet'],
+    party: ['party', 'celebration', 'night out', 'cocktail'],
+    office: ['office', 'work', 'formal', 'professional', 'corporate'],
+    casual: ['casual', 'everyday', 'daily wear', 'relaxed'],
+    festive: ['festive', 'festival', 'diwali', 'holi', 'eid', 'navratri', 'puja'],
+    ethnic: ['ethnic', 'traditional', 'indian wear'],
+    date: ['date night', 'dinner date', 'romantic']
+};
+
+const CHAT_COLOR_KEYWORDS = [
+    'red', 'maroon', 'crimson', 'blue', 'navy', 'indigo', 'green', 'olive', 'emerald',
+    'black', 'white', 'cream', 'beige', 'pink', 'rose', 'gold', 'yellow', 'orange',
+    'purple', 'violet', 'brown', 'grey', 'gray', 'teal', 'turquoise', 'peach', 'mint'
 ];
 
 const ADMIN_SUPPORT_CHIPS = [
@@ -241,7 +258,9 @@ function buildChatHelpMenuHtml() {
         <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('My cart')">My cart</button>
         <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Track my order')">Orders</button>
         <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Offers & promos')">Promos</button>
-        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Payment & COD')">Payment</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Gift ideas under ₹1500')">Gifts</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Complete outfit under ₹3000')">Full outfit</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Cheapest products')">Budget picks</button>
         <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Talk to admin')">Live support</button>
     </div>`;
 }
@@ -293,6 +312,271 @@ function getProductSizeColorSummary(p) {
     if (sizes.length) parts.push(`Sizes: ${sizes.join(', ')}`);
     if (uniqueColors.length) parts.push(`Colors: ${uniqueColors.join(', ')}`);
     return parts.join(' · ');
+}
+
+function extractMinPrice(text) {
+    if (!text) return null;
+    const q = String(text).toLowerCase().replace(/₹/g, ' ').replace(/,/g, '');
+    const patterns = [
+        /(?:above|over|more than|minimum|min|at least|from)\s*(\d{2,6})/,
+        /(?:between|from)\s*(\d{2,6})\s*(?:and|to|-)\s*(\d{2,6})/
+    ];
+    const between = q.match(patterns[1]);
+    if (between) {
+        const n = parseInt(between[1], 10);
+        if (n >= 50 && n <= 100000) return n;
+    }
+    const m = q.match(patterns[0]);
+    if (m) {
+        const n = parseInt(m[1], 10);
+        if (n >= 50 && n <= 100000) return n;
+    }
+    return null;
+}
+
+function extractColorsFromQuery(text) {
+    const q = (text || '').toLowerCase();
+    return CHAT_COLOR_KEYWORDS.filter(c => new RegExp(`\\b${c}\\b`).test(q));
+}
+
+function detectOccasionFromQuery(text) {
+    const q = (text || '').toLowerCase();
+    for (const [occasion, keywords] of Object.entries(CHAT_OCCASION_KEYWORDS)) {
+        if (keywords.some(kw => q.includes(kw))) return occasion;
+    }
+    return null;
+}
+
+function productMatchesColors(p, colors) {
+    if (!colors || !colors.length) return true;
+    const hay = getProductSearchHaystack(p);
+    return colors.some(c => hay.includes(c));
+}
+
+function scoreProductRelevance(p, queryTokens, colors, occasion) {
+    const hay = getProductSearchHaystack(p);
+    let score = 0;
+    queryTokens.forEach(t => { if (t.length > 2 && hay.includes(t)) score += 2; });
+    if (colors.length && productMatchesColors(p, colors)) score += 3;
+    if (occasion) {
+        const occWords = CHAT_OCCASION_KEYWORDS[occasion] || [];
+        if (occWords.some(w => hay.includes(w))) score += 2;
+    }
+    score += (p.salesCount || p.popularity || 0) * 0.01;
+    return score;
+}
+
+function searchProductsAdvanced(text, displayLimit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    const list = window.products || [];
+    const maxPrice = extractMaxPrice(text);
+    const minPrice = extractMinPrice(text);
+    const colors = extractColorsFromQuery(text);
+    const occasion = detectOccasionFromQuery(text);
+    const inStockOnly = /in stock|available now/.test((text || '').toLowerCase());
+    const q = cleanProductSearchQuery(text);
+    const tokens = q.split(/\s+/).filter(w => w.length > 2);
+
+    let filtered = list.filter(p => {
+        const price = Number(p.price) || 0;
+        if (maxPrice != null && price > maxPrice) return false;
+        if (minPrice != null && price < minPrice) return false;
+        if (colors.length && !productMatchesColors(p, colors)) return false;
+        if (inStockOnly) {
+            if (p.stockManaged !== false && typeof p.stock === 'number' && p.stock <= 0) return false;
+        }
+        if (!tokens.length && !occasion) return true;
+        const hay = getProductSearchHaystack(p);
+        if (occasion) {
+            const occWords = CHAT_OCCASION_KEYWORDS[occasion] || [];
+            if (occWords.some(w => hay.includes(w))) return true;
+        }
+        if (!tokens.length) return !!occasion;
+        return hay.includes(q) || tokens.some(w => hay.includes(w));
+    });
+
+    filtered = filtered.slice().sort((a, b) => {
+        const sa = scoreProductRelevance(a, tokens, colors, occasion);
+        const sb = scoreProductRelevance(b, tokens, colors, occasion);
+        if (sb !== sa) return sb - sa;
+        return (Number(a.price) || 0) - (Number(b.price) || 0);
+    });
+
+    return {
+        items: filtered.slice(0, displayLimit),
+        total: filtered.length,
+        meta: { maxPrice, minPrice, colors, occasion }
+    };
+}
+
+function findProductsForComparison(text) {
+    const raw = (text || '').trim();
+    const patterns = [
+        /compare\s+(.+?)\s+(?:and|with|vs\.?|versus)\s+(.+)/i,
+        /(.+?)\s+vs\.?\s+(.+)/i,
+        /(?:which is (?:better|cheaper)|difference between)\s+(.+?)\s+(?:and|or)\s+(.+)/i,
+        /(.+?)\s+or\s+(.+?)\s+(?:which|what)/i
+    ];
+    for (const re of patterns) {
+        const m = raw.match(re);
+        if (!m) continue;
+        const a = findProductByNameQuery(m[1]);
+        const b = findProductByNameQuery(m[2]);
+        if (a && b && a.id !== b.id) return [a, b];
+        if (a || b) return [a, b].filter(Boolean);
+    }
+    return [];
+}
+
+function buildProductComparisonText(products) {
+    if (!products || products.length < 2) return null;
+    const [a, b] = products;
+    const priceA = Number(a.price) || 0;
+    const priceB = Number(b.price) || 0;
+    const cheaper = priceA <= priceB ? a : b;
+    const pricier = priceA <= priceB ? b : a;
+    const diff = Math.abs(priceA - priceB);
+    const sumA = getProductSizeColorSummary(a);
+    const sumB = getProductSizeColorSummary(b);
+    return `**Compare:**\n\n**${a.name}** — ₹${priceA}${sumA ? `\n${sumA}` : ''}\n\n**${b.name}** — ₹${priceB}${sumB ? `\n${sumB}` : ''}\n\n**Verdict:** **${cheaper.name}** is ₹${diff} cheaper. Open each product for full details, reviews & size guide.`;
+}
+
+function getSimilarProducts(anchor, limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    if (!anchor) return [];
+    const cat = (typeof resolveProductCategoryLabel === 'function'
+        ? resolveProductCategoryLabel(anchor)
+        : (anchor.categoryName || '')).toLowerCase();
+    const tokens = (anchor.name || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const list = (window.products || []).filter(p => p.id !== anchor.id);
+    const scored = list.map(p => {
+        const hay = getProductSearchHaystack(p);
+        const pCat = (typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(p)
+            : (p.categoryName || '')).toLowerCase();
+        let score = 0;
+        if (cat && pCat === cat) score += 4;
+        else if (cat && pCat.includes(cat.split(' ')[0])) score += 2;
+        tokens.forEach(t => { if (hay.includes(t)) score += 2; });
+        if (productMatchesColors(p, extractColorsFromQuery(anchor.name || ''))) score += 1;
+        score += (p.salesCount || p.popularity || 0) * 0.01;
+        return { p, score };
+    });
+    scored.sort((x, y) => y.score - x.score);
+    return scored.filter(x => x.score > 0).slice(0, limit).map(x => x.p);
+}
+
+function getCheapestProducts(limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    return (window.products || []).slice()
+        .filter(p => (Number(p.price) || 0) > 0)
+        .sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0))
+        .slice(0, limit);
+}
+
+function getPremiumProducts(limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    return (window.products || []).slice()
+        .filter(p => (Number(p.price) || 0) > 0)
+        .sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0))
+        .slice(0, limit);
+}
+
+function buildOutfitBundleUnderBudget(budget, limit = 3) {
+    const max = Number(budget) || 3000;
+    const list = (window.products || []).slice()
+        .filter(p => (Number(p.price) || 0) > 0 && (Number(p.price) || 0) <= max)
+        .sort((a, b) => (b.salesCount || b.popularity || 0) - (a.salesCount || a.popularity || 0));
+    const picked = [];
+    const usedCats = new Set();
+    let total = 0;
+    for (const p of list) {
+        if (picked.length >= limit) break;
+        const cat = (typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(p)
+            : (p.categoryName || 'other')).toLowerCase();
+        const price = Number(p.price) || 0;
+        if (usedCats.has(cat) && picked.length < limit - 1) continue;
+        if (total + price > max) continue;
+        picked.push(p);
+        usedCats.add(cat);
+        total += price;
+    }
+    if (!picked.length) {
+        return { items: list.slice(0, limit), total: list.slice(0, limit).reduce((s, p) => s + (Number(p.price) || 0), 0), budget: max, partial: true };
+    }
+    return { items: picked, total, budget: max, partial: false };
+}
+
+function getGiftRecipientHint(text) {
+    const q = (text || '').toLowerCase();
+    if (/mom|mother|mum|maa/.test(q)) return 'mom';
+    if (/dad|father|papa/.test(q)) return 'dad';
+    if (/wife|husband|partner|spouse/.test(q)) return 'partner';
+    if (/friend|bestie|bff/.test(q)) return 'friend';
+    if (/sister|brother|sibling/.test(q)) return 'sibling';
+    if (/girlfriend|boyfriend/.test(q)) return 'partner';
+    return 'someone special';
+}
+
+function buildStylingAdviceReply(text) {
+    const anchor = findProductByNameQuery(text);
+    const colors = extractColorsFromQuery(text);
+    if (anchor) {
+        const similar = getSimilarProducts(anchor, 4);
+        const anchorColors = extractColorsFromQuery(getProductSearchHaystack(anchor));
+        const tips = [
+            'Pair with **neutral tones** (cream, beige, white) for an elegant look.',
+            'Add **gold or statement accessories** to elevate ethnic pieces.',
+            'Match footwear to the occasion — flats for daily, heels for parties.'
+        ];
+        if (anchorColors.length) {
+            tips.unshift(`**${anchor.name}** comes in ${anchorColors.join(', ')} — try contrasting or tonal accessories.`);
+        }
+        return {
+            text: `**Style tips for ${anchor.name}:**\n\n${tips.map(t => `• ${t}`).join('\n')}\n\nSimilar picks you may like:`,
+            products: similar.length ? similar : [anchor],
+            totalCount: similar.length || 1
+        };
+    }
+    if (colors.length) {
+        const result = searchProductsAdvanced(`${colors[0]} outfit`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        return {
+            text: `**${colors[0].charAt(0).toUpperCase() + colors[0].slice(1)} styling:** Works well with neutrals, metallics, or complementary tones. Here are **${colors[0]}** picks from our catalog:`,
+            products: result.items,
+            totalCount: result.total,
+            filterMaxPrice: result.meta?.maxPrice ?? null
+        };
+    }
+    return {
+        text: '**Styling tips:**\n• Mention a **product name** for pairing advice\n• Ask e.g. *"red kurta under ₹1500"* or *"complete outfit under ₹3000"*\n• For weddings/parties, say the **occasion** + budget'
+    };
+}
+
+function searchFabricCareInCatalog(text) {
+    const q = (text || '').toLowerCase();
+    const fabricTerms = ['cotton', 'silk', 'linen', 'rayon', 'georgette', 'chiffon', 'velvet', 'wool', 'polyester', 'satin'];
+    const careTerms = ['wash', 'dry clean', 'iron', 'care'];
+    const terms = [...fabricTerms, ...careTerms].filter(t => q.includes(t));
+    const product = findProductByNameQuery(text);
+    if (product && product.description) {
+        const desc = product.description.slice(0, 280);
+        return {
+            text: `**${product.name}** — fabric & care from listing:\n\n${desc}${product.description.length > 280 ? '…' : ''}\n\nSee the product page for full details.`,
+            products: [product],
+            totalCount: 1
+        };
+    }
+    const list = (window.products || []).filter(p => {
+        const hay = `${p.description || ''} ${getProductSearchHaystack(p)}`.toLowerCase();
+        return terms.some(t => hay.includes(t));
+    });
+    if (list.length) {
+        return {
+            text: `Found **${list.length}** item${list.length === 1 ? '' : 's'} with fabric/care info matching your question:`,
+            products: list.slice(0, CHAT_PRODUCT_DISPLAY_LIMIT),
+            totalCount: list.length
+        };
+    }
+    return {
+        text: '**Fabric & care:** Details are on each product page (description + care notes). Tell me a **product name**, or say **Talk to admin** for specific fabric questions.'
+    };
 }
 const SUPPORT_CHANNEL = 'support';
 const AI_CHANNEL = 'ai';
@@ -1015,8 +1299,8 @@ function extractMaxPrice(text) {
 
 function cleanProductSearchQuery(query) {
     return (query || '')
-        .replace(/suggest|recommend|show|more|under|below|outfits?|styles?|rs\.?|₹|please|help|want|need|find|another|other/gi, ' ')
-        .replace(/\d+/g, ' ')
+        .replace(/suggest|recommend|show|more|under|below|outfits?|styles?|rs\.?|₹|please|help|want|need|find|another|other|compare|similar|gift|complete|cheapest|premium|versus|vs\.?/gi, ' ')
+        .replace(/\b\d+\b/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
         .toLowerCase();
@@ -1094,6 +1378,18 @@ function detectSupportIntent(text) {
     if (/browse categor|shop by categor|all categor|list categor/.test(q)) return 'category';
     if (/offer|promo|coupon|discount|wheel|deal/.test(q)) return 'promo';
     if (/deliver|shipping|dispatch|when will i get/.test(q)) return 'delivery';
+    if (/compare|versus|vs\.?\s+\w|difference between|which is (better|cheaper)/.test(q)) return 'compare';
+    if (/similar to|like this|alternative to|something like|alternate to|items like/.test(q)) return 'similar';
+    if (/complete (the )?look|full outfit|entire outfit|outfit combo|outfit under|complete outfit/.test(q)) return 'outfit_bundle';
+    if (/gift (for|idea)|present for|birthday gift|anniversary gift|gift under/.test(q)) return 'gift';
+    if (/what goes with|pair with|coordinate with|style (with|tip)|fashion advice|what color (goes|matches)|color combination/.test(q)) return 'styling_advice';
+    if (/cheapest|lowest price|most affordable|budget pick|under ₹?\d+.*cheapest/.test(q)) return 'cheapest';
+    if (/premium|luxury|most expensive|highest price|splurge|top tier/.test(q)) return 'premium';
+    if (/fabric|material|cotton|silk|linen|georgette|chiffon|wash|care instruction|dry clean|how to wash/.test(q)) return 'fabric_care';
+    if (/bulk order|wholesale|large quantity|corporate order|bulk purchase/.test(q)) return 'bulk';
+    const occasion = detectOccasionFromQuery(q);
+    if (occasion && /wear|outfit|dress|suggest|recommend|look|for/.test(q)) return { type: 'occasion', occasion };
+    if (extractColorsFromQuery(q).length >= 1 && (maxPrice != null || /under|below|in /.test(q))) return 'advanced_search';
     if (/talk to admin|human|agent|real person|speak to support|connect.*admin|live support|contact support/.test(q)) return 'human';
     if (/complaint|issue|problem|defect|damaged|wrong item|return|refund|complain/.test(q)) return 'complaint';
     if (/my cart|what.?s in my cart|cart items|shopping cart/.test(q)) return 'cart';
@@ -1265,7 +1561,7 @@ async function generateSmartSupportReply(userText) {
         const rangeTxt = range ? ` Prices from **₹${range.min}** to **₹${range.max}**.` : '';
         const catTxt = cats.length ? `\n\n**Shop by category:** ${cats.join(', ')}` : '';
         return {
-            text: `I can help you with:${rangeTxt}\n\n• **Product suggestions** (e.g. "outfits under ₹1000")\n• **Best sellers** & **what's new**\n• **Prices**, sizes & availability\n• **Track orders** & **cart**\n• **Payment / COD** info\n• **Talk to admin** for live help${catTxt}`,
+            text: `I can help you with:${rangeTxt}\n\n• **Product suggestions** (e.g. "outfits under ₹1000")\n• **Best sellers** & **what's new**\n• **Advanced:** compare products, similar styles, gifts, full outfits, occasion wear\n• **Multi-filter:** e.g. "red kurta under ₹1500 in stock"\n• **Track orders** & **cart**\n• **Payment / COD** info\n• **Talk to admin** for live help${catTxt}`,
             extraHtml: buildChatHelpMenuHtml()
         };
     }
@@ -1339,6 +1635,135 @@ async function generateSmartSupportReply(userText) {
     if (intent === 'delivery') {
         return {
             text: '**Delivery:** Timelines depend on your location and order status.\n\n• Signed-in customers: **Profile → My Orders** for updates\n• Guest orders: sign in with the same email used at checkout\n• Need help? Say **Track my order** or **Talk to admin**'
+        };
+    }
+    if (intent === 'compare') {
+        const pair = findProductsForComparison(userText);
+        if (pair.length >= 2) {
+            const text = buildProductComparisonText(pair);
+            return { text, products: pair, totalCount: 2 };
+        }
+        if (pair.length === 1) {
+            const similar = getSimilarProducts(pair[0], 4);
+            return {
+                text: `I found **${pair[0].name}** (₹${pair[0].price}). Name a **second product** to compare, or browse similar styles:`,
+                products: similar.length ? similar : [pair[0]],
+                totalCount: similar.length || 1
+            };
+        }
+        return {
+            text: '**Compare products:** Ask e.g. *"Compare [product A] and [product B]"* or *"[name] vs [name]"*. I\'ll show price, sizes & colors side by side.'
+        };
+    }
+    if (intent === 'similar') {
+        const anchor = findProductByNameQuery(userText.replace(/similar to|like this|alternative to|something like|alternate to|items like/gi, ''));
+        if (!anchor) {
+            return { text: 'Tell me a **product name** — e.g. *"Similar to Blue Floral Kurta"* — and I\'ll find matching styles.' };
+        }
+        const similar = getSimilarProducts(anchor);
+        return {
+            text: similar.length
+                ? `Styles **similar to ${anchor.name}** (₹${anchor.price}):`
+                : `No close matches yet for **${anchor.name}**. Try browsing the same category on Home.`,
+            products: similar.length ? similar : [anchor],
+            totalCount: similar.length || 1
+        };
+    }
+    if (intent === 'outfit_bundle') {
+        const budget = extractMaxPrice(userText) || 3000;
+        const bundle = buildOutfitBundleUnderBudget(budget);
+        const lines = bundle.items.map(p => `• ${p.name} — ₹${p.price}`).join('\n');
+        return {
+            text: bundle.partial
+                ? `Couldn't build a full multi-piece look under **₹${budget}** — here are top picks within budget (total ₹${bundle.total}):`
+                : `**Complete look under ₹${budget}** (total **₹${bundle.total}**):\n${lines}\n\nMix & match — tap any item for sizes & colors.`,
+            products: bundle.items,
+            totalCount: bundle.items.length,
+            filterMaxPrice: budget
+        };
+    }
+    if (intent === 'gift') {
+        const max = extractMaxPrice(userText) || 1500;
+        const recipient = getGiftRecipientHint(userText);
+        const result = searchProductsAdvanced(`gift festive elegant under ${max}`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const items = result.items.length ? result.items : getBestSellerProducts().filter(p => (Number(p.price) || 0) <= max);
+        return {
+            text: items.length
+                ? `**Gift ideas for ${recipient}** under **₹${max}** — popular picks customers love:`
+                : `No gifts under **₹${max}** right now. Try a higher budget or *Best sellers*.`,
+            products: items,
+            totalCount: items.length,
+            filterMaxPrice: max
+        };
+    }
+    if (typeof intent === 'object' && intent.type === 'occasion') {
+        const max = extractMaxPrice(userText);
+        const occLabel = intent.occasion.charAt(0).toUpperCase() + intent.occasion.slice(1);
+        const searchText = `${intent.occasion} wear outfit ${max ? `under ${max}` : ''}`;
+        const result = searchProductsAdvanced(searchText, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const items = result.items.length ? result.items : searchProducts(searchText, max).items;
+        return {
+            text: items.length
+                ? `**${occLabel} wear** picks${max ? ` under **₹${max}**` : ''}:`
+                : `No exact **${occLabel.toLowerCase()}** matches — try a higher budget or browse **Best sellers**.`,
+            products: items,
+            totalCount: result.total || items.length,
+            filterMaxPrice: max
+        };
+    }
+    if (intent === 'styling_advice') {
+        return buildStylingAdviceReply(userText);
+    }
+    if (intent === 'cheapest') {
+        const max = extractMaxPrice(userText);
+        let items = getCheapestProducts();
+        if (max != null) items = items.filter(p => (Number(p.price) || 0) <= max);
+        return {
+            text: items.length
+                ? `**Most affordable** picks${max ? ` under **₹${max}**` : ''} in our catalog:`
+                : 'Catalog is loading — try again in a moment.',
+            products: items,
+            totalCount: items.length,
+            filterMaxPrice: max
+        };
+    }
+    if (intent === 'premium') {
+        const items = getPremiumProducts();
+        return {
+            text: items.length ? '**Premium / top-priced** styles in our catalog:' : 'Catalog is loading.',
+            products: items,
+            totalCount: items.length
+        };
+    }
+    if (intent === 'fabric_care') {
+        return searchFabricCareInCatalog(userText);
+    }
+    if (intent === 'bulk') {
+        const contact = getContactInfo();
+        return {
+            text: `**Bulk / wholesale orders:** For large quantities or corporate gifting, our team can help with pricing & availability.\n\n• **Talk to admin** (Live Support tab)\n• WhatsApp: wa.me/${contact.wa}\n• Email: ${contact.email}`,
+            extraHtml: canUseStorefrontLiveSupport()
+                ? `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="switchSupportChatTab('admin')">Open Live Support</button>`
+                : `<a href="https://wa.me/${contact.wa}" target="_blank" style="font-size:10px;color:var(--gold);">WhatsApp us</a>`
+        };
+    }
+    if (intent === 'advanced_search') {
+        const result = searchProductsAdvanced(userText, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const { items, total, meta } = result;
+        const parts = [];
+        if (meta.colors?.length) parts.push(meta.colors.join(', '));
+        if (meta.maxPrice != null) parts.push(`under ₹${meta.maxPrice}`);
+        if (meta.minPrice != null) parts.push(`above ₹${meta.minPrice}`);
+        if (meta.occasion) parts.push(`${meta.occasion} wear`);
+        const filterDesc = parts.length ? ` (${parts.join(', ')})` : '';
+        return {
+            text: items.length
+                ? `Found **${items.length}${total > items.length ? ` of ${total}` : ''}** match${total !== 1 ? 'es' : ''}${filterDesc}:`
+                : `No exact matches${filterDesc}. Try fewer filters or browse **Best sellers**.`,
+            products: items,
+            totalCount: total,
+            filterMaxPrice: meta.maxPrice ?? null,
+            extraHtml: buildExploreMoreHtml(total, items.length, meta.maxPrice ?? null)
         };
     }
     if (intent === 'new_arrivals') {
@@ -1445,8 +1870,10 @@ async function generateSmartSupportReply(userText) {
     }
     if (intent === 'suggest' || intent === 'price') {
         const max = extractMaxPrice(userText);
-        const result = searchProducts(userText, max);
-        const { items, total } = result;
+        const advanced = searchProductsAdvanced(userText, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const result = advanced.items.length ? advanced : searchProducts(userText, max);
+        const items = result.items || result;
+        const total = result.total ?? items.length;
         return {
             text: items.length
                 ? `Showing **${items.length}${total > items.length ? ` of ${total}` : ''}** style${total !== 1 ? 's' : ''}${max != null ? ` under **₹${max}**` : ''}:`
@@ -1496,6 +1923,21 @@ function generateLocalFallbackReply(userText) {
         };
     }
     const max = extractMaxPrice(userText);
+    const advanced = searchProductsAdvanced(userText, CHAT_PRODUCT_DISPLAY_LIMIT);
+    if (advanced.items.length) {
+        const { items, total, meta } = advanced;
+        const parts = [];
+        if (meta.colors?.length) parts.push(meta.colors.join(', '));
+        if (meta.maxPrice != null) parts.push(`under ₹${meta.maxPrice}`);
+        const filterDesc = parts.length ? ` (${parts.join(', ')})` : '';
+        return {
+            text: `Here are **${items.length}${total > items.length ? ` of ${total}` : ''}** item${total !== 1 ? 's' : ''} that may match${filterDesc}:`,
+            products: items,
+            totalCount: total,
+            filterMaxPrice: meta.maxPrice ?? max,
+            extraHtml: buildExploreMoreHtml(total, items.length, meta.maxPrice ?? max)
+        };
+    }
     const result = searchProducts(userText.replace(/help|please|want|need|show|find/gi, ''), max);
     const { items, total } = result;
     if (items.length) {
@@ -1524,7 +1966,7 @@ function generateLocalFallbackReply(userText) {
     const cats = getCatalogCategoriesForChat(5);
     const catHint = cats.length ? ` Categories: ${cats.join(', ')}.` : '';
     return {
-        text: `I'm here to help with **products**, **prices**, **orders**, and **styling**.${catHint}\n\nTry: *Best sellers*, *Suggest outfits under ₹1000*, *What's new?*, *My cart*, or **Talk to admin**.`,
+        text: `I'm here to help with **products**, **prices**, **orders**, and **styling**.${catHint}\n\n**Advanced:** compare products, similar styles, gifts, full outfits, occasion wear, color + budget filters.\n\nTry: *Best sellers*, *red kurta under ₹1500*, *Compare [A] and [B]*, or **Talk to admin**.`,
         extraHtml: buildChatHelpMenuHtml()
     };
 }
@@ -1559,6 +2001,33 @@ function rebuildAiReplyProducts(customerText, msg) {
     if (intent === 'best_sellers') return getBestSellerProducts();
     if (intent === 'new_arrivals') return getNewArrivalProducts();
     if (intent === 'stock') return getInStockProducts();
+    if (intent === 'cheapest') {
+        const max = extractMaxPrice(customerText);
+        let items = getCheapestProducts();
+        if (max != null) items = items.filter(p => (Number(p.price) || 0) <= max);
+        return items;
+    }
+    if (intent === 'premium') return getPremiumProducts();
+    if (intent === 'compare') return findProductsForComparison(customerText);
+    if (intent === 'similar') {
+        const anchor = findProductByNameQuery(customerText.replace(/similar to|like this|alternative to|something like/gi, ''));
+        return anchor ? getSimilarProducts(anchor) : [];
+    }
+    if (intent === 'outfit_bundle') {
+        const budget = extractMaxPrice(customerText) || 3000;
+        return buildOutfitBundleUnderBudget(budget).items;
+    }
+    if (intent === 'gift') {
+        const max = extractMaxPrice(customerText) || 1500;
+        const r = searchProductsAdvanced(`gift under ${max}`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        return r.items.length ? r.items : getBestSellerProducts().filter(p => (Number(p.price) || 0) <= max);
+    }
+    if (typeof intent === 'object' && intent.type === 'occasion') {
+        const max = extractMaxPrice(customerText);
+        const r = searchProductsAdvanced(`${intent.occasion} wear ${max ? `under ${max}` : ''}`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        return r.items.length ? r.items : searchProducts(`${intent.occasion} wear`, max).items;
+    }
+    if (intent === 'advanced_search') return searchProductsAdvanced(customerText).items;
     if (intent === 'category') {
         const q = customerText.replace(/categor|collection|section|show|browse|in/gi, ' ').trim();
         return (q.length > 2 ? searchProductsByCategory(q) : searchProductsByCategory('')).items;
@@ -1568,6 +2037,8 @@ function rebuildAiReplyProducts(customerText, msg) {
     }
     if (intent === 'suggest' || intent === 'price') {
         const max = extractMaxPrice(customerText);
+        const adv = searchProductsAdvanced(customerText);
+        if (adv.items.length) return adv.items;
         return searchProducts(customerText, max).items;
     }
     return searchProducts(customerText.replace(/help|please|want|need|show|find/gi, ''), extractMaxPrice(customerText)).items;
@@ -1809,7 +2280,7 @@ async function handleAiSupportMessage(text) {
 
     const typing = typeof appendTypingIndicator === 'function' ? appendTypingIndicator() : null;
     try {
-        if (/best seller|suggest|recommend|outfit|under|styles|show me|price filter|what.?s new|categor|cart|stock|promo|discount/i.test(text)) {
+        if (/best seller|suggest|recommend|outfit|under|styles|show me|price filter|what.?s new|categor|cart|stock|promo|discount|compare|similar|gift|wedding|party|cheapest|premium|red |blue |green |black |white /i.test(text)) {
             await ensureProductsForChat();
         }
         const reply = await generateSmartSupportReply(text);

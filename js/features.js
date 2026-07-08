@@ -333,9 +333,12 @@ function generateSystemPrompt(limitLength = false) {
 
 You help customers with:
 - Product suggestions, best sellers, new arrivals, categories, prices, sizes & colors
+- Advanced: compare products, similar styles, gifts, full outfits under budget, occasion wear (wedding/party/office/festive)
+- Multi-filter search: color + budget + stock (e.g. "red kurta under ₹1500 in stock")
 - Cart summary, wishlist, how to order, payment (UPI, cards, COD)
 - Order tracking (Profile → My Orders), delivery questions
 - Promo codes & discount wheel
+- Fabric/care from product descriptions; bulk orders → Live Support
 - Escalation: suggest "Talk to admin" / Live Support tab for human help
 
 ${categoryContext}${priceContext}${catalogContext}
@@ -2254,7 +2257,7 @@ window.submitNewsletter = submitNewsletter;
 window.APP_FEATURES_CONTENT = window.APP_FEATURES_CONTENT || {
     announcementText: "✨ EXTRA 10% OFF ON PRE-PAID ORDERS! CODE: PREPAID10 ✨",
     chatbotWelcome: "Hi! I'm your Swag Stree AI Help. Ask about products, prices, orders, cart, or promos.",
-    chatbotChips: "What can you help with?, Best sellers, What's new?, Suggest outfits under ₹1000, My cart, Track my order, Payment & COD, Talk to admin",
+    chatbotChips: "What can you help with?, Best sellers, Gift ideas under ₹1500, Complete outfit under ₹3000, Suggest outfits under ₹1000, My cart, Track my order, Talk to admin",
     chatbotEngine: 'local',
     newsletterDelay: 5,
     wheelJackpotCode: "WIN50"
@@ -2708,7 +2711,7 @@ function applyFeatureContentUI() {
         I18N_DICTIONARY.en.ai_chat_welcome = welcomeText;
     }
     
-    const chipsStr = content.chatbotChips || "What can you help with?, Best sellers, What's new?, Suggest outfits under ₹1000, My cart, Track my order, Payment & COD, Talk to admin";
+    const chipsStr = content.chatbotChips || "What can you help with?, Best sellers, Gift ideas under ₹1500, Complete outfit under ₹3000, Suggest outfits under ₹1000, My cart, Track my order, Talk to admin";
     renderChatbotChips(chipsStr);
 }
 window.applyFeatureContentUI = applyFeatureContentUI;
