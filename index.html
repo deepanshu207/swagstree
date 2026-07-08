@@ -842,7 +842,7 @@
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <i class="fa fa-box-open" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Products &amp; catalog</h4>
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Product page settings</h4>
                         <p id="admin-products-catalog-summary" style="margin:2px 0 0; font-size:11px; color:#666;">Sort order &amp; page sizes</p>
                     </div>
                 </div>
@@ -1742,7 +1742,7 @@
                 <i id="admin-layout-panel-icon" class="fa fa-chevron-down admin-layout-settings__chevron" aria-hidden="true"></i>
             </div>
             <div id="admin-layout-panel-content" class="admin-layout-settings__body" style="display:none;">
-                <p class="admin-layout-settings__intro">Toggle <strong>Show</strong> to hide a section. Drag or use arrows to reorder. Tap <strong>Save layout</strong> when done.</p>
+                <p class="admin-layout-settings__intro"><strong>Main area</strong> = daily workspace (product rows, categories, search). <strong>Store settings</strong> = configuration panels inside the Store settings accordion. They never overlap — use Show to hide, drag to reorder.</p>
                 <div class="admin-layout-settings__zones">
                     <div class="admin-layout-zone-accordion">
                         <button type="button" class="admin-layout-zone-accordion__head" onclick="toggleAdminLayoutZoneAccordion('above')" aria-expanded="false" aria-controls="admin-layout-above-content">
@@ -1752,6 +1752,7 @@
                             </span>
                             <i id="admin-layout-above-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
                         </button>
+                        <p class="admin-layout-zone__hint admin-layout-zone__hint--compact">Product rows, categories, search &amp; sort — what you use every day</p>
                         <div id="admin-layout-above-content" class="admin-layout-zone-accordion__body" style="display:none;">
                             <div id="admin-layout-above-list" class="admin-layout-sortable-list" role="list" aria-label="Main area sections"></div>
                         </div>
@@ -1764,6 +1765,7 @@
                             </span>
                             <i id="admin-layout-inside-icon" class="fa fa-chevron-down admin-layout-zone-accordion__icon" aria-hidden="true"></i>
                         </button>
+                        <p class="admin-layout-zone__hint admin-layout-zone__hint--compact">Sort, page sizes, checkout, promos — inside Store settings accordion</p>
                         <div id="admin-layout-inside-content" class="admin-layout-zone-accordion__body" style="display:none;">
                             <div id="admin-layout-inside-list" class="admin-layout-sortable-list" role="list" aria-label="Store settings sections"></div>
                         </div>
@@ -3506,7 +3508,7 @@
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
-    <script src="js/admin-favorites.js?v=4.5"></script>
+    <script src="js/admin-favorites.js?v=4.6"></script>
     <script src="js/categories.js?v=12.3"></script>
     <script src="js/store.js?v=10.19"></script>
     <script src="js/checkout.js?v=10.6"></script>

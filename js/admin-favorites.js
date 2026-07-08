@@ -16,14 +16,14 @@
         productSort: { title: 'Product sort', hint: '', icon: 'fa-sort', ids: ['admin-product-sort-wrap'] },
         categories: { title: 'Categories', hint: '', icon: 'fa-tags', ids: ['admin-category-section'] },
         categorySearch: { title: 'Category search', hint: '', icon: 'fa-search', ids: ['admin-category-list-tools'], parentKey: 'categories', sortable: false },
-        products: { title: 'Products list', hint: '', icon: 'fa-box-open', ids: ['admin-products-area'] }
+        products: { title: 'Product rows', hint: '', icon: 'fa-list', ids: ['admin-products-area'] }
     };
 
     const TOOL_REGISTRY = {
         bulk: { title: 'Bulk catalog', hint: 'Export / import Excel', icon: 'fa-file-excel-o', id: 'admin-bulk-settings', settingsGroup: 'catalog' },
         checkout: { title: 'Checkout', hint: 'COD advance & cart limits', icon: 'fa-shopping-cart', id: 'admin-checkout-settings', settingsGroup: 'checkout' },
         promo: { title: 'Promo codes', hint: 'Discount codes', icon: 'fa-ticket-alt', id: 'admin-promo-settings', accordionContentId: 'admin-promo-accordion-content', accordionIconId: 'admin-promo-accordion-icon', settingsGroup: 'checkout' },
-        productsCatalog: { title: 'Products & catalog', hint: 'Sort & page sizes', icon: 'fa-box-open', id: 'admin-products-catalog-settings', accordionContentId: 'admin-products-catalog-accordion-content', accordionIconId: 'admin-products-catalog-accordion-icon', settingsGroup: 'catalog' },
+        productsCatalog: { title: 'Product page settings', hint: 'Sort & page sizes', icon: 'fa-sliders-h', id: 'admin-products-catalog-settings', accordionContentId: 'admin-products-catalog-accordion-content', accordionIconId: 'admin-products-catalog-accordion-icon', settingsGroup: 'catalog' },
         pagination: { title: 'Orders & customers', hint: 'List page sizes', icon: 'fa-list-ol', id: 'admin-pagination-settings', accordionContentId: 'admin-pagination-accordion-content', accordionIconId: 'admin-pagination-accordion-icon', settingsGroup: 'lists' },
         'feature-content': { title: 'Storefront content', hint: 'Bar, chatbot, newsletter', icon: 'fa-paint-brush', id: 'admin-feature-content-settings', accordionContentId: 'admin-feature-content-accordion-content', accordionIconId: 'admin-feature-content-accordion-icon', settingsGroup: 'storefront' },
         feedback: { title: 'Customer Diaries', hint: 'Instagram-style feed', icon: 'fa-camera', id: 'admin-feedback-settings', accordionContentId: 'admin-feedback-accordion-content', accordionIconId: 'admin-feedback-accordion-icon', settingsGroup: 'engagement' },
@@ -128,6 +128,7 @@
         adminEnsureToolbarKeysPlacement(clean);
         adminEnsureHeaderActionsPlacement(clean);
         adminMigrateLayoutToolKeys(clean);
+        adminEnforceZoneRules(clean);
         adminEnsureProductsCatalogPlacement(clean);
         adminEnsureCheckoutBlocksPlacement(clean);
         const vis = { ...(visible || adminBlockVisibilityRead()) };
@@ -235,6 +236,26 @@
         });
     }
 
+    function adminEnforceZoneRules(clean) {
+        TOOL_KEYS.forEach(key => {
+            const aboveIdx = clean.above.indexOf(key);
+            if (aboveIdx >= 0) {
+                clean.above.splice(aboveIdx, 1);
+                if (!clean.below.includes(key) && !clean.inside.includes(key)) clean.inside.push(key);
+            }
+        });
+        SECTION_KEYS.forEach(key => {
+            if (key === 'categorySearch' || key === 'headerActions') return;
+            ['inside', 'below'].forEach(zone => {
+                const idx = clean[zone].indexOf(key);
+                if (idx >= 0) {
+                    clean[zone].splice(idx, 1);
+                    if (!clean.above.includes(key)) clean.above.push(key);
+                }
+            });
+        });
+    }
+
     function adminEnsureCheckoutBlocksPlacement(clean) {
         if (!clean.inside.includes('checkout')) {
             const promoIdx = clean.inside.indexOf('promo');
@@ -248,7 +269,7 @@
     }
 
     function adminEnsureProductsCatalogPlacement(clean) {
-        if (clean.inside.includes('productsCatalog')) return;
+        if (clean.inside.includes('productsCatalog') || clean.below.includes('productsCatalog')) return;
         const paginationIdx = clean.inside.indexOf('pagination');
         if (paginationIdx >= 0) clean.inside.splice(paginationIdx, 0, 'productsCatalog');
         else clean.inside.unshift('productsCatalog');
@@ -369,14 +390,16 @@
         if (TOOLBAR_ONLY_ABOVE_KEYS.has(key)) {
             return '<span class="admin-layout-zone-pill-note" title="Stays in main area">Main only</span>';
         }
-        const labels = { above: 'Main', inside: 'Settings', below: 'Pin' };
+        if (!adminIsToolKey(key)) {
+            return '<span class="admin-layout-zone-pill-note" title="Daily workspace — stays in main area">Main only</span>';
+        }
+        const labels = { inside: 'Settings', below: 'Pin below' };
         const titles = {
-            above: 'Show in main Admin area',
-            inside: 'Show inside Store settings',
-            below: 'Pin below Store settings'
+            inside: 'Inside Store settings accordion',
+            below: 'Pinned below Store settings (always visible)'
         };
         return `<div class="admin-layout-zone-pills" role="group" aria-label="Placement for ${adminBlockMeta(key)?.title || key}">
-            ${LAYOUT_ZONES.map(z => `<button type="button" class="admin-layout-zone-pill${zone === z ? ' admin-layout-zone-pill--active' : ''}" title="${titles[z]}" onclick="adminLayoutMoveBlockToZone('${key}', '${z}')" aria-pressed="${zone === z ? 'true' : 'false'}">${labels[z]}</button>`).join('')}
+            ${['inside', 'below'].map(z => `<button type="button" class="admin-layout-zone-pill${zone === z ? ' admin-layout-zone-pill--active' : ''}" title="${titles[z]}" onclick="adminLayoutMoveBlockToZone('${key}', '${z}')" aria-pressed="${zone === z ? 'true' : 'false'}">${labels[z]}</button>`).join('')}
         </div>`;
     }
 
@@ -473,8 +496,7 @@
     function adminBindSortables() {
         adminDestroySortables();
         if (!window.Sortable) return;
-        const opts = {
-            group: 'admin-block-order',
+        const baseOpts = {
             animation: 160,
             handle: '.admin-layout-drag-handle:not(.admin-layout-drag-handle--nested)',
             draggable: '.admin-layout-block-item:not(.admin-layout-block-item--nested)',
@@ -483,16 +505,19 @@
             onEnd() {
                 const draft = adminLayoutDraftGet();
                 const next = adminReadOrderFromDom();
-                draft.above = next.above;
-                draft.inside = next.inside;
-                draft.below = next.below;
-                adminLayoutUpdateSaveButton();
+                const normalized = adminNormalizePlacement(next.above, next.inside, next.below, draft.visible);
+                draft.above = normalized.above;
+                draft.inside = normalized.inside;
+                draft.below = normalized.below;
+                renderAdminLayoutSettings();
             }
         };
-        LAYOUT_ZONES.forEach(zone => {
-            const el = document.getElementById(`admin-layout-${zone}-list`);
-            if (el) _zoneSortables[zone] = Sortable.create(el, opts);
-        });
+        const aboveEl = document.getElementById('admin-layout-above-list');
+        const insideEl = document.getElementById('admin-layout-inside-list');
+        const belowEl = document.getElementById('admin-layout-below-list');
+        if (aboveEl) _zoneSortables.above = Sortable.create(aboveEl, { ...baseOpts, group: 'admin-layout-workspace' });
+        if (insideEl) _zoneSortables.inside = Sortable.create(insideEl, { ...baseOpts, group: 'admin-layout-tools' });
+        if (belowEl) _zoneSortables.below = Sortable.create(belowEl, { ...baseOpts, group: 'admin-layout-tools' });
     }
 
     function renderAdminLayoutSettings() {
@@ -501,8 +526,18 @@
 
         adminDestroySortables();
         const draft = adminLayoutDraftGet();
+        const normalized = adminNormalizePlacement(draft.above, draft.inside, draft.below, draft.visible);
+        draft.above = normalized.above;
+        draft.inside = normalized.inside;
+        draft.below = normalized.below;
+        draft.visible = normalized.visible;
+
         const allKeys = new Set([...draft.above, ...draft.inside, ...draft.below]);
         SORTABLE_BLOCK_KEYS.forEach(key => { if (!allKeys.has(key)) draft.inside.push(key); });
+        const renormalized = adminNormalizePlacement(draft.above, draft.inside, draft.below, draft.visible);
+        draft.above = renormalized.above.filter(k => !adminIsToolKey(k));
+        draft.inside = renormalized.inside.filter(k => adminIsToolKey(k));
+        draft.below = renormalized.below.filter(k => adminIsToolKey(k));
 
         const buildZoneHtml = (keys, zone) => keys
             .filter(key => key !== 'headerActions')
@@ -525,6 +560,14 @@
 
     window.adminLayoutMoveBlockToZone = function(key, zone) {
         if (!LAYOUT_ZONES.includes(zone) || !SORTABLE_BLOCK_KEYS.includes(key)) return;
+        if (adminIsToolKey(key) && zone === 'above') {
+            if (typeof showToast === 'function') showToast('Store settings panels stay in Settings or Pin below.');
+            return;
+        }
+        if (!adminIsToolKey(key) && zone !== 'above') {
+            if (typeof showToast === 'function') showToast('This section stays in the main area.');
+            return;
+        }
         const draft = adminLayoutDraftGet();
         adminRemoveKeyFromZones(draft, key);
         draft[zone].push(key);
