@@ -24,6 +24,8 @@ window.adminAnalyticsState = window.adminAnalyticsState || {
     supportThreads: 0,
     reviewCount: 0,
     pendingReviews: 0,
+    wishlistUsers: 0,
+    wishlistItems: 0,
     productNameMap: {},
     categoryNameMap: {}
 };
@@ -323,6 +325,7 @@ function analyticsAggregateTraffic(storeData, startMs, endMs) {
     const hourlyTraffic = Array(24).fill(0);
     const productViewMap = {};
     const utmBreakdown = {};
+    const searchBreakdown = {};
 
     Object.keys(daily).forEach(function(dk) {
         const dayMs = analyticsDayKeyToMs(dk);
@@ -355,9 +358,15 @@ function analyticsAggregateTraffic(storeData, startMs, endMs) {
         Object.keys(row.utm || {}).forEach(function(uk) {
             utmBreakdown[uk] = (utmBreakdown[uk] || 0) + (Number(row.utm[uk]) || 0);
         });
+        Object.keys(row.searches || {}).forEach(function(sk) {
+            searchBreakdown[sk] = (searchBreakdown[sk] || 0) + (Number(row.searches[sk]) || 0);
+        });
     });
 
     if (!startMs && !endMs) {
+        Object.keys(totals.searches || {}).forEach(function(sk) {
+            searchBreakdown[sk] = (searchBreakdown[sk] || 0) + (Number(totals.searches[sk]) || 0);
+        });
         visits = Number(totals.visits) || visits;
         pageViews = Number(totals.pageViews) || pageViews;
         Object.keys(totals.productViews || {}).forEach(function(pid) {
@@ -370,7 +379,8 @@ function analyticsAggregateTraffic(storeData, startMs, endMs) {
         visits, pageViews, newVisits, returningVisits, productViewCount, productViewMap,
         topPages: Object.entries(pageBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 10),
         eventBreakdown, deviceBreakdown, hourlyTraffic,
-        utmTop: Object.entries(utmBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8)
+        utmTop: Object.entries(utmBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8),
+        topSearches: Object.entries(searchBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 12)
     };
 }
 
@@ -782,6 +792,89 @@ function analyticsRenderGrowthTab(current, previous, traffic, ctx) {
         '</div>';
 }
 
+function analyticsTodayDayKey() {
+    const d = new Date();
+    return '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+}
+
+function analyticsGetTodaySnapshot(storeData, orders) {
+    const dk = analyticsTodayDayKey();
+    const daily = (storeData && storeData.daily && storeData.daily[dk]) || {};
+    const startMs = analyticsPeriodStartMs(1);
+    let todayOrders = 0;
+    let todayRevenue = 0;
+    (orders || []).forEach(function(o) {
+        const ts = analyticsTsToMs(o.timestamp);
+        if (ts >= startMs) {
+            todayOrders += 1;
+            todayRevenue += analyticsOrderRevenue(o);
+        }
+    });
+    return {
+        visits: Number(daily.visits) || 0,
+        pageViews: Number(daily.pageViews) || 0,
+        revenue: todayRevenue || Number(daily.revenue) || 0,
+        orders: todayOrders
+    };
+}
+
+function analyticsRenderTodayPulse(snapshot) {
+    return '<div class="admin-analytics-pulse">' +
+        '<div class="admin-analytics-pulse__title"><i class="fa fa-bolt"></i> Today live</div>' +
+        '<div class="admin-analytics-pulse__grid">' +
+        '<div class="admin-analytics-pulse__item"><span>Revenue</span><strong>' + analyticsFormatCurrency(snapshot.revenue) + '</strong></div>' +
+        '<div class="admin-analytics-pulse__item"><span>Orders</span><strong>' + snapshot.orders + '</strong></div>' +
+        '<div class="admin-analytics-pulse__item"><span>Visits</span><strong>' + snapshot.visits + '</strong></div>' +
+        '<div class="admin-analytics-pulse__item"><span>Page views</span><strong>' + snapshot.pageViews + '</strong></div>' +
+        '</div></div>';
+}
+
+function analyticsEventCount(traffic, key) {
+    return (traffic.eventBreakdown && traffic.eventBreakdown[key]) || 0;
+}
+
+function analyticsRenderEngagementTab(traffic, st) {
+    const events = traffic.eventBreakdown || {};
+    const kpis = '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
+        analyticsRenderKpi('Logins', String(analyticsEventCount(traffic, 'login')), 'Returning sessions', '#3498db', null) +
+        analyticsRenderKpi('Signups', String(analyticsEventCount(traffic, 'signup')), 'New accounts', '#2ecc71', null) +
+        analyticsRenderKpi('AI / chat msgs', String(analyticsEventCount(traffic, 'chat_message_sent')), String(st.supportThreads) + ' threads', '#9b59b6', null) +
+        analyticsRenderKpi('Chat opens', String(analyticsEventCount(traffic, 'support_chat_open')), 'Support widget', '#1abc9c', null) +
+        analyticsRenderKpi('Reviews', String(analyticsEventCount(traffic, 'review_submitted')), st.reviewCount + ' total · ' + st.pendingReviews + ' pending', '#e67e22', null) +
+        analyticsRenderKpi('Wishlist', String(analyticsEventCount(traffic, 'add_to_wishlist')), st.wishlistItems + ' saved items', '#f39c12', null) +
+        '</div>';
+
+    const topSearches = (traffic.topSearches || []).length
+        ? '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-search"></i> Top search terms</h5>' +
+            analyticsRenderBreakdown(traffic.topSearches.map(function(s) {
+                return [s[0].replace(/_/g, ' '), s[1]];
+            }), 'Search terms appear as customers use the search bar.') + '</div>'
+        : '';
+
+    const engagementEvents = [
+        ['newsletter_subscribe', 'Newsletter signups'],
+        ['product_share', 'Product shares'],
+        ['category_filter', 'Category filters'],
+        ['payment_method_selected', 'Payment selections'],
+        ['remove_from_cart', 'Cart removals'],
+        ['promo_applied', 'Promos applied']
+    ].map(function(pair) {
+        const c = events[pair[0]] || 0;
+        return c > 0 ? [pair[1], c] : null;
+    }).filter(Boolean);
+
+    return kpis +
+        '<div class="admin-analytics-split">' + topSearches +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-heart"></i> Store engagement events</h5>' +
+        analyticsRenderBreakdown(engagementEvents, 'Engagement events build as customers interact.') +
+        '</div></div>' +
+        '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
+        analyticsRenderKpi('Wishlist users', String(st.wishlistUsers), 'Customers with saved items', '#e91e63', null) +
+        analyticsRenderKpi('Support inbox', String(st.supportThreads), 'Total conversations', '#673ab7', null) +
+        analyticsRenderKpi('Product reviews', String(st.reviewCount), st.pendingReviews + ' awaiting approval', '#00bcd4', null) +
+        '</div>';
+}
+
 function renderAdminAnalyticsDashboard() {
     const root = document.getElementById('admin-analytics-dashboard');
     if (!root) return;
@@ -815,6 +908,7 @@ function renderAdminAnalyticsDashboard() {
     const signups = analyticsCountSignups(st.users, range.startMs, 0);
     const prevSignups = st.periodDays > 0 ? analyticsCountSignups(st.users, range.prevStartMs, range.prevEndMs) : 0;
     const repurchaseDays = analyticsComputeRepurchaseDays(periodOrders);
+    const todaySnapshot = analyticsGetTodaySnapshot(st.storeAnalytics, st.orders);
 
     const ctx = {
         current: current, previous: previous, traffic: traffic, prevTraffic: prevTraffic,
@@ -828,6 +922,7 @@ function renderAdminAnalyticsDashboard() {
     else if (st.tab === 'products') tabHtml = analyticsRenderProductsTab(current, traffic, nameMap);
     else if (st.tab === 'orders') tabHtml = analyticsRenderOrdersTab(st.orders, range.startMs);
     else if (st.tab === 'funnel') tabHtml = analyticsRenderFunnelTab(funnel, traffic, current);
+    else if (st.tab === 'engagement') tabHtml = analyticsRenderEngagementTab(traffic, st);
     else if (st.tab === 'growth') tabHtml = analyticsRenderGrowthTab(current, previous, traffic, ctx);
     else tabHtml = analyticsRenderOverview(ctx);
 
@@ -836,6 +931,7 @@ function renderAdminAnalyticsDashboard() {
         : '';
 
     root.innerHTML =
+        analyticsRenderTodayPulse(todaySnapshot) +
         '<div class="admin-analytics-toolbar">' +
         '<div class="admin-analytics-periods">' +
         [1, 7, 30, 90, 0].map(function(d) {
@@ -845,7 +941,7 @@ function renderAdminAnalyticsDashboard() {
         '<div class="admin-analytics-toolbar__right"><span class="admin-analytics-updated">' + updated + '</span>' +
         '<button type="button" class="btn-gold admin-analytics-refresh" onclick="loadAdminAnalytics(true)"><i class="fa fa-refresh"></i> Refresh</button></div></div>' +
         '<div class="admin-analytics-tabs">' +
-        [['overview', 'Overview'], ['orders', 'Orders'], ['customers', 'Customers'], ['products', 'Products'], ['funnel', 'Funnel'], ['growth', 'Growth']].map(function(t) {
+        [['overview', 'Overview'], ['orders', 'Orders'], ['customers', 'Customers'], ['products', 'Products'], ['funnel', 'Funnel'], ['engagement', 'Engagement'], ['growth', 'Growth']].map(function(t) {
             return '<button type="button" class="admin-analytics-tab' + (st.tab === t[0] ? ' active' : '') + '" onclick="setAdminAnalyticsTab(\'' + t[0] + '\')">' + t[1] + '</button>';
         }).join('') + '</div>' +
         '<div class="admin-analytics-body">' + tabHtml + '</div>';
@@ -997,9 +1093,18 @@ window.loadAdminAnalytics = async function(force) {
         st.supportThreads = supportSnap.size;
         st.reviewCount = 0;
         st.pendingReviews = 0;
+        st.wishlistUsers = 0;
+        st.wishlistItems = 0;
         reviewsSnap.forEach(function(doc) {
             st.reviewCount += 1;
             if ((doc.data().status || '') === 'pending') st.pendingReviews += 1;
+        });
+        usersSnap.forEach(function(doc) {
+            const wish = doc.data().wishlist;
+            if (Array.isArray(wish) && wish.length) {
+                st.wishlistUsers += 1;
+                st.wishlistItems += wish.length;
+            }
         });
 
         st.loaded = true;

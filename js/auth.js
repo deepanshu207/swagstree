@@ -175,6 +175,27 @@ auth.onAuthStateChanged(user => {
 
         // Load and merge user cart from Firestore
         db.collection("users").doc(user.uid).get().then(doc => {
+            const data = doc.exists ? doc.data() : {};
+            const providersList = user.providerData ? user.providerData.map(p => p.providerId) : [];
+            const creationMs = user.metadata && user.metadata.creationTime
+                ? new Date(user.metadata.creationTime).getTime() : 0;
+            const isBrandNew = creationMs && (Date.now() - creationMs) < 120000;
+            const loginMethod = providersList.includes('google.com') ? 'google' : 'email';
+
+            if (!doc.exists || !data.createdAt) {
+                db.collection("users").doc(user.uid).set({
+                    email: user.email || data.email || '',
+                    displayName: user.displayName || data.displayName || '',
+                    providers: providersList,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true }).catch(function() {});
+                if (isBrandNew && typeof trackAnalyticsSignup === 'function') {
+                    trackAnalyticsSignup(loginMethod);
+                }
+            } else if (typeof trackAnalyticsLogin === 'function') {
+                trackAnalyticsLogin(loginMethod);
+            }
+
             if (doc.exists && doc.data().cart) {
                 const savedCart = doc.data().cart;
                 if (Array.isArray(savedCart)) {
@@ -300,6 +321,7 @@ auth.onAuthStateChanged(user => {
     } else {
         isSuperAdmin = false;
         isAdmin = false;
+        if (typeof clearAnalyticsLoginSession === 'function') clearAnalyticsLoginSession();
         isRegMode = false;
         const nameField = document.getElementById('reg-name-field');
         const phoneField = document.getElementById('reg-phone-field');
@@ -617,7 +639,6 @@ async function handleMainAuth() {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
-            if (typeof trackAnalyticsSignup === 'function') trackAnalyticsSignup('email');
             showToast("✅ Account Created! Welcome!");
         } else {
             // LOGIN

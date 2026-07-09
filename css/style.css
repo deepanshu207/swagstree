@@ -10798,3 +10798,49 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-analytics-status--delivered { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
 .admin-analytics-status--cancelled { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
 .admin-analytics-status--pending { background: rgba(243, 156, 18, 0.15); color: #f39c12; }
+
+.admin-analytics-pulse {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 215, 0, 0.04));
+    border: 1px solid rgba(255, 215, 0, 0.25);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+.admin-analytics-pulse__title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.admin-analytics-pulse__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+.admin-analytics-pulse__item {
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.admin-analytics-pulse__item span {
+    font-size: 9px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.admin-analytics-pulse__item strong {
+    font-size: 15px;
+    color: #fff;
+}
+@media (max-width: 600px) {
+    .admin-analytics-pulse__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

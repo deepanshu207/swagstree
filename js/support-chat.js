@@ -2902,6 +2902,7 @@ window.openSupportChat = async function() {
 
     await syncSupportChatHeaderFromThread(threadId);
     applySupportUnreadBadge(0);
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('support_chat_open');
 };
 
 window.toggleAIChat = function() {
@@ -2936,6 +2937,7 @@ window.sendChatMessageWithText = async function(text) {
     if (!text || window.supportChatState?.sendLock) return;
     window.supportChatState.sendLock = true;
     try {
+        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('chat_message_sent');
         await handleSupportCustomerMessage(text);
     } finally {
         window.supportChatState.sendLock = false;

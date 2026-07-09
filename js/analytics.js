@@ -7,7 +7,9 @@
     const LAST_VISIT_KEY = 'swagstree_analytics_last_visit';
     const RETURNING_KEY = 'swagstree_analytics_returning';
     const UTM_CAPTURED_KEY = 'swagstree_analytics_utm_captured';
+    const LOGIN_TRACKED_KEY = 'swagstree_analytics_login_tracked';
     const VISIT_THROTTLE_MS = 30 * 60 * 1000;
+    const ANALYTICS_SKIP_PAGES = new Set(['admin', 'super']);
 
     function analyticsDayKey(d) {
         const date = d || new Date();
@@ -108,7 +110,8 @@
     window.captureAnalyticsUtm = captureAnalyticsUtm;
 
     function trackAnalyticsPageView(page, meta) {
-        if (!page || typeof db === 'undefined' || !db) return;
+        if (!page || ANALYTICS_SKIP_PAGES.has(page)) return;
+        if (typeof db === 'undefined' || !db) return;
 
         const sessionId = getAnalyticsSessionId();
         const isNewVisit = shouldCountNewVisit();
@@ -194,6 +197,17 @@
             updates['daily.' + dk + '.eventProducts.' + eventKey + '.' + pk] =
                 firebase.firestore.FieldValue.increment(1);
         }
+        if (extra.query) {
+            const sk = analyticsPageKey(String(extra.query).toLowerCase().slice(0, 48));
+            if (sk && sk !== 'unknown') {
+                updates['daily.' + dk + '.searches.' + sk] = firebase.firestore.FieldValue.increment(1);
+                updates['totals.searches.' + sk] = firebase.firestore.FieldValue.increment(1);
+            }
+        }
+        if (extra.promoCode) {
+            const pk = analyticsPageKey('promo_' + extra.promoCode);
+            updates['daily.' + dk + '.promoEvents.' + pk] = firebase.firestore.FieldValue.increment(1);
+        }
         const eventValue = Number(extra.value != null ? extra.value : extra.total) || 0;
         if (eventValue > 0) {
             updates['daily.' + dk + '.eventValue.' + eventKey] =
@@ -243,4 +257,25 @@
         trackAnalyticsEvent('signup', { method: method || 'email' });
     }
     window.trackAnalyticsSignup = trackAnalyticsSignup;
+
+    function trackAnalyticsLogin(method) {
+        try {
+            if (sessionStorage.getItem(LOGIN_TRACKED_KEY)) return;
+            sessionStorage.setItem(LOGIN_TRACKED_KEY, '1');
+        } catch (e) { /* ignore */ }
+        trackAnalyticsEvent('login', { method: method || 'email' });
+    }
+    window.trackAnalyticsLogin = trackAnalyticsLogin;
+
+    function trackAnalyticsSearch(query) {
+        const q = String(query || '').trim().toLowerCase().slice(0, 80);
+        if (!q || q.length < 2) return;
+        trackAnalyticsEvent('search', { query: q });
+    }
+    window.trackAnalyticsSearch = trackAnalyticsSearch;
+
+    function clearAnalyticsLoginSession() {
+        try { sessionStorage.removeItem(LOGIN_TRACKED_KEY); } catch (e) { /* ignore */ }
+    }
+    window.clearAnalyticsLoginSession = clearAnalyticsLoginSession;
 })();

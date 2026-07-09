@@ -860,6 +860,7 @@ window.submitProductComment = async function() {
             resetCommentFormState();
             if (textEl) textEl.value = '';
             showToast('✅ Review submitted! It will appear after admin approval.');
+            if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('review_submitted', { productId: activeProductId, rating: rating });
         }
         renderProductCommentsSection();
     } catch (e) {

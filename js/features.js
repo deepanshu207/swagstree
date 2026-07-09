@@ -2249,6 +2249,7 @@ function submitNewsletter() {
         return;
     }
     showToast("Subscribed! Your 10% discount code is: WELCOME10");
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('newsletter_subscribe', { email: email.toLowerCase().slice(0, 40) });
     closeNewsletterPopup();
 }
 window.submitNewsletter = submitNewsletter;

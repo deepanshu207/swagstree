@@ -444,7 +444,12 @@ function changeQty(idx, delta) {
     }
     
     item.qty += delta;
-    if(item.qty <= 0) cart.splice(idx, 1);
+    if (item.qty <= 0) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('remove_from_cart', { productId: item.id });
+        }
+        cart.splice(idx, 1);
+    }
     
     // Only re-render cart contents if the cart sidebar is currently open
     const cartModal = document.getElementById('cart-modal');
@@ -772,6 +777,7 @@ function selectPayment(method) {
     document.querySelectorAll('.payment-chip').forEach(c => c.classList.remove('active'));
     const chip = document.getElementById('pay-' + method);
     if (chip) chip.classList.add('active');
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('payment_method_selected', { method: method });
 
     const upiBox     = document.getElementById('upi-payment-box');
     const codInfoBox = document.getElementById('cod-info-box');

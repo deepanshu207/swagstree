@@ -2298,7 +2298,8 @@ function searchHandler() {
     applySortAndFilter();
     const el = document.getElementById('app_search');
     const q = el ? (el.value || '').trim() : '';
-    if (q && typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('search', { query: q.slice(0, 80) });
+    if (q && typeof trackAnalyticsSearch === 'function') trackAnalyticsSearch(q);
+    else if (q && typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('search', { query: q.slice(0, 80) });
 }
 
 function getStorefrontSearchQuery() {
