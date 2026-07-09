@@ -391,7 +391,8 @@ function addToBagWithSelection(id, size, color, pattern = '') {
         specs.push(pattern);
     }
     const variantText = specs.length > 0 ? ` (${specs.join(' - ')})` : '';
-    showToast(`Added to Bag: ${p.name}${variantText}`); 
+    showToast(`Added to Bag: ${p.name}${variantText}`);
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('add_to_cart', { productId: id });
 }
 
 function updateCartUI() {
@@ -1168,6 +1169,7 @@ async function placeOrder() {
         return showToast("Please enter a complete delivery address (minimum 5 characters).");
     }
     if (cart.length === 0) return showToast("Bag is empty");
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('begin_checkout');
     
     // Filter out unavailable/out-of-stock items from the cart automatically
     const validItems = cart.filter(item => getCartItemAvailability(item).available);
@@ -1689,6 +1691,10 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         } catch (teleErr) {
             console.error("Failed to automatically send Telegram order notification:", teleErr);
         }
+        if (typeof updateUserOrderAnalytics === 'function' && effectiveUid) {
+            updateUserOrderAnalytics(effectiveUid, total, orderId);
+        }
+        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('order_placed', { orderId: orderId, total: total });
         // ----------------------------
         showToast('Success! Order Placed.');
         cart = [];

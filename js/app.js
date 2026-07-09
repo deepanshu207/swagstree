@@ -428,8 +428,9 @@ function navigateToCore(id, el) {
         if (typeof refreshBrevoQuota === 'function') refreshBrevoQuota();
         if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
         if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
-        if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
-    }
+            if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+            if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
+        }
     if (id === 'super') {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
         if (typeof loadAssignedAdmins === 'function') loadAssignedAdmins();
@@ -442,6 +443,10 @@ function navigateToCore(id, el) {
 
     // Update WhatsApp floating icon visibility based on current tab and user role
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+
+    if (typeof trackAnalyticsPageView === 'function') {
+        trackAnalyticsPageView(id);
+    }
 }
 
 function navigateTo(id, el) {
@@ -472,6 +477,7 @@ window.onload = () => {
 
     // Start product/catalog listeners immediately — do not wait for auth (avoids stuck "Loading Products")
     if (typeof loadData === 'function') loadData();
+    if (typeof trackAnalyticsPageView === 'function') trackAnalyticsPageView('home');
 
     // Nudge if Firestore is unusually slow (keeps skeleton but updates message)
     setTimeout(() => {

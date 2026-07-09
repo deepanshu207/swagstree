@@ -1499,6 +1499,7 @@ function showDetail(id, initialColor = null, initialSize = null) {
     const p = products.find(x => x.id === id);
     if (!p) return;
     if (typeof window.trackChatProductView === 'function') window.trackChatProductView(id);
+    if (typeof trackAnalyticsPageView === 'function') trackAnalyticsPageView('product', { productId: id });
 
     const overlay = document.getElementById('deep-link-overlay');
     if (overlay) overlay.style.display = 'none';

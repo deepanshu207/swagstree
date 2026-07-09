@@ -93,6 +93,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+            if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
             if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();
@@ -260,6 +261,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+            if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
             if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();

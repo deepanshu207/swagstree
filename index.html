@@ -60,7 +60,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.76">
+    <link rel="stylesheet" href="css/style.css?v=9.77">
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -951,6 +951,31 @@
             <button class="btn-gold"
                 style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;"
                 onclick="savePaginationSettings()">Save</button>
+            </div>
+        </div>
+
+        <!-- Store Analytics Dashboard -->
+        <div id="admin-analytics-settings" class="admin-store-tools-block" style="display:none; margin: 0 0 16px 0; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                onclick="toggleAdminAnalyticsAccordion()">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <i class="fa fa-line-chart" style="color:var(--gold); font-size:15px;"></i>
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">Store Analytics</h4>
+                        <p style="margin:2px 0 0; font-size:11px; color:#666;">Revenue, visits, customers, products &amp; traffic</p>
+                    </div>
+                </div>
+                <i id="admin-analytics-accordion-icon" class="fa fa-chevron-down"
+                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
+            </div>
+            <div id="admin-analytics-accordion-content"
+                style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
+                <div id="admin-analytics-dashboard" class="admin-analytics-dashboard">
+                    <div class="admin-analytics-loading">
+                        <div class="premium-loader"></div>
+                        <p>Open this panel to load insights.</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -3505,16 +3530,18 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="js/features.js?v=12.2"></script>
-    <script src="js/app.js?v=10.9"></script>
+    <script src="js/analytics.js?v=1.0"></script>
+    <script src="js/app.js?v=10.10"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
-    <script src="js/admin-favorites.js?v=4.6"></script>
+    <script src="js/admin-favorites.js?v=4.7"></script>
+    <script src="js/admin-analytics.js?v=1.0"></script>
     <script src="js/categories.js?v=12.3"></script>
-    <script src="js/store.js?v=10.20"></script>
-    <script src="js/checkout.js?v=10.7"></script>
-    <script src="js/auth.js?v=10.8"></script>
-    <script src="js/comments.js?v=10.5"></script>
+    <script src="js/store.js?v=10.21"></script>
+    <script src="js/checkout.js?v=10.8"></script>
+    <script src="js/auth.js?v=10.9"></script>
+    <script src="js/comments.js?v=10.6"></script>
     <script src="js/support-chat.js?v=11.5"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
     <script src="js/admin.js?v=16.6"></script>

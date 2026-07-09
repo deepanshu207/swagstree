@@ -133,6 +133,7 @@ function syncCurrentAdminCapabilities() {
     const docData = adminDoc ? { status: adminDoc.status, capabilities: adminDoc.capabilities } : null;
     window.currentAdminCapabilities = resolveFullCapabilitiesForEmail(emailLower, docData);
     updateCommentsAdminUIVisibility();
+    if (typeof updateAdminAnalyticsUIVisibility === 'function') updateAdminAnalyticsUIVisibility();
 }
 window.syncCurrentAdminCapabilities = syncCurrentAdminCapabilities;
 
