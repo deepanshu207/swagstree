@@ -979,8 +979,8 @@ function analyticsRenderEngagementTab(traffic, st) {
         ['promo_applied', 'Promos applied'],
         ['promo_failed', 'Promo failures'],
         ['promo_picker_opened', 'Promo picker opens'],
-        ['live_support_tab', 'Live support tab'],
-        ['support_escalated', 'Support escalations']
+        ['live_support_tab', 'Support escalations'],
+        ['order_note_updated', 'Delivery note updates']
     ].map(function(pair) {
         const c = events[pair[0]] || 0;
         return c > 0 ? [pair[1], c] : null;

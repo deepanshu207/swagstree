@@ -2026,6 +2026,65 @@ body.body-footer-pos-scroll .storefront-load-more {
     font-style: italic;
 }
 
+.checkout-delivery-note-wrap {
+    margin: 0 0 14px;
+}
+.checkout-delivery-note__label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #aaa;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+}
+.checkout-delivery-note__optional {
+    color: #666;
+    font-weight: 500;
+}
+.checkout-delivery-note__input {
+    width: 100%;
+    min-height: 58px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #2a2a2a;
+    background: #0d0d0d;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.45;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.checkout-delivery-note__input:focus {
+    outline: none;
+    border-color: rgba(255, 215, 0, 0.45);
+}
+.checkout-delivery-note__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+}
+.checkout-delivery-note__hint {
+    font-size: 10px;
+    color: #666;
+    line-height: 1.35;
+}
+.checkout-delivery-note__count {
+    font-size: 10px;
+    color: #555;
+    flex-shrink: 0;
+}
+.order-customer-note__badge--shipped {
+    background: rgba(52, 152, 219, 0.15);
+    color: #3498db;
+}
+.order-customer-note__char-count {
+    font-size: 10px;
+    color: #666;
+}
+
 @media (max-width: 380px) {
     .order-customer-actions__btn {
         font-size: 9px;
