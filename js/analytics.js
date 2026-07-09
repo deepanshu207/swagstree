@@ -5,6 +5,8 @@
 (function() {
     const SESSION_KEY = 'swagstree_analytics_session';
     const LAST_VISIT_KEY = 'swagstree_analytics_last_visit';
+    const RETURNING_KEY = 'swagstree_analytics_returning';
+    const UTM_CAPTURED_KEY = 'swagstree_analytics_utm_captured';
     const VISIT_THROTTLE_MS = 30 * 60 * 1000;
 
     function analyticsDayKey(d) {
@@ -12,11 +14,19 @@
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        return `${y}${m}${day}`;
+        return y + m + day;
     }
 
     function analyticsPageKey(page) {
         return String(page || 'unknown').replace(/[.#$/\[\]]/g, '_').slice(0, 64);
+    }
+
+    function getAnalyticsDeviceType() {
+        const w = window.innerWidth || 1024;
+        const ua = navigator.userAgent || '';
+        if (/tablet|ipad/i.test(ua) || (w >= 768 && w < 1024)) return 'tablet';
+        if (w < 768 || /mobile|android|iphone|ipod/i.test(ua)) return 'mobile';
+        return 'desktop';
     }
 
     function getAnalyticsSessionId() {
@@ -44,29 +54,86 @@
         return false;
     }
 
+    function isReturningStoreVisitor() {
+        try {
+            if (localStorage.getItem(RETURNING_KEY)) return true;
+            localStorage.setItem(RETURNING_KEY, '1');
+            return false;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function readCapturedUtm() {
+        try {
+            const raw = sessionStorage.getItem('swagstree_utm_data');
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function captureAnalyticsUtm() {
+        if (typeof db === 'undefined' || !db) return;
+        try {
+            if (sessionStorage.getItem(UTM_CAPTURED_KEY)) return;
+            const params = new URLSearchParams(window.location.search);
+            const utm = {};
+            ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach(function(key) {
+                const val = params.get(key);
+                if (val) utm[key.replace('utm_', '')] = String(val).slice(0, 80);
+            });
+            if (!Object.keys(utm).length) return;
+
+            sessionStorage.setItem(UTM_CAPTURED_KEY, '1');
+            sessionStorage.setItem('swagstree_utm_data', JSON.stringify(utm));
+
+            const dk = analyticsDayKey();
+            const storeRef = db.collection('settings').doc('analytics');
+            const updates = {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            Object.keys(utm).forEach(function(k) {
+                const uk = analyticsPageKey('utm_' + k + '_' + utm[k]);
+                updates['daily.' + dk + '.utm.' + uk] = firebase.firestore.FieldValue.increment(1);
+                updates['totals.utm.' + uk] = firebase.firestore.FieldValue.increment(1);
+            });
+            storeRef.set(updates, { merge: true }).catch(function() {});
+        } catch (e) { /* ignore */ }
+    }
+    window.captureAnalyticsUtm = captureAnalyticsUtm;
+
     function trackAnalyticsPageView(page, meta) {
         if (!page || typeof db === 'undefined' || !db) return;
 
         const sessionId = getAnalyticsSessionId();
         const isNewVisit = shouldCountNewVisit();
+        const isReturning = isReturningStoreVisitor();
         const dk = analyticsDayKey();
+        const hour = String(new Date().getHours()).padStart(2, '0');
         const pageKey = analyticsPageKey(page);
+        const device = getAnalyticsDeviceType();
         const extra = meta && typeof meta === 'object' ? meta : {};
 
         const storeRef = db.collection('settings').doc('analytics');
         const storeUpdates = {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            [`daily.${dk}.pageViews`]: firebase.firestore.FieldValue.increment(1),
-            [`daily.${dk}.pages.${pageKey}`]: firebase.firestore.FieldValue.increment(1),
+            ['daily.' + dk + '.pageViews']: firebase.firestore.FieldValue.increment(1),
+            ['daily.' + dk + '.pages.' + pageKey]: firebase.firestore.FieldValue.increment(1),
+            ['daily.' + dk + '.hours.' + hour]: firebase.firestore.FieldValue.increment(1),
+            ['daily.' + dk + '.devices.' + device]: firebase.firestore.FieldValue.increment(1),
             'totals.pageViews': firebase.firestore.FieldValue.increment(1)
         };
         if (isNewVisit) {
-            storeUpdates[`daily.${dk}.visits`] = firebase.firestore.FieldValue.increment(1);
+            storeUpdates['daily.' + dk + '.visits'] = firebase.firestore.FieldValue.increment(1);
             storeUpdates['totals.visits'] = firebase.firestore.FieldValue.increment(1);
+            storeUpdates[isReturning ? 'daily.' + dk + '.returningVisits' : 'daily.' + dk + '.newVisits'] =
+                firebase.firestore.FieldValue.increment(1);
         }
         if (extra.productId) {
-            const pid = analyticsPageKey('product_' + extra.productId);
-            storeUpdates[`daily.${dk}.productViews.${pid}`] = firebase.firestore.FieldValue.increment(1);
+            const pid = analyticsPageKey(String(extra.productId));
+            storeUpdates['daily.' + dk + '.productViews.' + pid] = firebase.firestore.FieldValue.increment(1);
+            storeUpdates['totals.productViews.' + pid] = firebase.firestore.FieldValue.increment(1);
         }
         storeRef.set(storeUpdates, { merge: true }).catch(function() {});
 
@@ -75,17 +142,29 @@
             const userUpdates = {
                 'analytics.lastSeenAt': firebase.firestore.FieldValue.serverTimestamp(),
                 'analytics.lastPage': String(page),
+                'analytics.lastDevice': device,
                 'analytics.pageViewCount': firebase.firestore.FieldValue.increment(1),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             if (isNewVisit) {
                 userUpdates['analytics.visitCount'] = firebase.firestore.FieldValue.increment(1);
                 userUpdates['analytics.lastSessionId'] = sessionId;
+                userUpdates['analytics.isReturning'] = isReturning;
             }
             if (extra.productId) {
                 userUpdates['analytics.lastProductId'] = String(extra.productId);
             }
+            const utm = readCapturedUtm();
+            if (utm && isNewVisit) {
+                userUpdates['analytics.lastUtm'] = utm;
+            }
             userRef.set(userUpdates, { merge: true }).catch(function() {});
+
+            if (isNewVisit && !isReturning) {
+                userRef.set({
+                    'analytics.firstSeenAt': firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true }).catch(function() {});
+            }
         }
     }
     window.trackAnalyticsPageView = trackAnalyticsPageView;
@@ -93,30 +172,47 @@
     function trackAnalyticsEvent(eventName, payload) {
         if (!eventName || typeof db === 'undefined' || !db) return;
         const dk = analyticsDayKey();
+        const hour = String(new Date().getHours()).padStart(2, '0');
         const eventKey = analyticsPageKey(eventName);
+        const extra = payload && typeof payload === 'object' ? payload : {};
+        const device = getAnalyticsDeviceType();
+
         const storeRef = db.collection('settings').doc('analytics');
         const updates = {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            [`daily.${dk}.events.${eventKey}`]: firebase.firestore.FieldValue.increment(1),
-            [`totals.events.${eventKey}`]: firebase.firestore.FieldValue.increment(1)
+            ['daily.' + dk + '.events.' + eventKey]: firebase.firestore.FieldValue.increment(1),
+            ['daily.' + dk + '.eventHours.' + eventKey + '.' + hour]: firebase.firestore.FieldValue.increment(1),
+            ['totals.events.' + eventKey]: firebase.firestore.FieldValue.increment(1)
         };
+        if (extra.productId) {
+            const pk = analyticsPageKey(String(extra.productId));
+            updates['daily.' + dk + '.eventProducts.' + eventKey + '.' + pk] =
+                firebase.firestore.FieldValue.increment(1);
+        }
+        if (extra.value) {
+            updates['daily.' + dk + '.eventValue.' + eventKey] =
+                firebase.firestore.FieldValue.increment(Number(extra.value) || 0);
+        }
         storeRef.set(updates, { merge: true }).catch(function() {});
 
         if (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) {
-            db.collection('users').doc(currentUser.uid).set({
-                [`analytics.events.${eventKey}`]: firebase.firestore.FieldValue.increment(1),
+            const userPatch = {
+                ['analytics.events.' + eventKey]: firebase.firestore.FieldValue.increment(1),
                 'analytics.lastEvent': String(eventName),
                 'analytics.lastEventAt': firebase.firestore.FieldValue.serverTimestamp(),
+                'analytics.lastDevice': device,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true }).catch(function() {});
+            };
+            db.collection('users').doc(currentUser.uid).set(userPatch, { merge: true }).catch(function() {});
         }
     }
     window.trackAnalyticsEvent = trackAnalyticsEvent;
 
-    function updateUserOrderAnalytics(uid, orderTotal, orderId) {
+    function updateUserOrderAnalytics(uid, orderTotal, orderId, extra) {
         if (!uid || typeof db === 'undefined' || !db) return;
         const total = Number(orderTotal) || 0;
-        db.collection('users').doc(uid).set({
+        const meta = extra && typeof extra === 'object' ? extra : {};
+        const patch = {
             analytics: {
                 lastOrderAt: firebase.firestore.FieldValue.serverTimestamp(),
                 lastOrderId: orderId || null,
@@ -125,7 +221,10 @@
             },
             lastOrderId: orderId || null,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).catch(function() {});
+        };
+        if (meta.paymentMethod) patch.analytics.lastPaymentMethod = String(meta.paymentMethod);
+        if (meta.promoCode) patch.analytics.lastPromoCode = String(meta.promoCode);
+        db.collection('users').doc(uid).set(patch, { merge: true }).catch(function() {});
     }
     window.updateUserOrderAnalytics = updateUserOrderAnalytics;
 })();

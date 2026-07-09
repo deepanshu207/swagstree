@@ -1500,6 +1500,7 @@ function showDetail(id, initialColor = null, initialSize = null) {
     if (!p) return;
     if (typeof window.trackChatProductView === 'function') window.trackChatProductView(id);
     if (typeof trackAnalyticsPageView === 'function') trackAnalyticsPageView('product', { productId: id });
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('product_view', { productId: id });
 
     const overlay = document.getElementById('deep-link-overlay');
     if (overlay) overlay.style.display = 'none';
@@ -2258,8 +2259,12 @@ if (!window._detailPopStateBound) {
 // 4. INTERACTIVITY
 function toggleWish(id) {
     if (!currentUser) return showToast("Login first");
-    let newWish = wishlist.includes(id) ? wishlist.filter(x => x !== id) : [...wishlist, id];
+    const adding = !wishlist.includes(id);
+    let newWish = adding ? [...wishlist, id] : wishlist.filter(x => x !== id);
     db.collection("users").doc(currentUser.uid).set({ wishlist: newWish }, { merge: true });
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent(adding ? 'add_to_wishlist' : 'remove_from_wishlist', { productId: id });
+    }
 }
 
 async function shareProduct(id) {
@@ -2285,11 +2290,15 @@ async function shareProduct(id) {
         copyToClipboard(shareUrl);
         showToast('Link copied to clipboard!');
     }
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('product_share', { productId: id });
 }
 
 function searchHandler() {
     displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
+    const el = document.getElementById('app_search');
+    const q = el ? (el.value || '').trim() : '';
+    if (q && typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('search', { query: q.slice(0, 80) });
 }
 
 function getStorefrontSearchQuery() {

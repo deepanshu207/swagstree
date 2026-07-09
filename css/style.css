@@ -10607,4 +10607,182 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
         grid-template-columns: 1fr;
         gap: 4px;
     }
+    .admin-analytics-customer-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
 }
+
+.admin-analytics-delta {
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 2px;
+}
+.admin-analytics-delta--up { color: #2ecc71; }
+.admin-analytics-delta--down { color: #e74c3c; }
+.admin-analytics-delta--neutral { color: #666; }
+
+.admin-analytics-funnel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.admin-analytics-funnel__step {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+.admin-analytics-funnel__bar {
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.25), rgba(255, 215, 0, 0.08));
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.admin-analytics-funnel__bar span {
+    font-size: 11px;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.admin-analytics-funnel__bar strong {
+    color: var(--gold);
+    font-size: 13px;
+}
+.admin-analytics-funnel__pct {
+    font-size: 10px;
+    color: #888;
+    white-space: nowrap;
+}
+.admin-analytics-funnel__drop {
+    color: #e74c3c;
+    margin-left: 4px;
+}
+
+.admin-analytics-dual-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 150px;
+}
+.admin-analytics-dual-chart__col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    height: 100%;
+}
+.admin-analytics-dual-chart__bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 100%;
+    width: 100%;
+    justify-content: center;
+}
+.admin-analytics-dual-chart__bar {
+    width: 45%;
+    max-width: 14px;
+    border-radius: 4px 4px 2px 2px;
+    min-height: 3px;
+}
+.admin-analytics-dual-chart__bar--rev {
+    background: linear-gradient(180deg, var(--gold), #b8860b);
+}
+.admin-analytics-dual-chart__bar--ord {
+    background: linear-gradient(180deg, #3498db, #2471a3);
+}
+
+.admin-analytics-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 10px;
+    color: #888;
+}
+.admin-analytics-legend__dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+.admin-analytics-legend__dot--rev { background: var(--gold); }
+.admin-analytics-legend__dot--ord { background: #3498db; }
+
+.admin-analytics-heatmap {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 4px;
+}
+.admin-analytics-heatmap__cell {
+    background: var(--gold);
+    border-radius: 6px;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: #111;
+    font-weight: 700;
+}
+
+.admin-analytics-customer-toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.admin-analytics-sort {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 11px;
+    margin: 0;
+    height: 36px;
+}
+.admin-analytics-export {
+    width: auto !important;
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+    height: 36px !important;
+    margin: 0 !important;
+}
+.admin-analytics-segments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.admin-analytics-seg {
+    border: 1px solid #333;
+    background: #1a1a1a;
+    color: #aaa;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.admin-analytics-seg.active {
+    border-color: rgba(255, 215, 0, 0.45);
+    color: var(--gold);
+    background: rgba(255, 215, 0, 0.08);
+}
+
+.admin-analytics-tag--vip { background: rgba(255, 215, 0, 0.15); color: var(--gold); }
+.admin-analytics-tag--repeat { background: rgba(46, 204, 113, 0.12); color: #2ecc71; }
+.admin-analytics-tag--one_time { background: rgba(52, 152, 219, 0.12); color: #3498db; }
+.admin-analytics-tag--at_risk { background: rgba(231, 76, 60, 0.12); color: #e74c3c; }
+.admin-analytics-tag--dormant { background: rgba(149, 165, 166, 0.12); color: #95a5a6; }
+.admin-analytics-tag--browser { background: rgba(155, 89, 182, 0.12); color: #9b59b6; }

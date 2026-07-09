@@ -7,22 +7,37 @@ Object.assign(window.ADMIN_CAPABILITY_DEFS || {}, {
         id: 'viewAnalytics',
         label: 'View Store Analytics',
         icon: 'fa-line-chart',
-        description: 'Revenue, visits, customers, and product performance insights'
+        description: 'Revenue, visits, funnel, customers, and product performance insights'
     }
 });
 
 window.adminAnalyticsState = window.adminAnalyticsState || {
     periodDays: 30,
     tab: 'overview',
+    customerSegment: 'all',
+    customerSort: 'ltv',
     loaded: false,
     loading: false,
     orders: [],
     users: [],
     storeAnalytics: null,
-    productNameMap: {}
+    supportThreads: 0,
+    reviewCount: 0,
+    pendingReviews: 0,
+    productNameMap: {},
+    categoryNameMap: {}
 };
 
-const ADMIN_ANALYTICS_EXCLUDED_STATUSES = new Set(['cancelled', 'returned']);
+const ADMIN_ANALYTICS_EXCLUDED = new Set(['cancelled', 'returned']);
+const ADMIN_ANALYTICS_DELIVERED = new Set(['delivered']);
+const ADMIN_ANALYTICS_FUNNEL_STEPS = [
+    { key: 'visits', label: 'Store visits', event: null },
+    { key: 'productViews', label: 'Product views', event: 'product_view' },
+    { key: 'add_to_cart', label: 'Add to cart', event: 'add_to_cart' },
+    { key: 'view_cart', label: 'View cart', event: 'view_cart' },
+    { key: 'begin_checkout', label: 'Begin checkout', event: 'begin_checkout' },
+    { key: 'order_placed', label: 'Orders placed', event: 'order_placed' }
+];
 
 function analyticsTsToMs(ts) {
     if (!ts) return 0;
@@ -34,8 +49,7 @@ function analyticsTsToMs(ts) {
 }
 
 function analyticsFormatCurrency(n) {
-    const val = Number(n) || 0;
-    return '₹' + val.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    return '₹' + (Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
 function analyticsFormatShortDate(ms) {
@@ -65,161 +79,299 @@ function analyticsPeriodStartMs(days) {
     return d.getTime();
 }
 
+function analyticsComparisonRange(periodDays) {
+    const startMs = analyticsPeriodStartMs(periodDays);
+    if (!periodDays || periodDays <= 0) return { startMs: 0, prevStartMs: 0, prevEndMs: 0 };
+    const span = Date.now() - startMs + 86400000;
+    const prevEndMs = startMs - 1;
+    const prevStartMs = startMs - span;
+    return { startMs, prevStartMs, prevEndMs };
+}
+
+function analyticsInRange(ts, startMs, endMs) {
+    if (!ts) return false;
+    if (startMs && ts < startMs) return false;
+    if (endMs && ts > endMs) return false;
+    return true;
+}
+
 function analyticsOrderRevenue(order) {
     if (!order) return 0;
-    const status = (order.status || '').toLowerCase();
-    if (ADMIN_ANALYTICS_EXCLUDED_STATUSES.has(status)) return 0;
+    if (ADMIN_ANALYTICS_EXCLUDED.has((order.status || '').toLowerCase())) return 0;
     return Number(order.total) || 0;
 }
 
-function analyticsIsOrderInPeriod(order, startMs) {
-    const ts = analyticsTsToMs(order.timestamp);
-    return !startMs || ts >= startMs;
+function analyticsDeltaPct(current, previous) {
+    if (!previous && !current) return { text: '—', cls: 'neutral' };
+    if (!previous) return { text: '+100%', cls: 'up' };
+    const pct = ((current - previous) / previous) * 100;
+    const sign = pct >= 0 ? '+' : '';
+    return {
+        text: sign + pct.toFixed(1) + '%',
+        cls: pct > 0 ? 'up' : pct < 0 ? 'down' : 'neutral'
+    };
 }
 
-function analyticsBuildProductNameMap() {
-    const map = {};
-    const products = window.products || [];
-    products.forEach(function(p) {
-        if (p && p.id) map[p.id] = p.name || p.title || p.id;
+function analyticsRenderDelta(delta) {
+    if (!delta || delta.text === '—') return '';
+    return '<span class="admin-analytics-delta admin-analytics-delta--' + delta.cls + '">' + delta.text + ' vs prev</span>';
+}
+
+function analyticsBuildMaps() {
+    const nameMap = {};
+    (window.products || []).forEach(function(p) {
+        if (p && p.id) nameMap[p.id] = p.name || p.title || p.id;
     });
-    window.adminAnalyticsState.productNameMap = map;
-    return map;
+    const catMap = {};
+    (window.productCategories || []).forEach(function(c) {
+        if (c && c.id) catMap[c.id] = c.name || c.id;
+    });
+    window.adminAnalyticsState.productNameMap = nameMap;
+    window.adminAnalyticsState.categoryNameMap = catMap;
+    return { nameMap, catMap };
 }
 
-function analyticsAggregateOrders(orders, startMs) {
-    const filtered = orders.filter(function(o) { return analyticsIsOrderInPeriod(o, startMs); });
+function analyticsResolveCategory(productId, item, catMap) {
+    if (item && item.categoryId && catMap[item.categoryId]) return catMap[item.categoryId];
+    const prod = (window.products || []).find(function(p) { return p.id === productId; });
+    if (!prod) return 'Uncategorized';
+    const ids = prod.categoryIds || (prod.categoryId ? [prod.categoryId] : []);
+    if (ids.length && catMap[ids[0]]) return catMap[ids[0]];
+    if (typeof resolveProductCategoryLabel === 'function') {
+        const label = resolveProductCategoryLabel(prod);
+        if (label) return label;
+    }
+    return 'Uncategorized';
+}
+
+function analyticsAggregateOrders(orders, startMs, endMs) {
+    const filtered = orders.filter(function(o) {
+        return analyticsInRange(analyticsTsToMs(o.timestamp), startMs || 0, endMs || 0);
+    });
+
     let revenue = 0;
+    let grossRevenue = 0;
+    let discountTotal = 0;
+    let refundTotal = 0;
     let units = 0;
+    let deliveredCount = 0;
+    let guestOrders = 0;
+    let registeredOrders = 0;
+    let codRevenue = 0;
+    let onlineRevenue = 0;
+
     const statusCounts = {};
     const paymentCounts = {};
     const productStats = {};
+    const categoryStats = {};
+    const promoStats = {};
     const dailyRevenue = {};
+    const dailyOrders = {};
+    const hourlyOrders = Array(24).fill(0);
     const customerOrderMap = {};
+    const catMap = window.adminAnalyticsState.categoryNameMap || {};
 
     filtered.forEach(function(o) {
-        const rev = analyticsOrderRevenue(o);
-        revenue += rev;
         const status = (o.status || 'pending').toLowerCase();
+        const rev = analyticsOrderRevenue(o);
+        const gross = Number(o.total) || 0;
+        grossRevenue += gross;
+        revenue += rev;
+        discountTotal += Number(o.discount) || 0;
+        refundTotal += Number(o.refundAmount) || 0;
+        if (ADMIN_ANALYTICS_DELIVERED.has(status)) deliveredCount += 1;
+
         statusCounts[status] = (statusCounts[status] || 0) + 1;
         const pay = (o.paymentMethod || 'unknown').toLowerCase();
         paymentCounts[pay] = (paymentCounts[pay] || 0) + 1;
+        if (pay === 'cod') codRevenue += rev;
+        else onlineRevenue += rev;
+
+        if (o.isGuest) guestOrders += 1;
+        else registeredOrders += 1;
+
+        if (o.promoCode) {
+            const code = String(o.promoCode).toUpperCase();
+            if (!promoStats[code]) promoStats[code] = { code: code, uses: 0, revenue: 0, discount: 0 };
+            promoStats[code].uses += 1;
+            promoStats[code].revenue += rev;
+            promoStats[code].discount += Number(o.discount) || 0;
+        }
 
         const ts = analyticsTsToMs(o.timestamp);
         if (ts) {
-            const dk = new Date(ts);
-            const key = dk.getFullYear() + '-' + String(dk.getMonth() + 1).padStart(2, '0') + '-' + String(dk.getDate()).padStart(2, '0');
+            const d = new Date(ts);
+            const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
             dailyRevenue[key] = (dailyRevenue[key] || 0) + rev;
+            dailyOrders[key] = (dailyOrders[key] || 0) + 1;
+            hourlyOrders[d.getHours()] += 1;
         }
 
-        const custKey = (o.uid || o.email || o.phone || 'guest').toLowerCase();
-        if (!customerOrderMap[custKey]) {
-            customerOrderMap[custKey] = { count: 0, revenue: 0, lastMs: 0 };
-        }
+        const custKey = (o.email || o.uid || o.phone || 'guest').toLowerCase().trim();
+        if (!customerOrderMap[custKey]) customerOrderMap[custKey] = { count: 0, revenue: 0, lastMs: 0, firstMs: ts || 0 };
         customerOrderMap[custKey].count += 1;
         customerOrderMap[custKey].revenue += rev;
         if (ts > customerOrderMap[custKey].lastMs) customerOrderMap[custKey].lastMs = ts;
+        if (ts && ts < customerOrderMap[custKey].firstMs) customerOrderMap[custKey].firstMs = ts;
 
         (o.items || []).forEach(function(item) {
             const qty = Number(item.qty) || 1;
             units += qty;
             const pid = item.id || item.productId || 'unknown';
-            if (!productStats[pid]) {
-                productStats[pid] = { id: pid, name: item.name || pid, units: 0, revenue: 0, orders: 0 };
-            }
+            if (!productStats[pid]) productStats[pid] = { id: pid, name: item.name || pid, units: 0, revenue: 0, orders: 0 };
             productStats[pid].units += qty;
             productStats[pid].revenue += (Number(item.price) || 0) * qty;
             productStats[pid].orders += 1;
+
+            const cat = analyticsResolveCategory(pid, item, catMap);
+            if (!categoryStats[cat]) categoryStats[cat] = { name: cat, units: 0, revenue: 0, orders: 0 };
+            categoryStats[cat].units += qty;
+            categoryStats[cat].revenue += (Number(item.price) || 0) * qty;
+            categoryStats[cat].orders += 1;
         });
     });
 
     const orderCount = filtered.length;
-    const aov = orderCount ? Math.round(revenue / orderCount) : 0;
+    const repeatCustomers = Object.values(customerOrderMap).filter(function(c) { return c.count >= 2; }).length;
     const uniqueCustomers = Object.keys(customerOrderMap).length;
-
-    const topProducts = Object.values(productStats)
-        .sort(function(a, b) { return b.revenue - a.revenue; })
-        .slice(0, 10);
+    const repeatRate = uniqueCustomers ? Math.round((repeatCustomers / uniqueCustomers) * 100) : 0;
+    const fulfillmentRate = orderCount ? Math.round((deliveredCount / orderCount) * 100) : 0;
+    const aov = orderCount ? Math.round(revenue / orderCount) : 0;
+    const itemsPerOrder = orderCount ? (units / orderCount).toFixed(1) : '0';
 
     const dailyKeys = Object.keys(dailyRevenue).sort();
     const chartDays = dailyKeys.slice(-14);
-    const chartMax = chartDays.reduce(function(m, k) { return Math.max(m, dailyRevenue[k] || 0); }, 1);
+    const chartMax = chartDays.reduce(function(m, k) { return Math.max(m, dailyRevenue[k] || 0, dailyOrders[k] || 0); }, 1);
 
     return {
-        orderCount,
-        revenue,
-        aov,
-        units,
-        uniqueCustomers,
-        statusCounts,
-        paymentCounts,
-        topProducts,
-        dailyRevenue,
-        chartDays,
-        chartMax,
-        customerOrderMap
+        orderCount, revenue, grossRevenue, discountTotal, refundTotal, aov, units, itemsPerOrder,
+        uniqueCustomers, repeatCustomers, repeatRate, deliveredCount, fulfillmentRate,
+        guestOrders, registeredOrders, codRevenue, onlineRevenue,
+        statusCounts, paymentCounts, productStats, categoryStats, promoStats,
+        dailyRevenue, dailyOrders, chartDays, chartMax, hourlyOrders, customerOrderMap,
+        topProducts: Object.values(productStats).sort(function(a, b) { return b.revenue - a.revenue; }).slice(0, 15),
+        topCategories: Object.values(categoryStats).sort(function(a, b) { return b.revenue - a.revenue; }).slice(0, 10),
+        topPromos: Object.values(promoStats).sort(function(a, b) { return b.uses - a.uses; }).slice(0, 10)
     };
 }
 
-function analyticsAggregateTraffic(storeData, startMs) {
+function analyticsAggregateTraffic(storeData, startMs, endMs) {
     const daily = (storeData && storeData.daily) || {};
     const totals = (storeData && storeData.totals) || {};
     let visits = 0;
     let pageViews = 0;
+    let newVisits = 0;
+    let returningVisits = 0;
+    let productViewCount = 0;
     const pageBreakdown = {};
     const eventBreakdown = {};
+    const deviceBreakdown = {};
+    const hourlyTraffic = Array(24).fill(0);
+    const productViewMap = {};
+    const utmBreakdown = {};
 
     Object.keys(daily).forEach(function(dk) {
         const dayMs = analyticsDayKeyToMs(dk);
         if (startMs && dayMs < startMs) return;
+        if (endMs && dayMs > endMs) return;
         const row = daily[dk] || {};
         visits += Number(row.visits) || 0;
         pageViews += Number(row.pageViews) || 0;
-        const pages = row.pages || {};
-        Object.keys(pages).forEach(function(pk) {
-            pageBreakdown[pk] = (pageBreakdown[pk] || 0) + (Number(pages[pk]) || 0);
+        newVisits += Number(row.newVisits) || 0;
+        returningVisits += Number(row.returningVisits) || 0;
+
+        Object.keys(row.pages || {}).forEach(function(pk) {
+            pageBreakdown[pk] = (pageBreakdown[pk] || 0) + (Number(row.pages[pk]) || 0);
         });
-        const events = row.events || {};
-        Object.keys(events).forEach(function(ek) {
-            eventBreakdown[ek] = (eventBreakdown[ek] || 0) + (Number(events[ek]) || 0);
+        Object.keys(row.events || {}).forEach(function(ek) {
+            eventBreakdown[ek] = (eventBreakdown[ek] || 0) + (Number(row.events[ek]) || 0);
+        });
+        Object.keys(row.devices || {}).forEach(function(dk2) {
+            deviceBreakdown[dk2] = (deviceBreakdown[dk2] || 0) + (Number(row.devices[dk2]) || 0);
+        });
+        Object.keys(row.hours || {}).forEach(function(h) {
+            const hi = parseInt(h, 10);
+            if (hi >= 0 && hi < 24) hourlyTraffic[hi] += Number(row.hours[h]) || 0;
+        });
+        Object.keys(row.productViews || {}).forEach(function(pid) {
+            const c = Number(row.productViews[pid]) || 0;
+            productViewCount += c;
+            productViewMap[pid] = (productViewMap[pid] || 0) + c;
+        });
+        Object.keys(row.utm || {}).forEach(function(uk) {
+            utmBreakdown[uk] = (utmBreakdown[uk] || 0) + (Number(row.utm[uk]) || 0);
         });
     });
 
-    if (!startMs) {
+    if (!startMs && !endMs) {
         visits = Number(totals.visits) || visits;
         pageViews = Number(totals.pageViews) || pageViews;
+        Object.keys(totals.productViews || {}).forEach(function(pid) {
+            productViewMap[pid] = (productViewMap[pid] || 0) + (Number(totals.productViews[pid]) || 0);
+            productViewCount += Number(totals.productViews[pid]) || 0;
+        });
     }
 
-    const topPages = Object.entries(pageBreakdown)
-        .sort(function(a, b) { return b[1] - a[1]; })
-        .slice(0, 8);
-
-    return { visits, pageViews, topPages, eventBreakdown };
+    return {
+        visits, pageViews, newVisits, returningVisits, productViewCount, productViewMap,
+        topPages: Object.entries(pageBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 10),
+        eventBreakdown, deviceBreakdown, hourlyTraffic,
+        utmTop: Object.entries(utmBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8)
+    };
 }
 
 function analyticsDayKeyToMs(dk) {
     if (!dk || dk.length !== 8) return 0;
-    const y = parseInt(dk.slice(0, 4), 10);
-    const m = parseInt(dk.slice(4, 6), 10) - 1;
-    const d = parseInt(dk.slice(6, 8), 10);
-    return new Date(y, m, d).getTime();
+    return new Date(parseInt(dk.slice(0, 4), 10), parseInt(dk.slice(4, 6), 10) - 1, parseInt(dk.slice(6, 8), 10)).getTime();
 }
 
-function analyticsBuildCustomerRows(users, orderAgg, nameMap) {
+function analyticsBuildFunnel(traffic, orderAgg) {
+    const events = traffic.eventBreakdown || {};
+    const maxVisits = traffic.visits || 0;
+    const steps = ADMIN_ANALYTICS_FUNNEL_STEPS.map(function(step) {
+        let count = 0;
+        if (step.key === 'visits') count = traffic.visits || 0;
+        else if (step.key === 'productViews') count = traffic.productViewCount || events.product_view || 0;
+        else if (step.event) count = events[step.event] || 0;
+        if (step.key === 'order_placed' && orderAgg.orderCount > count) count = orderAgg.orderCount;
+        const pct = maxVisits ? Math.round((count / maxVisits) * 100) : 0;
+        return { label: step.label, count: count, pct: pct };
+    });
+    return steps;
+}
+
+function analyticsCustomerSegment(row) {
+    const now = Date.now();
+    const daysSinceOrder = row.lastOrderMs ? (now - row.lastOrderMs) / 86400000 : null;
+    const daysSinceSeen = row.lastSeenMs ? (now - row.lastSeenMs) / 86400000 : null;
+    if (row.ltv >= 5000 || row.orders >= 3) return 'vip';
+    if (row.orders >= 2) return 'repeat';
+    if (row.orders === 1 && daysSinceOrder !== null && daysSinceOrder > 90) return 'at_risk';
+    if (row.orders === 1) return 'one_time';
+    if (row.orders === 0 && daysSinceSeen !== null && daysSinceSeen > 30) return 'dormant';
+    if (row.orders === 0 && row.lastSeenMs) return 'browser';
+    return 'new';
+}
+
+function analyticsBuildCustomerRows(users, orderAgg) {
     const rows = [];
     const seen = new Set();
+    const emailToKey = {};
 
     (users || []).forEach(function(u) {
-        const email = (u.email || '').toLowerCase();
-        const key = (u.uid || email || '').toLowerCase();
+        const email = (u.email || '').toLowerCase().trim();
+        const key = email || (u.uid || '').toLowerCase();
         if (!key || seen.has(key)) return;
         seen.add(key);
+        if (email) emailToKey[email] = key;
 
-        const orderInfo = orderAgg.customerOrderMap[key] ||
-            (email ? orderAgg.customerOrderMap[email] : null) || { count: 0, revenue: 0, lastMs: 0 };
+        const orderInfo = orderAgg.customerOrderMap[email] ||
+            orderAgg.customerOrderMap[(u.uid || '').toLowerCase()] ||
+            orderAgg.customerOrderMap[(u.phone || '').replace(/\D/g, '')] ||
+            { count: 0, revenue: 0, lastMs: 0, firstMs: 0 };
         const a = u.analytics || {};
 
-        rows.push({
+        const row = {
             uid: u.uid,
             name: u.displayName || (email ? email.split('@')[0] : 'Customer'),
             email: email || '—',
@@ -229,230 +381,337 @@ function analyticsBuildCustomerRows(users, orderAgg, nameMap) {
             pageViews: Number(a.pageViewCount) || 0,
             lastSeenMs: analyticsTsToMs(a.lastSeenAt),
             lastPage: a.lastPage || '—',
+            lastDevice: a.lastDevice || '—',
             orders: Math.max(Number(a.orderCount) || 0, orderInfo.count),
             lastOrderMs: Math.max(analyticsTsToMs(a.lastOrderAt), orderInfo.lastMs),
+            firstOrderMs: orderInfo.firstMs || analyticsTsToMs(a.lastOrderAt),
             ltv: Math.max(Number(a.lifetimeValue) || 0, orderInfo.revenue),
-            createdMs: analyticsTsToMs(u.createdAt)
-        });
+            createdMs: analyticsTsToMs(u.createdAt) || analyticsTsToMs(a.firstSeenAt),
+            segment: 'new'
+        };
+        row.segment = analyticsCustomerSegment(row);
+        rows.push(row);
     });
 
     Object.keys(orderAgg.customerOrderMap).forEach(function(key) {
-        if (seen.has(key)) return;
+        const norm = key.includes('@') ? key : key;
+        if (seen.has(norm) || (key.includes('@') && emailToKey[key])) return;
         const info = orderAgg.customerOrderMap[key];
-        rows.push({
+        const row = {
             uid: key,
-            name: key.includes('@') ? key.split('@')[0] : 'Guest',
+            name: key.includes('@') ? key.split('@')[0] : 'Guest buyer',
             email: key.includes('@') ? key : '—',
-            phone: !key.includes('@') ? key : '—',
+            phone: !key.includes('@') && /^\d+$/.test(key) ? key : '—',
             isGuest: true,
-            visits: 0,
-            pageViews: 0,
-            lastSeenMs: 0,
-            lastPage: '—',
-            orders: info.count,
-            lastOrderMs: info.lastMs,
-            ltv: info.revenue,
-            createdMs: 0
-        });
-        seen.add(key);
+            visits: 0, pageViews: 0, lastSeenMs: 0, lastPage: '—', lastDevice: '—',
+            orders: info.count, lastOrderMs: info.lastMs, firstOrderMs: info.firstMs,
+            ltv: info.revenue, createdMs: 0, segment: 'new'
+        };
+        row.segment = analyticsCustomerSegment(row);
+        rows.push(row);
+        seen.add(norm);
     });
 
-    rows.sort(function(a, b) {
-        if (b.ltv !== a.ltv) return b.ltv - a.ltv;
-        return b.lastSeenMs - a.lastSeenMs;
-    });
     return rows;
 }
 
-function analyticsRenderKpiCard(label, value, sub, accent) {
+function analyticsSortCustomers(rows, sortKey) {
+    const sorted = rows.slice();
+    sorted.sort(function(a, b) {
+        if (sortKey === 'orders') return b.orders - a.orders || b.ltv - a.ltv;
+        if (sortKey === 'visits') return b.visits - a.visits || b.lastSeenMs - a.lastSeenMs;
+        if (sortKey === 'lastSeen') return b.lastSeenMs - a.lastSeenMs;
+        if (sortKey === 'lastOrder') return b.lastOrderMs - a.lastOrderMs;
+        return b.ltv - a.ltv || b.orders - a.orders;
+    });
+    return sorted;
+}
+
+function analyticsRenderKpi(label, value, sub, accent, delta) {
     return '<div class="admin-analytics-kpi">' +
         '<span class="admin-analytics-kpi__label">' + label + '</span>' +
         '<span class="admin-analytics-kpi__value" style="color:' + (accent || 'var(--gold)') + '">' + value + '</span>' +
         (sub ? '<span class="admin-analytics-kpi__sub">' + sub + '</span>' : '') +
+        analyticsRenderDelta(delta) +
         '</div>';
 }
 
-function analyticsRenderBarChart(chartDays, dailyRevenue, chartMax) {
-    if (!chartDays.length) {
-        return '<p class="admin-analytics-empty">No revenue in this period yet.</p>';
-    }
-    return '<div class="admin-analytics-chart">' + chartDays.map(function(key) {
-        const val = dailyRevenue[key] || 0;
-        const pct = Math.max(4, Math.round((val / chartMax) * 100));
-        const label = key.slice(5);
-        return '<div class="admin-analytics-chart__col" title="' + analyticsFormatCurrency(val) + ' on ' + key + '">' +
-            '<div class="admin-analytics-chart__bar" style="height:' + pct + '%"></div>' +
-            '<span class="admin-analytics-chart__label">' + label + '</span>' +
-            '</div>';
+function analyticsRenderDualChart(chartDays, dailyRevenue, dailyOrders, chartMax) {
+    if (!chartDays.length) return '<p class="admin-analytics-empty">No data in this period.</p>';
+    return '<div class="admin-analytics-dual-chart">' + chartDays.map(function(key) {
+        const rev = dailyRevenue[key] || 0;
+        const ord = dailyOrders[key] || 0;
+        const revPct = Math.max(3, Math.round((rev / chartMax) * 100));
+        const ordPct = Math.max(3, Math.round((ord / chartMax) * 100));
+        return '<div class="admin-analytics-dual-chart__col" title="' + analyticsFormatCurrency(rev) + ' · ' + ord + ' orders">' +
+            '<div class="admin-analytics-dual-chart__bars">' +
+            '<div class="admin-analytics-dual-chart__bar admin-analytics-dual-chart__bar--rev" style="height:' + revPct + '%"></div>' +
+            '<div class="admin-analytics-dual-chart__bar admin-analytics-dual-chart__bar--ord" style="height:' + ordPct + '%"></div>' +
+            '</div><span class="admin-analytics-chart__label">' + key.slice(5) + '</span></div>';
+    }).join('') + '</div>' +
+    '<div class="admin-analytics-legend"><span><i class="admin-analytics-legend__dot admin-analytics-legend__dot--rev"></i> Revenue</span>' +
+    '<span><i class="admin-analytics-legend__dot admin-analytics-legend__dot--ord"></i> Orders</span></div>';
+}
+
+function analyticsRenderHeatmap(hourly, label) {
+    const max = hourly.reduce(function(m, v) { return Math.max(m, v); }, 1);
+    return '<div class="admin-analytics-heatmap">' + hourly.map(function(v, h) {
+        const pct = Math.max(4, Math.round((v / max) * 100));
+        const hr = (h < 10 ? '0' : '') + h + ':00';
+        return '<div class="admin-analytics-heatmap__cell" style="opacity:' + (0.25 + (pct / 100) * 0.75) + '" title="' + hr + ': ' + v + ' ' + label + '"><span>' + h + '</span></div>';
     }).join('') + '</div>';
 }
 
-function analyticsRenderStatusBreakdown(statusCounts) {
-    const entries = Object.entries(statusCounts).sort(function(a, b) { return b[1] - a[1]; });
-    if (!entries.length) return '<p class="admin-analytics-empty">No orders in period.</p>';
+function analyticsRenderFunnel(steps) {
+    const top = steps[0] && steps[0].count ? steps[0].count : 1;
+    return '<div class="admin-analytics-funnel">' + steps.map(function(s, i) {
+        const width = Math.max(18, Math.round((s.count / top) * 100));
+        const drop = i > 0 && steps[i - 1].count
+            ? '<span class="admin-analytics-funnel__drop">-' + Math.max(0, steps[i - 1].count - s.count) + '</span>'
+            : '';
+        return '<div class="admin-analytics-funnel__step">' +
+            '<div class="admin-analytics-funnel__bar" style="width:' + width + '%"><span>' + s.label + '</span><strong>' + s.count.toLocaleString('en-IN') + '</strong></div>' +
+            '<span class="admin-analytics-funnel__pct">' + s.pct + '%' + drop + '</span></div>';
+    }).join('') + '</div>';
+}
+
+function analyticsRenderBreakdown(entries, emptyText) {
+    if (!entries.length) return '<p class="admin-analytics-empty">' + (emptyText || 'No data.') + '</p>';
     const total = entries.reduce(function(s, e) { return s + e[1]; }, 0);
     return '<div class="admin-analytics-breakdown">' + entries.map(function(pair) {
         const pct = total ? Math.round((pair[1] / total) * 100) : 0;
         return '<div class="admin-analytics-breakdown__row">' +
-            '<span class="admin-analytics-breakdown__label">' + pair[0].replace(/_/g, ' ') + '</span>' +
-            '<div class="admin-analytics-breakdown__track"><div class="admin-analytics-breakdown__fill" style="width:' + pct + '%"></div></div>' +
-            '<span class="admin-analytics-breakdown__count">' + pair[1] + ' (' + pct + '%)</span>' +
-            '</div>';
+            '<span class="admin-analytics-breakdown__label">' + String(pair[0]).replace(/_/g, ' ') + '</span>' +
+            '<div class="admin-analytics-breakdown__track"><div class="admin-analytics-breakdown__fill" style="width:' + Math.max(pct, 2) + '%"></div></div>' +
+            '<span class="admin-analytics-breakdown__count">' + pair[1] + ' (' + pct + '%)</span></div>';
     }).join('') + '</div>';
 }
 
-function analyticsRenderOverviewTab(orderAgg, traffic, periodLabel) {
-    const conversion = traffic.visits > 0
-        ? ((orderAgg.orderCount / traffic.visits) * 100).toFixed(1) + '%'
-        : '—';
+function analyticsRenderOverview(ctx) {
+    const c = ctx.current;
+    const p = ctx.previous;
+    const t = ctx.traffic;
+    const st = ctx.state;
+    const conv = t.visits > 0 ? ((c.orderCount / t.visits) * 100).toFixed(1) + '%' : '—';
+    const cartConv = (t.eventBreakdown.add_to_cart || 0) > 0
+        ? ((c.orderCount / t.eventBreakdown.add_to_cart) * 100).toFixed(1) + '% checkout completion'
+        : '';
 
-    const kpis = '<div class="admin-analytics-kpi-grid">' +
-        analyticsRenderKpiCard('Revenue', analyticsFormatCurrency(orderAgg.revenue), periodLabel) +
-        analyticsRenderKpiCard('Orders', String(orderAgg.orderCount), orderAgg.units + ' items sold', '#2ecc71') +
-        analyticsRenderKpiCard('Avg order', analyticsFormatCurrency(orderAgg.aov), 'AOV', '#3498db') +
-        analyticsRenderKpiCard('Customers', String(orderAgg.uniqueCustomers), 'with orders', '#9b59b6') +
-        analyticsRenderKpiCard('Visits', String(traffic.visits), traffic.pageViews + ' page views', '#e67e22') +
-        analyticsRenderKpiCard('Conversion', conversion, 'orders / visits', '#1abc9c') +
-        '</div>';
-
-    const chart = '<div class="admin-analytics-panel">' +
-        '<h5 class="admin-analytics-panel__title"><i class="fa fa-bar-chart"></i> Revenue trend (last 14 days in range)</h5>' +
-        analyticsRenderBarChart(orderAgg.chartDays, orderAgg.dailyRevenue, orderAgg.chartMax) +
-        '</div>';
-
-    const statusPanel = '<div class="admin-analytics-panel">' +
-        '<h5 class="admin-analytics-panel__title"><i class="fa fa-pie-chart"></i> Order status</h5>' +
-        analyticsRenderStatusBreakdown(orderAgg.statusCounts) +
-        '</div>';
-
-    const payEntries = Object.entries(orderAgg.paymentCounts).sort(function(a, b) { return b[1] - a[1]; });
-    const payHtml = payEntries.length
-        ? '<div class="admin-analytics-pills">' + payEntries.map(function(p) {
-            return '<span class="admin-analytics-pill">' + p[0].toUpperCase() + ': <strong>' + p[1] + '</strong></span>';
-        }).join('') + '</div>'
-        : '<p class="admin-analytics-empty">No payment data.</p>';
-
-    const trafficPages = traffic.topPages.length
-        ? '<div class="admin-analytics-pills">' + traffic.topPages.map(function(p) {
-            return '<span class="admin-analytics-pill">' + p[0].replace(/_/g, ' ') + ': <strong>' + p[1] + '</strong></span>';
-        }).join('') + '</div>'
-        : '<p class="admin-analytics-empty">No page views tracked yet. Traffic builds as customers browse.</p>';
-
-    return kpis +
-        '<div class="admin-analytics-split">' + chart + statusPanel + '</div>' +
+    return '<div class="admin-analytics-kpi-grid">' +
+        analyticsRenderKpi('Revenue', analyticsFormatCurrency(c.revenue), ctx.periodLabel, 'var(--gold)', analyticsDeltaPct(c.revenue, p.revenue)) +
+        analyticsRenderKpi('Orders', String(c.orderCount), c.units + ' units · ' + c.itemsPerOrder + '/order', '#2ecc71', analyticsDeltaPct(c.orderCount, p.orderCount)) +
+        analyticsRenderKpi('AOV', analyticsFormatCurrency(c.aov), 'Avg order value', '#3498db', analyticsDeltaPct(c.aov, p.aov)) +
+        analyticsRenderKpi('Customers', String(c.uniqueCustomers), c.repeatRate + '% repeat rate', '#9b59b6', analyticsDeltaPct(c.uniqueCustomers, p.uniqueCustomers)) +
+        analyticsRenderKpi('Visits', String(t.visits), t.pageViews + ' page views', '#e67e22', analyticsDeltaPct(t.visits, ctx.prevTraffic.visits)) +
+        analyticsRenderKpi('Conversion', conv, cartConv || 'orders ÷ visits', '#1abc9c', null) +
+        '</div>' +
+        '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
+        analyticsRenderKpi('Delivered', c.fulfillmentRate + '%', c.deliveredCount + ' of ' + c.orderCount, '#2ecc71', null) +
+        analyticsRenderKpi('Discounts', analyticsFormatCurrency(c.discountTotal), 'Promo savings', '#e74c3c', null) +
+        analyticsRenderKpi('Refunds', analyticsFormatCurrency(c.refundTotal), 'Returned/cancelled value', '#e67e22', null) +
+        analyticsRenderKpi('COD revenue', analyticsFormatCurrency(c.codRevenue), 'vs ' + analyticsFormatCurrency(c.onlineRevenue) + ' online', '#f39c12', null) +
+        analyticsRenderKpi('Guest orders', String(c.guestOrders), c.registeredOrders + ' registered', '#95a5a6', null) +
+        analyticsRenderKpi('Engagement', String(st.supportThreads), st.reviewCount + ' reviews · ' + st.pendingReviews + ' pending', '#1abc9c', null) +
+        '</div>' +
         '<div class="admin-analytics-split">' +
-        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-credit-card"></i> Payment methods</h5>' + payHtml + '</div>' +
-        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-eye"></i> Top pages</h5>' + trafficPages + '</div>' +
-        '</div>';
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-filter"></i> Purchase funnel</h5>' +
+        analyticsRenderFunnel(ctx.funnel) + '</div>' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-pie-chart"></i> Order status</h5>' +
+        analyticsRenderBreakdown(Object.entries(c.statusCounts).sort(function(a, b) { return b[1] - a[1]; })) + '</div>' +
+        '</div>' +
+        '<div class="admin-analytics-split">' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-bar-chart"></i> Revenue &amp; orders trend</h5>' +
+        analyticsRenderDualChart(c.chartDays, c.dailyRevenue, c.dailyOrders, c.chartMax) + '</div>' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-users"></i> Customer segments</h5>' +
+        analyticsRenderSegmentSummary(ctx.customerRows) + '</div></div>';
 }
 
-function analyticsRenderProductsTab(orderAgg, nameMap) {
-    if (!orderAgg.topProducts.length) {
-        return '<p class="admin-analytics-empty">No product sales in this period.</p>';
-    }
-    const rows = orderAgg.topProducts.map(function(p, i) {
-        const name = nameMap[p.id] || p.name || p.id;
-        return '<tr>' +
-            '<td>' + (i + 1) + '</td>' +
-            '<td class="admin-analytics-table__name">' + name + '</td>' +
-            '<td>' + p.units + '</td>' +
-            '<td>' + p.orders + '</td>' +
-            '<td><strong>' + analyticsFormatCurrency(p.revenue) + '</strong></td>' +
-            '</tr>';
-    }).join('');
-    return '<div class="admin-analytics-table-wrap"><table class="admin-analytics-table">' +
-        '<thead><tr><th>#</th><th>Product</th><th>Units</th><th>Line items</th><th>Revenue</th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table></div>';
+function analyticsRenderSegmentSummary(rows) {
+    const counts = { vip: 0, repeat: 0, one_time: 0, at_risk: 0, dormant: 0, browser: 0, new: 0 };
+    rows.forEach(function(r) { counts[r.segment] = (counts[r.segment] || 0) + 1; });
+    const labels = {
+        vip: 'VIP (₹5k+ or 3+ orders)',
+        repeat: 'Repeat buyers',
+        one_time: 'One-time buyers',
+        at_risk: 'At-risk (90d+ no reorder)',
+        dormant: 'Dormant browsers',
+        browser: 'Active browsers',
+        new: 'New / other'
+    };
+    const entries = Object.keys(counts).filter(function(k) { return counts[k] > 0; }).map(function(k) {
+        return [labels[k] || k, counts[k]];
+    }).sort(function(a, b) { return b[1] - a[1]; });
+    return analyticsRenderBreakdown(entries, 'No customer data yet.');
 }
 
 function analyticsRenderCustomersTab(rows) {
-    const q = (window.adminAnalyticsState.customerSearch || '').toLowerCase().trim();
-    const filtered = q ? rows.filter(function(r) {
-        return (r.name || '').toLowerCase().includes(q) ||
-            (r.email || '').toLowerCase().includes(q) ||
-            (r.phone || '').includes(q);
-    }) : rows;
-
-    const display = filtered.slice(0, 50);
-    if (!display.length) {
-        return '<p class="admin-analytics-empty">No customers match your search.</p>';
+    const st = window.adminAnalyticsState;
+    const seg = st.customerSegment || 'all';
+    let filtered = seg === 'all' ? rows : rows.filter(function(r) { return r.segment === seg; });
+    const q = (st.customerSearch || '').toLowerCase().trim();
+    if (q) {
+        filtered = filtered.filter(function(r) {
+            return (r.name || '').toLowerCase().includes(q) ||
+                (r.email || '').toLowerCase().includes(q) ||
+                String(r.phone || '').includes(q);
+        });
     }
+    filtered = analyticsSortCustomers(filtered, st.customerSort || 'ltv');
+    const display = filtered.slice(0, 75);
 
-    const body = display.map(function(r) {
-        const tag = r.isGuest
-            ? '<span class="admin-analytics-tag admin-analytics-tag--guest">Guest</span>'
-            : '<span class="admin-analytics-tag">Registered</span>';
-        return '<tr>' +
-            '<td class="admin-analytics-table__name">' + (r.name || '—') + ' ' + tag + '</td>' +
-            '<td>' + r.email + '</td>' +
-            '<td>' + r.visits + '</td>' +
-            '<td>' + analyticsFormatRelative(r.lastSeenMs) + '</td>' +
-            '<td>' + r.orders + '</td>' +
-            '<td>' + analyticsFormatShortDate(r.lastOrderMs) + '</td>' +
-            '<td><strong>' + analyticsFormatCurrency(r.ltv) + '</strong></td>' +
-            '</tr>';
+    const segButtons = [
+        ['all', 'All'], ['vip', 'VIP'], ['repeat', 'Repeat'], ['one_time', 'One-time'],
+        ['at_risk', 'At-risk'], ['dormant', 'Dormant'], ['browser', 'Browsers']
+    ].map(function(pair) {
+        const active = seg === pair[0] ? ' active' : '';
+        return '<button type="button" class="admin-analytics-seg' + active + '" onclick="setAdminAnalyticsSegment(\'' + pair[0] + '\')">' + pair[1] + '</button>';
     }).join('');
 
-    return '<div class="admin-analytics-customer-search">' +
-        '<i class="fa fa-search"></i>' +
-        '<input type="search" placeholder="Search name, email, phone..." value="' + (window.adminAnalyticsState.customerSearch || '').replace(/"/g, '&quot;') + '" oninput="onAdminAnalyticsCustomerSearch(this.value)">' +
+    const sortOpts = [
+        ['ltv', 'LTV'], ['orders', 'Orders'], ['visits', 'Visits'], ['lastSeen', 'Last seen'], ['lastOrder', 'Last order']
+    ].map(function(pair) {
+        const sel = (st.customerSort || 'ltv') === pair[0] ? ' selected' : '';
+        return '<option value="' + pair[0] + '"' + sel + '>' + pair[1] + '</option>';
+    }).join('');
+
+    if (!display.length) return '<p class="admin-analytics-empty">No customers in this segment.</p>';
+
+    const body = display.map(function(r) {
+        const segTag = '<span class="admin-analytics-tag admin-analytics-tag--' + r.segment + '">' + r.segment.replace(/_/g, ' ') + '</span>';
+        const typeTag = r.isGuest
+            ? '<span class="admin-analytics-tag admin-analytics-tag--guest">guest</span>'
+            : '<span class="admin-analytics-tag">registered</span>';
+        return '<tr><td class="admin-analytics-table__name">' + (r.name || '—') + ' ' + typeTag + segTag + '</td>' +
+            '<td>' + r.email + '</td><td>' + r.visits + '</td><td>' + analyticsFormatRelative(r.lastSeenMs) + '</td>' +
+            '<td>' + r.orders + '</td><td>' + analyticsFormatShortDate(r.lastOrderMs) + '</td>' +
+            '<td><strong>' + analyticsFormatCurrency(r.ltv) + '</strong></td><td>' + (r.lastDevice || '—') + '</td></tr>';
+    }).join('');
+
+    return '<div class="admin-analytics-customer-toolbar">' +
+        '<div class="admin-analytics-customer-search"><i class="fa fa-search"></i>' +
+        '<input type="search" placeholder="Search customers..." value="' + (st.customerSearch || '').replace(/"/g, '&quot;') + '" oninput="onAdminAnalyticsCustomerSearch(this.value)"></div>' +
+        '<select class="admin-analytics-sort" onchange="setAdminAnalyticsCustomerSort(this.value)">' + sortOpts + '</select>' +
+        '<button type="button" class="btn-gold admin-analytics-export" onclick="exportAdminAnalyticsCustomers()"><i class="fa fa-download"></i> Export CSV</button>' +
         '</div>' +
+        '<div class="admin-analytics-segments">' + segButtons + '</div>' +
         '<div class="admin-analytics-table-wrap admin-analytics-table-wrap--tall"><table class="admin-analytics-table">' +
-        '<thead><tr><th>Customer</th><th>Email</th><th>Visits</th><th>Last seen</th><th>Orders</th><th>Last order</th><th>LTV</th></tr></thead>' +
+        '<thead><tr><th>Customer</th><th>Email</th><th>Visits</th><th>Last seen</th><th>Orders</th><th>Last order</th><th>LTV</th><th>Device</th></tr></thead>' +
         '<tbody>' + body + '</tbody></table></div>' +
-        (filtered.length > 50 ? '<p class="admin-analytics-footnote">Showing top 50 of ' + filtered.length + ' customers by lifetime value.</p>' : '');
+        (filtered.length > 75 ? '<p class="admin-analytics-footnote">Showing 75 of ' + filtered.length + ' customers.</p>' : '');
 }
 
-function analyticsRenderTrafficTab(traffic, orderAgg) {
-    const events = Object.entries(traffic.eventBreakdown || {}).sort(function(a, b) { return b[1] - a[1]; });
-    const eventsHtml = events.length
-        ? '<div class="admin-analytics-pills">' + events.map(function(e) {
-            return '<span class="admin-analytics-pill">' + e[0].replace(/_/g, ' ') + ': <strong>' + e[1] + '</strong></span>';
-        }).join('') + '</div>'
-        : '<p class="admin-analytics-empty">Events like add_to_cart and checkout will appear here as customers shop.</p>';
+function analyticsRenderProductsTab(orderAgg, traffic, nameMap) {
+    const viewMap = traffic.productViewMap || {};
+    let html = '';
+    if (orderAgg.topCategories.length) {
+        html += '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-tags"></i> Top categories</h5>' +
+            analyticsRenderBreakdown(orderAgg.topCategories.map(function(c) { return [c.name, c.revenue]; })) + '</div>';
+    }
+    if (!orderAgg.topProducts.length) {
+        return html + '<p class="admin-analytics-empty">No product sales in this period.</p>';
+    }
+    const rows = orderAgg.topProducts.map(function(p, i) {
+        const name = nameMap[p.id] || p.name || p.id;
+        const views = viewMap[p.id] || viewMap[analyticsPageKeySafe(p.id)] || 0;
+        const conv = views > 0 ? ((p.orders / views) * 100).toFixed(1) + '%' : '—';
+        return '<tr><td>' + (i + 1) + '</td><td class="admin-analytics-table__name">' + name + '</td>' +
+            '<td>' + views + '</td><td>' + p.units + '</td><td>' + p.orders + '</td>' +
+            '<td>' + conv + '</td><td><strong>' + analyticsFormatCurrency(p.revenue) + '</strong></td></tr>';
+    }).join('');
+    return html +
+        '<div class="admin-analytics-table-wrap"><table class="admin-analytics-table">' +
+        '<thead><tr><th>#</th><th>Product</th><th>Views</th><th>Units</th><th>Orders</th><th>View→order</th><th>Revenue</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+}
 
-    return '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
-        analyticsRenderKpiCard('Store visits', String(traffic.visits), 'Unique sessions (30 min)', '#e67e22') +
-        analyticsRenderKpiCard('Page views', String(traffic.pageViews), 'All screens', '#3498db') +
-        analyticsRenderKpiCard('Orders placed', String(orderAgg.orderCount), analyticsFormatCurrency(orderAgg.revenue), '#2ecc71') +
-        '</div>' +
-        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-mouse-pointer"></i> Shopping events</h5>' + eventsHtml + '</div>' +
-        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-sitemap"></i> Page popularity</h5>' +
-        (traffic.topPages.length
-            ? '<div class="admin-analytics-breakdown">' + traffic.topPages.map(function(p) {
-                const pct = traffic.pageViews ? Math.round((p[1] / traffic.pageViews) * 100) : 0;
-                return '<div class="admin-analytics-breakdown__row">' +
-                    '<span class="admin-analytics-breakdown__label">' + p[0].replace(/_/g, ' ') + '</span>' +
-                    '<div class="admin-analytics-breakdown__track"><div class="admin-analytics-breakdown__fill admin-analytics-breakdown__fill--blue" style="width:' + Math.max(pct, 2) + '%"></div></div>' +
-                    '<span class="admin-analytics-breakdown__count">' + p[1] + '</span></div>';
-            }).join('') + '</div>'
-            : '<p class="admin-analytics-empty">Browse tracking starts after this update is live.</p>') +
+function analyticsPageKeySafe(id) {
+    return String(id || '').replace(/[.#$/\[\]]/g, '_').slice(0, 64);
+}
+
+function analyticsRenderFunnelTab(funnel, traffic, orderAgg) {
+    const events = traffic.eventBreakdown || {};
+    return '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-filter"></i> Full conversion funnel</h5>' +
+        analyticsRenderFunnel(funnel) + '</div>' +
+        '<div class="admin-analytics-split">' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-mobile"></i> Devices</h5>' +
+        analyticsRenderBreakdown(Object.entries(traffic.deviceBreakdown || {}).sort(function(a, b) { return b[1] - a[1]; }), 'Device data builds as customers browse.') +
+        '</div><div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-mouse-pointer"></i> Shopping events</h5>' +
+        analyticsRenderBreakdown(Object.entries(events).sort(function(a, b) { return b[1] - a[1]; }), 'Track add to cart, checkout & more.') +
+        '</div></div>' +
+        '<div class="admin-analytics-split">' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-eye"></i> Top pages</h5>' +
+        analyticsRenderBreakdown(traffic.topPages, 'Page views appear after customers browse.') +
+        '</div><div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-bullhorn"></i> Campaign / UTM sources</h5>' +
+        analyticsRenderBreakdown((traffic.utmTop || []).map(function(u) { return [u[0].replace(/^utm_/, '').replace(/_/g, ' '), u[1]]; }), 'UTM tags from shared links appear here.') +
+        '</div></div>' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-clock-o"></i> Traffic by hour</h5>' +
+        analyticsRenderHeatmap(traffic.hourlyTraffic, 'views') + '</div>';
+}
+
+function analyticsRenderGrowthTab(current, previous, traffic, ctx) {
+    const payEntries = Object.entries(current.paymentCounts).sort(function(a, b) { return b[1] - a[1]; });
+    let promoHtml = '<p class="admin-analytics-empty">No promo codes used in period.</p>';
+    if (current.topPromos.length) {
+        promoHtml = '<div class="admin-analytics-table-wrap"><table class="admin-analytics-table"><thead><tr><th>Code</th><th>Uses</th><th>Revenue</th><th>Discount given</th></tr></thead><tbody>' +
+            current.topPromos.map(function(p) {
+                return '<tr><td><strong>' + p.code + '</strong></td><td>' + p.uses + '</td><td>' + analyticsFormatCurrency(p.revenue) + '</td><td>' + analyticsFormatCurrency(p.discount) + '</td></tr>';
+            }).join('') + '</tbody></table></div>';
+    }
+
+    return '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-line-chart"></i> Growth — revenue &amp; orders</h5>' +
+        analyticsRenderDualChart(current.chartDays, current.dailyRevenue, current.dailyOrders, current.chartMax) + '</div>' +
+        '<div class="admin-analytics-split">' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-clock-o"></i> Orders by hour</h5>' +
+        analyticsRenderHeatmap(current.hourlyOrders, 'orders') + '</div>' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-credit-card"></i> Payment mix</h5>' +
+        analyticsRenderBreakdown(payEntries) + '</div></div>' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-ticket"></i> Promo code performance</h5>' + promoHtml + '</div>' +
+        '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
+        analyticsRenderKpi('New visitors', String(traffic.newVisits), 'First-time sessions', '#3498db', null) +
+        analyticsRenderKpi('Returning', String(traffic.returningVisits), 'Repeat sessions', '#9b59b6', null) +
+        analyticsRenderKpi('Rev vs prev', analyticsDeltaPct(current.revenue, previous.revenue).text, analyticsFormatCurrency(previous.revenue) + ' prior', 'var(--gold)', null) +
         '</div>';
 }
 
 function renderAdminAnalyticsDashboard() {
     const root = document.getElementById('admin-analytics-dashboard');
     if (!root) return;
-
     const st = window.adminAnalyticsState;
-    const startMs = analyticsPeriodStartMs(st.periodDays);
-    const periodLabel = st.periodDays === 1 ? 'Today' : st.periodDays === 0 ? 'All time' : 'Last ' + st.periodDays + ' days';
 
     if (st.loading) {
-        root.innerHTML = '<div class="admin-analytics-loading"><div class="premium-loader"></div><p>Loading analytics…</p></div>';
+        root.innerHTML = '<div class="admin-analytics-loading"><div class="premium-loader"></div><p>Crunching store analytics…</p></div>';
         return;
     }
 
-    const nameMap = analyticsBuildProductNameMap();
-    const orderAgg = analyticsAggregateOrders(st.orders, startMs);
-    const traffic = analyticsAggregateTraffic(st.storeAnalytics, startMs);
-    const customerRows = analyticsBuildCustomerRows(st.users, orderAgg, nameMap);
+    analyticsBuildMaps();
+    const range = analyticsComparisonRange(st.periodDays);
+    const periodLabel = st.periodDays === 1 ? 'Today' : st.periodDays === 0 ? 'All time' : 'Last ' + st.periodDays + ' days';
+
+    const current = analyticsAggregateOrders(st.orders, range.startMs, 0);
+    const previous = st.periodDays > 0
+        ? analyticsAggregateOrders(st.orders, range.prevStartMs, range.prevEndMs)
+        : { revenue: 0, orderCount: 0, aov: 0, uniqueCustomers: 0 };
+
+    const traffic = analyticsAggregateTraffic(st.storeAnalytics, range.startMs, 0);
+    const prevTraffic = st.periodDays > 0
+        ? analyticsAggregateTraffic(st.storeAnalytics, range.prevStartMs, range.prevEndMs)
+        : { visits: 0 };
+
+    const customerRows = analyticsBuildCustomerRows(st.users, current);
+    const funnel = analyticsBuildFunnel(traffic, current);
+    const nameMap = st.productNameMap;
+
+    const ctx = {
+        current: current, previous: previous, traffic: traffic, prevTraffic: prevTraffic,
+        funnel: funnel, customerRows: customerRows, state: st, periodLabel: periodLabel
+    };
 
     let tabHtml = '';
-    if (st.tab === 'products') tabHtml = analyticsRenderProductsTab(orderAgg, nameMap);
-    else if (st.tab === 'customers') tabHtml = analyticsRenderCustomersTab(customerRows);
-    else if (st.tab === 'traffic') tabHtml = analyticsRenderTrafficTab(traffic, orderAgg);
-    else tabHtml = analyticsRenderOverviewTab(orderAgg, traffic, periodLabel);
+    if (st.tab === 'customers') tabHtml = analyticsRenderCustomersTab(customerRows);
+    else if (st.tab === 'products') tabHtml = analyticsRenderProductsTab(current, traffic, nameMap);
+    else if (st.tab === 'funnel') tabHtml = analyticsRenderFunnelTab(funnel, traffic, current);
+    else if (st.tab === 'growth') tabHtml = analyticsRenderGrowthTab(current, previous, traffic, ctx);
+    else tabHtml = analyticsRenderOverview(ctx);
 
     const updated = st.lastLoadedAt
         ? 'Updated ' + new Date(st.lastLoadedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -463,21 +722,14 @@ function renderAdminAnalyticsDashboard() {
         '<div class="admin-analytics-periods">' +
         [1, 7, 30, 90, 0].map(function(d) {
             const label = d === 1 ? 'Today' : d === 0 ? 'All' : d + 'd';
-            const active = st.periodDays === d ? ' active' : '';
-            return '<button type="button" class="admin-analytics-period' + active + '" onclick="setAdminAnalyticsPeriod(' + d + ')">' + label + '</button>';
-        }).join('') +
-        '</div>' +
-        '<div class="admin-analytics-toolbar__right">' +
-        '<span class="admin-analytics-updated">' + updated + '</span>' +
-        '<button type="button" class="btn-gold admin-analytics-refresh" onclick="loadAdminAnalytics(true)"><i class="fa fa-refresh"></i> Refresh</button>' +
-        '</div></div>' +
+            return '<button type="button" class="admin-analytics-period' + (st.periodDays === d ? ' active' : '') + '" onclick="setAdminAnalyticsPeriod(' + d + ')">' + label + '</button>';
+        }).join('') + '</div>' +
+        '<div class="admin-analytics-toolbar__right"><span class="admin-analytics-updated">' + updated + '</span>' +
+        '<button type="button" class="btn-gold admin-analytics-refresh" onclick="loadAdminAnalytics(true)"><i class="fa fa-refresh"></i> Refresh</button></div></div>' +
         '<div class="admin-analytics-tabs">' +
-        ['overview', 'customers', 'products', 'traffic'].map(function(t) {
-            const labels = { overview: 'Overview', customers: 'Customers', products: 'Products', traffic: 'Traffic' };
-            const active = st.tab === t ? ' active' : '';
-            return '<button type="button" class="admin-analytics-tab' + active + '" onclick="setAdminAnalyticsTab(\'' + t + '\')">' + labels[t] + '</button>';
-        }).join('') +
-        '</div>' +
+        [['overview', 'Overview'], ['customers', 'Customers'], ['products', 'Products'], ['funnel', 'Funnel & traffic'], ['growth', 'Growth & promos']].map(function(t) {
+            return '<button type="button" class="admin-analytics-tab' + (st.tab === t[0] ? ' active' : '') + '" onclick="setAdminAnalyticsTab(\'' + t[0] + '\')">' + t[1] + '</button>';
+        }).join('') + '</div>' +
         '<div class="admin-analytics-body">' + tabHtml + '</div>';
 }
 
@@ -485,16 +737,58 @@ window.setAdminAnalyticsPeriod = function(days) {
     window.adminAnalyticsState.periodDays = days;
     renderAdminAnalyticsDashboard();
 };
-
 window.setAdminAnalyticsTab = function(tab) {
     window.adminAnalyticsState.tab = tab || 'overview';
     renderAdminAnalyticsDashboard();
 };
-
 window.onAdminAnalyticsCustomerSearch = function(val) {
     window.adminAnalyticsState.customerSearch = val || '';
     renderAdminAnalyticsDashboard();
 };
+window.setAdminAnalyticsSegment = function(seg) {
+    window.adminAnalyticsState.customerSegment = seg || 'all';
+    renderAdminAnalyticsDashboard();
+};
+window.setAdminAnalyticsCustomerSort = function(sortKey) {
+    window.adminAnalyticsState.customerSort = sortKey || 'ltv';
+    renderAdminAnalyticsDashboard();
+};
+
+window.exportAdminAnalyticsCustomers = function() {
+    const st = window.adminAnalyticsState;
+    const range = analyticsComparisonRange(st.periodDays);
+    const orderAgg = analyticsAggregateOrders(st.orders, range.startMs, 0);
+    const rows = analyticsBuildCustomerRows(st.users, orderAgg);
+    const header = ['Name', 'Email', 'Phone', 'Type', 'Segment', 'Visits', 'Last Seen', 'Orders', 'Last Order', 'LTV', 'Device'];
+    const lines = [header.join(',')];
+    rows.forEach(function(r) {
+        lines.push([
+            '"' + (r.name || '').replace(/"/g, '""') + '"',
+            '"' + (r.email || '').replace(/"/g, '""') + '"',
+            '"' + (r.phone || '').replace(/"/g, '""') + '"',
+            r.isGuest ? 'Guest' : 'Registered',
+            r.segment,
+            r.visits,
+            r.lastSeenMs ? new Date(r.lastSeenMs).toISOString() : '',
+            r.orders,
+            r.lastOrderMs ? new Date(r.lastOrderMs).toISOString() : '',
+            r.ltv,
+            r.lastDevice || ''
+        ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'swagstree-customers-' + analyticsDayKeyExport() + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    if (typeof showToast === 'function') showToast('Customer analytics exported');
+};
+
+function analyticsDayKeyExport() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
 
 window.toggleAdminAnalyticsAccordion = function() {
     const content = document.getElementById('admin-analytics-accordion-content');
@@ -503,7 +797,7 @@ window.toggleAdminAnalyticsAccordion = function() {
     const open = content.style.display === 'none' || !content.style.display;
     content.style.display = open ? 'flex' : 'none';
     if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
-    if (open && typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
+    if (open) loadAdminAnalytics();
 };
 
 function updateAdminAnalyticsUIVisibility() {
@@ -532,29 +826,35 @@ window.loadAdminAnalytics = async function(force) {
     renderAdminAnalyticsDashboard();
 
     try {
-        const ordersSnap = await db.collection('orders').orderBy('timestamp', 'desc').limit(2500).get();
+        const [ordersSnap, usersSnap, analyticsDoc, supportSnap, reviewsSnap] = await Promise.all([
+            db.collection('orders').orderBy('timestamp', 'desc').limit(3000).get(),
+            db.collection('users').limit(4000).get(),
+            db.collection('settings').doc('analytics').get(),
+            db.collection('support_threads').limit(1500).get(),
+            db.collection('product_comments').limit(2000).get()
+        ]);
+
         st.orders = [];
-        ordersSnap.forEach(function(doc) {
-            st.orders.push(Object.assign({ id: doc.id }, doc.data()));
-        });
+        ordersSnap.forEach(function(doc) { st.orders.push(Object.assign({ id: doc.id }, doc.data())); });
 
-        const usersSnap = await db.collection('users').limit(3000).get();
         st.users = [];
-        usersSnap.forEach(function(doc) {
-            st.users.push(Object.assign({ uid: doc.id }, doc.data()));
-        });
+        usersSnap.forEach(function(doc) { st.users.push(Object.assign({ uid: doc.id }, doc.data())); });
 
-        const analyticsDoc = await db.collection('settings').doc('analytics').get();
         st.storeAnalytics = analyticsDoc.exists ? analyticsDoc.data() : null;
+        st.supportThreads = supportSnap.size;
+        st.reviewCount = 0;
+        st.pendingReviews = 0;
+        reviewsSnap.forEach(function(doc) {
+            st.reviewCount += 1;
+            if ((doc.data().status || '') === 'pending') st.pendingReviews += 1;
+        });
 
         st.loaded = true;
         st.lastLoadedAt = Date.now();
     } catch (e) {
         console.error('loadAdminAnalytics error:', e);
         const root = document.getElementById('admin-analytics-dashboard');
-        if (root) {
-            root.innerHTML = '<p class="admin-analytics-empty" style="color:var(--red);">Failed to load analytics. Check connection and try Refresh.</p>';
-        }
+        if (root) root.innerHTML = '<p class="admin-analytics-empty" style="color:var(--red);">Failed to load analytics. Try Refresh.</p>';
     } finally {
         st.loading = false;
         renderAdminAnalyticsDashboard();

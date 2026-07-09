@@ -477,6 +477,7 @@ window.onload = () => {
 
     // Start product/catalog listeners immediately — do not wait for auth (avoids stuck "Loading Products")
     if (typeof loadData === 'function') loadData();
+    if (typeof captureAnalyticsUtm === 'function') captureAnalyticsUtm();
     if (typeof trackAnalyticsPageView === 'function') trackAnalyticsPageView('home');
 
     // Nudge if Firestore is unusually slow (keeps skeleton but updates message)

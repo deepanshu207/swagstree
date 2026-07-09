@@ -576,6 +576,7 @@ async function applyPromo(forcedCode, options = {}) {
             activePromo = { code: promo.code, discount: promo.discount / 100 };
             applied = true;
             if (!silent) showToast("Promo Applied: " + promo.discount + "% OFF");
+            if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('promo_applied', { promoCode: promo.code });
         }
     } else {
         activePromo = null;
@@ -982,7 +983,8 @@ function payCodAdvance(method) {
 }
 
 async function openCart() {
-    let h = ""; 
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_cart', { items: cart.length });
+    let h = "";
     const groups = {};
     cart.forEach((it, idx) => {
         if (!groups[it.id]) {
@@ -1692,7 +1694,10 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
             console.error("Failed to automatically send Telegram order notification:", teleErr);
         }
         if (typeof updateUserOrderAnalytics === 'function' && effectiveUid) {
-            updateUserOrderAnalytics(effectiveUid, total, orderId);
+            updateUserOrderAnalytics(effectiveUid, total, orderId, {
+                paymentMethod: paymentMethod,
+                promoCode: activePromo ? activePromo.code : null
+            });
         }
         if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('order_placed', { orderId: orderId, total: total });
         // ----------------------------
