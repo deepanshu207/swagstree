@@ -49,6 +49,7 @@ function updateAdminPrivilegesUI() {
 
     if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
+    if (typeof updateAdminAnalyticsUIVisibility === 'function') updateAdminAnalyticsUIVisibility();
     if (typeof applyAdminPanelVisibility === 'function') applyAdminPanelVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
     if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
@@ -616,6 +617,7 @@ async function handleMainAuth() {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
+            if (typeof trackAnalyticsSignup === 'function') trackAnalyticsSignup('email');
             showToast("✅ Account Created! Welcome!");
         } else {
             // LOGIN

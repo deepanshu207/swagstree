@@ -56,12 +56,16 @@
 
     function isReturningStoreVisitor() {
         try {
-            if (localStorage.getItem(RETURNING_KEY)) return true;
-            localStorage.setItem(RETURNING_KEY, '1');
-            return false;
+            return !!localStorage.getItem(RETURNING_KEY);
         } catch (e) {
             return false;
         }
+    }
+
+    function markStoreVisitorReturning() {
+        try {
+            localStorage.setItem(RETURNING_KEY, '1');
+        } catch (e) { /* ignore */ }
     }
 
     function readCapturedUtm() {
@@ -108,7 +112,8 @@
 
         const sessionId = getAnalyticsSessionId();
         const isNewVisit = shouldCountNewVisit();
-        const isReturning = isReturningStoreVisitor();
+        const isReturning = isNewVisit ? isReturningStoreVisitor() : false;
+        if (isNewVisit && !isReturning) markStoreVisitorReturning();
         const dk = analyticsDayKey();
         const hour = String(new Date().getHours()).padStart(2, '0');
         const pageKey = analyticsPageKey(page);
@@ -189,9 +194,14 @@
             updates['daily.' + dk + '.eventProducts.' + eventKey + '.' + pk] =
                 firebase.firestore.FieldValue.increment(1);
         }
-        if (extra.value) {
+        const eventValue = Number(extra.value != null ? extra.value : extra.total) || 0;
+        if (eventValue > 0) {
             updates['daily.' + dk + '.eventValue.' + eventKey] =
-                firebase.firestore.FieldValue.increment(Number(extra.value) || 0);
+                firebase.firestore.FieldValue.increment(eventValue);
+            if (eventKey === 'order_placed') {
+                updates['daily.' + dk + '.revenue'] = firebase.firestore.FieldValue.increment(eventValue);
+                updates['totals.revenue'] = firebase.firestore.FieldValue.increment(eventValue);
+            }
         }
         storeRef.set(updates, { merge: true }).catch(function() {});
 
@@ -213,18 +223,24 @@
         const total = Number(orderTotal) || 0;
         const meta = extra && typeof extra === 'object' ? extra : {};
         const patch = {
-            analytics: {
-                lastOrderAt: firebase.firestore.FieldValue.serverTimestamp(),
-                lastOrderId: orderId || null,
-                orderCount: firebase.firestore.FieldValue.increment(1),
-                lifetimeValue: firebase.firestore.FieldValue.increment(total)
-            },
+            'analytics.lastOrderAt': firebase.firestore.FieldValue.serverTimestamp(),
+            'analytics.lastOrderId': orderId || null,
+            'analytics.orderCount': firebase.firestore.FieldValue.increment(1),
+            'analytics.lifetimeValue': firebase.firestore.FieldValue.increment(total),
             lastOrderId: orderId || null,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        if (meta.paymentMethod) patch.analytics.lastPaymentMethod = String(meta.paymentMethod);
-        if (meta.promoCode) patch.analytics.lastPromoCode = String(meta.promoCode);
+        if (meta.paymentMethod) patch['analytics.lastPaymentMethod'] = String(meta.paymentMethod);
+        if (meta.promoCode) patch['analytics.lastPromoCode'] = String(meta.promoCode);
+        if (meta.email) patch.email = String(meta.email).toLowerCase();
+        if (meta.displayName) patch.displayName = String(meta.displayName);
+        if (meta.phone) patch.phone = String(meta.phone);
         db.collection('users').doc(uid).set(patch, { merge: true }).catch(function() {});
     }
     window.updateUserOrderAnalytics = updateUserOrderAnalytics;
+
+    function trackAnalyticsSignup(method) {
+        trackAnalyticsEvent('signup', { method: method || 'email' });
+    }
+    window.trackAnalyticsSignup = trackAnalyticsSignup;
 })();

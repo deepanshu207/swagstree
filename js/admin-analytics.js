@@ -101,6 +101,54 @@ function analyticsOrderRevenue(order) {
     return Number(order.total) || 0;
 }
 
+function analyticsCustomerKey(order) {
+    const email = (order.email || '').toLowerCase().trim();
+    if (email && email.includes('@')) return 'e:' + email;
+    const phone = (order.phone || '').replace(/\D/g, '');
+    if (phone.length >= 10) return 'p:' + phone.slice(-10);
+    const uid = (order.uid || '').toLowerCase().trim();
+    if (uid) return 'u:' + uid;
+    return 'x:guest';
+}
+
+function analyticsCountSignups(users, startMs, endMs) {
+    let count = 0;
+    (users || []).forEach(function(u) {
+        const ts = analyticsTsToMs(u.createdAt) || analyticsTsToMs((u.analytics || {}).firstSeenAt);
+        if (analyticsInRange(ts, startMs || 0, endMs || 0)) count += 1;
+    });
+    return count;
+}
+
+function analyticsComputeRepurchaseDays(orders) {
+    const byCustomer = {};
+    orders.forEach(function(o) {
+        const key = analyticsCustomerKey(o);
+        const ts = analyticsTsToMs(o.timestamp);
+        if (!ts || ADMIN_ANALYTICS_EXCLUDED.has((o.status || '').toLowerCase())) return;
+        if (!byCustomer[key]) byCustomer[key] = [];
+        byCustomer[key].push(ts);
+    });
+    const gaps = [];
+    Object.keys(byCustomer).forEach(function(key) {
+        const times = byCustomer[key].sort(function(a, b) { return a - b; });
+        if (times.length < 2) return;
+        for (let i = 1; i < times.length; i++) {
+            gaps.push((times[i] - times[i - 1]) / 86400000);
+        }
+    });
+    if (!gaps.length) return 0;
+    return Math.round(gaps.reduce(function(s, v) { return s + v; }, 0) / gaps.length);
+}
+
+function analyticsLookupOrderInfo(map, user) {
+    const email = (user.email || '').toLowerCase().trim();
+    const phone = (user.phone || '').replace(/\D/g, '').slice(-10);
+    const uid = (user.uid || '').toLowerCase().trim();
+    return map['e:' + email] || map['p:' + phone] || map['u:' + uid] ||
+        map[email] || map[uid] || { count: 0, revenue: 0, lastMs: 0, firstMs: 0 };
+}
+
 function analyticsDeltaPct(current, previous) {
     if (!previous && !current) return { text: '—', cls: 'neutral' };
     if (!previous) return { text: '+100%', cls: 'up' };
@@ -159,6 +207,8 @@ function analyticsAggregateOrders(orders, startMs, endMs) {
     let registeredOrders = 0;
     let codRevenue = 0;
     let onlineRevenue = 0;
+    let pendingOrders = 0;
+    let cancelledOrders = 0;
 
     const statusCounts = {};
     const paymentCounts = {};
@@ -180,6 +230,8 @@ function analyticsAggregateOrders(orders, startMs, endMs) {
         discountTotal += Number(o.discount) || 0;
         refundTotal += Number(o.refundAmount) || 0;
         if (ADMIN_ANALYTICS_DELIVERED.has(status)) deliveredCount += 1;
+        if (status === 'pending' || status === 'confirmed' || status === 'processing' || status === 'placed') pendingOrders += 1;
+        if (status === 'cancelled' || status === 'returned') cancelledOrders += 1;
 
         statusCounts[status] = (statusCounts[status] || 0) + 1;
         const pay = (o.paymentMethod || 'unknown').toLowerCase();
@@ -207,12 +259,14 @@ function analyticsAggregateOrders(orders, startMs, endMs) {
             hourlyOrders[d.getHours()] += 1;
         }
 
-        const custKey = (o.email || o.uid || o.phone || 'guest').toLowerCase().trim();
-        if (!customerOrderMap[custKey]) customerOrderMap[custKey] = { count: 0, revenue: 0, lastMs: 0, firstMs: ts || 0 };
+        const custKey = analyticsCustomerKey(o);
+        if (!customerOrderMap[custKey]) customerOrderMap[custKey] = { count: 0, revenue: 0, lastMs: 0, firstMs: 0 };
         customerOrderMap[custKey].count += 1;
         customerOrderMap[custKey].revenue += rev;
         if (ts > customerOrderMap[custKey].lastMs) customerOrderMap[custKey].lastMs = ts;
-        if (ts && ts < customerOrderMap[custKey].firstMs) customerOrderMap[custKey].firstMs = ts;
+        if (ts && (!customerOrderMap[custKey].firstMs || ts < customerOrderMap[custKey].firstMs)) {
+            customerOrderMap[custKey].firstMs = ts;
+        }
 
         (o.items || []).forEach(function(item) {
             const qty = Number(item.qty) || 1;
@@ -246,7 +300,7 @@ function analyticsAggregateOrders(orders, startMs, endMs) {
     return {
         orderCount, revenue, grossRevenue, discountTotal, refundTotal, aov, units, itemsPerOrder,
         uniqueCustomers, repeatCustomers, repeatRate, deliveredCount, fulfillmentRate,
-        guestOrders, registeredOrders, codRevenue, onlineRevenue,
+        guestOrders, registeredOrders, codRevenue, onlineRevenue, pendingOrders, cancelledOrders,
         statusCounts, paymentCounts, productStats, categoryStats, promoStats,
         dailyRevenue, dailyOrders, chartDays, chartMax, hourlyOrders, customerOrderMap,
         topProducts: Object.values(productStats).sort(function(a, b) { return b.revenue - a.revenue; }).slice(0, 15),
@@ -365,10 +419,7 @@ function analyticsBuildCustomerRows(users, orderAgg) {
         seen.add(key);
         if (email) emailToKey[email] = key;
 
-        const orderInfo = orderAgg.customerOrderMap[email] ||
-            orderAgg.customerOrderMap[(u.uid || '').toLowerCase()] ||
-            orderAgg.customerOrderMap[(u.phone || '').replace(/\D/g, '')] ||
-            { count: 0, revenue: 0, lastMs: 0, firstMs: 0 };
+        const orderInfo = analyticsLookupOrderInfo(orderAgg.customerOrderMap, u);
         const a = u.analytics || {};
 
         const row = {
@@ -492,25 +543,32 @@ function analyticsRenderOverview(ctx) {
     const p = ctx.previous;
     const t = ctx.traffic;
     const st = ctx.state;
+    const events = t.eventBreakdown || {};
     const conv = t.visits > 0 ? ((c.orderCount / t.visits) * 100).toFixed(1) + '%' : '—';
-    const cartConv = (t.eventBreakdown.add_to_cart || 0) > 0
-        ? ((c.orderCount / t.eventBreakdown.add_to_cart) * 100).toFixed(1) + '% checkout completion'
+    const rpv = t.visits > 0 ? analyticsFormatCurrency(Math.round(c.revenue / t.visits)) : '—';
+    const cartViews = events.view_cart || 0;
+    const cartAbandon = cartViews > 0
+        ? Math.max(0, 100 - Math.round((c.orderCount / cartViews) * 100)) + '%'
+        : '—';
+    const cartConv = (events.add_to_cart || 0) > 0
+        ? ((c.orderCount / events.add_to_cart) * 100).toFixed(1) + '% cart→order'
         : '';
+    const repurchaseDays = ctx.repurchaseDays ? ctx.repurchaseDays + ' days avg' : '—';
 
     return '<div class="admin-analytics-kpi-grid">' +
         analyticsRenderKpi('Revenue', analyticsFormatCurrency(c.revenue), ctx.periodLabel, 'var(--gold)', analyticsDeltaPct(c.revenue, p.revenue)) +
         analyticsRenderKpi('Orders', String(c.orderCount), c.units + ' units · ' + c.itemsPerOrder + '/order', '#2ecc71', analyticsDeltaPct(c.orderCount, p.orderCount)) +
         analyticsRenderKpi('AOV', analyticsFormatCurrency(c.aov), 'Avg order value', '#3498db', analyticsDeltaPct(c.aov, p.aov)) +
-        analyticsRenderKpi('Customers', String(c.uniqueCustomers), c.repeatRate + '% repeat rate', '#9b59b6', analyticsDeltaPct(c.uniqueCustomers, p.uniqueCustomers)) +
+        analyticsRenderKpi('Customers', String(c.uniqueCustomers), c.repeatRate + '% repeat · ' + repurchaseDays, '#9b59b6', analyticsDeltaPct(c.uniqueCustomers, p.uniqueCustomers)) +
         analyticsRenderKpi('Visits', String(t.visits), t.pageViews + ' page views', '#e67e22', analyticsDeltaPct(t.visits, ctx.prevTraffic.visits)) +
-        analyticsRenderKpi('Conversion', conv, cartConv || 'orders ÷ visits', '#1abc9c', null) +
+        analyticsRenderKpi('Conversion', conv, 'RPV ' + rpv, '#1abc9c', null) +
         '</div>' +
         '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
         analyticsRenderKpi('Delivered', c.fulfillmentRate + '%', c.deliveredCount + ' of ' + c.orderCount, '#2ecc71', null) +
+        analyticsRenderKpi('Pending', String(c.pendingOrders), c.cancelledOrders + ' cancelled', '#f39c12', null) +
+        analyticsRenderKpi('Cart abandon', cartAbandon, cartViews + ' cart views', '#e74c3c', null) +
+        analyticsRenderKpi('New signups', String(ctx.signups), cartConv || 'Registrations in period', '#3498db', analyticsDeltaPct(ctx.signups, ctx.prevSignups)) +
         analyticsRenderKpi('Discounts', analyticsFormatCurrency(c.discountTotal), 'Promo savings', '#e74c3c', null) +
-        analyticsRenderKpi('Refunds', analyticsFormatCurrency(c.refundTotal), 'Returned/cancelled value', '#e67e22', null) +
-        analyticsRenderKpi('COD revenue', analyticsFormatCurrency(c.codRevenue), 'vs ' + analyticsFormatCurrency(c.onlineRevenue) + ' online', '#f39c12', null) +
-        analyticsRenderKpi('Guest orders', String(c.guestOrders), c.registeredOrders + ' registered', '#95a5a6', null) +
         analyticsRenderKpi('Engagement', String(st.supportThreads), st.reviewCount + ' reviews · ' + st.pendingReviews + ' pending', '#1abc9c', null) +
         '</div>' +
         '<div class="admin-analytics-split">' +
@@ -523,7 +581,55 @@ function analyticsRenderOverview(ctx) {
         '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-bar-chart"></i> Revenue &amp; orders trend</h5>' +
         analyticsRenderDualChart(c.chartDays, c.dailyRevenue, c.dailyOrders, c.chartMax) + '</div>' +
         '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-users"></i> Customer segments</h5>' +
-        analyticsRenderSegmentSummary(ctx.customerRows) + '</div></div>';
+        analyticsRenderSegmentSummary(ctx.customerRows) + '</div></div>' +
+        analyticsRenderRecentOrders(ctx.recentOrders);
+}
+
+function analyticsRenderRecentOrders(orders) {
+    if (!orders || !orders.length) return '';
+    const rows = orders.slice(0, 8).map(function(o) {
+        const status = (o.status || 'pending').toLowerCase();
+        const statusCls = status === 'delivered' ? 'delivered' : (status === 'cancelled' ? 'cancelled' : 'pending');
+        return '<tr><td><strong>#' + (o.orderId || (o.id ? o.id.slice(-6).toUpperCase() : '—')) + '</strong></td>' +
+            '<td>' + (o.recipient || '—') + '</td>' +
+            '<td>' + analyticsFormatShortDate(analyticsTsToMs(o.timestamp)) + '</td>' +
+            '<td><span class="admin-analytics-status admin-analytics-status--' + statusCls + '">' + status + '</span></td>' +
+            '<td>' + (o.paymentMethod || '—').toUpperCase() + '</td>' +
+            '<td><strong>' + analyticsFormatCurrency(o.total) + '</strong></td></tr>';
+    }).join('');
+    return '<div class="admin-analytics-panel" style="margin-top:4px;"><h5 class="admin-analytics-panel__title"><i class="fa fa-shopping-bag"></i> Recent orders</h5>' +
+        '<div class="admin-analytics-table-wrap"><table class="admin-analytics-table">' +
+        '<thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Status</th><th>Pay</th><th>Total</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div></div>';
+}
+
+function analyticsRenderOrdersTab(orders, startMs) {
+    const filtered = orders.filter(function(o) {
+        return analyticsInRange(analyticsTsToMs(o.timestamp), startMs || 0, 0);
+    }).slice(0, 100);
+
+    if (!filtered.length) return '<p class="admin-analytics-empty">No orders in this period.</p>';
+
+    const rows = filtered.map(function(o) {
+        const status = (o.status || 'pending').toLowerCase();
+        const items = (o.items || []).reduce(function(s, i) { return s + (Number(i.qty) || 1); }, 0);
+        return '<tr><td><strong>#' + (o.orderId || (o.id ? o.id.slice(-6).toUpperCase() : '—')) + '</strong></td>' +
+            '<td class="admin-analytics-table__name">' + (o.recipient || '—') + '</td>' +
+            '<td>' + (o.email || '—') + '</td>' +
+            '<td>' + analyticsFormatShortDate(analyticsTsToMs(o.timestamp)) + '</td>' +
+            '<td>' + items + '</td>' +
+            '<td>' + status + '</td>' +
+            '<td>' + (o.paymentMethod || '—').toUpperCase() + '</td>' +
+            '<td>' + (o.promoCode || '—') + '</td>' +
+            '<td><strong>' + analyticsFormatCurrency(o.total) + '</strong></td></tr>';
+    }).join('');
+
+    return '<div class="admin-analytics-customer-toolbar">' +
+        '<button type="button" class="btn-gold admin-analytics-export" onclick="exportAdminAnalyticsOrders()"><i class="fa fa-download"></i> Export orders CSV</button>' +
+        '<span class="admin-analytics-footnote" style="margin:0;">Showing latest ' + filtered.length + ' orders in selected period</span></div>' +
+        '<div class="admin-analytics-table-wrap admin-analytics-table-wrap--tall"><table class="admin-analytics-table">' +
+        '<thead><tr><th>Order</th><th>Customer</th><th>Email</th><th>Date</th><th>Items</th><th>Status</th><th>Payment</th><th>Promo</th><th>Total</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
 }
 
 function analyticsRenderSegmentSummary(rows) {
@@ -700,15 +806,24 @@ function renderAdminAnalyticsDashboard() {
     const customerRows = analyticsBuildCustomerRows(st.users, current);
     const funnel = analyticsBuildFunnel(traffic, current);
     const nameMap = st.productNameMap;
+    const periodOrders = st.orders.filter(function(o) {
+        return analyticsInRange(analyticsTsToMs(o.timestamp), range.startMs, 0);
+    });
+    const signups = analyticsCountSignups(st.users, range.startMs, 0);
+    const prevSignups = st.periodDays > 0 ? analyticsCountSignups(st.users, range.prevStartMs, range.prevEndMs) : 0;
+    const repurchaseDays = analyticsComputeRepurchaseDays(periodOrders);
 
     const ctx = {
         current: current, previous: previous, traffic: traffic, prevTraffic: prevTraffic,
-        funnel: funnel, customerRows: customerRows, state: st, periodLabel: periodLabel
+        funnel: funnel, customerRows: customerRows, state: st, periodLabel: periodLabel,
+        signups: signups, prevSignups: prevSignups, repurchaseDays: repurchaseDays,
+        recentOrders: periodOrders
     };
 
     let tabHtml = '';
     if (st.tab === 'customers') tabHtml = analyticsRenderCustomersTab(customerRows);
     else if (st.tab === 'products') tabHtml = analyticsRenderProductsTab(current, traffic, nameMap);
+    else if (st.tab === 'orders') tabHtml = analyticsRenderOrdersTab(st.orders, range.startMs);
     else if (st.tab === 'funnel') tabHtml = analyticsRenderFunnelTab(funnel, traffic, current);
     else if (st.tab === 'growth') tabHtml = analyticsRenderGrowthTab(current, previous, traffic, ctx);
     else tabHtml = analyticsRenderOverview(ctx);
@@ -727,7 +842,7 @@ function renderAdminAnalyticsDashboard() {
         '<div class="admin-analytics-toolbar__right"><span class="admin-analytics-updated">' + updated + '</span>' +
         '<button type="button" class="btn-gold admin-analytics-refresh" onclick="loadAdminAnalytics(true)"><i class="fa fa-refresh"></i> Refresh</button></div></div>' +
         '<div class="admin-analytics-tabs">' +
-        [['overview', 'Overview'], ['customers', 'Customers'], ['products', 'Products'], ['funnel', 'Funnel & traffic'], ['growth', 'Growth & promos']].map(function(t) {
+        [['overview', 'Overview'], ['orders', 'Orders'], ['customers', 'Customers'], ['products', 'Products'], ['funnel', 'Funnel'], ['growth', 'Growth']].map(function(t) {
             return '<button type="button" class="admin-analytics-tab' + (st.tab === t[0] ? ' active' : '') + '" onclick="setAdminAnalyticsTab(\'' + t[0] + '\')">' + t[1] + '</button>';
         }).join('') + '</div>' +
         '<div class="admin-analytics-body">' + tabHtml + '</div>';
@@ -783,6 +898,41 @@ window.exportAdminAnalyticsCustomers = function() {
     a.click();
     URL.revokeObjectURL(a.href);
     if (typeof showToast === 'function') showToast('Customer analytics exported');
+};
+
+window.exportAdminAnalyticsOrders = function() {
+    const st = window.adminAnalyticsState;
+    const range = analyticsComparisonRange(st.periodDays);
+    const orders = st.orders.filter(function(o) {
+        return analyticsInRange(analyticsTsToMs(o.timestamp), range.startMs, 0);
+    });
+    const header = ['Order ID', 'Customer', 'Email', 'Phone', 'Date', 'Status', 'Payment', 'Promo', 'Items', 'Subtotal', 'Discount', 'Total', 'Guest'];
+    const lines = [header.join(',')];
+    orders.forEach(function(o) {
+        const items = (o.items || []).reduce(function(s, i) { return s + (Number(i.qty) || 1); }, 0);
+        lines.push([
+            '"' + (o.orderId || o.id || '').replace(/"/g, '""') + '"',
+            '"' + (o.recipient || '').replace(/"/g, '""') + '"',
+            '"' + (o.email || '').replace(/"/g, '""') + '"',
+            '"' + (o.phone || '').replace(/"/g, '""') + '"',
+            o.timestamp && o.timestamp.toDate ? o.timestamp.toDate().toISOString() : '',
+            o.status || '',
+            o.paymentMethod || '',
+            o.promoCode || '',
+            items,
+            Number(o.subtotal) || 0,
+            Number(o.discount) || 0,
+            Number(o.total) || 0,
+            o.isGuest ? 'yes' : 'no'
+        ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'swagstree-orders-' + analyticsDayKeyExport() + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    if (typeof showToast === 'function') showToast('Orders exported (' + orders.length + ')');
 };
 
 function analyticsDayKeyExport() {

@@ -10786,3 +10786,15 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 .admin-analytics-tag--at_risk { background: rgba(231, 76, 60, 0.12); color: #e74c3c; }
 .admin-analytics-tag--dormant { background: rgba(149, 165, 166, 0.12); color: #95a5a6; }
 .admin-analytics-tag--browser { background: rgba(155, 89, 182, 0.12); color: #9b59b6; }
+
+.admin-analytics-status {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: lowercase;
+}
+.admin-analytics-status--delivered { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
+.admin-analytics-status--cancelled { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+.admin-analytics-status--pending { background: rgba(243, 156, 18, 0.15); color: #f39c12; }

@@ -1694,9 +1694,20 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
             console.error("Failed to automatically send Telegram order notification:", teleErr);
         }
         if (typeof updateUserOrderAnalytics === 'function' && effectiveUid) {
-            updateUserOrderAnalytics(effectiveUid, total, orderId, {
+            const orderMeta = {
                 paymentMethod: paymentMethod,
-                promoCode: activePromo ? activePromo.code : null
+                promoCode: activePromo ? activePromo.code : null,
+                email: emailVal || (currentUser && currentUser.email) || '',
+                displayName: n,
+                phone: p
+            };
+            const analyticsUids = [effectiveUid];
+            if (isGuest && emailVal && typeof buildGuestCustomerDocId === 'function') {
+                const guestDocId = buildGuestCustomerDocId(emailVal);
+                if (guestDocId && analyticsUids.indexOf(guestDocId) === -1) analyticsUids.push(guestDocId);
+            }
+            analyticsUids.forEach(function(uid) {
+                updateUserOrderAnalytics(uid, total, orderId, orderMeta);
             });
         }
         if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('order_placed', { orderId: orderId, total: total });
