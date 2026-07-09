@@ -542,6 +542,11 @@ async function applyPromo(forcedCode, options = {}) {
         if (!silent) showToast('Enter a promo code');
         return false;
     }
+    function trackPromoFailed(reason) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('promo_failed', { promoCode: code, reason: reason });
+        }
+    }
     if (promoInput) promoInput.value = code;
     
     const promo = activePromosList.find(p => p.code === code);
@@ -551,13 +556,16 @@ async function applyPromo(forcedCode, options = {}) {
     if (promo) {
         if (promo.endsAt && now > promo.endsAt) {
             activePromo = null;
+            trackPromoFailed('expired');
             if (!silent) showToast("Invalid or Expired Promo Code");
         } else if (promo.startsAt && now < promo.startsAt) {
             activePromo = null;
+            trackPromoFailed('scheduled');
             const startStr = new Date(promo.startsAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
             if (!silent) showToast("Promo code active starting " + startStr);
         } else if (promo.maxUses && (promo.usedCount || 0) >= promo.maxUses) {
             activePromo = null;
+            trackPromoFailed('exhausted');
             if (!silent) showToast("Promo code limit reached");
         } else {
             if (currentUser) {
@@ -569,6 +577,7 @@ async function applyPromo(forcedCode, options = {}) {
                         .get();
                     if (!usedSnap.empty) {
                         activePromo = null;
+                        trackPromoFailed('already_used');
                         if (!silent) showToast("You have already used this promo code");
                         if (closeModalAfter) await closePromoView(false);
                         openCart();
@@ -585,6 +594,7 @@ async function applyPromo(forcedCode, options = {}) {
         }
     } else {
         activePromo = null;
+        trackPromoFailed('invalid');
         if (!silent) showToast("Invalid or Expired Promo Code");
     }
 
@@ -748,6 +758,7 @@ async function openPromoView() {
     await renderPromoViewList();
     promoView.classList.add('active');
     window.scrollTo(0, 0);
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('promo_picker_opened');
 
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
@@ -910,6 +921,9 @@ function resetCodPaymentOptions() {
 function payCodAdvance(method) {
     const container = document.getElementById('cod-advance-payment-options');
     if (!container) return;
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_advance_selected', { method: method || 'unknown' });
+    }
 
     if (method === 'upi') {
         container.innerHTML = `
@@ -989,7 +1003,10 @@ function payCodAdvance(method) {
 }
 
 async function openCart() {
-    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_cart', { items: cart.length });
+    const cartTotal = typeof _getCartTotal === 'function' ? _getCartTotal() : 0;
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('view_cart', { items: cart.length, value: cartTotal });
+    }
     let h = "";
     const groups = {};
     cart.forEach((it, idx) => {
@@ -1177,7 +1194,10 @@ async function placeOrder() {
         return showToast("Please enter a complete delivery address (minimum 5 characters).");
     }
     if (cart.length === 0) return showToast("Bag is empty");
-    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('begin_checkout');
+    const checkoutTotal = typeof _getCartTotal === 'function' ? _getCartTotal() : 0;
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('begin_checkout', { value: checkoutTotal, items: cart.length });
+    }
     
     // Filter out unavailable/out-of-stock items from the cart automatically
     const validItems = cart.filter(item => getCartItemAvailability(item).available);
@@ -1226,6 +1246,9 @@ async function confirmCodOrder() {
 // Called from COD confirmation modal "Pay via UPI Instead"
 function codSwitchToUpi() {
     document.getElementById('cod-confirm-modal').style.display = 'none';
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_upi_switch', { value: typeof _getCartTotal === 'function' ? _getCartTotal() : 0 });
+    }
     _pendingOrderArgs = null;
     selectPayment('upi');
     showToast('Switched to UPI — scan the QR code to pay');
@@ -1234,6 +1257,11 @@ function codSwitchToUpi() {
 // Called from COD confirmation modal close/cancel
 function closeCodConfirmModal() {
     document.getElementById('cod-confirm-modal').style.display = 'none';
+    if (_pendingOrderArgs && typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_checkout_abandoned', {
+            value: typeof _getCartTotal === 'function' ? _getCartTotal() : 0
+        });
+    }
     _pendingOrderArgs = null;
 }
 
@@ -1247,6 +1275,12 @@ function _showCodConfirmModal(minAmt) {
     const amtEl = document.getElementById('cod-min-amount-display');
     if (amtEl) amtEl.textContent = '₹' + minAmt;
     modal.style.display = 'flex';
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_checkout_started', {
+            value: typeof _getCartTotal === 'function' ? _getCartTotal() : 0,
+            method: 'cod'
+        });
+    }
 }
 
 async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, codAdvancePaid }) {
@@ -1742,6 +1776,9 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
     } catch(e) {
         console.error('Order Error:', e);
         const errMsg = e && e.message ? e.message : (e && e.text ? `Failed: ${e.text}` : 'Failed to place order');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('order_failed', { reason: String(errMsg).slice(0, 80) });
+        }
         showToast(errMsg);
     }
 
@@ -1772,6 +1809,7 @@ window.copyTextToClipboard = function(text, successMessage) {
 };
 
 window.openWhatsApp = function(phone, text) {
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('whatsapp_click', { source: 'helper' });
     let cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
         showToast("No valid phone number for WhatsApp.");

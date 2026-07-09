@@ -1203,6 +1203,9 @@ async function escalateSupportThread(threadId, reason) {
         escalateReason: reason || 'customer_request',
         escalatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('support_escalated', { reason: reason || 'customer_request' });
+    }
 }
 
 function isSupportChatOpen() {
@@ -1833,6 +1836,7 @@ window.switchSupportChatTab = function(tab) {
     updateSupportChatTabUI(tab);
     showChatBodyForTab(tab);
     if (tab === 'admin') {
+        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('live_support_tab');
         const body = getChatBody(SUPPORT_CHANNEL);
         const hasAdminHint = body && body.querySelector('[data-admin-tab-hint]');
         if (body && !hasAdminHint && body.childElementCount === 0) {
@@ -2714,6 +2718,13 @@ function chatMessageNeedsCatalog(text) {
 async function handleAiSupportMessage(text) {
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
+    const intent = detectSupportIntent(text);
+    const intentKey = typeof intent === 'object'
+        ? String(intent.type || intent.occasion || 'complex')
+        : String(intent || 'ai');
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('chat_intent', { intent: intentKey });
+    }
 
     window.supportChatState.loaded = true;
     appendSupportBubble('customer', text, '', AI_CHANNEL);

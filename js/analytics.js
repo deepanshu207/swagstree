@@ -208,6 +208,14 @@
             const pk = analyticsPageKey('promo_' + extra.promoCode);
             updates['daily.' + dk + '.promoEvents.' + pk] = firebase.firestore.FieldValue.increment(1);
         }
+        ['method', 'intent', 'reason', 'mode', 'sort', 'source', 'variant'].forEach(function(field) {
+            if (!extra[field]) return;
+            const dimKey = analyticsPageKey(field + '_' + String(extra[field]).slice(0, 48));
+            updates['daily.' + dk + '.eventDims.' + eventKey + '.' + dimKey] =
+                firebase.firestore.FieldValue.increment(1);
+            updates['totals.eventDims.' + eventKey + '.' + dimKey] =
+                firebase.firestore.FieldValue.increment(1);
+        });
         const eventValue = Number(extra.value != null ? extra.value : extra.total) || 0;
         if (eventValue > 0) {
             updates['daily.' + dk + '.eventValue.' + eventKey] =

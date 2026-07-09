@@ -282,6 +282,9 @@ function checkDeepLink() {
 
     // Hide overlay then open product — no flash, URL stays as share link
     if (overlay) overlay.style.display = 'none';
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('deep_link_open', { productId: id, source: color ? 'share_variant' : 'share' });
+    }
     showDetail(id, color, size);
 }
 
@@ -1549,6 +1552,9 @@ function selectDetailSize(sz, el) {
     const p = products.find(x => x.id === activeProductId);
     if (p && !isDetailSizeInStock(p, sz)) {
         if (typeof showToast === 'function') showToast('This size is out of stock for the selected color.');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('oos_friction', { productId: activeProductId, variant: 'size', reason: 'size_oos' });
+        }
         return;
     }
     selectedSize = sz;
@@ -1556,6 +1562,9 @@ function selectDetailSize(sz, el) {
     el.classList.add('active');
 
     if (p) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'size', method: sz });
+        }
         renderDetailColors(p);
         renderDetailPatterns(p);
         updateVariantUI(p);
@@ -1567,6 +1576,9 @@ function selectDetailColor(col, el) {
     const p = products.find(x => x.id === activeProductId);
     if (p && !isDetailColorInStock(p, col)) {
         if (typeof showToast === 'function') showToast('This color is out of stock for the selected size.');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('oos_friction', { productId: activeProductId, variant: 'color', reason: 'color_oos' });
+        }
         return;
     }
     selectedColor = col;
@@ -1574,6 +1586,9 @@ function selectDetailColor(col, el) {
     el.classList.add('active');
 
     if (p) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'color', method: col });
+        }
         renderDetailPatterns(p);
         updateVariantUI(p);
         updateDetailURL();
@@ -1638,11 +1653,17 @@ function selectDetailPattern(pat, el) {
     const p = products.find(x => x.id === activeProductId);
     if (p && !isDetailPatternInStock(p, pat)) {
         if (typeof showToast === 'function') showToast('This pattern is out of stock.');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('oos_friction', { productId: activeProductId, variant: 'pattern', reason: 'pattern_oos' });
+        }
         return;
     }
     window.selectedPattern = pat;
     el.parentElement.querySelectorAll('.size-chip, .color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'pattern', method: pat });
+    }
 
     if (p) updateVariantUI(p);
 }
@@ -2531,6 +2552,9 @@ function setFilterSize(el, sz) {
     } else {
         filterActiveSizes.push(sz);
         el.classList.add('active');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('filter_applied', { method: 'size', source: sz });
+        }
     }
     applySortAndFilter();
 }
@@ -2544,6 +2568,9 @@ function setFilterColor(el, col) {
     } else {
         filterActiveColors.push(col);
         el.classList.add('active');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('filter_applied', { method: 'color', source: col });
+        }
     }
     applySortAndFilter();
 }
@@ -2557,6 +2584,9 @@ function setFilterPattern(el, pat) {
     } else {
         filterActivePatterns.push(pat);
         el.classList.add('active');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('filter_applied', { method: 'pattern', source: pat });
+        }
     }
     applySortAndFilter();
 }
@@ -2894,6 +2924,9 @@ function changeSortLogic(val, source) {
     }
     displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
+    if (val && val !== 'none' && typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('sort_applied', { sort: val, source: source || 'main' });
+    }
 }
 
 function loadMoreProducts() {
@@ -3041,6 +3074,7 @@ window.openFeedbackPost = function (el, evt) {
         targetLink = getActiveFeedbackLink(card) || (el.dataset && el.dataset.link);
     }
     if (!targetLink) return false;
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('diary_click', { source: 'feedback' });
     openNativeOrWebUrl(targetLink);
     return false;
 };
@@ -3887,6 +3921,7 @@ function openAnnouncementModal() {
     currentAnnouncementIndex = 0;
     const modal = document.getElementById('announcement-modal');
     if (modal) modal.style.display = 'flex';
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('announcement_viewed');
     renderAnnouncementSlide();
 }
 window.openAnnouncementModal = openAnnouncementModal;

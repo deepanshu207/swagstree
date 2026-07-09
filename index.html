@@ -3577,6 +3577,9 @@
                     if (el) {
                         el.addEventListener('click', function (e) {
                             e.preventDefault();
+                            if (typeof trackAnalyticsEvent === 'function' && item.id === 'whatsapp-float-btn') {
+                                trackAnalyticsEvent('whatsapp_click', { source: 'float_mobile' });
+                            }
                             var start = Date.now();
                             var blurred = false;
 

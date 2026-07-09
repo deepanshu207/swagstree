@@ -26,6 +26,10 @@ window.adminAnalyticsState = window.adminAnalyticsState || {
     pendingReviews: 0,
     wishlistUsers: 0,
     wishlistItems: 0,
+    feedbackCount: 0,
+    announcementCount: 0,
+    supportEscalations: 0,
+    supportWaiting: 0,
     productNameMap: {},
     categoryNameMap: {}
 };
@@ -326,6 +330,8 @@ function analyticsAggregateTraffic(storeData, startMs, endMs) {
     const productViewMap = {};
     const utmBreakdown = {};
     const searchBreakdown = {};
+    const eventValueMap = {};
+    const eventDimsMap = {};
 
     Object.keys(daily).forEach(function(dk) {
         const dayMs = analyticsDayKeyToMs(dk);
@@ -361,6 +367,15 @@ function analyticsAggregateTraffic(storeData, startMs, endMs) {
         Object.keys(row.searches || {}).forEach(function(sk) {
             searchBreakdown[sk] = (searchBreakdown[sk] || 0) + (Number(row.searches[sk]) || 0);
         });
+        Object.keys(row.eventValue || {}).forEach(function(ek) {
+            eventValueMap[ek] = (eventValueMap[ek] || 0) + (Number(row.eventValue[ek]) || 0);
+        });
+        Object.keys(row.eventDims || {}).forEach(function(ek) {
+            if (!eventDimsMap[ek]) eventDimsMap[ek] = {};
+            Object.keys(row.eventDims[ek] || {}).forEach(function(dimK) {
+                eventDimsMap[ek][dimK] = (eventDimsMap[ek][dimK] || 0) + (Number(row.eventDims[ek][dimK]) || 0);
+            });
+        });
     });
 
     if (!startMs && !endMs) {
@@ -378,7 +393,7 @@ function analyticsAggregateTraffic(storeData, startMs, endMs) {
     return {
         visits, pageViews, newVisits, returningVisits, productViewCount, productViewMap,
         topPages: Object.entries(pageBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 10),
-        eventBreakdown, deviceBreakdown, hourlyTraffic,
+        eventBreakdown, deviceBreakdown, hourlyTraffic, eventValueMap, eventDimsMap,
         utmTop: Object.entries(utmBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8),
         topSearches: Object.entries(searchBreakdown).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 12)
     };
@@ -387,6 +402,68 @@ function analyticsAggregateTraffic(storeData, startMs, endMs) {
 function analyticsDayKeyToMs(dk) {
     if (!dk || dk.length !== 8) return 0;
     return new Date(parseInt(dk.slice(0, 4), 10), parseInt(dk.slice(4, 6), 10) - 1, parseInt(dk.slice(6, 8), 10)).getTime();
+}
+
+function analyticsEventDimsFor(traffic, eventKey, prefix) {
+    const dims = (traffic.eventDimsMap && traffic.eventDimsMap[eventKey]) || {};
+    const entries = Object.entries(dims)
+        .filter(function(pair) { return !prefix || pair[0].indexOf(prefix) === 0; })
+        .map(function(pair) {
+            const label = pair[0].replace(/^(intent|method|reason|sort|source|variant)_/, '').replace(/_/g, ' ');
+            return [label, pair[1]];
+        })
+        .sort(function(a, b) { return b[1] - a[1]; })
+        .slice(0, 12);
+    return entries;
+}
+
+function analyticsBuildCohortRetention(orders, startMs) {
+    const firstOrderByCustomer = {};
+    const allOrdersByCustomer = {};
+
+    (orders || []).forEach(function(o) {
+        const ts = analyticsTsToMs(o.timestamp);
+        if (!ts || ADMIN_ANALYTICS_EXCLUDED.has((o.status || '').toLowerCase())) return;
+        if (startMs && ts < startMs) return;
+        const key = analyticsCustomerKey(o);
+        if (!allOrdersByCustomer[key]) allOrdersByCustomer[key] = [];
+        allOrdersByCustomer[key].push(ts);
+        if (!firstOrderByCustomer[key] || ts < firstOrderByCustomer[key]) {
+            firstOrderByCustomer[key] = ts;
+        }
+    });
+
+    const cohorts = {};
+    Object.keys(firstOrderByCustomer).forEach(function(key) {
+        const firstTs = firstOrderByCustomer[key];
+        const d = new Date(firstTs);
+        const cohortKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        if (!cohorts[cohortKey]) cohorts[cohortKey] = { customers: 0, repeat30: 0, repeat60: 0, repeat90: 0 };
+        cohorts[cohortKey].customers += 1;
+        const later = (allOrdersByCustomer[key] || []).filter(function(t) { return t > firstTs; });
+        if (later.some(function(t) { return (t - firstTs) <= 30 * 86400000; })) cohorts[cohortKey].repeat30 += 1;
+        if (later.some(function(t) { return (t - firstTs) <= 60 * 86400000; })) cohorts[cohortKey].repeat60 += 1;
+        if (later.some(function(t) { return (t - firstTs) <= 90 * 86400000; })) cohorts[cohortKey].repeat90 += 1;
+    });
+
+    return Object.keys(cohorts).sort().reverse().slice(0, 6).map(function(key) {
+        const c = cohorts[key];
+        const pct30 = c.customers ? Math.round((c.repeat30 / c.customers) * 100) : 0;
+        const pct60 = c.customers ? Math.round((c.repeat60 / c.customers) * 100) : 0;
+        const pct90 = c.customers ? Math.round((c.repeat90 / c.customers) * 100) : 0;
+        return { month: key, customers: c.customers, pct30: pct30, pct60: pct60, pct90: pct90 };
+    });
+}
+
+function analyticsRenderCohortTable(rows) {
+    if (!rows.length) return '<p class="admin-analytics-empty">Need more repeat orders to show cohort retention.</p>';
+    const body = rows.map(function(r) {
+        return '<tr><td>' + r.month + '</td><td>' + r.customers + '</td>' +
+            '<td>' + r.pct30 + '%</td><td>' + r.pct60 + '%</td><td>' + r.pct90 + '%</td></tr>';
+    }).join('');
+    return '<div class="admin-analytics-table-wrap"><table class="admin-analytics-table">' +
+        '<thead><tr><th>Cohort</th><th>Customers</th><th>30d repeat</th><th>60d repeat</th><th>90d repeat</th></tr></thead>' +
+        '<tbody>' + body + '</tbody></table></div>';
 }
 
 function analyticsBuildFunnel(traffic, orderAgg) {
@@ -557,6 +634,10 @@ function analyticsRenderOverview(ctx) {
     const conv = t.visits > 0 ? ((c.orderCount / t.visits) * 100).toFixed(1) + '%' : '—';
     const rpv = t.visits > 0 ? analyticsFormatCurrency(Math.round(c.revenue / t.visits)) : '—';
     const cartViews = events.view_cart || 0;
+    const checkoutStarts = events.begin_checkout || 0;
+    const checkoutValue = (t.eventValueMap && t.eventValueMap.begin_checkout) || 0;
+    const orderEventValue = (t.eventValueMap && t.eventValueMap.order_placed) || 0;
+    const abandonedValue = Math.max(0, checkoutValue - orderEventValue);
     const cartAbandon = cartViews > 0
         ? Math.max(0, 100 - Math.round((c.orderCount / cartViews) * 100)) + '%'
         : '—';
@@ -577,6 +658,7 @@ function analyticsRenderOverview(ctx) {
         analyticsRenderKpi('Delivered', c.fulfillmentRate + '%', c.deliveredCount + ' of ' + c.orderCount, '#2ecc71', null) +
         analyticsRenderKpi('Pending', String(c.pendingOrders), c.cancelledOrders + ' cancelled', '#f39c12', null) +
         analyticsRenderKpi('Cart abandon', cartAbandon, cartViews + ' cart views', '#e74c3c', null) +
+        analyticsRenderKpi('Abandoned value', analyticsFormatCurrency(abandonedValue), checkoutStarts + ' checkouts started', '#c0392b', null) +
         analyticsRenderKpi('New signups', String(ctx.signups), cartConv || 'Registrations in period', '#3498db', analyticsDeltaPct(ctx.signups, ctx.prevSignups)) +
         analyticsRenderKpi('Discounts', analyticsFormatCurrency(c.discountTotal), 'Promo savings', '#e74c3c', null) +
         analyticsRenderKpi('Engagement', String(st.supportThreads), st.reviewCount + ' reviews · ' + st.pendingReviews + ' pending', '#1abc9c', null) +
@@ -746,7 +828,18 @@ function analyticsPageKeySafe(id) {
 
 function analyticsRenderFunnelTab(funnel, traffic, orderAgg) {
     const events = traffic.eventBreakdown || {};
-    return '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-filter"></i> Full conversion funnel</h5>' +
+    const codStarted = events.cod_checkout_started || 0;
+    const codAbandoned = events.cod_checkout_abandoned || 0;
+    const deepLinks = events.deep_link_open || 0;
+    const oosFriction = events.oos_friction || 0;
+    const orderFails = events.order_failed || 0;
+    return '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
+        analyticsRenderKpi('Deep links', String(deepLinks), 'Shared product opens', '#3498db', null) +
+        analyticsRenderKpi('COD started', String(codStarted), codAbandoned + ' abandoned', '#f39c12', null) +
+        analyticsRenderKpi('OOS friction', String(oosFriction), 'Blocked variant picks', '#e74c3c', null) +
+        analyticsRenderKpi('Order failures', String(orderFails), 'Checkout errors', '#c0392b', null) +
+        '</div>' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-filter"></i> Full conversion funnel</h5>' +
         analyticsRenderFunnel(funnel) + '</div>' +
         '<div class="admin-analytics-split">' +
         '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-mobile"></i> Devices</h5>' +
@@ -766,6 +859,7 @@ function analyticsRenderFunnelTab(funnel, traffic, orderAgg) {
 
 function analyticsRenderGrowthTab(current, previous, traffic, ctx) {
     const payEntries = Object.entries(current.paymentCounts).sort(function(a, b) { return b[1] - a[1]; });
+    const cohortRows = analyticsBuildCohortRetention(ctx.state.orders, analyticsComparisonRange(ctx.state.periodDays).startMs);
     let promoHtml = '<p class="admin-analytics-empty">No promo codes used in period.</p>';
     if (current.topPromos.length) {
         promoHtml = '<div class="admin-analytics-table-wrap"><table class="admin-analytics-table"><thead><tr><th>Code</th><th>Uses</th><th>Revenue</th><th>Discount given</th></tr></thead><tbody>' +
@@ -782,6 +876,8 @@ function analyticsRenderGrowthTab(current, previous, traffic, ctx) {
         '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-credit-card"></i> Payment mix</h5>' +
         analyticsRenderBreakdown(payEntries) + '</div></div>' +
         '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-ticket"></i> Promo code performance</h5>' + promoHtml + '</div>' +
+        '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-retweet"></i> Cohort retention (first-order month)</h5>' +
+        analyticsRenderCohortTable(cohortRows) + '</div>' +
         '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
         analyticsRenderKpi('New visitors', String(traffic.newVisits), 'First-time sessions', '#3498db', null) +
         analyticsRenderKpi('Returning', String(traffic.returningVisits), 'Repeat sessions', '#9b59b6', null) +
@@ -835,6 +931,13 @@ function analyticsEventCount(traffic, key) {
 
 function analyticsRenderEngagementTab(traffic, st) {
     const events = traffic.eventBreakdown || {};
+    const spinOpens = events.spin_wheel_open || 0;
+    const spinWins = events.spin_wheel_win || 0;
+    const promoFailed = events.promo_failed || 0;
+    const promoApplied = events.promo_applied || 0;
+    const whatsappClicks = events.whatsapp_click || 0;
+    const mediaViews = events.media_viewer_open || 0;
+    const chatIntents = analyticsEventDimsFor(traffic, 'chat_intent', 'intent');
     const kpis = '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
         analyticsRenderKpi('Logins', String(analyticsEventCount(traffic, 'login')), 'Returning sessions', '#3498db', null) +
         analyticsRenderKpi('Signups', String(analyticsEventCount(traffic, 'signup')), 'New accounts', '#2ecc71', null) +
@@ -842,6 +945,14 @@ function analyticsRenderEngagementTab(traffic, st) {
         analyticsRenderKpi('Chat opens', String(analyticsEventCount(traffic, 'support_chat_open')), 'Support widget', '#1abc9c', null) +
         analyticsRenderKpi('Reviews', String(analyticsEventCount(traffic, 'review_submitted')), st.reviewCount + ' total · ' + st.pendingReviews + ' pending', '#e67e22', null) +
         analyticsRenderKpi('Wishlist', String(analyticsEventCount(traffic, 'add_to_wishlist')), st.wishlistItems + ' saved items', '#f39c12', null) +
+        '</div>' +
+        '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
+        analyticsRenderKpi('Spin wheel', String(spinOpens), spinWins + ' wins', '#e91e63', null) +
+        analyticsRenderKpi('Promo health', promoApplied + ' applied', promoFailed + ' failed', '#9b59b6', null) +
+        analyticsRenderKpi('WhatsApp', String(whatsappClicks), 'Outbound clicks', '#25D366', null) +
+        analyticsRenderKpi('360° / media', String(mediaViews), 'Viewer opens', '#00bcd4', null) +
+        analyticsRenderKpi('Escalations', String(st.supportEscalations), st.supportWaiting + ' waiting admin', '#673ab7', null) +
+        analyticsRenderKpi('Diaries', String(st.feedbackCount), st.announcementCount + ' announcements', '#795548', null) +
         '</div>';
 
     const topSearches = (traffic.topSearches || []).length
@@ -853,11 +964,23 @@ function analyticsRenderEngagementTab(traffic, st) {
 
     const engagementEvents = [
         ['newsletter_subscribe', 'Newsletter signups'],
+        ['newsletter_dismiss', 'Newsletter dismissals'],
         ['product_share', 'Product shares'],
         ['category_filter', 'Category filters'],
+        ['filter_applied', 'Catalog filters'],
+        ['sort_applied', 'Sort changes'],
+        ['variant_selected', 'Variant picks'],
+        ['oos_friction', 'Out-of-stock friction'],
+        ['deep_link_open', 'Deep link opens'],
+        ['announcement_viewed', 'Announcement views'],
+        ['diary_click', 'Customer diary clicks'],
         ['payment_method_selected', 'Payment selections'],
         ['remove_from_cart', 'Cart removals'],
-        ['promo_applied', 'Promos applied']
+        ['promo_applied', 'Promos applied'],
+        ['promo_failed', 'Promo failures'],
+        ['promo_picker_opened', 'Promo picker opens'],
+        ['live_support_tab', 'Live support tab'],
+        ['support_escalated', 'Support escalations']
     ].map(function(pair) {
         const c = events[pair[0]] || 0;
         return c > 0 ? [pair[1], c] : null;
@@ -868,6 +991,10 @@ function analyticsRenderEngagementTab(traffic, st) {
         '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-heart"></i> Store engagement events</h5>' +
         analyticsRenderBreakdown(engagementEvents, 'Engagement events build as customers interact.') +
         '</div></div>' +
+        (chatIntents.length
+            ? '<div class="admin-analytics-panel"><h5 class="admin-analytics-panel__title"><i class="fa fa-comments"></i> AI chat intents</h5>' +
+                analyticsRenderBreakdown(chatIntents, 'Top customer questions to the AI assistant.') + '</div>'
+            : '') +
         '<div class="admin-analytics-kpi-grid admin-analytics-kpi-grid--compact">' +
         analyticsRenderKpi('Wishlist users', String(st.wishlistUsers), 'Customers with saved items', '#e91e63', null) +
         analyticsRenderKpi('Support inbox', String(st.supportThreads), 'Total conversations', '#673ab7', null) +
@@ -1075,12 +1202,14 @@ window.loadAdminAnalytics = async function(force) {
     renderAdminAnalyticsDashboard();
 
     try {
-        const [ordersSnap, usersSnap, analyticsDoc, supportSnap, reviewsSnap] = await Promise.all([
+        const [ordersSnap, usersSnap, analyticsDoc, supportSnap, reviewsSnap, feedbacksSnap, announcementsSnap] = await Promise.all([
             db.collection('orders').orderBy('timestamp', 'desc').limit(3000).get(),
             db.collection('users').limit(4000).get(),
             db.collection('settings').doc('analytics').get(),
             db.collection('support_threads').limit(1500).get(),
-            db.collection('product_comments').limit(2000).get()
+            db.collection('product_comments').limit(2000).get(),
+            db.collection('feedbacks').limit(500).get(),
+            db.collection('announcements').limit(200).get()
         ]);
 
         st.orders = [];
@@ -1091,6 +1220,15 @@ window.loadAdminAnalytics = async function(force) {
 
         st.storeAnalytics = analyticsDoc.exists ? analyticsDoc.data() : null;
         st.supportThreads = supportSnap.size;
+        st.supportEscalations = 0;
+        st.supportWaiting = 0;
+        supportSnap.forEach(function(doc) {
+            const d = doc.data() || {};
+            if (d.escalateReason || d.escalatedAt) st.supportEscalations += 1;
+            if (d.status === 'waiting_admin') st.supportWaiting += 1;
+        });
+        st.feedbackCount = feedbacksSnap.size;
+        st.announcementCount = announcementsSnap.size;
         st.reviewCount = 0;
         st.pendingReviews = 0;
         st.wishlistUsers = 0;

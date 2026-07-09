@@ -277,7 +277,17 @@ window.closeModal = closeModal;
 // - Customer: show on home, wishlist, profile/orders tabs
 function markWhatsAppFloatReady() {
     const btn = document.getElementById('whatsapp-float-btn');
-    if (btn) btn.classList.remove('whatsapp-float-pending');
+    if (btn) {
+        btn.classList.remove('whatsapp-float-pending');
+        if (!btn.dataset.analyticsBound) {
+            btn.dataset.analyticsBound = '1';
+            btn.addEventListener('click', function() {
+                if (typeof trackAnalyticsEvent === 'function') {
+                    trackAnalyticsEvent('whatsapp_click', { source: 'float' });
+                }
+            });
+        }
+    }
 }
 window.markWhatsAppFloatReady = markWhatsAppFloatReady;
 

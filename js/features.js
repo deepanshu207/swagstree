@@ -1501,6 +1501,12 @@ function openMediaViewer(opts = {}) {
     document.body.classList.add('media-viewer-open');
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('media_viewer_open', {
+            mode: mvState.mode || 'gallery',
+            productId: opts.productId || activeProductId || null
+        });
+    }
     updateMediaViewerHints();
     updateMediaViewerToolbar();
     mvUpdateModeSwitcher();
@@ -2079,6 +2085,7 @@ function openDiscountWheel() {
     }
     
     modal.style.display = 'flex';
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('spin_wheel_open');
 }
 window.openDiscountWheel = openDiscountWheel;
 
@@ -2092,6 +2099,7 @@ let isWheelSpinning = false;
 function spinDiscountWheel() {
     if (isWheelSpinning) return;
     isWheelSpinning = true;
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('spin_wheel_spin');
     
     const wheel = document.getElementById('wheel-canvas');
     const btn = document.getElementById('spin-wheel-btn');
@@ -2126,6 +2134,9 @@ function spinDiscountWheel() {
         
         showToast(message);
         localStorage.setItem('swag_coupon_win', reward);
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('spin_wheel_win', { promoCode: reward });
+        }
         
         // Autocomplete Promo Code Input if it is on the page
         const promoInput = document.getElementById('promo-code');
@@ -2239,6 +2250,7 @@ function closeNewsletterPopup() {
     const modal = document.getElementById('newsletter-modal');
     if (modal) modal.style.display = 'none';
     sessionStorage.setItem('newsletter_dismissed', 'true');
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('newsletter_dismiss');
 }
 window.closeNewsletterPopup = closeNewsletterPopup;
 
