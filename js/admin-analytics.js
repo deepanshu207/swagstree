@@ -776,6 +776,9 @@ function analyticsRenderGrowthTab(current, previous, traffic, ctx) {
         analyticsRenderKpi('New visitors', String(traffic.newVisits), 'First-time sessions', '#3498db', null) +
         analyticsRenderKpi('Returning', String(traffic.returningVisits), 'Repeat sessions', '#9b59b6', null) +
         analyticsRenderKpi('Rev vs prev', analyticsDeltaPct(current.revenue, previous.revenue).text, analyticsFormatCurrency(previous.revenue) + ' prior', 'var(--gold)', null) +
+        analyticsRenderKpi('COD revenue', analyticsFormatCurrency(current.codRevenue), analyticsFormatCurrency(current.onlineRevenue) + ' online', '#f39c12', null) +
+        analyticsRenderKpi('Refunds', analyticsFormatCurrency(current.refundTotal), current.cancelledOrders + ' cancelled', '#e74c3c', null) +
+        analyticsRenderKpi('Guest orders', String(current.guestOrders), current.registeredOrders + ' registered', '#95a5a6', null) +
         '</div>';
 }
 
