@@ -1527,9 +1527,10 @@ function syncDetailSelectionFromGallery(slideElOrIdx, slideIdx = null) {
     const p = products.find(x => x.id === activeProductId);
     if (!p) return false;
 
-    const imgColor = slideEl.getAttribute('data-color') || mapInfo.color || '';
-    const imgSize = slideEl.getAttribute('data-size') || mapInfo.size || '';
-    const imgPattern = slideEl.getAttribute('data-pattern') || mapInfo.pattern || '';
+    const meta = getGallerySlideMeta(slideEl, mapInfo);
+    const imgColor = meta.color;
+    const imgSize = meta.size;
+    const imgPattern = meta.pattern;
 
     let changed = false;
 
@@ -1947,6 +1948,112 @@ function variantMatchesDetailSelection(variant) {
     return true;
 }
 
+function getGalleryActiveIndex(gallery) {
+    if (!gallery || !gallery.children.length) return 0;
+    const scrollCenter = gallery.scrollLeft + gallery.offsetWidth / 2;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    Array.from(gallery.children).forEach((child, i) => {
+        const center = child.offsetLeft + child.offsetWidth / 2;
+        const dist = Math.abs(scrollCenter - center);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+        }
+    });
+    return bestIdx;
+}
+
+function getGallerySlideMeta(slideEl, mapInfo = {}) {
+    if (!slideEl) {
+        return {
+            color: mapInfo.color || '',
+            size: mapInfo.size || '',
+            pattern: mapInfo.pattern || ''
+        };
+    }
+    const imgEl = slideEl.matches && slideEl.matches('img') ? slideEl : (slideEl.querySelector('img') || slideEl);
+    return {
+        color: slideEl.getAttribute('data-color') || (imgEl && imgEl.getAttribute('data-color')) || mapInfo.color || '',
+        size: slideEl.getAttribute('data-size') || (imgEl && imgEl.getAttribute('data-size')) || mapInfo.size || '',
+        pattern: slideEl.getAttribute('data-pattern') || (imgEl && imgEl.getAttribute('data-pattern')) || mapInfo.pattern || ''
+    };
+}
+
+function buildGallerySlideDataAttrs(mapInfo, index) {
+    const color = mapInfo.color || '';
+    const size = mapInfo.size || '';
+    const pattern = mapInfo.pattern || '';
+    return `data-color="${color}" data-size="${size}" data-pattern="${pattern}" data-index="${index}" data-type="${mapInfo.type || 'image'}"`;
+}
+
+function mergeDetailGalleryPhotoLists(variantPhotos, variantPhotosMap, sharedMain, sharedMainMap, pos) {
+    const photos = [];
+    const map = [];
+    const urlToIndex = new Map();
+
+    function addSlide(url, meta) {
+        if (isPlaceholderImageUrl(url)) return;
+        if (urlToIndex.has(url)) {
+            const i = urlToIndex.get(url);
+            const existing = map[i];
+            const incomingIsVariant = meta.scope === 'variant' && (meta.color || meta.pattern);
+            const existingIsMain = !existing.color && !existing.pattern && existing.scope === 'main';
+            if (incomingIsVariant && (existingIsMain || !existing.color)) {
+                map[i] = Object.assign({}, existing, meta, { url });
+            }
+            return;
+        }
+        urlToIndex.set(url, photos.length);
+        photos.push(url);
+        map.push(Object.assign({}, meta, { url }));
+    }
+
+    const addVariants = () => {
+        variantPhotos.forEach((url, i) => addSlide(url, variantPhotosMap[i] || {}));
+    };
+    const addMain = () => {
+        sharedMain.forEach((url, i) => addSlide(url, sharedMainMap[i] || {}));
+    };
+
+    if (pos === 'start') {
+        addMain();
+        addVariants();
+    } else {
+        addVariants();
+        addMain();
+    }
+
+    return { photoSlides: photos, photoMap: map };
+}
+
+function buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx) {
+    const attrs = buildGallerySlideDataAttrs(mapInfo, index);
+    if (mapInfo.type === 'video') {
+        const poster = mapInfo.poster || '';
+        const badge360 = mapInfo.is360Video ? '<span class="det-gallery-360-badge" title="Immersive 360° video"><i class="fa fa-street-view"></i></span>' : '';
+        return `<div class="det-gallery-slide det-gallery-video${mapInfo.is360Video ? ' det-gallery-video--360' : ''}" ${attrs} data-video-url="${mapInfo.url}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
+            ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
+            ${badge360}
+            <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
+        </div>`;
+    }
+    if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
+        return `<div class="det-gallery-slide det-gallery-slide--placeholder" ${attrs}>
+            <img src="${img}" class="det-gallery-placeholder" alt="No image">
+        </div>`;
+    }
+    if (mapInfo.is360Preview && activeProductId) {
+        return `<div class="det-gallery-slide det-gallery-slide--360" ${attrs} onclick="open360Viewer(activeProductId)" role="button" aria-label="Rotate product">
+            <img src="${img}" alt="Rotation preview">
+            <div class="det-gallery-360-cta"><i class="fa fa-arrows-rotate"></i> Tap to rotate</div>
+        </div>`;
+    }
+    return `<div class="det-gallery-slide" ${attrs}>
+        <img src="${img}" class="det-gallery-zoomable" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">
+    </div>`;
+}
+
 function isPlaceholderImageUrl(url) {
     const u = String(url || '');
     return !u || u.includes('placehold.co') || u.includes('No+Image') || u.includes('text=No');
@@ -1983,11 +2090,12 @@ function buildDetailGallerySlides(p, productMedia) {
 
     variantSources.forEach(variant => {
         const slideImages = [];
-        if (variant.previewImage && !isPlaceholderImageUrl(variant.previewImage)) {
-            slideImages.push(variant.previewImage);
-        }
+        const preview = variant.previewImage && !isPlaceholderImageUrl(variant.previewImage) ? variant.previewImage : '';
+        if (preview) slideImages.push(preview);
         (variant.images || []).forEach(img => {
-            if (!isPlaceholderImageUrl(img)) slideImages.push(img);
+            if (isPlaceholderImageUrl(img)) return;
+            if (preview && img === preview) return;
+            slideImages.push(img);
         });
 
         slideImages.forEach(img => {
@@ -2014,14 +2122,10 @@ function buildDetailGallerySlides(p, productMedia) {
     if (usingMainFallback) {
         photoSlides = [...sharedMain];
         photoMap = sharedMainMap.map(m => ({ ...m, isFallback: true }));
-    } else if (variantPhotos.length > 0) {
-        if (pos === 'start') {
-            photoSlides = [...sharedMain, ...variantPhotos];
-            photoMap = [...sharedMainMap, ...variantPhotosMap];
-        } else {
-            photoSlides = [...variantPhotos, ...sharedMain];
-            photoMap = [...variantPhotosMap, ...sharedMainMap];
-        }
+    } else if (variantPhotos.length > 0 || sharedMain.length > 0) {
+        const merged = mergeDetailGalleryPhotoLists(variantPhotos, variantPhotosMap, sharedMain, sharedMainMap, pos);
+        photoSlides = merged.photoSlides;
+        photoMap = merged.photoMap;
     } else if (!p.hideNoImagePlaceholder) {
         const placeholderImg = 'https://placehold.co/400x400/222/FFF?text=No+Image';
         photoSlides = [placeholderImg];
@@ -2125,29 +2229,17 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         ? imagesToDisplay.map((img, index) => {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
             if (mapInfo.type === 'video') {
-                const poster = mapInfo.poster || '';
-                const badge360 = mapInfo.is360Video ? '<span class="det-gallery-360-badge" title="Immersive 360° video"><i class="fa fa-street-view"></i></span>' : '';
-                return `<div class="det-gallery-video${mapInfo.is360Video ? ' det-gallery-video--360' : ''}" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
-                    ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
-                    ${badge360}
-                    <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
-                </div>`;
+                return buildDetailGallerySlideHtml(img, mapInfo, index, -1);
             }
             const zoomIdx = imageOnlyIdx++;
-            if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
-                return `<img src="${img}" class="det-gallery-placeholder" data-type="image" alt="No image">`;
-            }
-            if (mapInfo.is360Preview && activeProductId) {
-                return `<div class="det-gallery-360-preview" data-type="image" data-index="${index}" onclick="open360Viewer(activeProductId)" role="button" aria-label="Rotate product" style="position:relative; width:100%; height:100%; flex-shrink:0; scroll-snap-align:center; cursor:pointer; background:#000; display:flex; align-items:center; justify-content:center;">
-                    <img src="${img}" alt="Rotation preview" style="max-width:100%; max-height:100%; object-fit:contain; pointer-events:none;">
-                    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); border:1px solid var(--gold); color:var(--gold); padding:6px 14px; border-radius:999px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:6px; pointer-events:none;">
-                        <i class="fa fa-arrows-rotate"></i> Tap to rotate
-                    </div>
-                </div>`;
-            }
-            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color || ''}" data-size="${mapInfo.size || ''}" data-pattern="${mapInfo.pattern || ''}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
+            return buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx);
         }).join('')
-        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" class="det-gallery-placeholder" alt="No image">');
+        : (p.hideNoImagePlaceholder ? '' : buildDetailGallerySlideHtml(
+            'https://placehold.co/400x400/222/FFF?text=No+Image',
+            { color: '', size: '', type: 'image', isPlaceholder: true },
+            0,
+            0
+        ));
 
     const detGallery = document.getElementById('det-gallery');
     const galleryCacheKey = `${p.id}|${selectedSize}|${imagesToDisplay.join(',')}`;
@@ -2612,7 +2704,9 @@ function wishSearchHandler() {
 window.wishSearchHandler = wishSearchHandler;
 
 function updateDots(el) {
-    const idx = Math.round(el.scrollLeft / el.offsetWidth);
+    const idx = el.id === 'det-gallery'
+        ? getGalleryActiveIndex(el)
+        : Math.round(el.scrollLeft / el.offsetWidth);
     const diariesRoot = el.closest('.feedback-diaries-carousel');
     const dotRoot = diariesRoot || el.parentElement;
     const dots = dotRoot.querySelectorAll('.dot');
