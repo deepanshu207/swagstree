@@ -6516,7 +6516,10 @@ window.toggleAdminProductsDisplayAccordion = window.toggleAdminProductsCatalogAc
 window.toggleAdminFeatureContentAccordion = function() {
     if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-feature-content-settings');
     else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
+    const content = document.getElementById('admin-feature-content-accordion-content');
+    const opening = content && (content.style.display === 'none' || !content.style.display);
     toggleAdminSectionAccordion('admin-feature-content-accordion-content', 'admin-feature-content-accordion-icon');
+    if (opening && typeof loadAdminFeatureContent === 'function') loadAdminFeatureContent();
 };
 
 window.toggleAdminFeedbackAccordion = function() {

@@ -27,8 +27,8 @@
         pagination: { title: 'Orders & customers', hint: 'List page sizes', icon: 'fa-list-ol', id: 'admin-pagination-settings', accordionContentId: 'admin-pagination-accordion-content', accordionIconId: 'admin-pagination-accordion-icon', settingsGroup: 'lists' },
         analytics: { title: 'Store analytics', hint: 'Revenue, funnel, engagement & growth', icon: 'fa-line-chart', id: 'admin-analytics-settings', accordionContentId: 'admin-analytics-accordion-content', accordionIconId: 'admin-analytics-accordion-icon', settingsGroup: 'insights' },
         seo: { title: 'SEO & indexing', hint: 'Titles, meta, sitemaps & social previews', icon: 'fa-search', id: 'admin-seo-settings', accordionContentId: 'admin-seo-accordion-content', accordionIconId: 'admin-seo-accordion-icon', settingsGroup: 'storefront' },
-        'feature-content': { title: 'Storefront content', hint: 'Bar, chatbot, newsletter', icon: 'fa-paint-brush', id: 'admin-feature-content-settings', accordionContentId: 'admin-feature-content-accordion-content', accordionIconId: 'admin-feature-content-accordion-icon', settingsGroup: 'storefront' },
-        feedback: { title: 'Customer Diaries', hint: 'Instagram-style feed', icon: 'fa-camera', id: 'admin-feedback-settings', accordionContentId: 'admin-feedback-accordion-content', accordionIconId: 'admin-feedback-accordion-icon', settingsGroup: 'engagement' },
+        'feature-content': { title: 'Storefront content', hint: 'Bar, chatbot, newsletter', icon: 'fa-sliders', id: 'admin-feature-content-settings', accordionContentId: 'admin-feature-content-accordion-content', accordionIconId: 'admin-feature-content-accordion-icon', settingsGroup: 'storefront' },
+        feedback: { title: 'Customer Diaries', hint: 'Instagram-style feed', icon: 'fa-comments', id: 'admin-feedback-settings', accordionContentId: 'admin-feedback-accordion-content', accordionIconId: 'admin-feedback-accordion-icon', settingsGroup: 'engagement' },
         footer: { title: 'Footer Settings', hint: 'Inside · storefront footer sections', icon: 'fa-window-minimize', id: 'admin-footer-settings', settingsGroup: 'storefront' },
         announcements: { title: 'Global Announcements', hint: 'Inside · site-wide banners', icon: 'fa-bullhorn', id: 'admin-announcement-settings', accordionContentId: 'announcement-accordion-content', accordionIconId: 'announcement-accordion-icon', settingsGroup: 'storefront' },
         support: { title: 'Support Chats', hint: 'Inside · live support inbox', icon: 'fa-headset', id: 'admin-support-inbox-section', accordionContentId: 'admin-support-accordion-content', accordionIconId: 'admin-support-accordion-icon', settingsGroup: 'engagement' },
@@ -299,6 +299,30 @@
         const above = [...DEFAULT_ABOVE, ...legacyPins.filter(k => !DEFAULT_ABOVE.includes(k))];
         const inside = DEFAULT_INSIDE.filter(k => !above.includes(k));
         return adminNormalizePlacement(above, inside, DEFAULT_BELOW, visible);
+    }
+
+    function adminIsToolPanelAllowed(key) {
+        if (key === 'analytics') {
+            const isAdminUser = typeof isAdmin !== 'undefined' && isAdmin;
+            if (!isAdminUser) return false;
+            return typeof hasAdminCapability === 'function' ? hasAdminCapability('viewAnalytics') : true;
+        }
+        if (key === 'seo') {
+            return typeof isAdminSeoSettingsEnabled === 'function'
+                ? isAdminSeoSettingsEnabled()
+                : (typeof isAdmin !== 'undefined' && isAdmin);
+        }
+        if (key === 'feature-content') {
+            return typeof isAdmin !== 'undefined' && isAdmin
+                && (typeof isAdminStorefrontContentEnabled === 'function' ? isAdminStorefrontContentEnabled() : true);
+        }
+        return true;
+    }
+
+    function applyAdminRestrictedPanelVisibility() {
+        if (typeof updateAdminAnalyticsUIVisibility === 'function') updateAdminAnalyticsUIVisibility();
+        if (typeof applyAdminSeoPanelVisibility === 'function') applyAdminSeoPanelVisibility();
+        if (typeof applyAdminPanelVisibility === 'function') applyAdminPanelVisibility();
     }
 
     function adminIsBlockShown(key) {
@@ -789,6 +813,11 @@
 
             const el = adminGetBlockNode(key);
             if (!el) { i++; continue; }
+            if (adminIsToolKey(key) && !adminIsToolPanelAllowed(key)) {
+                adminHideBlockNode(key, el);
+                i++;
+                continue;
+            }
             if (adminIsToolKey(key) && !adminIsRuntimeToolVisible(key, el)) { adminHideBlockNode(key, el); i++; continue; }
 
             if (opts.insideTool) {
@@ -909,6 +938,7 @@
 
         applyAdminLayout();
         renderAdminLayoutSettings();
+        applyAdminRestrictedPanelVisibility();
         if (typeof adminSyncProductSortUi === 'function') adminSyncProductSortUi();
         if (typeof adminApplyProductsSectionMode === 'function') adminApplyProductsSectionMode();
     }
@@ -927,6 +957,8 @@
         return adminProductsAccordionRead();
     };
 
+    window.applyAdminRestrictedPanelVisibility = applyAdminRestrictedPanelVisibility;
+    window.adminIsToolPanelAllowed = adminIsToolPanelAllowed;
     window.renderAdminFavorites = renderAdminFavorites;
     window.adminFavoritesRead = () => adminPlacementRead().above.filter(adminIsToolKey);
     window.adminFavoriteRegistryKeys = () => [...TOOL_KEYS];

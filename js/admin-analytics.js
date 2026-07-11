@@ -1167,6 +1167,8 @@ function analyticsDayKeyExport() {
 }
 
 window.toggleAdminAnalyticsAccordion = function() {
+    if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-analytics-settings');
+    else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
     const content = document.getElementById('admin-analytics-accordion-content');
     const icon = document.getElementById('admin-analytics-accordion-icon');
     if (!content) return;
@@ -1189,6 +1191,9 @@ window.loadAdminAnalytics = async function(force) {
     const section = document.getElementById('admin-analytics-settings');
     const content = document.getElementById('admin-analytics-accordion-content');
     if (!section || section.style.display === 'none') return;
+    const isAdminUser = typeof isAdmin !== 'undefined' && isAdmin;
+    const canView = typeof hasAdminCapability === 'function' ? hasAdminCapability('viewAnalytics') : isAdminUser;
+    if (!isAdminUser || !canView) return;
     if (content && content.style.display === 'none' && !force) return;
 
     const st = window.adminAnalyticsState;

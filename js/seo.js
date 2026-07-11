@@ -999,6 +999,8 @@
     };
 
     window.toggleAdminSeoAccordion = function() {
+        if (typeof adminEnsureParentStoreToolsOpen === 'function') adminEnsureParentStoreToolsOpen('admin-seo-settings');
+        else if (typeof ensureAdminStoreToolsOpen === 'function') ensureAdminStoreToolsOpen();
         const content = document.getElementById('admin-seo-accordion-content');
         const icon = document.getElementById('admin-seo-accordion-icon');
         if (!content) return;

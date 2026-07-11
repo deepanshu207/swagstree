@@ -51,6 +51,7 @@ function updateAdminPrivilegesUI() {
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
     if (typeof updateAdminAnalyticsUIVisibility === 'function') updateAdminAnalyticsUIVisibility();
     if (typeof applyAdminPanelVisibility === 'function') applyAdminPanelVisibility();
+    if (typeof applyAdminSeoPanelVisibility === 'function') applyAdminSeoPanelVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
     if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
 }

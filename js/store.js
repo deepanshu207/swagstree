@@ -2647,19 +2647,9 @@ function clickDetThumb(idx) {
     const detGallery = document.getElementById('det-gallery');
     if (!detGallery) return;
     const imgEl = detGallery.children[idx];
-    if (imgEl) {
-        window.detGalleryScrollingNow = true;
-        clearTimeout(window.detGalleryScrollEndTimeout);
-        detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
-        updateActiveThumbnailBorder(idx);
-        updateDetailGalleryActions(idx);
-        
-        // Sync option selection states matching this thumbnail
-        syncDetailSelectionFromGallery(imgEl, idx);
-        setTimeout(() => {
-            window.detGalleryScrollingNow = false;
-        }, 800); // Failsafe unlock after 800ms
-    }
+    if (!imgEl) return;
+    scrollDetailGalleryToIndex(idx, true);
+    syncDetailSelectionFromGallery(imgEl, idx);
 }
 
 function syncSizeChips() {
@@ -2681,6 +2671,9 @@ function updateActiveThumbnailBorder(idx) {
         } else {
             thumb.style.borderColor = '#222';
         }
+    });
+    document.querySelectorAll('#det-indicators .dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === idx);
     });
 }
 
