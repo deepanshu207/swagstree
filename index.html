@@ -1060,6 +1060,9 @@
             </div>
             <div id="admin-seo-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:12px;">
+                <p id="admin-seo-indexing-status" style="display:none; margin:0; padding:10px 12px; border-radius:10px; font-size:11px; line-height:1.5; background:rgba(255,71,87,0.12); border:1px solid rgba(255,71,87,0.35); color:#ffb3ba;">
+                    <i class="fa fa-eye-slash"></i> <strong>Indexing is OFF</strong> (superadmin). Shoppers unaffected; search engines, sitemaps &amp; feeds are blocked until re-enabled.
+                </p>
                 <p style="margin:0; font-size:11px; color:#888; line-height:1.5;">
                     Discovery: <a href="/sitemap.xml" target="_blank" rel="noopener" style="color:var(--gold);">sitemap</a> ·
                     <a href="/robots.txt" target="_blank" rel="noopener" style="color:var(--gold);">robots</a> ·
@@ -2318,6 +2321,12 @@
                         Product Categories
                     </label>
                     <label
+                        style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer; border:1px solid #333; border-radius:8px; padding:8px; background:#0d0d0d;">
+                        <input type="checkbox" id="toggle-seo-indexing" style="margin:0; width:16px; height:16px;" checked
+                            onchange="if(typeof updateSuperSeoIndexingHint==='function')updateSuperSeoIndexingHint()">
+                        SEO &amp; Search Indexing
+                    </label>
+                    <label
                         style="display:flex; align-items:center; gap:8px; font-size:12px; color:#fff; cursor:pointer;">
                         <input type="checkbox" id="toggle-admin-storefront-content" style="margin:0; width:16px; height:16px;">
                         Storefront Content (Admin)
@@ -2403,6 +2412,9 @@
                         Bar
                     </label>
                 </div>
+                <p id="super-seo-indexing-hint" style="margin:0; font-size:10px; color:#888; line-height:1.5;">
+                    SEO ON: sitemaps, feeds, rich meta &amp; Google/Bing indexing active. OFF: store works normally for shoppers; search engines blocked (noindex, robots disallow, sitemaps hidden).
+                </p>
 
                 <button class="btn-gold"
                     style="width:100%; padding:12px; font-size:12px; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px; margin-top:10px;"
@@ -3723,8 +3735,8 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=12.4"></script>
-    <script src="js/seo.js?v=1.3"></script>
+    <script src="js/features.js?v=12.5"></script>
+    <script src="js/seo.js?v=1.4"></script>
     <script src="js/analytics.js?v=1.4"></script>
     <script src="js/app.js?v=10.15"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
@@ -3733,10 +3745,10 @@
     <script src="js/admin-favorites.js?v=4.8"></script>
     <script src="js/admin-analytics.js?v=1.5"></script>
     <script src="js/categories.js?v=12.5"></script>
-    <script src="js/store.js?v=10.26"></script>
+    <script src="js/store.js?v=10.27"></script>
     <script src="js/checkout.js?v=10.13"></script>
-    <script src="js/auth.js?v=10.11"></script>
-    <script src="js/comments.js?v=10.8"></script>
+    <script src="js/auth.js?v=10.12"></script>
+    <script src="js/comments.js?v=10.9"></script>
     <script src="js/support-chat.js?v=11.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
     <script src="js/admin.js?v=16.6"></script>

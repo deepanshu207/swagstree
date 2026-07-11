@@ -17,6 +17,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     adminCrudDrafts: true,
     adminCrudDraftsMedia: false,
     adminCrudDraftsClearAll: true,
+    seoIndexing: true,
     widgets: {
         recentOrders: false,
         discountWheel: false,
@@ -2644,6 +2645,10 @@ function applyFeatureTogglesUI() {
         if (document.getElementById('toggle-product-categories')) {
             document.getElementById('toggle-product-categories').checked = config.productCategories !== false;
         }
+        if (document.getElementById('toggle-seo-indexing')) {
+            document.getElementById('toggle-seo-indexing').checked = config.seoIndexing !== false;
+        }
+        if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
         if (document.getElementById('toggle-admin-storefront-content')) {
             document.getElementById('toggle-admin-storefront-content').checked = config.adminStorefrontContent !== false;
         }
@@ -2670,6 +2675,7 @@ function applyFeatureTogglesUI() {
     if (typeof refreshCommentsEnabledUI === 'function') {
         refreshCommentsEnabledUI(false);
     }
+    if (typeof applySeoIndexingVisibility === 'function') applySeoIndexingVisibility();
 }
 window.applyFeatureTogglesUI = applyFeatureTogglesUI;
 

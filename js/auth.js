@@ -2401,6 +2401,8 @@ async function loadSuperadminFeatures() {
             }
             if (document.getElementById('toggle-product-comments')) document.getElementById('toggle-product-comments').checked = data.productComments !== false;
             if (document.getElementById('toggle-product-categories')) document.getElementById('toggle-product-categories').checked = data.productCategories !== false;
+            if (document.getElementById('toggle-seo-indexing')) document.getElementById('toggle-seo-indexing').checked = data.seoIndexing !== false;
+            if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
             if (document.getElementById('toggle-admin-storefront-content')) {
                 document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
             }
@@ -2466,6 +2468,7 @@ async function saveSuperadminFeatures() {
         announcementBell: !!document.getElementById('toggle-announcement-bell')?.checked,
         productComments: !!document.getElementById('toggle-product-comments')?.checked,
         productCategories: !!document.getElementById('toggle-product-categories')?.checked,
+        seoIndexing: !!document.getElementById('toggle-seo-indexing')?.checked,
         adminStorefrontContent: !!document.getElementById('toggle-admin-storefront-content')?.checked,
         adminCrudDrafts: !!document.getElementById('toggle-admin-crud-drafts')?.checked,
         adminCrudDraftsMedia: !!document.getElementById('toggle-admin-crud-drafts-media')?.checked,

@@ -747,7 +747,8 @@ window.loadProductComments = function(productId) {
                 return tb - ta;
             });
             renderProductCommentsSection();
-            if (typeof syncSeoForProduct === 'function' && activeProductId === productId) {
+            if (typeof syncSeoForProduct === 'function' && activeProductId === productId
+                && typeof isSeoIndexingEnabled === 'function' && isSeoIndexingEnabled()) {
                 const p = (window.products || []).find(function(x) { return x.id === productId; });
                 if (p) syncSeoForProduct(p);
             }

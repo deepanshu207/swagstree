@@ -606,10 +606,13 @@ function productCardHtml(p, options = {}) {
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
     </div>`;
 
+    const seoOn = typeof isSeoIndexingEnabled === 'function' ? isSeoIndexingEnabled() : true;
+    const seoMicro = seoOn
+        ? ` itemscope itemtype="https://schema.org/Product"><meta itemprop="sku" content="${String(p.id).replace(/"/g, '&quot;')}"><link itemprop="url" href="/?id=${encodeURIComponent(p.id)}">`
+        : '>';
+
     return `
-    <div class="card" itemscope itemtype="https://schema.org/Product"> 
-        <meta itemprop="sku" content="${String(p.id).replace(/"/g, '&quot;')}">
-        <link itemprop="url" href="/?id=${encodeURIComponent(p.id)}">
+    <div class="card"${seoMicro}
         <div class="wish-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleWish('${p.id}')">
             <i class="fa${isFav ? 's' : 'r'} fa-heart"></i>
         </div> 
@@ -625,7 +628,7 @@ function productCardHtml(p, options = {}) {
             ` : ''}
             ${isOutOfStock ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px 15px 0 0;"><span style="background:rgba(255,0,0,0.85); color:#fff; padding:6px 12px; border-radius:4px; font-weight:800; font-size:12px; letter-spacing:1px;">OUT OF STOCK</span></div>' : ''}
             <div class="carousel" onscroll="updateDots(this)">
-                ${displayImages.length ? displayImages.map((img, idx) => `<img src="${img}" loading="lazy"${idx === 0 ? ' itemprop="image"' : ''}>`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy" itemprop="image">')}
+                ${displayImages.length ? displayImages.map((img, idx) => `<img src="${img}" loading="lazy"${seoOn && idx === 0 ? ' itemprop="image"' : ''}>`).join('') : (p.hideNoImagePlaceholder ? '' : `<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy"${seoOn ? ' itemprop="image"' : ''}>`)}
             </div> 
             <div class="indicators">
                 ${displayImages.length > 1 ? displayImages.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : ''}
@@ -634,9 +637,9 @@ function productCardHtml(p, options = {}) {
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
             ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
             <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
-                <a href="/?id=${encodeURIComponent(p.id)}" class="product-card__seo-link" itemprop="url" onclick="event.preventDefault(); showDetail('${p.id}')" title="View ${String(p.name || '').replace(/"/g, '&quot;')}"><span itemprop="name">${p.name}</span></a>
+                <a href="/?id=${encodeURIComponent(p.id)}" class="product-card__seo-link"${seoOn ? ' itemprop="url"' : ''} onclick="event.preventDefault(); showDetail('${p.id}')" title="View ${String(p.name || '').replace(/"/g, '&quot;')}">${seoOn ? '<span itemprop="name">' + p.name + '</span>' : p.name}</a>
             </div>
-            <div style="color:var(--gold); font-weight:800; margin-top:4px"><span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="INR"><span itemprop="price" content="${Number(p.price) || 0}">₹${p.price}</span></span></div>
+            <div style="color:var(--gold); font-weight:800; margin-top:4px">${seoOn ? '<span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="INR"><span itemprop="price" content="' + (Number(p.price) || 0) + '">₹' + p.price + '</span></span>' : '₹' + p.price}</div>
         </div> 
     </div>`;
 }

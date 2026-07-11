@@ -61,6 +61,62 @@
     window.SEO_DEFAULTS = DEFAULT_SEO;
     window.seoSettings = Object.assign({}, DEFAULT_SEO);
 
+    window.isSeoIndexingEnabled = function() {
+        if (window.APP_FEATURES && window.APP_FEATURES.seoIndexing === false) return false;
+        return true;
+    };
+
+    function clearSeoCrawlSurfaces() {
+        const crawl = document.getElementById('seo-crawl-links');
+        if (crawl) crawl.innerHTML = '';
+        const nav = document.getElementById('seo-primary-nav');
+        if (nav) {
+            nav.innerHTML = '<a href="/">Swag Stree Home</a>';
+        }
+    }
+
+    function applySeoDisabledPublicMeta() {
+        const s = window.seoSettings || DEFAULT_SEO;
+        document.title = s.siteName + ' — Online Fashion Store';
+        ensureMetaByName('description', 'Swag Stree online fashion store.');
+        ensureMetaByName('keywords', '');
+        ensureMetaByName('robots', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
+        ensureMetaByName('googlebot', 'noindex, nofollow');
+        ensureMetaByName('bingbot', 'noindex, nofollow');
+        ensureLinkRel('canonical', getCanonicalOrigin() + '/');
+        setJsonLd({ '@context': 'https://schema.org', '@graph': [] });
+        clearSeoCrawlSurfaces();
+    }
+
+    window.applySeoIndexingVisibility = function() {
+        const enabled = window.isSeoIndexingEnabled();
+        const status = document.getElementById('admin-seo-indexing-status');
+        if (status) status.style.display = enabled ? 'none' : 'block';
+        if (!enabled) {
+            applySeoDisabledPublicMeta();
+            return;
+        }
+        if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
+        if (typeof refreshSeoProductIndex === 'function' && window.products) {
+            refreshSeoProductIndex(window.products);
+        }
+        if (typeof refreshSeoCategoryIndex === 'function') refreshSeoCategoryIndex();
+        if (typeof renderStore === 'function' && window.productsLoaded) renderStore();
+    };
+
+    window.updateSuperSeoIndexingHint = function() {
+        const el = document.getElementById('super-seo-indexing-hint');
+        const toggle = document.getElementById('toggle-seo-indexing');
+        if (!el || !toggle) return;
+        if (toggle.checked) {
+            el.style.color = '#6abf8a';
+            el.textContent = 'SEO ON — sitemaps, feeds, rich meta & Google/Bing indexing are active.';
+        } else {
+            el.style.color = '#ff8a8a';
+            el.textContent = 'SEO OFF — shoppers can still buy; search engines blocked (noindex, robots disallow, sitemaps/feeds hidden). Re-enable before launch.';
+        }
+    };
+
     function getSiteOrigin() {
         if (typeof window !== 'undefined' && window.location && window.location.origin) {
             return String(window.location.origin).replace(/\/$/, '');
@@ -506,6 +562,10 @@
 
     function applySeoBundle(bundle) {
         if (!bundle) return;
+        if (!window.isSeoIndexingEnabled()) {
+            applySeoDisabledPublicMeta();
+            return;
+        }
         const s = window.seoSettings || DEFAULT_SEO;
         const title = bundle.title || s.title;
         const description = bundle.description || s.description;
@@ -779,6 +839,10 @@
     window.refreshSeoProductIndex = function(products) {
         const root = document.getElementById('seo-crawl-links');
         if (!root) return;
+        if (!window.isSeoIndexingEnabled()) {
+            root.innerHTML = '';
+            return;
+        }
         const list = (products || []).filter(function(p) {
             return p && p.id && p.name && (typeof isProductOutOfStock !== 'function' || !isProductOutOfStock(p));
         }).slice(0, 150);
@@ -807,6 +871,10 @@
     window.refreshSeoCategoryIndex = function() {
         const nav = document.getElementById('seo-primary-nav');
         if (!nav || typeof getActiveCategories !== 'function') return;
+        if (!window.isSeoIndexingEnabled()) {
+            nav.innerHTML = '<a href="/">Swag Stree Home</a>';
+            return;
+        }
         const cats = getActiveCategories().slice(0, 24);
         const catLinks = cats.map(function(c) {
             const slug = c.slug || (typeof slugifyCategoryName === 'function' ? slugifyCategoryName(c.name) : c.name);
@@ -898,7 +966,12 @@
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-        syncSeoForView('home');
+        if (window.isSeoIndexingEnabled()) {
+            syncSeoForView('home');
+        } else {
+            applySeoDisabledPublicMeta();
+        }
+        if (typeof applySeoIndexingVisibility === 'function') applySeoIndexingVisibility();
         if (typeof db !== 'undefined' && db) loadSeoSettings();
     });
 

@@ -9,6 +9,7 @@
  * - SUPER_ADMIN_EMAIL (default: superadmin@swagstree.com)
  * Optional:
  * - CANONICAL_HOST (e.g. swagstree.com) — 301 redirect www to apex
+ * - SEO_INDEXING_FORCE_OFF (true) — emergency block all indexing without Firestore
  * - CLOUDINARY_ASSET_PREFIX (e.g. swagstree) — also purge orphans under this folder prefix
  * - FIREBASE_SERVICE_ACCOUNT — JSON service account for Auth user export
  * - FIREBASE_PROJECT_ID (default: swagstree-web)
@@ -106,6 +107,75 @@ async function fetchAllFirestoreCategories(env) {
     if (!resp.ok) return [];
     const data = await resp.json();
     return (data.documents || []).map(parseFirestoreDoc).filter((c) => c.id && c.name && c.active !== false);
+}
+
+let seoIndexingCache = { value: true, ts: 0 };
+
+async function fetchSeoIndexingFlag(env) {
+    if (env.SEO_INDEXING_FORCE_OFF === 'true' || env.SEO_INDEXING_FORCE_OFF === '1') return false;
+    const apiKey = env.FIREBASE_API_KEY;
+    const projectId = env.FIREBASE_PROJECT_ID || FIREBASE_PROJECT_DEFAULT;
+    if (!apiKey) return true;
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/settings/features_config?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) return true;
+    const doc = await resp.json();
+    const field = doc.fields && doc.fields.seoIndexing;
+    if (!field) return true;
+    const val = parseFirestoreValue(field);
+    return val !== false;
+}
+
+async function isSeoIndexingEnabledWorker(env) {
+    const now = Date.now();
+    if (now - seoIndexingCache.ts < 60000) return seoIndexingCache.value;
+    const enabled = await fetchSeoIndexingFlag(env);
+    seoIndexingCache = { value: enabled, ts: now };
+    return enabled;
+}
+
+function buildRobotsDisallowAll() {
+    return `# Swag Stree — public indexing disabled by superadmin
+User-agent: *
+Disallow: /
+`;
+}
+
+function buildRobotsAllowAll(origin) {
+    return `# Swag Stree — allow public storefront indexing
+User-agent: *
+Allow: /
+Disallow: /api/
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+Sitemap: ${origin}/sitemap.xml
+`;
+}
+
+function injectNoindexSeo(html, origin) {
+    return injectGenericSeo(html, {
+        title: 'Swag Stree — Online Fashion Store',
+        description: 'Swag Stree online fashion store.',
+        keywords: '',
+        canonical: origin + '/',
+        type: 'website',
+        origin,
+        jsonLd: null
+    }).replace(
+        '<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">',
+        '<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">'
+    );
 }
 
 function buildSitemapIndex(origin) {
@@ -722,7 +792,26 @@ export default {
             const resp = await exportAuthUsers(request, env);
             const headers = new Headers(resp.headers);
             Object.entries(corsHeaders()).forEach(([k, v]) => headers.set(k, v));
+            headers.set('X-Robots-Tag', 'noindex, nofollow');
             return new Response(resp.body, { status: resp.status, headers });
+        }
+
+        const seoIndexingOn = await isSeoIndexingEnabledWorker(env);
+
+        if (url.pathname === '/robots.txt') {
+            const body = seoIndexingOn ? buildRobotsAllowAll(url.origin) : buildRobotsDisallowAll();
+            return textResponse(body, 'text/plain; charset=utf-8', seoIndexingOn ? 3600 : 300);
+        }
+
+        const seoDiscoveryPaths = new Set([
+            '/sitemap.xml', '/sitemap-pages.xml', '/sitemap-products.xml',
+            '/feed.xml', '/catalog.json', '/llms.txt', '/ai.txt', '/opensearch.xml'
+        ]);
+        if (!seoIndexingOn && seoDiscoveryPaths.has(url.pathname)) {
+            return new Response('Indexing disabled', {
+                status: 404,
+                headers: { 'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'no-store' }
+            });
         }
 
         if (url.pathname === '/sitemap.xml') {
@@ -771,6 +860,9 @@ export default {
             const assetResp = await env.ASSETS.fetch(new Request(new URL('/', url.origin).toString(), request));
             if (assetResp.ok) {
                 const baseHtml = await assetResp.text();
+                if (!seoIndexingOn) {
+                    return seoHtmlResponse(injectNoindexSeo(baseHtml, url.origin), { 'X-Robots-Tag': 'noindex, nofollow' });
+                }
                 if (productId) {
                     const product = await fetchFirestoreProduct(productId, env);
                     if (product && product.name) {
@@ -802,7 +894,11 @@ export default {
             }
             if (assetResp.ok && (url.pathname === '/' || url.pathname.endsWith('.html')) && !url.pathname.startsWith('/api/')) {
                 const headers = new Headers(assetResp.headers);
-                headers.set('Link', '</sitemap.xml>; rel="sitemap"');
+                if (seoIndexingOn) {
+                    headers.set('Link', '</sitemap.xml>; rel="sitemap"');
+                } else {
+                    headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+                }
                 return new Response(assetResp.body, { status: assetResp.status, headers });
             }
             return assetResp;
