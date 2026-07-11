@@ -17,5 +17,11 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["shopping", "lifestyle", "fashion"]
+  "categories": ["shopping", "lifestyle", "fashion"],
+  "shortcuts": [
+    { "name": "Shop Kurtas", "url": "/?q=kurtas", "description": "Browse kurtas collection" },
+    { "name": "Coord Sets", "url": "/?q=coord+sets", "description": "Shop coord sets" },
+    { "name": "Sarees", "url": "/?q=sarees", "description": "Shop sarees online" }
+  ],
+  "related_applications": [],
 }

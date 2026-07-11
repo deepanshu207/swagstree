@@ -1,0 +1,17 @@
+# Swag Stree AI discovery file
+# https://swagstree.com
+
+User-agent: *
+Allow: /
+
+# Machine-readable catalog
+Catalog-JSON: /catalog.json
+Sitemap: /sitemap.xml
+Product-Feed: /feed.xml
+LLM-Context: /llms.txt
+
+# Brand
+Name: Swag Stree
+Aliases: Swagstree, swag stree fashion
+Category: Fashion e-commerce, India
+Payments: COD, UPI, Paytm, Google Pay

@@ -39,7 +39,10 @@
         country: 'IN',
         areaServed: 'IN',
         googleSiteVerification: '',
-        bingSiteVerification: ''
+        bingSiteVerification: '',
+        canonicalDomain: 'swagstree.com',
+        facebookAppId: '',
+        pinterestDomainVerify: ''
     };
 
     const DEFAULT_FAQ = [
@@ -47,7 +50,12 @@
         { q: 'How fast is delivery at Swag Stree?', a: 'Orders are dispatched quickly with pan-India shipping. Tracking is shared once your order is shipped.' },
         { q: 'Can I return or exchange items?', a: 'Swag Stree offers customer-friendly returns and exchanges as per store policy shown at checkout.' },
         { q: 'How do I track my Swag Stree order?', a: 'Sign in with your account email or phone to view order status, tracking, and delivery updates in My Orders.' },
-        { q: 'Can I add delivery instructions?', a: 'Yes. Add a delivery note at checkout and edit it from My Orders until your order ships.' }
+        { q: 'Can I add delivery instructions?', a: 'Yes. Add a delivery note at checkout and edit it from My Orders until your order ships.' },
+        { q: 'What payment methods does Swag Stree accept?', a: 'Cash on Delivery (COD), UPI, Paytm, Google Pay and other popular Indian prepaid options at checkout.' },
+        { q: 'Does Swag Stree ship across India?', a: 'Yes. Swag Stree delivers premium fashion nationwide with reliable courier partners.' },
+        { q: 'How do I contact Swag Stree support?', a: 'WhatsApp +91 8800467686, email support@swagstree.com, or Instagram @swag_stree.' },
+        { q: 'Are Swag Stree product reviews genuine?', a: 'Yes. Public reviews are from verified purchases and moderated before appearing on product pages.' },
+        { q: 'How do I find kurtas, coord sets or sarees on Swag Stree?', a: 'Browse categories on the homepage, use search, or open category links like /?category=kurtas from our sitemap.' }
     ];
 
     window.SEO_DEFAULTS = DEFAULT_SEO;
@@ -60,6 +68,15 @@
         return 'https://swagstree.com';
     }
     window.getSiteOrigin = getSiteOrigin;
+
+    function getCanonicalOrigin() {
+        const s = window.seoSettings || DEFAULT_SEO;
+        if (s.canonicalDomain) {
+            return 'https://' + String(s.canonicalDomain).replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+        return getSiteOrigin();
+    }
+    window.getCanonicalOrigin = getCanonicalOrigin;
 
     function escMeta(str) {
         return String(str || '')
@@ -76,14 +93,14 @@
     }
 
     function absoluteUrl(pathOrUrl) {
-        if (!pathOrUrl) return getSiteOrigin() + '/';
+        if (!pathOrUrl) return getCanonicalOrigin() + '/';
         if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
         const path = pathOrUrl.startsWith('/') ? pathOrUrl : '/' + pathOrUrl;
-        return getSiteOrigin() + path;
+        return getCanonicalOrigin() + path;
     }
 
     function productUrl(productId) {
-        return getSiteOrigin() + '/?id=' + encodeURIComponent(productId);
+        return getCanonicalOrigin() + '/?id=' + encodeURIComponent(productId);
     }
 
     function productImage(product) {
@@ -240,7 +257,7 @@
             '@type': 'Organization',
             name: s.brand || s.siteName,
             alternateName: ['Swagstree', 'Swag Stree Fashion', 'swagstree.com'],
-            url: getSiteOrigin() + '/',
+            url: getCanonicalOrigin() + '/',
             logo: absoluteUrl('/assets/logo.png'),
             email: s.email,
             telephone: s.phone,
@@ -256,14 +273,82 @@
             '@context': 'https://schema.org',
             '@type': 'WebSite',
             name: s.siteName,
-            url: getSiteOrigin() + '/',
+            url: getCanonicalOrigin() + '/',
             inLanguage: s.locale || 'en-IN',
             potentialAction: {
                 '@type': 'SearchAction',
-                target: getSiteOrigin() + '/?q={search_term_string}',
+                target: {
+                    '@type': 'EntryPoint',
+                    urlTemplate: getCanonicalOrigin() + '/?q={search_term_string}'
+                },
                 'query-input': 'required name=search_term_string'
             }
         };
+    }
+
+    function buildOnlineStoreSchema() {
+        const s = window.seoSettings || DEFAULT_SEO;
+        return {
+            '@context': 'https://schema.org',
+            '@type': 'OnlineStore',
+            name: s.siteName,
+            url: getCanonicalOrigin() + '/',
+            image: absoluteUrl('/assets/logo.png'),
+            telephone: s.phone,
+            email: s.email,
+            currenciesAccepted: 'INR',
+            paymentAccepted: 'Cash, Credit Card, UPI, Paytm, Google Pay',
+            areaServed: { '@type': 'Country', name: 'India' },
+            hasOfferCatalog: {
+                '@type': 'OfferCatalog',
+                name: 'Swag Stree Fashion Catalog',
+                itemListElement: (window.products || []).slice(0, 12).map(function(p, i) {
+                    return {
+                        '@type': 'OfferCatalog',
+                        position: i + 1,
+                        itemOffered: {
+                            '@type': 'Product',
+                            name: p.name,
+                            url: productUrl(p.id)
+                        }
+                    };
+                })
+            }
+        };
+    }
+
+    function buildSiteNavigationSchema() {
+        const links = [{ name: 'Home', url: getCanonicalOrigin() + '/' }];
+        if (typeof getActiveCategories === 'function') {
+            getActiveCategories().slice(0, 12).forEach(function(c) {
+                const slug = c.slug || (typeof slugifyCategoryName === 'function' ? slugifyCategoryName(c.name) : c.name);
+                links.push({ name: c.name, url: getCanonicalOrigin() + '/?category=' + encodeURIComponent(slug) });
+            });
+        }
+        return {
+            '@context': 'https://schema.org',
+            '@type': 'SiteNavigationElement',
+            name: 'Swag Stree Store Navigation',
+            hasPart: links.map(function(l) {
+                return { '@type': 'WebPage', name: l.name, url: l.url };
+            })
+        };
+    }
+
+    function getProductVideoUrl(product) {
+        if (!product) return null;
+        const fromList = Array.isArray(product.videos) && product.videos.length
+            ? (typeof product.videos[0] === 'string' ? product.videos[0] : product.videos[0].url)
+            : null;
+        if (fromList) return absoluteUrl(fromList);
+        const variant = (product.normalizedVariants || []).find(function(v) {
+            return v && Array.isArray(v.videos) && v.videos.length;
+        });
+        if (variant && variant.videos[0]) {
+            const v = variant.videos[0];
+            return absoluteUrl(typeof v === 'string' ? v : v.url);
+        }
+        return null;
     }
 
     function buildFaqSchema() {
@@ -326,6 +411,15 @@
                 worstRating: stats.worstRating
             };
         }
+        const videoUrl = getProductVideoUrl(product);
+        if (videoUrl) {
+            schema.subjectOf = {
+                '@type': 'VideoObject',
+                name: (product.name || 'Product') + ' video — ' + (window.seoSettings || DEFAULT_SEO).siteName,
+                contentUrl: videoUrl,
+                thumbnailUrl: images[0]
+            };
+        }
         return schema;
     }
 
@@ -335,7 +429,7 @@
             '@context': 'https://schema.org',
             '@type': 'ClothingStore',
             name: s.siteName,
-            url: getSiteOrigin() + '/',
+            url: getCanonicalOrigin() + '/',
             image: absoluteUrl('/assets/logo.png'),
             telephone: s.phone,
             email: s.email,
@@ -371,7 +465,7 @@
     function buildCollectionPageSchema(category, products) {
         const s = window.seoSettings || DEFAULT_SEO;
         const slug = category.slug || (typeof slugifyCategoryName === 'function' ? slugifyCategoryName(category.name) : category.name);
-        const url = getSiteOrigin() + '/?category=' + encodeURIComponent(slug);
+        const url = getCanonicalOrigin() + '/?category=' + encodeURIComponent(slug);
         const list = (products || []).slice(0, 30);
         return {
             '@context': 'https://schema.org',
@@ -379,7 +473,7 @@
             name: (category.name || 'Collection') + ' — ' + s.siteName,
             description: 'Shop ' + (category.name || 'fashion') + ' at ' + s.siteName + '. COD, UPI & fast delivery across India.',
             url: url,
-            isPartOf: { '@type': 'WebSite', name: s.siteName, url: getSiteOrigin() + '/' },
+            isPartOf: { '@type': 'WebSite', name: s.siteName, url: getCanonicalOrigin() + '/' },
             mainEntity: {
                 '@type': 'ItemList',
                 numberOfItems: list.length,
@@ -415,7 +509,7 @@
         const s = window.seoSettings || DEFAULT_SEO;
         const title = bundle.title || s.title;
         const description = bundle.description || s.description;
-        const canonical = bundle.canonical || getSiteOrigin() + '/';
+        const canonical = bundle.canonical || getCanonicalOrigin() + '/';
         const image = bundle.image || absoluteUrl('/assets/logo.png');
         const type = bundle.type || 'website';
         const keywords = bundle.keywords || mergeKeywords();
@@ -445,6 +539,9 @@
         ensureLinkRel('canonical', canonical);
         ensureLinkHreflang('en-in', canonical);
         ensureLinkHreflang('x-default', canonical);
+        ensureLinkRel('search', getCanonicalOrigin() + '/opensearch.xml', { type: 'application/opensearchdescription+xml', id: 'seo-opensearch' });
+        ensureLinkRel('alternate', getCanonicalOrigin() + '/feed.xml', { type: 'application/rss+xml', id: 'seo-rss' });
+        ensureLinkRel('alternate', getCanonicalOrigin() + '/catalog.json', { type: 'application/ld+json', id: 'seo-catalog' });
 
         ensureMetaByProperty('og:site_name', s.siteName);
         ensureMetaByProperty('og:title', title);
@@ -475,6 +572,8 @@
             ensureMetaByName('twitter:site', s.twitterHandle);
             ensureMetaByName('twitter:creator', s.twitterHandle);
         }
+        if (s.facebookAppId) ensureMetaByProperty('fb:app_id', s.facebookAppId);
+        if (s.pinterestDomainVerify) ensureMetaByName('p:domain_verify', s.pinterestDomainVerify);
 
         setRobotsIndexable(bundle.indexable !== false);
         ensureMetaByName('bingbot', bundle.indexable !== false ? 'index, follow' : 'noindex, nofollow');
@@ -491,7 +590,7 @@
             applySeoBundle({
                 title: s.siteName + ' — Admin',
                 description: 'Private admin area.',
-                canonical: getSiteOrigin() + '/',
+                canonical: getCanonicalOrigin() + '/',
                 indexable: false,
                 jsonLd: { '@context': 'https://schema.org', '@graph': [buildOrganizationSchema()] }
             });
@@ -502,7 +601,7 @@
             applySeoBundle({
                 title: 'Wishlist — ' + s.siteName,
                 description: 'Your saved fashion picks at ' + s.siteName + '.',
-                canonical: getSiteOrigin() + '/',
+                canonical: getCanonicalOrigin() + '/',
                 type: 'website',
                 jsonLd: {
                     '@context': 'https://schema.org',
@@ -516,7 +615,7 @@
             applySeoBundle({
                 title: 'My Account & Orders — ' + s.siteName,
                 description: 'Manage your Swag Stree profile, orders, and delivery notes.',
-                canonical: getSiteOrigin() + '/',
+                canonical: getCanonicalOrigin() + '/',
                 indexable: false,
                 jsonLd: { '@context': 'https://schema.org', '@graph': [buildOrganizationSchema()] }
             });
@@ -531,7 +630,7 @@
             keywords: mergeKeywords(),
             subject: 'Premium fashion shopping India',
             classification: 'Fashion, Clothing, E-commerce, Online Shopping, India',
-            canonical: getSiteOrigin() + '/',
+            canonical: getCanonicalOrigin() + '/',
             image: absoluteUrl('/assets/logo.png'),
             imageAlt: s.siteName + ' — Premium fashion online India',
             type: 'website',
@@ -541,6 +640,8 @@
                     buildOrganizationSchema(),
                     buildWebsiteSchema(),
                     buildLocalBusinessSchema(),
+                    buildOnlineStoreSchema(),
+                    buildSiteNavigationSchema(),
                     faqSchema
                 ].concat(itemList ? [itemList] : [])
             }
@@ -563,8 +664,8 @@
         const categoryLabel = typeof resolveProductCategoryLabel === 'function'
             ? resolveProductCategoryLabel(product) : (product.categoryName || '');
         const breadcrumbs = buildBreadcrumbSchema([
-            { name: 'Home', url: getSiteOrigin() + '/' }
-        ].concat(categoryLabel ? [{ name: categoryLabel, url: getSiteOrigin() + '/?q=' + encodeURIComponent(categoryLabel) }] : []).concat([
+            { name: 'Home', url: getCanonicalOrigin() + '/' }
+        ].concat(categoryLabel ? [{ name: categoryLabel, url: getCanonicalOrigin() + '/?q=' + encodeURIComponent(categoryLabel) }] : []).concat([
             { name: product.name, url: url }
         ]));
         const productSchema = buildProductSchema(product);
@@ -606,7 +707,7 @@
             if (match) {
                 const s = window.seoSettings || DEFAULT_SEO;
                 const slug = categorySlug;
-                const url = getSiteOrigin() + '/?category=' + encodeURIComponent(slug);
+                const url = getCanonicalOrigin() + '/?category=' + encodeURIComponent(slug);
                 const catProducts = (window.products || []).filter(function(p) {
                     if (typeof productMatchesCategoryFilters === 'function') {
                         return productMatchesCategoryFilters(p, [match.id]);
@@ -627,7 +728,7 @@
                         '@graph': [
                             buildOrganizationSchema(),
                             buildBreadcrumbSchema([
-                                { name: 'Home', url: getSiteOrigin() + '/' },
+                                { name: 'Home', url: getCanonicalOrigin() + '/' },
                                 { name: match.name, url: url }
                             ]),
                             buildCollectionPageSchema(match, catProducts)
@@ -640,7 +741,7 @@
         const searchQ = (params.get('q') || '').trim();
         if (searchQ) {
             const s = window.seoSettings || DEFAULT_SEO;
-            const url = getSiteOrigin() + '/?q=' + encodeURIComponent(searchQ);
+            const url = getCanonicalOrigin() + '/?q=' + encodeURIComponent(searchQ);
             const results = (window.products || []).filter(function(p) {
                 const cat = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : '';
                 const hay = [p.name, p.description, cat].filter(Boolean).join(' ').toLowerCase();
@@ -743,7 +844,10 @@
                 'admin-seo-phone': s.phone,
                 'admin-seo-email': s.email,
                 'admin-seo-google-verify': s.googleSiteVerification,
-                'admin-seo-bing-verify': s.bingSiteVerification
+                'admin-seo-bing-verify': s.bingSiteVerification,
+                'admin-seo-canonical-domain': s.canonicalDomain,
+                'admin-seo-facebook-app': s.facebookAppId,
+                'admin-seo-pinterest-verify': s.pinterestDomainVerify
             };
             Object.keys(fields).forEach(function(id) {
                 const el = document.getElementById(id);
@@ -768,6 +872,9 @@
             email: (document.getElementById('admin-seo-email') || {}).value || DEFAULT_SEO.email,
             googleSiteVerification: (document.getElementById('admin-seo-google-verify') || {}).value || '',
             bingSiteVerification: (document.getElementById('admin-seo-bing-verify') || {}).value || '',
+            canonicalDomain: (document.getElementById('admin-seo-canonical-domain') || {}).value || DEFAULT_SEO.canonicalDomain,
+            facebookAppId: (document.getElementById('admin-seo-facebook-app') || {}).value || '',
+            pinterestDomainVerify: (document.getElementById('admin-seo-pinterest-verify') || {}).value || '',
             updatedAt: typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date()
         };
         try {

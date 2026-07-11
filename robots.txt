@@ -68,4 +68,4 @@ Allow: /
 Sitemap: /sitemap.xml
 
 # AI / LLM discovery
-# See also /llms.txt and /humans.txt
+# See also /llms.txt /ai.txt /catalog.json /feed.xml

@@ -8,6 +8,7 @@
  * - FIREBASE_API_KEY
  * - SUPER_ADMIN_EMAIL (default: superadmin@swagstree.com)
  * Optional:
+ * - CANONICAL_HOST (e.g. swagstree.com) — 301 redirect www to apex
  * - CLOUDINARY_ASSET_PREFIX (e.g. swagstree) — also purge orphans under this folder prefix
  * - FIREBASE_SERVICE_ACCOUNT — JSON service account for Auth user export
  * - FIREBASE_PROJECT_ID (default: swagstree-web)
@@ -204,6 +205,146 @@ function injectProductSeo(html, product, origin) {
 <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`;
     out = out.replace('</head>', `${headInject}\n</head>`);
     return out;
+}
+
+function injectGenericSeo(html, { title, description, keywords, canonical, type, origin, jsonLd }) {
+    const image = `${origin}/assets/logo.png`;
+    let out = html.replace(/<title>[^<]*<\/title>/i, `<title>${escHtml(title)}</title>`);
+    const headInject = `
+<meta name="description" content="${escHtml(description)}">
+<meta name="keywords" content="${escHtml(keywords || '')}">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<link rel="canonical" href="${escHtml(canonical)}">
+<meta property="og:site_name" content="Swag Stree">
+<meta property="og:type" content="${escHtml(type || 'website')}">
+<meta property="og:title" content="${escHtml(title)}">
+<meta property="og:description" content="${escHtml(description)}">
+<meta property="og:url" content="${escHtml(canonical)}">
+<meta property="og:image" content="${escHtml(image)}">
+<meta property="og:locale" content="en-IN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@swag_stree">
+<meta name="twitter:title" content="${escHtml(title)}">
+<meta name="twitter:description" content="${escHtml(description)}">
+<meta name="twitter:image" content="${escHtml(image)}">
+${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}`;
+    out = out.replace('</head>', `${headInject}\n</head>`);
+    return out;
+}
+
+function injectCategorySeo(html, category, origin) {
+    const slug = category.slug || String(category.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const canonical = `${origin}/?category=${encodeURIComponent(slug)}`;
+    const title = `${category.name} — Shop Online India | Swag Stree`;
+    const description = `Browse premium ${category.name} at Swag Stree. COD, UPI, Paytm & fast pan-India delivery.`;
+    const keywords = [category.name, 'buy online India', 'Swag Stree', 'COD', 'UPI'].join(', ');
+    const jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: title,
+        description,
+        url: canonical
+    };
+    return injectGenericSeo(html, { title, description, keywords, canonical, type: 'website', origin, jsonLd });
+}
+
+function injectSearchSeo(html, query, origin) {
+    const canonical = `${origin}/?q=${encodeURIComponent(query)}`;
+    const title = `${query} — Fashion Search | Swag Stree`;
+    const description = `Shop ${query} and more premium fashion at Swag Stree with COD, UPI & India-wide delivery.`;
+    const keywords = [query, query + ' online India', 'Swag Stree fashion'].join(', ');
+    const jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'SearchResultsPage',
+        name: title,
+        url: canonical
+    };
+    return injectGenericSeo(html, { title, description, keywords, canonical, type: 'website', origin, jsonLd });
+}
+
+function buildRssFeed(origin, products) {
+    const items = (products || []).slice(0, 100).map((product) => {
+        const link = `${origin}/?id=${encodeURIComponent(product.id)}`;
+        const desc = escXml(String(product.description || product.name || '').slice(0, 500));
+        const img = Array.isArray(product.images) && product.images[0] ? `<enclosure url="${escXml(product.images[0])}" type="image/jpeg"/>` : '';
+        return `<item>
+  <title>${escXml(product.name || 'Product')}</title>
+  <link>${escXml(link)}</link>
+  <guid isPermaLink="true">${escXml(link)}</guid>
+  <description>${desc}</description>
+  <category>Fashion</category>
+  ${img}
+</item>`;
+    }).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>Swag Stree — New Products</title>
+  <link>${escXml(origin + '/')}</link>
+  <description>Premium fashion catalog — kurtas, coord sets, sarees &amp; more. COD &amp; UPI across India.</description>
+  <language>en-in</language>
+  <atom:link href="${escXml(origin + '/feed.xml')}" rel="self" type="application/rss+xml"/>
+  ${items}
+</channel>
+</rss>`;
+}
+
+function buildCatalogJson(origin, products, categories) {
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'DataFeed',
+        name: 'Swag Stree Product Catalog',
+        dateModified: new Date().toISOString(),
+        dataFeedElement: (products || []).slice(0, 500).map((product) => ({
+            '@type': 'Product',
+            name: product.name,
+            sku: product.id,
+            url: `${origin}/?id=${encodeURIComponent(product.id)}`,
+            image: Array.isArray(product.images) ? product.images[0] : null,
+            offers: {
+                '@type': 'Offer',
+                priceCurrency: 'INR',
+                price: Number(product.price) || 0
+            }
+        })),
+        categories: (categories || []).map((cat) => ({
+            name: cat.name,
+            slug: cat.slug || String(cat.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            url: `${origin}/?category=${encodeURIComponent(cat.slug || cat.name)}`
+        }))
+    };
+}
+
+function maybeCanonicalRedirect(request, env) {
+    const canonical = (env.CANONICAL_HOST || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (!canonical) return null;
+    const url = new URL(request.url);
+    if (url.hostname === 'www.' + canonical) {
+        url.hostname = canonical;
+        url.protocol = 'https:';
+        return Response.redirect(url.toString(), 301);
+    }
+    return null;
+}
+
+function seoHtmlResponse(html, extraHeaders) {
+    const headers = new Headers({
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+        'X-Robots-Tag': 'index, follow, max-image-preview:large',
+        'Link': '</sitemap.xml>; rel="sitemap"'
+    });
+    if (extraHeaders) Object.entries(extraHeaders).forEach(([k, v]) => headers.set(k, v));
+    return new Response(html, { headers });
+}
+
+function textResponse(body, contentType, cacheSeconds) {
+    return new Response(body, {
+        headers: {
+            'Content-Type': contentType,
+            'Cache-Control': `public, max-age=${cacheSeconds || 3600}`
+        }
+    });
 }
 
 function xmlResponse(body) {
@@ -563,6 +704,9 @@ export default {
     async fetch(request, env) {
         const url = new URL(request.url);
 
+        const canonicalRedirect = maybeCanonicalRedirect(request, env);
+        if (canonicalRedirect) return canonicalRedirect;
+
         if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
             return new Response(null, { status: 204, headers: corsHeaders() });
         }
@@ -592,26 +736,76 @@ export default {
             const products = await fetchAllFirestoreProducts(env);
             return xmlResponse(buildProductsSitemapXml(url.origin, products));
         }
+        if (url.pathname === '/feed.xml') {
+            const products = await fetchAllFirestoreProducts(env);
+            return xmlResponse(buildRssFeed(url.origin, products));
+        }
+        if (url.pathname === '/catalog.json') {
+            const [products, categories] = await Promise.all([
+                fetchAllFirestoreProducts(env),
+                fetchAllFirestoreCategories(env)
+            ]);
+            return new Response(JSON.stringify(buildCatalogJson(url.origin, products, categories)), {
+                headers: {
+                    'Content-Type': 'application/ld+json; charset=utf-8',
+                    'Cache-Control': 'public, max-age=1800',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            });
+        }
+        if (url.pathname === '/.well-known/security.txt') {
+            return textResponse(
+                'Contact: mailto:support@swagstree.com\nExpires: 2027-12-31T23:59:59.000Z\nPreferred-Languages: en\nCanonical: https://swagstree.com/.well-known/security.txt\n',
+                'text/plain; charset=utf-8',
+                86400
+            );
+        }
 
+        const ua = request.headers.get('user-agent') || '';
+        const isBot = isSearchBot(ua);
         const productId = url.searchParams.get('id');
-        if (url.pathname === '/' && productId && isSearchBot(request.headers.get('user-agent') || '') && env.ASSETS) {
-            const product = await fetchFirestoreProduct(productId, env);
-            if (product && product.name) {
-                const assetResp = await env.ASSETS.fetch(new Request(new URL('/', url.origin).toString(), request));
-                if (assetResp.ok) {
-                    const html = injectProductSeo(await assetResp.text(), product, url.origin);
-                    return new Response(html, {
-                        headers: {
-                            'Content-Type': 'text/html; charset=utf-8',
-                            'Cache-Control': 'public, max-age=300'
-                        }
+        const categorySlug = url.searchParams.get('category');
+        const searchQ = (url.searchParams.get('q') || '').trim();
+
+        if (url.pathname === '/' && isBot && env.ASSETS) {
+            const assetResp = await env.ASSETS.fetch(new Request(new URL('/', url.origin).toString(), request));
+            if (assetResp.ok) {
+                const baseHtml = await assetResp.text();
+                if (productId) {
+                    const product = await fetchFirestoreProduct(productId, env);
+                    if (product && product.name) {
+                        return seoHtmlResponse(injectProductSeo(baseHtml, product, url.origin));
+                    }
+                }
+                if (categorySlug) {
+                    const categories = await fetchAllFirestoreCategories(env);
+                    const match = categories.find((c) => {
+                        const slug = (c.slug || String(c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')).toLowerCase();
+                        return slug === categorySlug.toLowerCase();
                     });
+                    if (match) {
+                        return seoHtmlResponse(injectCategorySeo(baseHtml, match, url.origin));
+                    }
+                }
+                if (searchQ) {
+                    return seoHtmlResponse(injectSearchSeo(baseHtml, searchQ, url.origin));
                 }
             }
         }
 
         if (env.ASSETS) {
-            return env.ASSETS.fetch(request);
+            const assetResp = await env.ASSETS.fetch(request);
+            if (url.pathname.startsWith('/api/') && assetResp.status !== 404) {
+                const headers = new Headers(assetResp.headers);
+                headers.set('X-Robots-Tag', 'noindex, nofollow');
+                return new Response(assetResp.body, { status: assetResp.status, headers });
+            }
+            if (assetResp.ok && (url.pathname === '/' || url.pathname.endsWith('.html')) && !url.pathname.startsWith('/api/')) {
+                const headers = new Headers(assetResp.headers);
+                headers.set('Link', '</sitemap.xml>; rel="sitemap"');
+                return new Response(assetResp.body, { status: assetResp.status, headers });
+            }
+            return assetResp;
         }
 
         return new Response('Not Found', { status: 404 });
