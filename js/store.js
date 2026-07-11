@@ -1562,6 +1562,65 @@ function syncDetailSelectionFromGallery(slideElOrIdx, slideIdx = null) {
     return true;
 }
 
+function findGalleryIndexForSelection(slideMap, opts = {}) {
+    const map = slideMap || [];
+    const color = opts.color || '';
+    const size = opts.size || '';
+    const pattern = opts.pattern || '';
+
+    const scoreSlide = (m) => {
+        if (!m || m.type === 'video' || m.isPlaceholder || m.is360Preview) return -1;
+        let score = 0;
+        if (color) {
+            if (!m.color || !colorsMatch(m.color, color)) return -1;
+            score += 4;
+        }
+        if (pattern) {
+            if (!m.pattern || !patternsMatch(m.pattern, pattern)) return -1;
+            score += 2;
+        }
+        if (size && size !== 'Standard' && m.size) {
+            if (!sizesEqual(m.size, size)) return -1;
+            score += 1;
+        }
+        if (!m.color && !m.pattern && m.scope === 'main') score -= 1;
+        return score;
+    };
+
+    let bestIdx = -1;
+    let bestScore = -1;
+    map.forEach((m, i) => {
+        const score = scoreSlide(m);
+        if (score > bestScore) {
+            bestScore = score;
+            bestIdx = i;
+        }
+    });
+    return bestIdx;
+}
+
+function variantMatchesDetailGallery(variant) {
+    if (!variant || variant.isActive === false) return false;
+    if (variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true') return false;
+    if (selectedSize && selectedSize !== 'Standard' && variant.size && !sizesMatch(variant.size, selectedSize)) return false;
+    return true;
+}
+
+function scrollDetailGalleryToIndex(idx, smooth = true) {
+    const detGallery = document.getElementById('det-gallery');
+    if (!detGallery || idx < 0) return;
+    const imgEl = detGallery.children[idx];
+    if (!imgEl) return;
+    window.detGalleryScrollingNow = true;
+    clearTimeout(window.detGalleryScrollEndTimeout);
+    detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
+    updateActiveThumbnailBorder(idx);
+    updateDetailGalleryActions(idx);
+    window.detGalleryScrollEndTimeout = setTimeout(() => {
+        window.detGalleryScrollingNow = false;
+    }, smooth ? 800 : 120);
+}
+
 function isValidDetailColorPick(colorKey, colors) {
     if (!colorKey || !String(colorKey).trim()) return false;
     return colors.some(c => colorsMatch(c.key, colorKey) || variantColorMatches(c.variant, colorKey));
@@ -1733,25 +1792,11 @@ function renderDetailColors(p, initialColor = null) {
 
         colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
             const col = key;
-            const optionVariant = getDetailColorOptionForKey(p, col) || v;
-            const isActive = isValidDetailColorPick(selectedColor, [ { key: col, variant: optionVariant } ]);
-            const displayName = optionVariant ? (optionVariant.colorName || formatColorName(col)) : formatColorName(col);
-            const previewUrl = getVariantPreviewImage(optionVariant);
+            const isActive = isValidDetailColorPick(selectedColor, [ { key: col, variant: v } ]);
+            const displayName = v ? (v.colorName || formatColorName(col)) : formatColorName(col);
             const safeCol = col.replace(/'/g, "\\'");
-            const oos = !isDetailColorInStock(p, col);
-            const oosTitle = oos ? 'Out of stock for this color' : displayName;
-
-            if (previewUrl) {
-                return `
-                <div class="color-chip color-chip--image ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-color-key="${safeCol.replace(/"/g, '&quot;')}" onclick="selectDetailColor('${safeCol}', this)" title="${oosTitle}">
-                    <img src="${previewUrl}" class="color-chip-preview" alt="${displayName}">
-                    <span>${displayName}</span>
-                </div>
-                `;
-            }
-
             // Normalize for CSS: hex stays as-is; check customColorsMap; otherwise strip spaces
-            let cleanColor = (optionVariant?.color || col).trim();
+            let cleanColor = (v?.color || col).trim();
             if (!cleanColor.startsWith('#')) {
                 const normName = cleanColor.toLowerCase();
                 const normNameNoSpaces = normName.replace(/\s+/g, '');
@@ -1766,7 +1811,8 @@ function renderDetailColors(p, initialColor = null) {
             const isWhite = cleanColor === '#ffffff' || cleanColor === 'white' || cleanColor === '#fff';
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
-
+            const oos = !isDetailColorInStock(p, col);
+            const oosTitle = oos ? 'Out of stock for this color' : displayName;
             return `
                 <div class="color-chip ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-color-key="${safeCol.replace(/"/g, '&quot;')}" onclick="selectDetailColor('${safeCol}', this)" title="${oosTitle}">
                     ${colorPreview}<span>${displayName}</span>
@@ -1830,10 +1876,10 @@ function renderDetailPatterns(p) {
             const oosTitle = oos ? 'Out of stock' : displayText;
             const safePat = pat.replace(/'/g, "\\'");
             if (hasImage) {
-                const imgHtml = `<img src="${v.previewImage}" class="color-chip-preview" alt="${displayText}">`;
+                const imgHtml = `<img src="${v.previewImage}" style="width:28px; height:28px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); vertical-align:middle; flex-shrink:0;">`;
                 const textHtml = shouldShowText ? `<span style="font-size:11px; font-weight:600; margin-left:5px; line-height:1.2;">${displayText}</span>` : '';
                 return `
-                <div class="size-chip color-chip color-chip--image ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
+                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
                     ${imgHtml}${textHtml}
                 </div>
                 `;
@@ -1841,7 +1887,7 @@ function renderDetailPatterns(p) {
 
             // Text-only pattern
             return `
-            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
+            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
                 <span>${displayText}</span>
             </div>
             `;
@@ -1926,28 +1972,38 @@ function buildDetailGallerySlides(p, productMedia) {
     const variantPhotosMap = [];
     const selectedVariant = getSelectedVariant(p);
     const variantSources = [];
+    const seenSlideKeys = new Set();
 
     if (p.normalizedVariants && p.normalizedVariants.length > 0) {
         p.normalizedVariants.forEach(variant => {
-            if (variantMatchesDetailSelection(variant)) variantSources.push(variant);
+            if (variantMatchesDetailGallery(variant)) variantSources.push(variant);
         });
     }
     if (variantSources.length === 0 && selectedVariant) variantSources.push(selectedVariant);
 
     variantSources.forEach(variant => {
+        const slideImages = [];
+        if (variant.previewImage && !isPlaceholderImageUrl(variant.previewImage)) {
+            slideImages.push(variant.previewImage);
+        }
         (variant.images || []).forEach(img => {
-            if (isPlaceholderImageUrl(img)) return;
-            if (!variantPhotos.includes(img)) {
-                variantPhotos.push(img);
-                variantPhotosMap.push({
-                    url: img,
-                    color: getVariantColorKey(variant) || variant.color || '',
-                    size: variant.size || '',
-                    pattern: variant.pattern || '',
-                    type: 'image',
-                    scope: 'variant'
-                });
-            }
+            if (!isPlaceholderImageUrl(img)) slideImages.push(img);
+        });
+
+        slideImages.forEach(img => {
+            const colorKey = getVariantColorKey(variant) || variant.color || '';
+            const slideKey = `${img}|${colorKey}|${variant.pattern || ''}|${variant.size || ''}`;
+            if (seenSlideKeys.has(slideKey)) return;
+            seenSlideKeys.add(slideKey);
+            variantPhotos.push(img);
+            variantPhotosMap.push({
+                url: img,
+                color: colorKey,
+                size: variant.size || '',
+                pattern: variant.pattern || '',
+                type: 'image',
+                scope: 'variant'
+            });
         });
     });
 
@@ -2050,7 +2106,11 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
         ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
-        : 0;
+        : Math.max(0, findGalleryIndexForSelection(imageToVariantMap, {
+            color: selectedColor,
+            size: selectedSize,
+            pattern: window.selectedPattern || ''
+        }));
 
     window.detailGalleryImages = imagesToDisplay.filter((_, i) => {
         const m = imageToVariantMap[i] || {};
@@ -2090,7 +2150,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" class="det-gallery-placeholder" alt="No image">');
 
     const detGallery = document.getElementById('det-gallery');
-    const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
+    const galleryCacheKey = `${p.id}|${selectedSize}|${imagesToDisplay.join(',')}`;
     let galleryChanged = true;
     if (detGallery) {
         const prevKey = detGallery.getAttribute('data-loaded-images');
@@ -2099,7 +2159,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             detGallery.innerHTML = galleryHtml;
             detGallery.setAttribute('data-loaded-images', galleryCacheKey);
         }
-        if (galleryChanged || scrollGallery) {
+        if (galleryChanged) {
             detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
         }
     }
@@ -2149,22 +2209,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     updateDetailGalleryActions(activeThumbIdx > -1 ? activeThumbIdx : 0, p);
 
-    // Scroll to the current selected variant's first image if we're not triggered by a scroll event
-    if (scrollGallery && galleryChanged && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
-        if (activeThumbIdx > -1) {
-            const imgEl = detGallery.children[activeThumbIdx];
-            if (imgEl) {
-                window.detGalleryScrollingNow = true; // Block scroll listener from interfering during smooth scroll transitions
-                clearTimeout(window.detGalleryScrollEndTimeout);
-                setTimeout(() => {
-                    detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
-                    updateActiveThumbnailBorder(activeThumbIdx);
-                    setTimeout(() => {
-                        window.detGalleryScrollingNow = false;
-                    }, 800); // Failsafe unlock after 800ms
-                }, 50);
-            }
-        }
+    // Scroll gallery to the slide matching current variant when selectors change
+    if (scrollGallery && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow && activeThumbIdx > -1) {
+        scrollDetailGalleryToIndex(activeThumbIdx, true);
     }
 
     // Update Button and Stock Info
