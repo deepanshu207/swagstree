@@ -3,23 +3,66 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-# AI / answer engines
-User-agent: GPTBot
+# Google
+User-agent: Googlebot
 Allow: /
-
-User-agent: ChatGPT-User
+User-agent: Googlebot-Image
 Allow: /
-
 User-agent: Google-Extended
 Allow: /
 
+# Bing / Yahoo
+User-agent: Bingbot
+Allow: /
+User-agent: msnbot
+Allow: /
+
+# Social preview crawlers
+User-agent: facebookexternalhit
+Allow: /
+User-agent: Twitterbot
+Allow: /
+User-agent: LinkedInBot
+Allow: /
+User-agent: WhatsApp
+Allow: /
+User-agent: TelegramBot
+Allow: /
+User-agent: Discordbot
+Allow: /
+User-agent: Slackbot
+Allow: /
+
+# SEO tools
+User-agent: Applebot
+Allow: /
+User-agent: DuckDuckBot
+Allow: /
+User-agent: SemrushBot
+Allow: /
+User-agent: AhrefsBot
+Allow: /
+User-agent: PetalBot
+Allow: /
+
+# AI / answer engines
+User-agent: GPTBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
 User-agent: anthropic-ai
 Allow: /
-
 User-agent: ClaudeBot
 Allow: /
-
+User-agent: Claude-Web
+Allow: /
 User-agent: PerplexityBot
+Allow: /
+User-agent: CCBot
+Allow: /
+User-agent: Bytespider
+Allow: /
+User-agent: cohere-ai
 Allow: /
 
 Sitemap: /sitemap.xml

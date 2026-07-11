@@ -747,6 +747,10 @@ window.loadProductComments = function(productId) {
                 return tb - ta;
             });
             renderProductCommentsSection();
+            if (typeof syncSeoForProduct === 'function' && activeProductId === productId) {
+                const p = (window.products || []).find(function(x) { return x.id === productId; });
+                if (p) syncSeoForProduct(p);
+            }
         }, err => {
             console.error('Product comments listener error:', err);
             renderProductCommentsSection();

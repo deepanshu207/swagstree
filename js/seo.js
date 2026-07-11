@@ -6,17 +6,49 @@
     const DEFAULT_SEO = {
         siteName: 'Swag Stree',
         brand: 'Swag Stree',
-        title: 'Swag Stree — Premium Fashion & Trendsetting Apparel Online',
-        description: 'Shop premium fashion at Swag Stree. Trendsetting kurtas, coord sets, sarees & everyday swag with COD, UPI, fast delivery across India.',
-        keywords: 'Swag Stree, Swagstree, online fashion India, premium apparel, kurtas, coord sets, sarees, ethnic wear, streetwear, COD shopping, UPI fashion store',
+        title: 'Swag Stree — Premium Fashion & Trendsetting Apparel Online | COD & UPI India',
+        description: 'Shop premium fashion at Swag Stree — India\'s trendsetting online boutique for kurtas, coord sets, sarees, ethnic & streetwear. COD, UPI, Paytm, fast pan-India delivery & easy returns.',
+        keywords: [
+            'Swag Stree', 'Swagstree', 'swag stree fashion', 'swagstree.com', 'swag stree online shop',
+            'buy clothes online India', 'online fashion store India', 'women fashion online India',
+            'men fashion online India', 'premium kurtas online', 'designer coord sets', 'sarees online shopping',
+            'ethnic wear India', 'western wear online', 'streetwear India', 'party wear dresses online',
+            'casual outfits India', 'trendy apparel India', 'affordable premium fashion India',
+            'COD clothes shopping', 'cash on delivery fashion', 'UPI fashion store', 'Paytm shopping clothes',
+            'Google Pay fashion', 'free shipping fashion India', 'fast delivery clothes India',
+            'Delhi fashion online', 'Mumbai fashion store', 'Bangalore online boutique', 'India fashion e-commerce',
+            'kurta set online', 'anarkali suits online', 'co-ord set women', 'office wear women India',
+            'wedding guest outfits', 'festive collection India', 'summer fashion collection', 'winter wear online',
+            'cotton kurtas online', 'linen outfits India', 'plus size fashion India', 'instagram fashion brand India',
+            'best online clothing store India', 'shop swag stree', 'swag stree new arrivals', 'swag stree sale',
+            'ladies wear online', 'girls fashion India', 'boutique clothing online', 'designer wear India',
+            'Indian fashion brand', 'modest fashion India', 'daily wear kurtas', 'indo western dresses'
+        ].join(', '),
+        extraKeywords: [
+            'swag stree reviews', 'swag stree delivery', 'swag stree contact', 'swag stree whatsapp order',
+            'order tracking swag stree', 'fashion with COD India', 'UPI checkout fashion', 'ethnic boutique online',
+            'coord set with dupatta', 'printed kurtas', 'embroidered sarees', 'party coord sets',
+            'minimalist fashion India', 'aesthetic outfits India', 'OOTD India fashion', 'style inspiration India'
+        ].join(', '),
         locale: 'en_IN',
         twitterHandle: '@swag_stree',
         instagram: 'https://instagram.com/swag_stree',
         phone: '+918800467686',
         email: 'support@swagstree.com',
         priceCurrency: 'INR',
-        country: 'IN'
+        country: 'IN',
+        areaServed: 'IN',
+        googleSiteVerification: '',
+        bingSiteVerification: ''
     };
+
+    const DEFAULT_FAQ = [
+        { q: 'Does Swag Stree offer Cash on Delivery (COD)?', a: 'Yes. Swag Stree supports COD across India along with UPI, Paytm, and Google Pay for prepaid orders.' },
+        { q: 'How fast is delivery at Swag Stree?', a: 'Orders are dispatched quickly with pan-India shipping. Tracking is shared once your order is shipped.' },
+        { q: 'Can I return or exchange items?', a: 'Swag Stree offers customer-friendly returns and exchanges as per store policy shown at checkout.' },
+        { q: 'How do I track my Swag Stree order?', a: 'Sign in with your account email or phone to view order status, tracking, and delivery updates in My Orders.' },
+        { q: 'Can I add delivery instructions?', a: 'Yes. Add a delivery note at checkout and edit it from My Orders until your order ships.' }
+    ];
 
     window.SEO_DEFAULTS = DEFAULT_SEO;
     window.seoSettings = Object.assign({}, DEFAULT_SEO);
@@ -66,7 +98,77 @@
         if (desc) return truncate(desc, 160);
         const name = product && product.name ? product.name : 'Product';
         const price = product && product.price != null ? '₹' + product.price : '';
-        return truncate('Buy ' + name + (price ? ' at ' + price : '') + ' on Swag Stree. Premium quality fashion with COD & UPI.', 160);
+        const category = product && typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(product) : (product && product.categoryName) || '';
+        const catPart = category ? ' — ' + category : '';
+        return truncate('Buy ' + name + catPart + (price ? ' at ' + price : '') + ' on Swag Stree. Premium fashion with COD, UPI & fast India delivery.', 160);
+    }
+
+    function mergeKeywords() {
+        const s = window.seoSettings || DEFAULT_SEO;
+        const parts = [s.keywords, s.extraKeywords, s.brand, s.siteName, 'India fashion', 'COD', 'UPI'].filter(Boolean);
+        return [...new Set(parts.join(',').split(',').map(function(k) { return k.trim(); }).filter(Boolean))].join(', ');
+    }
+
+    function buildProductKeywords(product) {
+        const s = window.seoSettings || DEFAULT_SEO;
+        const base = mergeKeywords();
+        if (!product) return base;
+        const bits = [product.name, s.brand, s.siteName];
+        if (typeof resolveProductCategoryLabel === 'function') {
+            const cat = resolveProductCategoryLabel(product);
+            if (cat) bits.push(cat, 'buy ' + cat + ' online India');
+        } else if (product.categoryName) {
+            bits.push(product.categoryName);
+        }
+        if (product.price != null) bits.push('₹' + product.price, 'price in India');
+        (product.colors || []).slice(0, 4).forEach(function(c) { bits.push(String(c)); });
+        (product.patterns || []).slice(0, 2).forEach(function(p) { bits.push(String(p)); });
+        bits.push('COD', 'UPI', 'online shopping India', 'Swag Stree');
+        return [...new Set(bits.concat(base.split(',').map(function(k) { return k.trim(); })).filter(Boolean))].join(', ');
+    }
+
+    function buildCategoryKeywords(category) {
+        const s = window.seoSettings || DEFAULT_SEO;
+        const name = category && category.name ? category.name : 'Fashion';
+        const slug = category && category.slug ? category.slug : name.toLowerCase();
+        const bits = [
+            name, slug, s.brand, s.siteName,
+            'buy ' + name + ' online India',
+            name + ' collection India',
+            name + ' COD shopping',
+            name + ' UPI payment',
+            'premium ' + name + ' India',
+            'Swag Stree ' + name
+        ];
+        return [...new Set(bits.concat(mergeKeywords().split(',').map(function(k) { return k.trim(); })).filter(Boolean))].join(', ');
+    }
+
+    function collectProductImages(product) {
+        if (!product) return [absoluteUrl('/assets/logo.png')];
+        const imgs = [];
+        (product.images || []).forEach(function(img) { if (img) imgs.push(absoluteUrl(img)); });
+        (product.normalizedVariants || []).forEach(function(v) {
+            if (v && v.image) imgs.push(absoluteUrl(v.image));
+        });
+        if (product.image) imgs.push(absoluteUrl(product.image));
+        const unique = [...new Set(imgs)];
+        return unique.length ? unique.slice(0, 8) : [absoluteUrl('/assets/logo.png')];
+    }
+
+    function getProductReviewStatsForSeo(productId) {
+        const cache = window.productCommentsCache || [];
+        const approved = cache.filter(function(c) {
+            return c && c.productId === productId && c.rating && c.status === 'approved' && c.verifiedPurchase !== false;
+        });
+        if (!approved.length) return null;
+        const avg = approved.reduce(function(s, c) { return s + (Number(c.rating) || 0); }, 0) / approved.length;
+        return {
+            ratingValue: Math.round(avg * 10) / 10,
+            reviewCount: approved.length,
+            bestRating: 5,
+            worstRating: 1
+        };
     }
 
     function ensureMetaByName(name, content) {
@@ -104,6 +206,17 @@
         if (extra && extra.type) el.setAttribute('type', extra.type);
     }
 
+    function ensureLinkHreflang(hreflang, href) {
+        let el = document.querySelector('link[hreflang="' + hreflang + '"]');
+        if (!el) {
+            el = document.createElement('link');
+            el.setAttribute('rel', 'alternate');
+            el.setAttribute('hreflang', hreflang);
+            document.head.appendChild(el);
+        }
+        if (href) el.setAttribute('href', href);
+    }
+
     function setJsonLd(data) {
         let el = document.getElementById('seo-jsonld');
         if (!el) {
@@ -126,10 +239,13 @@
             '@context': 'https://schema.org',
             '@type': 'Organization',
             name: s.brand || s.siteName,
+            alternateName: ['Swagstree', 'Swag Stree Fashion', 'swagstree.com'],
             url: getSiteOrigin() + '/',
             logo: absoluteUrl('/assets/logo.png'),
             email: s.email,
             telephone: s.phone,
+            areaServed: { '@type': 'Country', name: 'India' },
+            knowsAbout: ['Fashion', 'Clothing', 'Ethnic Wear', 'Streetwear', 'Online Shopping', 'Cash on Delivery'],
             sameAs: [s.instagram, 'https://wa.me/918800467686', 'https://www.facebook.com/share/1CRwnQckvY/'].filter(Boolean)
         };
     }
@@ -150,17 +266,36 @@
         };
     }
 
+    function buildFaqSchema() {
+        const s = window.seoSettings || DEFAULT_SEO;
+        const faqs = (s.faq && Array.isArray(s.faq) && s.faq.length) ? s.faq : DEFAULT_FAQ;
+        return {
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: faqs.map(function(item) {
+                return {
+                    '@type': 'Question',
+                    name: item.q,
+                    acceptedAnswer: { '@type': 'Answer', text: item.a }
+                };
+            })
+        };
+    }
+
     function buildProductSchema(product) {
         if (!product) return null;
         const s = window.seoSettings || DEFAULT_SEO;
         const inStock = typeof isProductOutOfStock === 'function' ? !isProductOutOfStock(product) : true;
+        const images = collectProductImages(product);
         const schema = {
             '@context': 'https://schema.org',
             '@type': 'Product',
             name: product.name || 'Product',
             description: productDescription(product),
-            image: [productImage(product)],
+            image: images,
             sku: product.id,
+            mpn: product.id,
+            url: productUrl(product.id),
             brand: { '@type': 'Brand', name: s.brand || s.siteName },
             offers: {
                 '@type': 'Offer',
@@ -168,11 +303,28 @@
                 priceCurrency: s.priceCurrency || 'INR',
                 price: Number(product.price) || 0,
                 availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-                seller: { '@type': 'Organization', name: s.siteName }
+                itemCondition: 'https://schema.org/NewCondition',
+                seller: { '@type': 'Organization', name: s.siteName },
+                shippingDetails: {
+                    '@type': 'OfferShippingDetails',
+                    shippingDestination: { '@type': 'DefinedRegion', addressCountry: s.country || 'IN' }
+                }
             }
         };
-        if (product.categoryName || (typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(product))) {
-            schema.category = product.categoryName || resolveProductCategoryLabel(product);
+        const categoryLabel = product.categoryName || (typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(product) : '');
+        if (categoryLabel) schema.category = categoryLabel;
+        const colors = (product.colors || []).slice(0, 6);
+        if (colors.length === 1) schema.color = colors[0];
+        else if (colors.length > 1) schema.color = colors;
+        const stats = getProductReviewStatsForSeo(product.id);
+        if (stats && stats.reviewCount > 0) {
+            schema.aggregateRating = {
+                '@type': 'AggregateRating',
+                ratingValue: stats.ratingValue,
+                reviewCount: stats.reviewCount,
+                bestRating: stats.bestRating,
+                worstRating: stats.worstRating
+            };
         }
         return schema;
     }
@@ -216,6 +368,33 @@
         };
     }
 
+    function buildCollectionPageSchema(category, products) {
+        const s = window.seoSettings || DEFAULT_SEO;
+        const slug = category.slug || (typeof slugifyCategoryName === 'function' ? slugifyCategoryName(category.name) : category.name);
+        const url = getSiteOrigin() + '/?category=' + encodeURIComponent(slug);
+        const list = (products || []).slice(0, 30);
+        return {
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: (category.name || 'Collection') + ' — ' + s.siteName,
+            description: 'Shop ' + (category.name || 'fashion') + ' at ' + s.siteName + '. COD, UPI & fast delivery across India.',
+            url: url,
+            isPartOf: { '@type': 'WebSite', name: s.siteName, url: getSiteOrigin() + '/' },
+            mainEntity: {
+                '@type': 'ItemList',
+                numberOfItems: list.length,
+                itemListElement: list.map(function(p, i) {
+                    return {
+                        '@type': 'ListItem',
+                        position: i + 1,
+                        url: productUrl(p.id),
+                        name: p.name
+                    };
+                })
+            }
+        };
+    }
+
     function buildBreadcrumbSchema(items) {
         return {
             '@context': 'https://schema.org',
@@ -239,13 +418,33 @@
         const canonical = bundle.canonical || getSiteOrigin() + '/';
         const image = bundle.image || absoluteUrl('/assets/logo.png');
         const type = bundle.type || 'website';
+        const keywords = bundle.keywords || mergeKeywords();
 
         document.title = title;
         ensureMetaByName('description', description);
-        ensureMetaByName('keywords', bundle.keywords || s.keywords);
+        ensureMetaByName('keywords', keywords);
+        ensureMetaByName('news_keywords', keywords);
+        ensureMetaByName('subject', bundle.subject || s.brand);
+        ensureMetaByName('classification', bundle.classification || 'Shopping, Fashion, Apparel, E-commerce');
         ensureMetaByName('author', s.brand);
+        ensureMetaByName('publisher', s.siteName);
+        ensureMetaByName('copyright', '© ' + new Date().getFullYear() + ' ' + s.siteName);
         ensureMetaByName('application-name', s.siteName);
+        ensureMetaByName('rating', 'general');
+        ensureMetaByName('referrer', 'origin-when-cross-origin');
+        ensureMetaByName('geo.region', s.country || 'IN');
+        ensureMetaByName('geo.placename', 'India');
+        ensureMetaByName('content-language', (s.locale || 'en_IN').replace('_', '-'));
+        ensureMetaByName('target', 'all');
+        ensureMetaByName('audience', 'all');
+        ensureMetaByName('coverage', 'India');
+        ensureMetaByName('distribution', 'global');
+        ensureMetaByName('pagename', title);
+        if (s.googleSiteVerification) ensureMetaByName('google-site-verification', s.googleSiteVerification);
+        if (s.bingSiteVerification) ensureMetaByName('msvalidate.01', s.bingSiteVerification);
         ensureLinkRel('canonical', canonical);
+        ensureLinkHreflang('en-in', canonical);
+        ensureLinkHreflang('x-default', canonical);
 
         ensureMetaByProperty('og:site_name', s.siteName);
         ensureMetaByProperty('og:title', title);
@@ -253,15 +452,35 @@
         ensureMetaByProperty('og:type', type);
         ensureMetaByProperty('og:url', canonical);
         ensureMetaByProperty('og:image', image);
+        ensureMetaByProperty('og:image:secure_url', image);
+        ensureMetaByProperty('og:image:alt', bundle.imageAlt || title);
+        ensureMetaByProperty('og:image:width', '512');
+        ensureMetaByProperty('og:image:height', '512');
         ensureMetaByProperty('og:locale', (s.locale || 'en_IN').replace('_', '-'));
+        ensureMetaByProperty('og:locale:alternate', 'en_US');
+        if (type === 'product' && bundle.price != null) {
+            ensureMetaByProperty('product:price:amount', String(bundle.price));
+            ensureMetaByProperty('product:price:currency', s.priceCurrency || 'INR');
+            ensureMetaByProperty('product:availability', bundle.inStock === false ? 'out of stock' : 'in stock');
+            ensureMetaByProperty('product:brand', s.brand || s.siteName);
+            ensureMetaByProperty('product:condition', 'new');
+        }
 
         ensureMetaByName('twitter:card', 'summary_large_image');
         ensureMetaByName('twitter:title', title);
         ensureMetaByName('twitter:description', description);
         ensureMetaByName('twitter:image', image);
-        if (s.twitterHandle) ensureMetaByName('twitter:site', s.twitterHandle);
+        ensureMetaByName('twitter:image:alt', bundle.imageAlt || title);
+        if (s.twitterHandle) {
+            ensureMetaByName('twitter:site', s.twitterHandle);
+            ensureMetaByName('twitter:creator', s.twitterHandle);
+        }
 
         setRobotsIndexable(bundle.indexable !== false);
+        ensureMetaByName('bingbot', bundle.indexable !== false ? 'index, follow' : 'noindex, nofollow');
+        ensureMetaByName('slurp', bundle.indexable !== false ? 'index, follow' : 'noindex, nofollow');
+        ensureMetaByName('duckduckbot', bundle.indexable !== false ? 'index, follow' : 'noindex, nofollow');
+
         if (bundle.jsonLd) setJsonLd(bundle.jsonLd);
     }
 
@@ -305,23 +524,29 @@
         }
 
         const itemList = buildItemListSchema(window.products || []);
+        const faqSchema = buildFaqSchema();
         applySeoBundle({
             title: s.title,
             description: s.description,
-            keywords: s.keywords,
+            keywords: mergeKeywords(),
+            subject: 'Premium fashion shopping India',
+            classification: 'Fashion, Clothing, E-commerce, Online Shopping, India',
             canonical: getSiteOrigin() + '/',
             image: absoluteUrl('/assets/logo.png'),
+            imageAlt: s.siteName + ' — Premium fashion online India',
             type: 'website',
             jsonLd: {
                 '@context': 'https://schema.org',
                 '@graph': [
                     buildOrganizationSchema(),
                     buildWebsiteSchema(),
-                    buildLocalBusinessSchema()
+                    buildLocalBusinessSchema(),
+                    faqSchema
                 ].concat(itemList ? [itemList] : [])
             }
         });
         refreshSeoProductIndex(window.products || []);
+        refreshSeoCategoryIndex();
     };
 
     window.syncSeoForProduct = function(product) {
@@ -330,14 +555,18 @@
             return;
         }
         const s = window.seoSettings || DEFAULT_SEO;
-        const title = (product.name || 'Product') + ' — Buy Online | ' + s.siteName;
+        const title = (product.name || 'Product') + ' — Buy Online at ₹' + (Number(product.price) || 0) + ' | ' + s.siteName;
         const description = productDescription(product);
         const url = productUrl(product.id);
         const image = productImage(product);
+        const inStock = typeof isProductOutOfStock === 'function' ? !isProductOutOfStock(product) : true;
+        const categoryLabel = typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(product) : (product.categoryName || '');
         const breadcrumbs = buildBreadcrumbSchema([
-            { name: 'Home', url: getSiteOrigin() + '/' },
+            { name: 'Home', url: getSiteOrigin() + '/' }
+        ].concat(categoryLabel ? [{ name: categoryLabel, url: getSiteOrigin() + '/?q=' + encodeURIComponent(categoryLabel) }] : []).concat([
             { name: product.name, url: url }
-        ]);
+        ]));
         const productSchema = buildProductSchema(product);
         const graph = [buildOrganizationSchema(), breadcrumbs];
         if (productSchema) graph.push(productSchema);
@@ -345,9 +574,15 @@
         applySeoBundle({
             title: title,
             description: description,
+            keywords: buildProductKeywords(product),
+            subject: product.name + ' — ' + s.brand,
+            classification: [categoryLabel, 'Fashion', 'Shopping', 'India'].filter(Boolean).join(', '),
             canonical: url,
             image: image,
+            imageAlt: (product.name || 'Product') + ' — ' + s.siteName,
             type: 'product',
+            price: Number(product.price) || 0,
+            inStock: inStock,
             jsonLd: { '@context': 'https://schema.org', '@graph': graph }
         });
     };
@@ -370,11 +605,22 @@
             });
             if (match) {
                 const s = window.seoSettings || DEFAULT_SEO;
-                const url = getSiteOrigin() + '/?category=' + encodeURIComponent(categorySlug);
+                const slug = categorySlug;
+                const url = getSiteOrigin() + '/?category=' + encodeURIComponent(slug);
+                const catProducts = (window.products || []).filter(function(p) {
+                    if (typeof productMatchesCategoryFilters === 'function') {
+                        return productMatchesCategoryFilters(p, [match.id]);
+                    }
+                    return (p.categoryId || '') === match.id;
+                });
                 applySeoBundle({
-                    title: (match.name || 'Category') + ' — Shop Online | ' + s.siteName,
-                    description: 'Browse ' + (match.name || 'fashion') + ' at ' + s.siteName + '. Premium quality with COD, UPI & fast delivery across India.',
+                    title: (match.name || 'Category') + ' — Shop Online India | ' + s.siteName,
+                    description: 'Browse premium ' + (match.name || 'fashion') + ' at ' + s.siteName + '. ' + catProducts.length + '+ styles with COD, UPI, Paytm & fast pan-India delivery.',
+                    keywords: buildCategoryKeywords(match),
+                    subject: match.name + ' fashion collection India',
+                    classification: match.name + ', Fashion, Shopping, India',
                     canonical: url,
+                    image: absoluteUrl('/assets/logo.png'),
                     type: 'website',
                     jsonLd: {
                         '@context': 'https://schema.org',
@@ -383,7 +629,8 @@
                             buildBreadcrumbSchema([
                                 { name: 'Home', url: getSiteOrigin() + '/' },
                                 { name: match.name, url: url }
-                            ])
+                            ]),
+                            buildCollectionPageSchema(match, catProducts)
                         ]
                     }
                 });
@@ -394,12 +641,32 @@
         if (searchQ) {
             const s = window.seoSettings || DEFAULT_SEO;
             const url = getSiteOrigin() + '/?q=' + encodeURIComponent(searchQ);
+            const results = (window.products || []).filter(function(p) {
+                const cat = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : '';
+                const hay = [p.name, p.description, cat].filter(Boolean).join(' ').toLowerCase();
+                return hay.includes(searchQ.toLowerCase());
+            });
             applySeoBundle({
-                title: 'Search: ' + searchQ + ' — ' + s.siteName,
-                description: 'Find ' + searchQ + ' and more premium fashion at ' + s.siteName + '.',
+                title: searchQ + ' — Fashion Search Results | ' + s.siteName,
+                description: 'Shop ' + searchQ + ' and ' + results.length + ' matching styles at ' + s.siteName + '. Premium fashion with COD, UPI & India-wide delivery.',
+                keywords: [searchQ, searchQ + ' online India', searchQ + ' COD', s.brand, mergeKeywords()].join(', '),
+                subject: searchQ + ' fashion search',
                 canonical: url,
                 type: 'website',
-                jsonLd: { '@context': 'https://schema.org', '@graph': [buildOrganizationSchema(), buildWebsiteSchema()] }
+                jsonLd: {
+                    '@context': 'https://schema.org',
+                    '@graph': [
+                        buildOrganizationSchema(),
+                        buildWebsiteSchema(),
+                        {
+                            '@context': 'https://schema.org',
+                            '@type': 'SearchResultsPage',
+                            name: 'Search: ' + searchQ,
+                            url: url,
+                            mainEntity: buildItemListSchema(results)
+                        }
+                    ].filter(Boolean)
+                }
             });
             return;
         }
@@ -413,16 +680,41 @@
         if (!root) return;
         const list = (products || []).filter(function(p) {
             return p && p.id && p.name && (typeof isProductOutOfStock !== 'function' || !isProductOutOfStock(p));
-        }).slice(0, 120);
+        }).slice(0, 150);
         if (!list.length) {
             root.innerHTML = '';
             return;
         }
-        root.innerHTML = '<h2 class="seo-crawl-links__title">Shop fashion at Swag Stree</h2><ul>' +
+        const categoryBits = typeof getActiveCategories === 'function'
+            ? getActiveCategories().slice(0, 20).map(function(c) {
+                const slug = c.slug || (typeof slugifyCategoryName === 'function' ? slugifyCategoryName(c.name) : c.name);
+                return '<li><a href="/?category=' + encodeURIComponent(slug) + '">' + escMeta(c.name) + ' collection</a></li>';
+            }).join('')
+            : '';
+        root.innerHTML =
+            '<h2 class="seo-crawl-links__title">Shop premium fashion at Swag Stree — India online boutique</h2>' +
+            (categoryBits ? '<h3 class="seo-crawl-links__subtitle">Categories</h3><ul class="seo-crawl-links__categories">' + categoryBits + '</ul>' : '') +
+            '<h3 class="seo-crawl-links__subtitle">Products</h3><ul class="seo-crawl-links__products">' +
             list.map(function(p) {
-                return '<li><a href="/?id=' + encodeURIComponent(p.id) + '">' + escMeta(p.name) + ' — ₹' + (Number(p.price) || 0) + '</a></li>';
+                const cat = typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : '';
+                return '<li><a href="/?id=' + encodeURIComponent(p.id) + '" title="' + escMeta(p.name) + '">' +
+                    escMeta(p.name) + (cat ? ' — ' + escMeta(cat) : '') + ' — ₹' + (Number(p.price) || 0) + '</a></li>';
             }).join('') +
             '</ul>';
+    };
+
+    window.refreshSeoCategoryIndex = function() {
+        const nav = document.getElementById('seo-primary-nav');
+        if (!nav || typeof getActiveCategories !== 'function') return;
+        const cats = getActiveCategories().slice(0, 24);
+        const catLinks = cats.map(function(c) {
+            const slug = c.slug || (typeof slugifyCategoryName === 'function' ? slugifyCategoryName(c.name) : c.name);
+            return '<a href="/?category=' + encodeURIComponent(slug) + '">' + escMeta(c.name) + '</a>';
+        }).join('');
+        const staticLinks = '<a href="/">Swag Stree Home</a><a href="/?q=kurtas">Kurtas</a><a href="/?q=coord+sets">Coord Sets</a><a href="/?q=sarees">Sarees</a>';
+        nav.innerHTML = staticLinks + catLinks +
+            '<a href="https://instagram.com/swag_stree" rel="noopener noreferrer">Instagram</a>' +
+            '<a href="https://wa.me/918800467686" rel="noopener noreferrer">WhatsApp Support</a>';
     };
 
     window.loadSeoSettings = function() {
@@ -443,12 +735,15 @@
                 'admin-seo-title': s.title,
                 'admin-seo-description': s.description,
                 'admin-seo-keywords': s.keywords,
+                'admin-seo-extra-keywords': s.extraKeywords,
                 'admin-seo-site-name': s.siteName,
                 'admin-seo-brand': s.brand,
                 'admin-seo-twitter': s.twitterHandle,
                 'admin-seo-instagram': s.instagram,
                 'admin-seo-phone': s.phone,
-                'admin-seo-email': s.email
+                'admin-seo-email': s.email,
+                'admin-seo-google-verify': s.googleSiteVerification,
+                'admin-seo-bing-verify': s.bingSiteVerification
             };
             Object.keys(fields).forEach(function(id) {
                 const el = document.getElementById(id);
@@ -464,12 +759,15 @@
             title: (document.getElementById('admin-seo-title') || {}).value || DEFAULT_SEO.title,
             description: (document.getElementById('admin-seo-description') || {}).value || DEFAULT_SEO.description,
             keywords: (document.getElementById('admin-seo-keywords') || {}).value || DEFAULT_SEO.keywords,
+            extraKeywords: (document.getElementById('admin-seo-extra-keywords') || {}).value || DEFAULT_SEO.extraKeywords,
             siteName: (document.getElementById('admin-seo-site-name') || {}).value || DEFAULT_SEO.siteName,
             brand: (document.getElementById('admin-seo-brand') || {}).value || DEFAULT_SEO.brand,
             twitterHandle: (document.getElementById('admin-seo-twitter') || {}).value || DEFAULT_SEO.twitterHandle,
             instagram: (document.getElementById('admin-seo-instagram') || {}).value || DEFAULT_SEO.instagram,
             phone: (document.getElementById('admin-seo-phone') || {}).value || DEFAULT_SEO.phone,
             email: (document.getElementById('admin-seo-email') || {}).value || DEFAULT_SEO.email,
+            googleSiteVerification: (document.getElementById('admin-seo-google-verify') || {}).value || '',
+            bingSiteVerification: (document.getElementById('admin-seo-bing-verify') || {}).value || '',
             updatedAt: typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date()
         };
         try {

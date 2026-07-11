@@ -1504,6 +1504,8 @@ function loadProductCategories() {
         renderHomeCategoryBar();
         renderWishCategoryBar();
         renderCategoryFilterChips();
+        if (typeof refreshSeoCategoryIndex === 'function') refreshSeoCategoryIndex();
+        if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
         if (typeof renderAdmin === 'function') renderAdmin();
     }, err => {
         console.error('categories onSnapshot error:', err);

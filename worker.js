@@ -133,37 +133,56 @@ function buildPagesSitemap(origin, categories) {
 function buildProductsSitemapXml(origin, products) {
     const urls = (products || []).map((product) => {
         const loc = `${origin}/?id=${encodeURIComponent(product.id)}`;
-        return `<url><loc>${escXml(loc)}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`;
+        const imgs = Array.isArray(product.images) ? product.images.filter(Boolean).slice(0, 3) : [];
+        const imageTags = imgs.map((img) => `<image:image><image:loc>${escXml(img)}</image:loc><image:title>${escXml(product.name || '')}</image:title></image:image>`).join('');
+        const lastmod = product.updatedAt ? String(product.updatedAt).slice(0, 10) : '';
+        const lastmodTag = lastmod ? `<lastmod>${escXml(lastmod)}</lastmod>` : '';
+        return `<url><loc>${escXml(loc)}</loc>${lastmodTag}<changefreq>weekly</changefreq><priority>0.8</priority>${imageTags}</url>`;
     }).join('');
-    return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
+    return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${urls}</urlset>`;
+}
+
+function buildProductKeywords(product) {
+    const bits = [product.name, 'Swag Stree', 'buy online India', 'COD', 'UPI'];
+    if (product.categoryName) bits.push(product.categoryName);
+    return bits.filter(Boolean).join(', ');
 }
 
 function injectProductSeo(html, product, origin) {
     const name = product.name || 'Product';
-    const description = String(product.description || `Shop ${name} at Swag Stree — premium fashion with COD & UPI.`).slice(0, 160);
-    const image = (Array.isArray(product.images) && product.images[0]) || `${origin}/assets/logo.png`;
+    const description = String(product.description || `Shop ${name} at Swag Stree — premium fashion with COD, UPI & fast India delivery.`).slice(0, 160);
+    const images = (Array.isArray(product.images) ? product.images.filter(Boolean) : []).slice(0, 5);
+    const image = images[0] || `${origin}/assets/logo.png`;
     const canonical = `${origin}/?id=${encodeURIComponent(product.id)}`;
-    const title = `${name} — Buy Online | Swag Stree`;
+    const title = `${name} — Buy Online at ₹${Number(product.price) || 0} | Swag Stree`;
+    const keywords = buildProductKeywords(product);
     const jsonLd = {
         '@context': 'https://schema.org',
         '@type': 'Product',
         name,
         description,
-        image: [image],
+        image: images.length ? images : [image],
         sku: product.id,
+        mpn: product.id,
+        url: canonical,
+        brand: { '@type': 'Brand', name: 'Swag Stree' },
         offers: {
             '@type': 'Offer',
             priceCurrency: 'INR',
             price: Number(product.price) || 0,
             availability: 'https://schema.org/InStock',
-            url: canonical
+            itemCondition: 'https://schema.org/NewCondition',
+            url: canonical,
+            seller: { '@type': 'Organization', name: 'Swag Stree' }
         }
     };
+    if (product.categoryName) jsonLd.category = product.categoryName;
 
     let out = html.replace(/<title>[^<]*<\/title>/i, `<title>${escHtml(title)}</title>`);
     const headInject = `
 <meta name="description" content="${escHtml(description)}">
-<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="keywords" content="${escHtml(keywords)}">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <link rel="canonical" href="${escHtml(canonical)}">
 <meta property="og:site_name" content="Swag Stree">
 <meta property="og:type" content="product">
@@ -171,7 +190,12 @@ function injectProductSeo(html, product, origin) {
 <meta property="og:description" content="${escHtml(description)}">
 <meta property="og:url" content="${escHtml(canonical)}">
 <meta property="og:image" content="${escHtml(image)}">
+<meta property="og:image:alt" content="${escHtml(name)}">
 <meta property="og:locale" content="en-IN">
+<meta property="product:price:amount" content="${Number(product.price) || 0}">
+<meta property="product:price:currency" content="INR">
+<meta property="product:brand" content="Swag Stree">
+<meta property="product:availability" content="in stock">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@swag_stree">
 <meta name="twitter:title" content="${escHtml(title)}">
