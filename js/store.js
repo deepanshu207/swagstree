@@ -637,7 +637,9 @@ function productCardHtml(p, options = {}) {
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
             ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
             <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
-                <a href="/?id=${encodeURIComponent(p.id)}" class="product-card__seo-link"${seoOn ? ' itemprop="url"' : ''} onclick="event.preventDefault(); showDetail('${p.id}')" title="View ${String(p.name || '').replace(/"/g, '&quot;')}">${seoOn ? '<span itemprop="name">' + p.name + '</span>' : p.name}</a>
+                ${seoOn
+                    ? `<a href="/?id=${encodeURIComponent(p.id)}" class="product-card__seo-link" itemprop="url" onclick="event.preventDefault(); showDetail('${p.id}')" title="View ${String(p.name || '').replace(/"/g, '&quot;')}"><span itemprop="name">${p.name}</span></a>`
+                    : `<span>${p.name}</span>`}
             </div>
             <div style="color:var(--gold); font-weight:800; margin-top:4px">${seoOn ? '<span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="INR"><span itemprop="price" content="' + (Number(p.price) || 0) + '">₹' + p.price + '</span></span>' : '₹' + p.price}</div>
         </div> 
@@ -2343,15 +2345,26 @@ function searchHandler() {
     const el = document.getElementById('app_search');
     const q = el ? (el.value || '').trim() : '';
     if (q) {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('q') !== q) {
-            params.set('q', q);
-            params.delete('id');
-            params.delete('color');
-            params.delete('size');
-            window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+        const seoOn = typeof isSeoIndexingEnabled === 'function' ? isSeoIndexingEnabled() : true;
+        if (seoOn) {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('q') !== q) {
+                params.set('q', q);
+                params.delete('id');
+                params.delete('color');
+                params.delete('size');
+                window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+            }
+            if (typeof syncSeoForView === 'function') syncSeoForView('home');
+        } else {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('q') || params.has('category')) {
+                params.delete('q');
+                params.delete('category');
+                const qs = params.toString();
+                window.history.replaceState({}, '', qs ? window.location.pathname + '?' + qs : window.location.pathname);
+            }
         }
-        if (typeof syncSeoForView === 'function') syncSeoForView('home');
     }
     if (q && typeof trackAnalyticsSearch === 'function') trackAnalyticsSearch(q);
     else if (q && typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('search', { query: q.slice(0, 80) });

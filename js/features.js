@@ -2393,6 +2393,19 @@ function isAdminStorefrontContentEnabled() {
 }
 window.isAdminStorefrontContentEnabled = isAdminStorefrontContentEnabled;
 
+function isSeoIndexingFeatureEnabled() {
+    return !(window.APP_FEATURES && window.APP_FEATURES.seoIndexing === false);
+}
+window.isSeoIndexingFeatureEnabled = isSeoIndexingFeatureEnabled;
+
+function isAdminSeoSettingsEnabled() {
+    if (!isSeoIndexingFeatureEnabled()) {
+        return typeof isSuperAdmin !== 'undefined' && isSuperAdmin;
+    }
+    return typeof isAdmin !== 'undefined' && isAdmin;
+}
+window.isAdminSeoSettingsEnabled = isAdminSeoSettingsEnabled;
+
 function applyAdminPanelVisibility() {
     const section = document.getElementById('admin-feature-content-settings');
     if (!section) return;
@@ -2400,6 +2413,14 @@ function applyAdminPanelVisibility() {
     section.style.display = show ? '' : 'none';
 }
 window.applyAdminPanelVisibility = applyAdminPanelVisibility;
+
+function applyAdminSeoPanelVisibility() {
+    const section = document.getElementById('admin-seo-settings');
+    if (!section) return;
+    const show = isAdminSeoSettingsEnabled();
+    section.style.display = show ? '' : 'none';
+}
+window.applyAdminSeoPanelVisibility = applyAdminSeoPanelVisibility;
 
 function isCatalogControlEnabled(view, feature) {
     const config = window.APP_FEATURES || {};
@@ -2656,6 +2677,8 @@ function applyFeatureTogglesUI() {
     }
 
     applyAdminPanelVisibility();
+
+    if (typeof applyAdminSeoPanelVisibility === 'function') applyAdminSeoPanelVisibility();
 
     if (typeof populateProductCategorySelect === 'function') {
         populateProductCategorySelect(

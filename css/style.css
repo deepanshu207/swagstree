@@ -10947,3 +10947,7 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
 }
+body.seo-indexing-off .seo-crawl-links,
+body.seo-indexing-off #seo-primary-nav {
+    display: none !important;
+}

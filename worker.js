@@ -805,7 +805,8 @@ export default {
 
         const seoDiscoveryPaths = new Set([
             '/sitemap.xml', '/sitemap-pages.xml', '/sitemap-products.xml',
-            '/feed.xml', '/catalog.json', '/llms.txt', '/ai.txt', '/opensearch.xml'
+            '/feed.xml', '/catalog.json', '/llms.txt', '/ai.txt', '/opensearch.xml',
+            '/humans.txt'
         ]);
         if (!seoIndexingOn && seoDiscoveryPaths.has(url.pathname)) {
             return new Response('Indexing disabled', {

@@ -62,9 +62,30 @@
     window.seoSettings = Object.assign({}, DEFAULT_SEO);
 
     window.isSeoIndexingEnabled = function() {
+        if (typeof isSeoIndexingFeatureEnabled === 'function') return isSeoIndexingFeatureEnabled();
         if (window.APP_FEATURES && window.APP_FEATURES.seoIndexing === false) return false;
         return true;
     };
+
+    function setSeoDiscoveryHeadLinks(enabled) {
+        const selectors = [
+            'link[rel="sitemap"]',
+            'link[rel="search"]',
+            'link[rel="alternate"][type="application/rss+xml"]',
+            'link[rel="alternate"][type="application/ld+json"]',
+            'link[rel="author"]'
+        ];
+        selectors.forEach(function(sel) {
+            document.querySelectorAll(sel).forEach(function(el) {
+                if (!enabled) {
+                    if (!el.dataset.seoHref) el.dataset.seoHref = el.getAttribute('href') || '';
+                    el.removeAttribute('href');
+                } else if (el.dataset.seoHref) {
+                    el.setAttribute('href', el.dataset.seoHref);
+                }
+            });
+        });
+    }
 
     function clearSeoCrawlSurfaces() {
         const crawl = document.getElementById('seo-crawl-links');
@@ -90,10 +111,14 @@
 
     window.applySeoIndexingVisibility = function() {
         const enabled = window.isSeoIndexingEnabled();
+        document.body.classList.toggle('seo-indexing-off', !enabled);
+        setSeoDiscoveryHeadLinks(enabled);
         const status = document.getElementById('admin-seo-indexing-status');
         if (status) status.style.display = enabled ? 'none' : 'block';
+        if (typeof applyAdminSeoPanelVisibility === 'function') applyAdminSeoPanelVisibility();
         if (!enabled) {
             applySeoDisabledPublicMeta();
+            if (typeof renderStore === 'function' && window.productsLoaded) renderStore();
             return;
         }
         if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
@@ -644,6 +669,10 @@
     }
 
     window.syncSeoForView = function(viewId) {
+        if (!window.isSeoIndexingEnabled()) {
+            applySeoDisabledPublicMeta();
+            return;
+        }
         const s = window.seoSettings || DEFAULT_SEO;
         const privateViews = { admin: true, super: true, promo: true };
         if (privateViews[viewId]) {
@@ -711,6 +740,10 @@
     };
 
     window.syncSeoForProduct = function(product) {
+        if (!window.isSeoIndexingEnabled()) {
+            applySeoDisabledPublicMeta();
+            return;
+        }
         if (!product || !product.id) {
             syncSeoForView('home');
             return;
@@ -749,6 +782,10 @@
     };
 
     window.syncSeoFromUrl = function() {
+        if (!window.isSeoIndexingEnabled()) {
+            applySeoDisabledPublicMeta();
+            return;
+        }
         const params = new URLSearchParams(window.location.search);
         const id = params.get('id');
         if (id && Array.isArray(window.products)) {
@@ -892,7 +929,8 @@
             if (!doc.exists) return;
             const data = doc.data() || {};
             window.seoSettings = Object.assign({}, DEFAULT_SEO, data);
-            syncSeoFromUrl();
+            if (window.isSeoIndexingEnabled()) syncSeoFromUrl();
+            else applySeoDisabledPublicMeta();
         }).catch(function() {});
     };
 
@@ -948,8 +986,13 @@
         try {
             await db.collection('settings').doc('seo').set(payload, { merge: true });
             window.seoSettings = Object.assign({}, DEFAULT_SEO, payload);
-            syncSeoFromUrl();
-            if (typeof showToast === 'function') showToast('SEO settings saved');
+            if (window.isSeoIndexingEnabled()) syncSeoFromUrl();
+            else applySeoDisabledPublicMeta();
+            if (typeof showToast === 'function') {
+                showToast(window.isSeoIndexingEnabled()
+                    ? 'SEO settings saved'
+                    : 'SEO settings saved (indexing is OFF — enable in Super Admin to go live)');
+            }
         } catch (e) {
             if (typeof showToast === 'function') showToast('Failed to save SEO settings');
         }

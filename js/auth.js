@@ -2505,7 +2505,9 @@ async function saveSuperadminFeatures() {
         await db.collection("settings").doc("comments").set({
             enabled: updateObj.productComments
         }, { merge: true });
-        showToast("✅ Superadmin features and theme updated successfully!");
+        showToast(updateObj.seoIndexing
+            ? "✅ Superadmin features and theme updated successfully!"
+            : "✅ Saved. SEO & indexing is OFF — search engines blocked until re-enabled.");
     } catch(e) {
         console.error("saveSuperadminFeatures error:", e);
         showToast("Failed to save superadmin config.");
