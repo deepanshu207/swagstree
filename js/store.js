@@ -1454,18 +1454,112 @@ function detailNeedsSizePicker(uniqueSizes) {
     return uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
 }
 
+function getVariantPreviewImage(v) {
+    if (!v) return '';
+    if (v.previewImage && !isPlaceholderImageUrl(v.previewImage)) return v.previewImage;
+    const imgs = Array.isArray(v.images) ? v.images : [];
+    const real = imgs.find(img => img && !isPlaceholderImageUrl(img));
+    return real || '';
+}
+
 function getDetailColorOptions(p) {
-    const colors = [];
-    const seenColorKeys = new Set();
+    const colorMap = new Map();
     (p.normalizedVariants || []).filter(v => sizesMatch(v.size, selectedSize)).forEach(v => {
         const key = getVariantColorKey(v);
         if (!key) return;
         const norm = normalizeColorKey(key);
-        if (seenColorKeys.has(norm)) return;
-        seenColorKeys.add(norm);
-        colors.push({ key, variant: v });
+        const existing = colorMap.get(norm);
+        if (!existing) {
+            colorMap.set(norm, { key, variant: v });
+            return;
+        }
+        const existingImg = getVariantPreviewImage(existing.variant);
+        const nextImg = getVariantPreviewImage(v);
+        if (!existingImg && nextImg) {
+            colorMap.set(norm, { key, variant: v });
+        }
     });
-    return colors;
+    return Array.from(colorMap.values());
+}
+
+function getDetailColorOptionForKey(p, colorKey) {
+    const colors = getDetailColorOptions(p);
+    const hit = colors.find(c => colorsMatch(c.key, colorKey) || variantColorMatches(c.variant, colorKey));
+    if (hit) return hit.variant;
+    return (p.normalizedVariants || []).find(v =>
+        sizesMatch(v.size, selectedSize) && variantColorMatches(v, colorKey)
+    ) || null;
+}
+
+function setActiveDetailColorChip(colorKey) {
+    document.querySelectorAll('#detail-color-selector .color-chip').forEach(chip => {
+        const chipKey = chip.getAttribute('data-color-key') || '';
+        chip.classList.toggle('active', colorsMatch(chipKey, colorKey));
+    });
+}
+
+function setActiveDetailPatternChip(patternKey) {
+    if (!patternKey) return;
+    document.querySelectorAll('#detail-pattern-selector .color-chip, #detail-pattern-selector .size-chip').forEach(chip => {
+        const chipKey = chip.getAttribute('data-pattern-key') || '';
+        chip.classList.toggle('active', patternsMatch(chipKey, patternKey));
+    });
+}
+
+function resolveGallerySlideElement(slideElOrIdx) {
+    const detGallery = document.getElementById('det-gallery');
+    if (!detGallery) return null;
+    if (slideElOrIdx && slideElOrIdx.getAttribute) return slideElOrIdx;
+    const idx = Number(slideElOrIdx);
+    if (!Number.isFinite(idx) || idx < 0) return null;
+    return detGallery.children[idx] || null;
+}
+
+function syncDetailSelectionFromGallery(slideElOrIdx, slideIdx = null) {
+    const slideEl = resolveGallerySlideElement(slideElOrIdx);
+    if (!slideEl || !activeProductId) return false;
+
+    const map = window.detailGallerySlideMap || [];
+    const idx = slideIdx !== null && slideIdx !== undefined
+        ? slideIdx
+        : Number(slideEl.getAttribute('data-index'));
+    const mapInfo = Number.isFinite(idx) ? (map[idx] || {}) : {};
+    const p = products.find(x => x.id === activeProductId);
+    if (!p) return false;
+
+    const imgColor = slideEl.getAttribute('data-color') || mapInfo.color || '';
+    const imgSize = slideEl.getAttribute('data-size') || mapInfo.size || '';
+    const imgPattern = slideEl.getAttribute('data-pattern') || mapInfo.pattern || '';
+
+    let changed = false;
+
+    if (imgColor && !colorsMatch(imgColor, selectedColor)) {
+        selectedColor = imgColor;
+        window.selectedPattern = '';
+        changed = true;
+    }
+
+    if (imgSize && imgSize !== 'Standard' && !sizesEqual(imgSize, selectedSize)) {
+        selectedSize = imgSize;
+        changed = true;
+    }
+
+    if (imgPattern && !patternsMatch(imgPattern, window.selectedPattern)) {
+        window.selectedPattern = imgPattern;
+        changed = true;
+    }
+
+    if (!changed) return false;
+
+    ensureDetailSelectionDefaults(p);
+    syncSizeChips();
+    renderDetailColors(p);
+    renderDetailPatterns(p);
+    setActiveDetailColorChip(selectedColor);
+    setActiveDetailPatternChip(window.selectedPattern);
+    updateVariantUI(p, false, Number.isFinite(idx) ? idx : 0);
+    updateDetailURL();
+    return true;
 }
 
 function isValidDetailColorPick(colorKey, colors) {
@@ -1596,7 +1690,9 @@ function selectDetailColor(col, el) {
         }
         return;
     }
+    const colorChanged = !colorsMatch(selectedColor, col);
     selectedColor = col;
+    if (colorChanged) window.selectedPattern = '';
     el.parentElement.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
@@ -1604,6 +1700,7 @@ function selectDetailColor(col, el) {
         if (typeof trackAnalyticsEvent === 'function') {
             trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'color', method: col });
         }
+        ensureDetailSelectionDefaults(p);
         renderDetailPatterns(p);
         updateVariantUI(p);
         updateDetailURL();
@@ -1636,9 +1733,25 @@ function renderDetailColors(p, initialColor = null) {
 
         colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
             const col = key;
-            const isActive = isValidDetailColorPick(selectedColor, [ { key: col, variant: v } ]);
+            const optionVariant = getDetailColorOptionForKey(p, col) || v;
+            const isActive = isValidDetailColorPick(selectedColor, [ { key: col, variant: optionVariant } ]);
+            const displayName = optionVariant ? (optionVariant.colorName || formatColorName(col)) : formatColorName(col);
+            const previewUrl = getVariantPreviewImage(optionVariant);
+            const safeCol = col.replace(/'/g, "\\'");
+            const oos = !isDetailColorInStock(p, col);
+            const oosTitle = oos ? 'Out of stock for this color' : displayName;
+
+            if (previewUrl) {
+                return `
+                <div class="color-chip color-chip--image ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-color-key="${safeCol.replace(/"/g, '&quot;')}" onclick="selectDetailColor('${safeCol}', this)" title="${oosTitle}">
+                    <img src="${previewUrl}" class="color-chip-preview" alt="${displayName}">
+                    <span>${displayName}</span>
+                </div>
+                `;
+            }
+
             // Normalize for CSS: hex stays as-is; check customColorsMap; otherwise strip spaces
-            let cleanColor = col.trim();
+            let cleanColor = (optionVariant?.color || col).trim();
             if (!cleanColor.startsWith('#')) {
                 const normName = cleanColor.toLowerCase();
                 const normNameNoSpaces = normName.replace(/\s+/g, '');
@@ -1654,10 +1767,9 @@ function renderDetailColors(p, initialColor = null) {
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
 
-            const oos = !isDetailColorInStock(p, col);
             return `
-                <div class="color-chip ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)" title="${oos ? 'Out of stock for this color' : ''}">
-                    ${colorPreview}<span>${v ? (v.colorName || formatColorName(col)) : formatColorName(col)}</span>
+                <div class="color-chip ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-color-key="${safeCol.replace(/"/g, '&quot;')}" onclick="selectDetailColor('${safeCol}', this)" title="${oosTitle}">
+                    ${colorPreview}<span>${displayName}</span>
                 </div>
             `;
         }).join('');
@@ -1680,7 +1792,10 @@ function selectDetailPattern(pat, el) {
         trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'pattern', method: pat });
     }
 
-    if (p) updateVariantUI(p);
+    if (p) {
+        updateVariantUI(p);
+        updateDetailURL();
+    }
 }
 
 function renderDetailPatterns(p) {
@@ -1713,11 +1828,12 @@ function renderDetailPatterns(p) {
 
             const oos = !isDetailPatternInStock(p, pat);
             const oosTitle = oos ? 'Out of stock' : displayText;
+            const safePat = pat.replace(/'/g, "\\'");
             if (hasImage) {
-                const imgHtml = `<img src="${v.previewImage}" style="width:28px; height:28px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); vertical-align:middle; flex-shrink:0;">`;
+                const imgHtml = `<img src="${v.previewImage}" class="color-chip-preview" alt="${displayText}">`;
                 const textHtml = shouldShowText ? `<span style="font-size:11px; font-weight:600; margin-left:5px; line-height:1.2;">${displayText}</span>` : '';
                 return `
-                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
+                <div class="size-chip color-chip color-chip--image ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
                     ${imgHtml}${textHtml}
                 </div>
                 `;
@@ -1725,7 +1841,7 @@ function renderDetailPatterns(p) {
 
             // Text-only pattern
             return `
-            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
+            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
                 <span>${displayText}</span>
             </div>
             `;
@@ -1745,10 +1861,13 @@ function colorsMatch(a, b) {
 
 function getVariantColorKey(v) {
     if (!v) return '';
-    if (v.color && String(v.color).trim()) return String(v.color).trim();
-    if (v.colorName && String(v.colorName).trim()) return String(v.colorName).trim();
+    const colorName = v.colorName && String(v.colorName).trim();
+    const color = v.color && String(v.color).trim();
+    if (colorName) return colorName;
+    if (color) return color;
     return '';
 }
+window.getVariantColorKey = getVariantColorKey;
 
 function variantColorMatches(variant, colorKey) {
     if (!colorKey) return true;
@@ -1824,6 +1943,7 @@ function buildDetailGallerySlides(p, productMedia) {
                     url: img,
                     color: getVariantColorKey(variant) || variant.color || '',
                     size: variant.size || '',
+                    pattern: variant.pattern || '',
                     type: 'image',
                     scope: 'variant'
                 });
@@ -1965,7 +2085,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                     </div>
                 </div>`;
             }
-            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
+            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color || ''}" data-size="${mapInfo.size || ''}" data-pattern="${mapInfo.pattern || ''}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
         }).join('')
         : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" class="det-gallery-placeholder" alt="No image">');
 
@@ -2468,42 +2588,7 @@ function updateDots(el) {
         }
         const activeImg = el.children[idx];
         if (activeImg) {
-            const imgColor = activeImg.getAttribute('data-color');
-            const imgSize = activeImg.getAttribute('data-size');
-            const p = products.find(x => x.id === activeProductId);
-            
-            if (p) {
-                let changed = false;
-
-                // Sync visible color only when slide belongs to a different variant color
-                if (imgColor && !colorsMatch(imgColor, selectedColor)) {
-                    selectedColor = imgColor;
-                    changed = true;
-                    // Highlight color chip
-                    const colorChips = document.querySelectorAll('#detail-color-selector .color-chip');
-                    colorChips.forEach(chip => {
-                        const clickAttr = chip.getAttribute('onclick') || '';
-                        chip.classList.toggle('active', clickAttr.includes(`'${imgColor}'`));
-                    });
-                }
-
-                // Sync visible size
-                if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
-                    selectedSize = imgSize;
-                    changed = true;
-                }
-
-                if (changed) {
-                    // Update selectors and buttons without scrolling the gallery container again
-                    window.detGalleryScrollingNow = true;
-                    syncSizeChips();
-                    renderDetailColors(p);
-                    renderDetailPatterns(p);
-                    updateVariantUI(p, false, idx);
-                    updateDetailURL();
-                    window.detGalleryScrollingNow = false;
-                }
-            }
+            syncDetailSelectionFromGallery(activeImg, idx);
         }
         // Update thumbnail borders to show active image indicator
         updateActiveThumbnailBorder(idx);
@@ -2522,28 +2607,8 @@ function clickDetThumb(idx) {
         updateActiveThumbnailBorder(idx);
         updateDetailGalleryActions(idx);
         
-        // Also sync option selection states matching this thumbnail
-        const imgColor = imgEl.getAttribute('data-color');
-        const imgSize = imgEl.getAttribute('data-size');
-        const p = products.find(x => x.id === activeProductId);
-        if (p) {
-            let changed = false;
-            if (imgColor && !colorsMatch(imgColor, selectedColor)) {
-                selectedColor = imgColor;
-                changed = true;
-            }
-            if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
-                selectedSize = imgSize;
-                changed = true;
-            }
-            if (changed) {
-                syncSizeChips();
-                renderDetailColors(p);
-                renderDetailPatterns(p);
-                updateVariantUI(p, false, idx);
-                updateDetailURL();
-            }
-        }
+        // Sync option selection states matching this thumbnail
+        syncDetailSelectionFromGallery(imgEl, idx);
         setTimeout(() => {
             window.detGalleryScrollingNow = false;
         }, 800); // Failsafe unlock after 800ms

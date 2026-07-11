@@ -2422,6 +2422,25 @@ body {
     transform: translateY(-2px);
 }
 
+.color-chip--image {
+    padding: 5px 10px 5px 5px;
+    border-radius: 8px;
+    gap: 6px;
+}
+
+.color-chip-preview {
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+}
+
+.color-chip--image.active .color-chip-preview {
+    border-color: var(--gold);
+}
+
 .size-chip.chip-oos,
 .color-chip.chip-oos {
     opacity: 0.38;
