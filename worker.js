@@ -14,7 +14,182 @@
  */
 
 const SUPER_ADMIN_DEFAULT = 'superadmin@swagstree.com';
+const FIREBASE_PROJECT_DEFAULT = 'swagstree-web';
 const BATCH_SIZE = 100;
+
+function isSearchBot(userAgent) {
+    if (!userAgent) return false;
+    const ua = userAgent.toLowerCase();
+    return /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|discordbot|telegrambot|whatsapp|applebot|semrushbot|ahrefsbot|petalbot|gptbot|chatgpt-user|claudebot|anthropic-ai|perplexitybot/i.test(ua);
+}
+
+function parseFirestoreValue(field) {
+    if (!field || typeof field !== 'object') return null;
+    if ('stringValue' in field) return field.stringValue;
+    if ('integerValue' in field) return parseInt(field.integerValue, 10);
+    if ('doubleValue' in field) return field.doubleValue;
+    if ('booleanValue' in field) return field.booleanValue;
+    if ('timestampValue' in field) return field.timestampValue;
+    if ('arrayValue' in field) return (field.arrayValue.values || []).map(parseFirestoreValue);
+    return null;
+}
+
+function parseFirestoreDoc(doc) {
+    const out = { id: doc.name ? doc.name.split('/').pop() : '' };
+    const fields = doc.fields || {};
+    Object.keys(fields).forEach((key) => {
+        out[key] = parseFirestoreValue(fields[key]);
+    });
+    return out;
+}
+
+async function fetchFirestoreProduct(productId, env) {
+    const apiKey = env.FIREBASE_API_KEY;
+    const projectId = env.FIREBASE_PROJECT_ID || FIREBASE_PROJECT_DEFAULT;
+    if (!apiKey || !productId) return null;
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/products/${encodeURIComponent(productId)}?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const doc = await resp.json();
+    return parseFirestoreDoc(doc);
+}
+
+async function fetchAllFirestoreProducts(env) {
+    const apiKey = env.FIREBASE_API_KEY;
+    const projectId = env.FIREBASE_PROJECT_ID || FIREBASE_PROJECT_DEFAULT;
+    if (!apiKey) return [];
+    const products = [];
+    let pageToken = '';
+    let guard = 0;
+    do {
+        const listUrl = new URL(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/products`);
+        listUrl.searchParams.set('key', apiKey);
+        listUrl.searchParams.set('pageSize', '300');
+        if (pageToken) listUrl.searchParams.set('pageToken', pageToken);
+        const resp = await fetch(listUrl.toString());
+        if (!resp.ok) break;
+        const data = await resp.json();
+        (data.documents || []).forEach((doc) => {
+            const parsed = parseFirestoreDoc(doc);
+            if (parsed.id && parsed.name) products.push(parsed);
+        });
+        pageToken = data.nextPageToken || '';
+        guard += 1;
+    } while (pageToken && guard < 10);
+    return products;
+}
+
+function escXml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+function escHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+async function fetchAllFirestoreCategories(env) {
+    const apiKey = env.FIREBASE_API_KEY;
+    const projectId = env.FIREBASE_PROJECT_ID || FIREBASE_PROJECT_DEFAULT;
+    if (!apiKey) return [];
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/categories?key=${encodeURIComponent(apiKey)}&pageSize=100`;
+    const resp = await fetch(url);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.documents || []).map(parseFirestoreDoc).filter((c) => c.id && c.name && c.active !== false);
+}
+
+function buildSitemapIndex(origin) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>${escXml(origin + '/sitemap-pages.xml')}</loc></sitemap>
+  <sitemap><loc>${escXml(origin + '/sitemap-products.xml')}</loc></sitemap>
+</sitemapindex>`;
+}
+
+function buildPagesSitemap(origin, categories) {
+    const urls = [
+        `<url><loc>${escXml(origin + '/')}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`
+    ];
+    (categories || []).forEach((cat) => {
+        const slug = cat.slug || String(cat.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (!slug) return;
+        urls.push(`<url><loc>${escXml(origin + '/?category=' + encodeURIComponent(slug))}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`);
+    });
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  ${urls.join('')}
+</urlset>`;
+}
+
+function buildProductsSitemapXml(origin, products) {
+    const urls = (products || []).map((product) => {
+        const loc = `${origin}/?id=${encodeURIComponent(product.id)}`;
+        return `<url><loc>${escXml(loc)}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`;
+    }).join('');
+    return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
+}
+
+function injectProductSeo(html, product, origin) {
+    const name = product.name || 'Product';
+    const description = String(product.description || `Shop ${name} at Swag Stree — premium fashion with COD & UPI.`).slice(0, 160);
+    const image = (Array.isArray(product.images) && product.images[0]) || `${origin}/assets/logo.png`;
+    const canonical = `${origin}/?id=${encodeURIComponent(product.id)}`;
+    const title = `${name} — Buy Online | Swag Stree`;
+    const jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name,
+        description,
+        image: [image],
+        sku: product.id,
+        offers: {
+            '@type': 'Offer',
+            priceCurrency: 'INR',
+            price: Number(product.price) || 0,
+            availability: 'https://schema.org/InStock',
+            url: canonical
+        }
+    };
+
+    let out = html.replace(/<title>[^<]*<\/title>/i, `<title>${escHtml(title)}</title>`);
+    const headInject = `
+<meta name="description" content="${escHtml(description)}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="${escHtml(canonical)}">
+<meta property="og:site_name" content="Swag Stree">
+<meta property="og:type" content="product">
+<meta property="og:title" content="${escHtml(title)}">
+<meta property="og:description" content="${escHtml(description)}">
+<meta property="og:url" content="${escHtml(canonical)}">
+<meta property="og:image" content="${escHtml(image)}">
+<meta property="og:locale" content="en-IN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@swag_stree">
+<meta name="twitter:title" content="${escHtml(title)}">
+<meta name="twitter:description" content="${escHtml(description)}">
+<meta name="twitter:image" content="${escHtml(image)}">
+<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`;
+    out = out.replace('</head>', `${headInject}\n</head>`);
+    return out;
+}
+
+function xmlResponse(body) {
+    return new Response(body, {
+        headers: {
+            'Content-Type': 'application/xml; charset=utf-8',
+            'Cache-Control': 'public, max-age=3600'
+        }
+    });
+}
 
 function jsonResponse(body, status = 200) {
     return new Response(JSON.stringify(body), {
@@ -380,6 +555,35 @@ export default {
             const headers = new Headers(resp.headers);
             Object.entries(corsHeaders()).forEach(([k, v]) => headers.set(k, v));
             return new Response(resp.body, { status: resp.status, headers });
+        }
+
+        if (url.pathname === '/sitemap.xml') {
+            return xmlResponse(buildSitemapIndex(url.origin));
+        }
+        if (url.pathname === '/sitemap-pages.xml') {
+            const categories = await fetchAllFirestoreCategories(env);
+            return xmlResponse(buildPagesSitemap(url.origin, categories));
+        }
+        if (url.pathname === '/sitemap-products.xml') {
+            const products = await fetchAllFirestoreProducts(env);
+            return xmlResponse(buildProductsSitemapXml(url.origin, products));
+        }
+
+        const productId = url.searchParams.get('id');
+        if (url.pathname === '/' && productId && isSearchBot(request.headers.get('user-agent') || '') && env.ASSETS) {
+            const product = await fetchFirestoreProduct(productId, env);
+            if (product && product.name) {
+                const assetResp = await env.ASSETS.fetch(new Request(new URL('/', url.origin).toString(), request));
+                if (assetResp.ok) {
+                    const html = injectProductSeo(await assetResp.text(), product, url.origin);
+                    return new Response(html, {
+                        headers: {
+                            'Content-Type': 'text/html; charset=utf-8',
+                            'Cache-Control': 'public, max-age=300'
+                        }
+                    });
+                }
+            }
         }
 
         if (env.ASSETS) {

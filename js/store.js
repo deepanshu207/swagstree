@@ -450,6 +450,7 @@ function handleProductsSnapshot(snap) {
         p.normalizedVariants = normalizeVariants(p);
         return p;
     });
+    window.products = products;
     window.productsLoaded = true;
 
     const deepOverlay = document.getElementById('deep-link-overlay');
@@ -464,9 +465,12 @@ function handleProductsSnapshot(snap) {
     if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
     if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
     if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
+    if (typeof applySearchDeepLink === 'function') applySearchDeepLink();
+    if (typeof refreshSeoProductIndex === 'function') refreshSeoProductIndex(products);
     if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
     if (typeof renderAdmin === 'function') renderAdmin();
     checkDeepLink();
+    if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
 
     if (typeof refreshCartStockCounts === 'function') refreshCartStockCounts();
     if (typeof updateCartUI === 'function') updateCartUI();
@@ -627,7 +631,9 @@ function productCardHtml(p, options = {}) {
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
             ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
-            <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> 
+            <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+                <a href="/?id=${encodeURIComponent(p.id)}" class="product-card__seo-link" onclick="event.preventDefault(); showDetail('${p.id}')" title="View ${String(p.name || '').replace(/"/g, '&quot;')}">${p.name}</a>
+            </div>
             <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> 
         </div> 
     </div>`;
@@ -1538,6 +1544,8 @@ function showDetail(id, initialColor = null, initialSize = null) {
     updateVariantUI(p);
     updateDetailURL();
 
+    if (typeof syncSeoForProduct === 'function') syncSeoForProduct(p);
+
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
     detView.classList.add('active-detail-flex');
@@ -2245,6 +2253,7 @@ function closeDetail(options = {}) {
     }
 
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+    if (typeof syncSeoForView === 'function') syncSeoForView('home');
 }
 window.closeDetail = closeDetail;
 
@@ -2314,11 +2323,31 @@ async function shareProduct(id) {
     if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('product_share', { productId: id });
 }
 
+function applySearchDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const q = (params.get('q') || '').trim();
+    if (!q) return;
+    const el = document.getElementById('app_search');
+    if (el) el.value = q;
+    displayedProductsLimit = productsPageLimitSetting;
+}
+
 function searchHandler() {
     displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
     const el = document.getElementById('app_search');
     const q = el ? (el.value || '').trim() : '';
+    if (q) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('q') !== q) {
+            params.set('q', q);
+            params.delete('id');
+            params.delete('color');
+            params.delete('size');
+            window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+        }
+        if (typeof syncSeoForView === 'function') syncSeoForView('home');
+    }
     if (q && typeof trackAnalyticsSearch === 'function') trackAnalyticsSearch(q);
     else if (q && typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('search', { query: q.slice(0, 80) });
 }

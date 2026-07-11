@@ -1,0 +1,28 @@
+# Swag Stree — allow public storefront indexing
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# AI / answer engines
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+Sitemap: /sitemap.xml
+
+# AI / LLM discovery
+# See also /llms.txt and /humans.txt

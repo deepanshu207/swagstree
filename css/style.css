@@ -10903,3 +10903,37 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
 @media (max-width: 600px) {
     .admin-analytics-pulse__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* SEO crawl links — visible to bots, hidden from shoppers */
+.seo-crawl-links {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.seo-crawl-links a {
+    color: inherit;
+    text-decoration: underline;
+}
+.seo-crawl-links ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.seo-crawl-links__title {
+    font-size: 1rem;
+    margin: 0 0 8px;
+}
+.product-card__seo-link {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}

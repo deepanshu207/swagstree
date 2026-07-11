@@ -457,6 +457,9 @@ function navigateToCore(id, el) {
     if (typeof trackAnalyticsPageView === 'function') {
         trackAnalyticsPageView(id);
     }
+    if (typeof syncSeoForView === 'function') {
+        syncSeoForView(id);
+    }
 }
 
 function navigateTo(id, el) {

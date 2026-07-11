@@ -1,0 +1,21 @@
+{
+  "name": "Swag Stree — Premium Fashion Online",
+  "short_name": "Swag Stree",
+  "description": "Shop trendsetting premium fashion with COD, UPI & fast delivery across India.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#FFD700",
+  "lang": "en-IN",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "lifestyle", "fashion"]
+}

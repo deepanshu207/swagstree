@@ -26,6 +26,7 @@
         productsCatalog: { title: 'Product page settings', hint: 'Sort & page sizes', icon: 'fa-sliders-h', id: 'admin-products-catalog-settings', accordionContentId: 'admin-products-catalog-accordion-content', accordionIconId: 'admin-products-catalog-accordion-icon', settingsGroup: 'catalog' },
         pagination: { title: 'Orders & customers', hint: 'List page sizes', icon: 'fa-list-ol', id: 'admin-pagination-settings', accordionContentId: 'admin-pagination-accordion-content', accordionIconId: 'admin-pagination-accordion-icon', settingsGroup: 'lists' },
         analytics: { title: 'Store analytics', hint: 'Revenue, funnel, engagement & growth', icon: 'fa-line-chart', id: 'admin-analytics-settings', accordionContentId: 'admin-analytics-accordion-content', accordionIconId: 'admin-analytics-accordion-icon', settingsGroup: 'insights' },
+        seo: { title: 'SEO & indexing', hint: 'Titles, meta, sitemaps & social previews', icon: 'fa-search', id: 'admin-seo-settings', accordionContentId: 'admin-seo-accordion-content', accordionIconId: 'admin-seo-accordion-icon', settingsGroup: 'storefront' },
         'feature-content': { title: 'Storefront content', hint: 'Bar, chatbot, newsletter', icon: 'fa-paint-brush', id: 'admin-feature-content-settings', accordionContentId: 'admin-feature-content-accordion-content', accordionIconId: 'admin-feature-content-accordion-icon', settingsGroup: 'storefront' },
         feedback: { title: 'Customer Diaries', hint: 'Instagram-style feed', icon: 'fa-camera', id: 'admin-feedback-settings', accordionContentId: 'admin-feedback-accordion-content', accordionIconId: 'admin-feedback-accordion-icon', settingsGroup: 'engagement' },
         footer: { title: 'Footer Settings', hint: 'Inside · storefront footer sections', icon: 'fa-window-minimize', id: 'admin-footer-settings', settingsGroup: 'storefront' },
@@ -35,7 +36,7 @@
     };
 
     const SECTION_KEYS = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'categorySearch', 'products'];
-    const TOOL_KEYS = ['productsCatalog', 'bulk', 'pagination', 'analytics', 'checkout', 'promo', 'feature-content', 'footer', 'announcements', 'feedback', 'support', 'comments'];
+    const TOOL_KEYS = ['productsCatalog', 'bulk', 'pagination', 'analytics', 'seo', 'checkout', 'promo', 'feature-content', 'footer', 'announcements', 'feedback', 'support', 'comments'];
     const SORTABLE_BLOCK_KEYS = [...SECTION_KEYS.filter(k => SECTION_REGISTRY[k]?.sortable !== false), ...TOOL_KEYS];
 
     const DEFAULT_ABOVE = ['drafts', 'viewHeader', 'headerActions', 'productSearch', 'productFilter', 'productSort', 'categories', 'products'];

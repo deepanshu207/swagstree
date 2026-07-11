@@ -1,0 +1,23 @@
+# Swag Stree
+
+> Premium fashion e-commerce store in India — kurtas, coord sets, sarees, streetwear & accessories.
+
+## Store
+- Website: dynamic origin (swagstree Cloudflare Workers deployment)
+- Brand: Swag Stree / Swagstree
+- Instagram: https://instagram.com/swag_stree
+- WhatsApp: +91 8800467686
+- Support email: support@swagstree.com
+
+## Shopping
+- Payment: COD (cash on delivery), UPI, Paytm, Google Pay
+- Delivery: across India
+- Product URLs: `/?id={productId}`
+
+## Catalog
+- Live product feed: `/sitemap-products.xml`
+- Product pages support deep links with variant params: `?id=&color=&size=`
+
+## Policies
+- Customers can add delivery instructions at checkout and edit until order ships
+- Guest checkout supported; order tracking via account email
