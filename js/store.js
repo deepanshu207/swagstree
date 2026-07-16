@@ -2027,6 +2027,11 @@ function mergeDetailGalleryPhotoLists(variantPhotos, variantPhotosMap, sharedMai
     return { photoSlides: photos, photoMap: map };
 }
 
+function isGalleryZoomableSlide(mapEntry) {
+    if (!mapEntry || mapEntry.type === 'video' || mapEntry.isPlaceholder || mapEntry.is360Preview) return false;
+    return !isPlaceholderImageUrl(mapEntry.url);
+}
+
 function buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx) {
     const attrs = buildGallerySlideDataAttrs(mapInfo, index);
     if (mapInfo.type === 'video') {
@@ -2049,8 +2054,9 @@ function buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx) {
             <div class="det-gallery-360-cta"><i class="fa fa-arrows-rotate"></i> Tap to rotate</div>
         </div>`;
     }
+    const zoomAttr = zoomIdx >= 0 ? ` onclick="openProductDetailImageZoom(${zoomIdx}, event)"` : '';
     return `<div class="det-gallery-slide" ${attrs}>
-        <img src="${img}" class="det-gallery-zoomable" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">
+        <img src="${img}" class="det-gallery-zoomable"${zoomAttr} alt="Product image${zoomIdx >= 0 ? ' ' + (zoomIdx + 1) : ''}">
     </div>`;
 }
 
@@ -2218,7 +2224,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     window.detailGalleryImages = imagesToDisplay.filter((_, i) => {
         const m = imageToVariantMap[i] || {};
-        return m.type !== 'video' && !m.isPlaceholder && !isPlaceholderImageUrl(m.url || imagesToDisplay[i]);
+        return isGalleryZoomableSlide(m);
     });
     window.detailGallerySlideMap = imageToVariantMap;
     window.detailGalleryActiveIndex = activeThumbIdx;
@@ -2231,7 +2237,8 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             if (mapInfo.type === 'video') {
                 return buildDetailGallerySlideHtml(img, mapInfo, index, -1);
             }
-            const zoomIdx = imageOnlyIdx++;
+            const isZoomable = isGalleryZoomableSlide(mapInfo) && !isPlaceholderImageUrl(img);
+            const zoomIdx = isZoomable ? imageOnlyIdx++ : -1;
             return buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx);
         }).join('')
         : (p.hideNoImagePlaceholder ? '' : buildDetailGallerySlideHtml(
@@ -2260,10 +2267,16 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
-    if (indicatorsContainer && galleryChanged) {
-        indicatorsContainer.innerHTML = imagesToDisplay.length > 1 
-            ? imagesToDisplay.map((_, i) => `<div class="dot ${i === activeThumbIdx ? 'active' : ''}"></div>`).join('') 
-            : '';
+    if (indicatorsContainer) {
+        if (galleryChanged) {
+            indicatorsContainer.innerHTML = imagesToDisplay.length > 1
+                ? imagesToDisplay.map((_, i) => `<div class="dot ${i === activeThumbIdx ? 'active' : ''}"></div>`).join('')
+                : '';
+        } else if (imagesToDisplay.length > 1) {
+            indicatorsContainer.querySelectorAll('.dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === activeThumbIdx);
+            });
+        }
     }
 
     // Render thumbnails strip
@@ -2420,9 +2433,9 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     let zoomIdx = 0;
     for (let i = 0; i < idx; i++) {
-        if ((map[i] || {}).type !== 'video') zoomIdx++;
+        if (isGalleryZoomableSlide(map[i])) zoomIdx++;
     }
-    window.detailGalleryZoomIndex = slide && slide.type !== 'video' ? zoomIdx : 0;
+    window.detailGalleryZoomIndex = isGalleryZoomableSlide(slide) ? zoomIdx : 0;
 
     const hasRealPhotos = galleryHasRealPhotos(map);
     const media = p ? resolveProductMedia(p) : null;
