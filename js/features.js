@@ -18,6 +18,12 @@ window.APP_FEATURES = window.APP_FEATURES || {
     adminCrudDraftsMedia: false,
     adminCrudDraftsClearAll: true,
     seoIndexing: true,
+    mediaProvider: 'cloudinary',
+    imagekit: {
+        publicKey: 'public_3H/K75xEHd17m+AitdItZIZQuNo=',
+        urlEndpoint: '',
+        folder: '/swagstree'
+    },
     widgets: {
         recentOrders: false,
         discountWheel: false,
@@ -2398,6 +2404,12 @@ function isSeoIndexingFeatureEnabled() {
 }
 window.isSeoIndexingFeatureEnabled = isSeoIndexingFeatureEnabled;
 
+function getActiveMediaProvider() {
+    const f = window.APP_FEATURES || {};
+    return f.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+}
+window.getActiveMediaProvider = getActiveMediaProvider;
+
 function isAdminSeoSettingsEnabled() {
     if (!isSeoIndexingFeatureEnabled()) {
         return typeof isSuperAdmin !== 'undefined' && isSuperAdmin;
@@ -2670,6 +2682,18 @@ function applyFeatureTogglesUI() {
             document.getElementById('toggle-seo-indexing').checked = config.seoIndexing !== false;
         }
         if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
+        const mediaProviderEl = document.getElementById('superadmin-media-provider');
+        if (mediaProviderEl) {
+            mediaProviderEl.value = config.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+        }
+        const ik = config.imagekit || {};
+        const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
+        if (ikPublicEl) ikPublicEl.value = ik.publicKey || '';
+        const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
+        if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || '';
+        const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
+        if (ikFolderEl) ikFolderEl.value = ik.folder || '/swagstree';
+        if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
         if (document.getElementById('toggle-admin-storefront-content')) {
             document.getElementById('toggle-admin-storefront-content').checked = config.adminStorefrontContent !== false;
         }

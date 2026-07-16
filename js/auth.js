@@ -2404,6 +2404,18 @@ async function loadSuperadminFeatures() {
             if (document.getElementById('toggle-product-categories')) document.getElementById('toggle-product-categories').checked = data.productCategories !== false;
             if (document.getElementById('toggle-seo-indexing')) document.getElementById('toggle-seo-indexing').checked = data.seoIndexing !== false;
             if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
+            const mediaProviderEl = document.getElementById('superadmin-media-provider');
+            if (mediaProviderEl) {
+                mediaProviderEl.value = data.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+            }
+            const ik = data.imagekit || {};
+            const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
+            if (ikPublicEl) ikPublicEl.value = ik.publicKey || '';
+            const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
+            if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || '';
+            const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
+            if (ikFolderEl) ikFolderEl.value = ik.folder || '/swagstree';
+            if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
             if (document.getElementById('toggle-admin-storefront-content')) {
                 document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
             }
@@ -2494,6 +2506,12 @@ async function saveSuperadminFeatures() {
                 chat: !!document.getElementById('toggle-wish-chat')?.checked,
                 categories: !!document.getElementById('toggle-wish-categories')?.checked
             }
+        },
+        mediaProvider: (document.getElementById('superadmin-media-provider')?.value === 'imagekit') ? 'imagekit' : 'cloudinary',
+        imagekit: {
+            publicKey: (document.getElementById('superadmin-imagekit-public-key')?.value || '').trim(),
+            urlEndpoint: (document.getElementById('superadmin-imagekit-url-endpoint')?.value || '').trim().replace(/\/$/, ''),
+            folder: (document.getElementById('superadmin-imagekit-folder')?.value || '').trim() || '/swagstree'
         }
     };
     
@@ -2502,6 +2520,7 @@ async function saveSuperadminFeatures() {
         window.APP_FEATURES = { ...window.APP_FEATURES, ...updateObj };
         if (typeof cacheFeaturesConfig === 'function') cacheFeaturesConfig(window.APP_FEATURES);
         if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
+        if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
         if (!updateObj.adminCrudDrafts && typeof adminDraftRemoveAll === 'function') adminDraftRemoveAll();
         await db.collection("settings").doc("comments").set({
             enabled: updateObj.productComments

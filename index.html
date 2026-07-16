@@ -109,7 +109,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.88">
+    <link rel="stylesheet" href="css/style.css?v=9.89">
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.gstatic.com">
@@ -2351,6 +2351,35 @@
                     Auto-saves while you edit. Text-only by default; enable media drafts to keep photos/videos (uses more storage).
                 </p>
 
+                <div id="super-media-provider-panel" style="margin:12px 0 0; padding:12px; background:#1a1a1a; border-radius:10px; border:1px solid #2a2a2a;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                        <span style="font-size:11px; color:#aaa; font-weight:700;">Media CDN Provider</span>
+                        <span id="super-media-provider-active" class="super-media-provider-badge super-media-provider-badge--cloudinary">Cloudinary</span>
+                    </div>
+                    <select id="superadmin-media-provider"
+                        onchange="if(typeof updateMediaProviderUI==='function')updateMediaProviderUI()"
+                        style="width:100%; margin-bottom:10px; font-size:12px; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:8px;">
+                        <option value="cloudinary">Cloudinary</option>
+                        <option value="imagekit">ImageKit</option>
+                    </select>
+                    <div id="super-imagekit-settings" style="display:none; flex-direction:column; gap:8px;">
+                        <label style="font-size:10px; color:#888; text-transform:uppercase;">ImageKit Public Key</label>
+                        <input id="superadmin-imagekit-public-key" type="text" placeholder="public_..."
+                            value="public_3H/K75xEHd17m+AitdItZIZQuNo="
+                            style="margin:0; font-size:12px;">
+                        <label style="font-size:10px; color:#888; text-transform:uppercase;">URL Endpoint</label>
+                        <input id="superadmin-imagekit-url-endpoint" type="url" placeholder="https://ik.imagekit.io/your_imagekit_id"
+                            style="margin:0; font-size:12px;">
+                        <label style="font-size:10px; color:#888; text-transform:uppercase;">Upload Folder</label>
+                        <input id="superadmin-imagekit-folder" type="text" placeholder="/swagstree" value="/swagstree"
+                            style="margin:0; font-size:12px;">
+                        <p style="margin:0; font-size:10px; color:#666; line-height:1.45;">
+                            New uploads use the selected provider. Existing CDN links keep working.
+                            Set <code style="color:#aaa;">IMAGEKIT_PRIVATE_KEY</code> in Cloudflare Worker secrets for ImageKit uploads and purge.
+                        </p>
+                    </div>
+                </div>
+
                 <div style="height:1px; background:#333; margin:12px 0 8px;"></div>
                 <span style="font-size:11px; color:#aaa; font-weight:700; display:block; margin-bottom:8px;">Catalog
                     Controls — Home Tab</span>
@@ -2746,7 +2775,7 @@
                         onclick="deleteFirebaseBackupsPrompt()">Clear Backups</button>
                 </div>
 
-                <div
+                <div id="super-delete-cloudinary-row"
                     style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
                     <div>
                         <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
@@ -2757,6 +2786,19 @@
                     <button class="btn-gold"
                         style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
                         onclick="deleteAllCloudinaryDataPrompt()">Delete Cloudinary</button>
+                </div>
+
+                <div id="super-delete-imagekit-row"
+                    style="display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; padding:12px; border-radius:12px; border:1px solid #222;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#fff; display:block;">Delete All
+                            ImageKit Media</span>
+                        <span style="font-size:10px; color:#666;">Permanently remove all product, announcement, and
+                            feedback images/files from ImageKit storage (Firestore data kept)</span>
+                    </div>
+                    <button class="btn-gold"
+                        style="background:var(--red); color:#fff; box-shadow:0 4px 12px rgba(255, 71, 87, 0.2); width:auto; padding:8px 16px; font-size:11px;"
+                        onclick="deleteAllImageKitDataPrompt()">Delete ImageKit</button>
                 </div>
 
                 <div
@@ -3735,7 +3777,7 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=12.6"></script>
+    <script src="js/features.js?v=12.7"></script>
     <script src="js/seo.js?v=1.6"></script>
     <script src="js/analytics.js?v=1.4"></script>
     <script src="js/app.js?v=10.15"></script>
@@ -3747,12 +3789,14 @@
     <script src="js/categories.js?v=12.5"></script>
     <script src="js/store.js?v=10.33"></script>
     <script src="js/checkout.js?v=10.13"></script>
-    <script src="js/auth.js?v=10.14"></script>
+    <script src="js/auth.js?v=10.15"></script>
     <script src="js/comments.js?v=10.9"></script>
     <script src="js/support-chat.js?v=11.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/admin.js?v=16.7"></script>
-    <script src="js/cloudinary-admin.js?v=9.89"></script>
+    <script src="js/media.js?v=1.0"></script>
+    <script src="js/admin.js?v=16.8"></script>
+    <script src="js/cloudinary-admin.js?v=9.90"></script>
+    <script src="js/imagekit-admin.js?v=1.0"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

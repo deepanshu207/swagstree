@@ -11,6 +11,10 @@
  * - CANONICAL_HOST (e.g. swagstree.com) — 301 redirect www to apex
  * - SEO_INDEXING_FORCE_OFF (true) — emergency block all indexing without Firestore
  * - CLOUDINARY_ASSET_PREFIX (e.g. swagstree) — also purge orphans under this folder prefix
+ * - IMAGEKIT_PRIVATE_KEY — ImageKit private API key (server only)
+ * - IMAGEKIT_PUBLIC_KEY — optional fallback if not in Firestore features_config
+ * - IMAGEKIT_URL_ENDPOINT — optional e.g. https://ik.imagekit.io/your_imagekit_id
+ * - IMAGEKIT_FOLDER — optional upload folder (default /swagstree)
  * - FIREBASE_SERVICE_ACCOUNT — JSON service account for Auth user export
  * - FIREBASE_PROJECT_ID (default: swagstree-web)
  */
@@ -436,12 +440,27 @@ function jsonResponse(body, status = 200) {
     });
 }
 
-function corsHeaders() {
+function corsHeaders(methods = 'POST, OPTIONS') {
     return {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Methods': methods,
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     };
+}
+
+async function verifyFirebaseUserEmail(idToken, env) {
+    if (!idToken || !env.FIREBASE_API_KEY) return null;
+    const resp = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_API_KEY)}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken })
+        }
+    );
+    const data = await resp.json();
+    if (!resp.ok || data.error || !Array.isArray(data.users) || !data.users.length) return null;
+    return (data.users[0].email || '').toLowerCase() || null;
 }
 
 async function verifySuperAdminToken(idToken, env) {
@@ -770,6 +789,227 @@ async function purgeCloudinaryAssets(request, env) {
     });
 }
 
+async function fetchFeaturesConfigFields(env) {
+    const apiKey = env.FIREBASE_API_KEY;
+    const projectId = env.FIREBASE_PROJECT_ID || FIREBASE_PROJECT_DEFAULT;
+    if (!apiKey) return {};
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/settings/features_config?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) return {};
+    const doc = await resp.json();
+    if (!doc.fields) return {};
+    const out = {};
+    Object.keys(doc.fields).forEach((key) => {
+        out[key] = parseFirestoreValue(doc.fields[key]);
+    });
+    return out;
+}
+
+function imagekitAuthHeader(privateKey) {
+    if (!privateKey) return null;
+    return 'Basic ' + btoa(`${privateKey}:`);
+}
+
+async function imagekitHmacSha1Hex(privateKey, message) {
+    const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(privateKey),
+        { name: 'HMAC', hash: 'SHA-1' },
+        false,
+        ['sign']
+    );
+    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+    return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function imagekitRandomToken() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function getImageKitUploadAuth(env, features) {
+    const privateKey = env.IMAGEKIT_PRIVATE_KEY;
+    if (!privateKey) return null;
+    const ik = (features && features.imagekit) || {};
+    const publicKey = (ik.publicKey || env.IMAGEKIT_PUBLIC_KEY || '').trim();
+    if (!publicKey) return null;
+    const token = imagekitRandomToken();
+    const expire = Math.floor(Date.now() / 1000) + 3600;
+    const signature = await imagekitHmacSha1Hex(privateKey, token + expire);
+    const folder = (ik.folder || env.IMAGEKIT_FOLDER || '/swagstree').trim() || '/swagstree';
+    return { token, expire, signature, publicKey, folder };
+}
+
+async function imagekitListFiles(privateKey, queryParams) {
+    const auth = imagekitAuthHeader(privateKey);
+    if (!auth) return [];
+    const params = new URLSearchParams(queryParams);
+    const resp = await fetch(`https://api.imagekit.io/v1/files?${params}`, {
+        headers: { Authorization: auth }
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+        throw new Error(data.message || data.error || `ImageKit list failed (${resp.status})`);
+    }
+    return Array.isArray(data) ? data : [];
+}
+
+async function imagekitBulkDelete(privateKey, fileIds) {
+    if (!fileIds.length) return 0;
+    const auth = imagekitAuthHeader(privateKey);
+    if (!auth) return 0;
+    let deleted = 0;
+    for (let i = 0; i < fileIds.length; i += BATCH_SIZE) {
+        const chunk = fileIds.slice(i, i + BATCH_SIZE);
+        const resp = await fetch('https://api.imagekit.io/v1/files/bulk/delete', {
+            method: 'POST',
+            headers: {
+                Authorization: auth,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ fileIds: chunk })
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            throw new Error(data.message || data.error || `ImageKit bulk delete failed (${resp.status})`);
+        }
+        deleted += chunk.length;
+    }
+    return deleted;
+}
+
+async function imagekitDeleteByFolder(privateKey, folderPath) {
+    let total = 0;
+    let skip = 0;
+    let guard = 0;
+    const folder = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
+    while (guard < 200) {
+        guard += 1;
+        const files = await imagekitListFiles(privateKey, {
+            path: folder,
+            limit: '100',
+            skip: String(skip)
+        });
+        if (!files.length) break;
+        const ids = files.map((f) => f.fileId).filter(Boolean);
+        if (ids.length) total += await imagekitBulkDelete(privateKey, ids);
+        if (files.length < 100) break;
+        skip += files.length;
+    }
+    return total;
+}
+
+async function imagekitResolveFileIds(privateKey, filePaths) {
+    const ids = new Set();
+    for (const rawPath of filePaths) {
+        if (!rawPath) continue;
+        const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+        try {
+            const byPath = await imagekitListFiles(privateKey, { path, limit: '10' });
+            byPath.forEach((f) => { if (f.fileId) ids.add(f.fileId); });
+            if (byPath.length) continue;
+            const name = path.split('/').pop();
+            if (name) {
+                const search = await imagekitListFiles(privateKey, {
+                    searchQuery: `name:"${name}"`,
+                    limit: '20'
+                });
+                search.forEach((f) => {
+                    if (f.filePath === path || (f.filePath && f.filePath.endsWith(path))) {
+                        if (f.fileId) ids.add(f.fileId);
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('ImageKit resolve path failed:', path, e.message);
+        }
+    }
+    return [...ids];
+}
+
+async function imagekitAuthHandler(request, env) {
+    const authHeader = request.headers.get('Authorization') || '';
+    const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    const idToken = tokenMatch ? tokenMatch[1].trim() : '';
+    const email = await verifyFirebaseUserEmail(idToken, env);
+    if (!email) {
+        return jsonResponse({ ok: false, error: 'Unauthorized — login required.' }, 401);
+    }
+
+    const features = await fetchFeaturesConfigFields(env);
+    const auth = await getImageKitUploadAuth(env, features);
+    if (!auth) {
+        return jsonResponse({
+            ok: false,
+            error: 'ImageKit is not configured on the server. Set IMAGEKIT_PRIVATE_KEY in Cloudflare Worker secrets and save ImageKit settings in Superadmin.'
+        }, 503);
+    }
+    return jsonResponse({ ok: true, ...auth });
+}
+
+async function purgeImageKitAssets(request, env) {
+    const authHeader = request.headers.get('Authorization') || '';
+    const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    const idToken = tokenMatch ? tokenMatch[1].trim() : '';
+    const superEmail = await verifySuperAdminToken(idToken, env);
+    if (!superEmail) {
+        return jsonResponse({ ok: false, error: 'Unauthorized — superadmin login required.' }, 401);
+    }
+
+    const privateKey = env.IMAGEKIT_PRIVATE_KEY;
+    if (!privateKey) {
+        return jsonResponse({
+            ok: false,
+            error: 'ImageKit Admin API is not configured on the server. Set IMAGEKIT_PRIVATE_KEY in Cloudflare Worker secrets.'
+        }, 503);
+    }
+
+    let payload = {};
+    try {
+        payload = await request.json();
+    } catch (_) {
+        return jsonResponse({ ok: false, error: 'Invalid JSON body.' }, 400);
+    }
+
+    const filePaths = Array.isArray(payload.filePaths) ? [...new Set(payload.filePaths.filter(Boolean))] : [];
+    const includeFolderOrphans = payload.includeFolderOrphans !== false;
+    const features = await fetchFeaturesConfigFields(env);
+    const ik = (features && features.imagekit) || {};
+    const folder = (ik.folder || env.IMAGEKIT_FOLDER || '/swagstree').trim() || '/swagstree';
+
+    const errors = [];
+    let referenced = 0;
+    let folderOrphans = 0;
+
+    try {
+        const fileIds = await imagekitResolveFileIds(privateKey, filePaths);
+        if (fileIds.length) {
+            referenced = await imagekitBulkDelete(privateKey, fileIds);
+        }
+        if (includeFolderOrphans && folder) {
+            try {
+                folderOrphans = await imagekitDeleteByFolder(privateKey, folder);
+            } catch (e) {
+                errors.push(`Folder cleanup (${folder}): ${e.message}`);
+            }
+        }
+    } catch (e) {
+        return jsonResponse({ ok: false, error: e.message || 'ImageKit purge failed.' }, 500);
+    }
+
+    return jsonResponse({
+        ok: true,
+        deleted: {
+            referenced,
+            folderOrphans,
+            total: referenced + folderOrphans
+        },
+        folderUsed: includeFolderOrphans ? folder : null,
+        warnings: errors
+    });
+}
+
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
@@ -783,6 +1023,20 @@ export default {
 
         if (url.pathname === '/api/cloudinary/purge' && request.method === 'POST') {
             const resp = await purgeCloudinaryAssets(request, env);
+            const headers = new Headers(resp.headers);
+            Object.entries(corsHeaders()).forEach(([k, v]) => headers.set(k, v));
+            return new Response(resp.body, { status: resp.status, headers });
+        }
+
+        if (url.pathname === '/api/imagekit/auth' && request.method === 'GET') {
+            const resp = await imagekitAuthHandler(request, env);
+            const headers = new Headers(resp.headers);
+            Object.entries(corsHeaders('GET, OPTIONS')).forEach(([k, v]) => headers.set(k, v));
+            return new Response(resp.body, { status: resp.status, headers });
+        }
+
+        if (url.pathname === '/api/imagekit/purge' && request.method === 'POST') {
+            const resp = await purgeImageKitAssets(request, env);
             const headers = new Headers(resp.headers);
             Object.entries(corsHeaders()).forEach(([k, v]) => headers.set(k, v));
             return new Response(resp.body, { status: resp.status, headers });
