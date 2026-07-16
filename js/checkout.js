@@ -391,7 +391,8 @@ function addToBagWithSelection(id, size, color, pattern = '') {
         specs.push(pattern);
     }
     const variantText = specs.length > 0 ? ` (${specs.join(' - ')})` : '';
-    showToast(`Added to Bag: ${p.name}${variantText}`); 
+    showToast(`Added to Bag: ${p.name}${variantText}`);
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('add_to_cart', { productId: id });
 }
 
 function updateCartUI() {
@@ -443,7 +444,12 @@ function changeQty(idx, delta) {
     }
     
     item.qty += delta;
-    if(item.qty <= 0) cart.splice(idx, 1);
+    if (item.qty <= 0) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('remove_from_cart', { productId: item.id });
+        }
+        cart.splice(idx, 1);
+    }
     
     // Only re-render cart contents if the cart sidebar is currently open
     const cartModal = document.getElementById('cart-modal');
@@ -536,6 +542,11 @@ async function applyPromo(forcedCode, options = {}) {
         if (!silent) showToast('Enter a promo code');
         return false;
     }
+    function trackPromoFailed(reason) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('promo_failed', { promoCode: code, reason: reason });
+        }
+    }
     if (promoInput) promoInput.value = code;
     
     const promo = activePromosList.find(p => p.code === code);
@@ -545,13 +556,16 @@ async function applyPromo(forcedCode, options = {}) {
     if (promo) {
         if (promo.endsAt && now > promo.endsAt) {
             activePromo = null;
+            trackPromoFailed('expired');
             if (!silent) showToast("Invalid or Expired Promo Code");
         } else if (promo.startsAt && now < promo.startsAt) {
             activePromo = null;
+            trackPromoFailed('scheduled');
             const startStr = new Date(promo.startsAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
             if (!silent) showToast("Promo code active starting " + startStr);
         } else if (promo.maxUses && (promo.usedCount || 0) >= promo.maxUses) {
             activePromo = null;
+            trackPromoFailed('exhausted');
             if (!silent) showToast("Promo code limit reached");
         } else {
             if (currentUser) {
@@ -563,6 +577,7 @@ async function applyPromo(forcedCode, options = {}) {
                         .get();
                     if (!usedSnap.empty) {
                         activePromo = null;
+                        trackPromoFailed('already_used');
                         if (!silent) showToast("You have already used this promo code");
                         if (closeModalAfter) await closePromoView(false);
                         openCart();
@@ -575,9 +590,11 @@ async function applyPromo(forcedCode, options = {}) {
             activePromo = { code: promo.code, discount: promo.discount / 100 };
             applied = true;
             if (!silent) showToast("Promo Applied: " + promo.discount + "% OFF");
+            if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('promo_applied', { promoCode: promo.code });
         }
     } else {
         activePromo = null;
+        trackPromoFailed('invalid');
         if (!silent) showToast("Invalid or Expired Promo Code");
     }
 
@@ -741,6 +758,7 @@ async function openPromoView() {
     await renderPromoViewList();
     promoView.classList.add('active');
     window.scrollTo(0, 0);
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('promo_picker_opened');
 
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
 }
@@ -770,6 +788,7 @@ function selectPayment(method) {
     document.querySelectorAll('.payment-chip').forEach(c => c.classList.remove('active'));
     const chip = document.getElementById('pay-' + method);
     if (chip) chip.classList.add('active');
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('payment_method_selected', { method: method });
 
     const upiBox     = document.getElementById('upi-payment-box');
     const codInfoBox = document.getElementById('cod-info-box');
@@ -902,6 +921,9 @@ function resetCodPaymentOptions() {
 function payCodAdvance(method) {
     const container = document.getElementById('cod-advance-payment-options');
     if (!container) return;
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_advance_selected', { method: method || 'unknown' });
+    }
 
     if (method === 'upi') {
         container.innerHTML = `
@@ -981,7 +1003,11 @@ function payCodAdvance(method) {
 }
 
 async function openCart() {
-    let h = ""; 
+    const cartTotal = typeof _getCartTotal === 'function' ? _getCartTotal() : 0;
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('view_cart', { items: cart.length, value: cartTotal });
+    }
+    let h = "";
     const groups = {};
     cart.forEach((it, idx) => {
         if (!groups[it.id]) {
@@ -1142,6 +1168,7 @@ async function openCart() {
     if (typeof autoPopulateCheckoutDetails === 'function') {
         await autoPopulateCheckoutDetails(false);
     }
+    initCheckoutDeliveryNoteField();
 }
 window.openCart = openCart;
 
@@ -1168,6 +1195,10 @@ async function placeOrder() {
         return showToast("Please enter a complete delivery address (minimum 5 characters).");
     }
     if (cart.length === 0) return showToast("Bag is empty");
+    const checkoutTotal = typeof _getCartTotal === 'function' ? _getCartTotal() : 0;
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('begin_checkout', { value: checkoutTotal, items: cart.length });
+    }
     
     // Filter out unavailable/out-of-stock items from the cart automatically
     const validItems = cart.filter(item => getCartItemAvailability(item).available);
@@ -1216,6 +1247,9 @@ async function confirmCodOrder() {
 // Called from COD confirmation modal "Pay via UPI Instead"
 function codSwitchToUpi() {
     document.getElementById('cod-confirm-modal').style.display = 'none';
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_upi_switch', { value: typeof _getCartTotal === 'function' ? _getCartTotal() : 0 });
+    }
     _pendingOrderArgs = null;
     selectPayment('upi');
     showToast('Switched to UPI — scan the QR code to pay');
@@ -1224,6 +1258,11 @@ function codSwitchToUpi() {
 // Called from COD confirmation modal close/cancel
 function closeCodConfirmModal() {
     document.getElementById('cod-confirm-modal').style.display = 'none';
+    if (_pendingOrderArgs && typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_checkout_abandoned', {
+            value: typeof _getCartTotal === 'function' ? _getCartTotal() : 0
+        });
+    }
     _pendingOrderArgs = null;
 }
 
@@ -1237,6 +1276,12 @@ function _showCodConfirmModal(minAmt) {
     const amtEl = document.getElementById('cod-min-amount-display');
     if (amtEl) amtEl.textContent = '₹' + minAmt;
     modal.style.display = 'flex';
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('cod_checkout_started', {
+            value: typeof _getCartTotal === 'function' ? _getCartTotal() : 0,
+            method: 'cod'
+        });
+    }
 }
 
 async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, codAdvancePaid }) {
@@ -1255,6 +1300,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
     let discount = activePromo ? Math.floor(subtotal * activePromo.discount) : 0;
     let total = subtotal - discount;
     const orderId = Math.random().toString(36).toUpperCase().substring(2, 10);
+    const checkoutNoteText = readCheckoutDeliveryNote();
 
     const promoLine = activePromo ? `<br><strong>Promo Code:</strong> ${activePromo.code} (${Math.round(activePromo.discount * 100)}% OFF)` : '';
     const discountLine = discount > 0 ? `<tr><td colspan="3" style="padding:8px 5px; text-align:right; color:#888;">Discount (${activePromo ? activePromo.code : ''})</td><td style="padding:8px 5px; text-align:right; color:#e74c3c;">-₹${discount}</td></tr><tr><td colspan="3" style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">Subtotal</td><td style="padding:4px 5px; text-align:right; color:#888; font-size:12px;">₹${subtotal}</td></tr>` : '';
@@ -1281,6 +1327,9 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         });
         msg += `\n`;
     });
+    msg += `*Customer:* ${n}\n*Phone:* ${p}\n*Email:* ${emailVal || '—'}\n*Address:* ${a}\n`;
+    if (checkoutNoteText) msg += `*Delivery note:* ${checkoutNoteText}\n`;
+    msg += `*Total:* ₹${total}\n*Payment:* ${paymentMethod.toUpperCase()}\n`;
 
     // Guest support: generate a stable guest identifier tied to this order
     const effectiveUid = currentUser ? currentUser.uid : ('guest_' + orderId);
@@ -1398,6 +1447,7 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
                      <div style="font-size:12px;color:#777;margin-bottom:2px;">&#128241; ${p}</div>
                      ${emailVal ? `<div style="font-size:12px;color:#777;margin-bottom:2px;">&#9993; ${emailVal}${isGuest ? ' (Guest)' : ''}</div>` : ''}
                      <div style="font-size:12px;color:#777;line-height:1.5;">&#128205; ${a}</div>
+                     ${checkoutNoteText ? `<div style="font-size:12px;color:#555;line-height:1.5;margin-top:8px;padding:8px 10px;background:#fff;border:1px dashed #ddd;border-radius:8px;"><strong style="color:#111;">Delivery note:</strong> ${escOrderNoteText(checkoutNoteText)}</div>` : ''}
                    </td>
                    <td style="vertical-align:top;text-align:right;">
                      <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">PAYMENT</div>
@@ -1474,6 +1524,14 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
     if (paymentMethod === 'cod') {
         orderDoc.codMinAmount = codMinAmount || codMinPayment;
         orderDoc.codAdvancePaid = codAdvancePaid || false;
+    }
+    if (checkoutNoteText) {
+        orderDoc.customerNote = {
+            text: checkoutNoteText,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: effectiveUid,
+            source: 'checkout'
+        };
     }
 
     try {
@@ -1689,7 +1747,26 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
         } catch (teleErr) {
             console.error("Failed to automatically send Telegram order notification:", teleErr);
         }
+        if (typeof updateUserOrderAnalytics === 'function' && effectiveUid) {
+            const orderMeta = {
+                paymentMethod: paymentMethod,
+                promoCode: activePromo ? activePromo.code : null,
+                email: emailVal || (currentUser && currentUser.email) || '',
+                displayName: n,
+                phone: p
+            };
+            const analyticsUids = [effectiveUid];
+            if (isGuest && emailVal && typeof buildGuestCustomerDocId === 'function') {
+                const guestDocId = buildGuestCustomerDocId(emailVal);
+                if (guestDocId && analyticsUids.indexOf(guestDocId) === -1) analyticsUids.push(guestDocId);
+            }
+            analyticsUids.forEach(function(uid) {
+                updateUserOrderAnalytics(uid, total, orderId, orderMeta);
+            });
+        }
+        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('order_placed', { orderId: orderId, total: total });
         // ----------------------------
+        clearCheckoutDeliveryNote();
         showToast('Success! Order Placed.');
         cart = [];
         saveCartToStorage();
@@ -1714,6 +1791,9 @@ async function _executeOrder({ n, p, a, emailVal, paymentMethod, codMinAmount, c
     } catch(e) {
         console.error('Order Error:', e);
         const errMsg = e && e.message ? e.message : (e && e.text ? `Failed: ${e.text}` : 'Failed to place order');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('order_failed', { reason: String(errMsg).slice(0, 80) });
+        }
         showToast(errMsg);
     }
 
@@ -1744,6 +1824,7 @@ window.copyTextToClipboard = function(text, successMessage) {
 };
 
 window.openWhatsApp = function(phone, text) {
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('whatsapp_click', { source: 'helper' });
     let cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
         showToast("No valid phone number for WhatsApp.");
@@ -1838,6 +1919,7 @@ function buildOrderDetailsWhatsAppText(orderData, docId) {
         `📱 Phone: ${orderData.phone || 'N/A'}`,
         `📧 Email: ${orderData.email || 'N/A'}${orderData.isGuest ? ' (Guest Checkout)' : ''}`,
         `📍 Address: ${orderData.address || 'N/A'}`,
+        formatOrderNoteForPlaintext(orderData),
         '',
         '🧾 Fulfillment Details & Items:',
         itemsList || '• No items listed',
@@ -1905,6 +1987,316 @@ window.openWhatsAppOrderQuick = function(docId) {
     const name = o.recipient || 'there';
     window.openWhatsApp(o.phone, `Hi ${name}, this is Swag Stree regarding your order #${orderId}`);
 };
+
+const ORDER_NOTE_MAX_LENGTH = 500;
+const CHECKOUT_NOTE_STORAGE_KEY = 'swagstree_checkout_delivery_note';
+const ORDER_NOTE_LOCKED_STATUSES = new Set(['cancelled', 'returned']);
+const ORDER_NOTE_SHIPPED_STATUSES = new Set(['shipped', 'partially_shipped', 'delivered']);
+
+function escOrderNoteText(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function parseOrderCustomerNote(order) {
+    if (!order) return { text: '', updatedAt: null, source: '', history: [] };
+    const raw = order.customerNote;
+    if (!raw) return { text: '', updatedAt: null, source: '', history: [] };
+    if (typeof raw === 'string') return { text: raw.trim(), updatedAt: null, source: 'legacy', history: [] };
+    return {
+        text: (raw.text || '').trim(),
+        updatedAt: raw.updatedAt || null,
+        source: raw.source || '',
+        history: Array.isArray(raw.history) ? raw.history : []
+    };
+}
+
+function isOrderItemShipped(item, orderStatus) {
+    const itemStatus = (item && item.status ? item.status : orderStatus || '').toLowerCase();
+    if (ORDER_NOTE_SHIPPED_STATUSES.has(itemStatus)) return true;
+    return !!(item && item.trackingId);
+}
+
+function isOrderShipped(order) {
+    if (!order) return false;
+    const status = (order.status || '').toLowerCase();
+    if (ORDER_NOTE_SHIPPED_STATUSES.has(status)) return true;
+    const items = order.items || [];
+    if (items.length > 0) {
+        return items.some(function(i) { return isOrderItemShipped(i, status); });
+    }
+    return false;
+}
+
+function isOrderDelivered(order) {
+    const status = (order.status || '').toLowerCase();
+    if (status === 'delivered') return true;
+    const items = order.items || [];
+    if (items.length > 0) {
+        return items.every(function(i) { return (i.status || status).toLowerCase() === 'delivered'; });
+    }
+    return false;
+}
+
+function getOrderNoteLockReason(order) {
+    const status = (order.status || 'pending').toLowerCase();
+    if (ORDER_NOTE_LOCKED_STATUSES.has(status)) return status;
+    if (isOrderShipped(order)) return 'shipped';
+    return null;
+}
+
+function isOrderCustomerNoteEditable(order) {
+    return !getOrderNoteLockReason(order);
+}
+
+function canUserEditOrderNote(order, user) {
+    if (!order || !user) return false;
+    if (order.uid === user.uid) return true;
+    const orderEmail = (order.email || '').toLowerCase().trim();
+    const userEmail = (user.email || '').toLowerCase().trim();
+    if (orderEmail && userEmail && orderEmail === userEmail) return true;
+    const orderPhone = (order.phone || '').replace(/\D/g, '').slice(-10);
+    const userPhone = (user.phone || '').replace(/\D/g, '').slice(-10);
+    if (orderPhone.length >= 10 && orderPhone === userPhone) return true;
+    return false;
+}
+
+function formatOrderNoteTimestamp(ts) {
+    if (!ts) return '';
+    try {
+        const d = ts.toDate ? ts.toDate() : new Date(ts);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleString('en-IN');
+    } catch (e) {
+        return '';
+    }
+}
+
+function formatOrderNoteForPlaintext(order) {
+    const note = parseOrderCustomerNote(order);
+    if (!note.text) return '';
+    return '\n📝 Customer note:\n' + note.text;
+}
+
+function getOrderNoteLockLabel(reason) {
+    if (reason === 'cancelled') return 'Cancelled — notes locked';
+    if (reason === 'returned') return 'Returned — notes locked';
+    if (reason === 'shipped') return 'Shipped — notes locked';
+    return 'Notes locked';
+}
+
+function buildAdminOrderCustomerNoteHtml(order) {
+    const note = parseOrderCustomerNote(order);
+    const lockReason = getOrderNoteLockReason(order);
+    const locked = !!lockReason;
+    if (!note.text) {
+        return `<div class="order-customer-note order-customer-note--admin order-customer-note--empty">
+            <div class="order-customer-note__label">📝 Customer delivery notes</div>
+            <p class="order-customer-note__readonly-text order-customer-note__readonly-text--muted">No notes from customer yet.</p>
+        </div>`;
+    }
+    const updatedStr = formatOrderNoteTimestamp(note.updatedAt);
+    const badgeClass = lockReason === 'shipped' ? ' order-customer-note__badge--shipped' : '';
+    const badgeText = locked
+        ? `<span class="order-customer-note__badge${badgeClass}">${getOrderNoteLockLabel(lockReason)}</span>`
+        : '<span class="order-customer-note__badge order-customer-note__badge--live">Editable until shipped</span>';
+    return `<div class="order-customer-note order-customer-note--admin${locked ? ' order-customer-note--readonly' : ''}">
+        <div class="order-customer-note__label">📝 Customer delivery notes ${badgeText}</div>
+        <div class="order-customer-note__readonly-text">${escOrderNoteText(note.text)}</div>
+        ${updatedStr ? `<div class="order-customer-note__meta">Last updated: ${escOrderNoteText(updatedStr)}${note.source === 'checkout' ? ' · added at checkout' : ''}</div>` : ''}
+    </div>`;
+}
+
+function buildCustomerOrderNoteHtml(docId, order) {
+    const note = parseOrderCustomerNote(order);
+    const editable = isOrderCustomerNoteEditable(order);
+    const lockReason = getOrderNoteLockReason(order);
+    const updatedStr = formatOrderNoteTimestamp(note.updatedAt);
+
+    if (editable) {
+        return `<div class="order-customer-note" id="order-note-block-${docId}">
+            <div class="order-customer-note__label">📝 Delivery instructions</div>
+            <p class="order-customer-note__hint">Add gate code, landmark, or delivery preferences. You can edit until the order ships.</p>
+            <textarea id="order-note-input-${docId}" class="order-customer-note__input" maxlength="${ORDER_NOTE_MAX_LENGTH}" placeholder="e.g. Call before delivery, ring bell twice, leave with security..." oninput="updateOrderNoteCharCount('${docId}')">${escOrderNoteText(note.text)}</textarea>
+            <div class="order-customer-note__footer">
+                <span class="order-customer-note__meta" id="order-note-meta-${docId}">${updatedStr ? `Saved ${updatedStr}` : 'Not saved yet'}</span>
+                <span class="order-customer-note__char-count" id="order-note-count-${docId}">${note.text.length}/${ORDER_NOTE_MAX_LENGTH}</span>
+                <button type="button" class="btn-gold order-customer-note__save" onclick="saveOrderCustomerNote('${docId}')">Save note</button>
+            </div>
+        </div>`;
+    }
+
+    const lockMsg = lockReason === 'shipped'
+        ? 'Notes are locked once your order ships so our warehouse can dispatch on time.'
+        : lockReason === 'cancelled'
+            ? 'Notes are locked because this order was cancelled.'
+            : 'Notes are locked for this order.';
+
+    return `<div class="order-customer-note order-customer-note--readonly" id="order-note-block-${docId}">
+        <div class="order-customer-note__label">📝 Your delivery notes</div>
+        ${note.text
+            ? `<div class="order-customer-note__readonly-text">${escOrderNoteText(note.text)}</div>
+               ${updatedStr ? `<div class="order-customer-note__meta">Saved ${escOrderNoteText(updatedStr)}</div>` : ''}`
+            : `<p class="order-customer-note__readonly-text order-customer-note__readonly-text--muted">No delivery notes were added for this order.</p>`}
+        <p class="order-customer-note__hint order-customer-note__hint--locked">${lockMsg}</p>
+    </div>`;
+}
+
+window.updateOrderNoteCharCount = function(docId) {
+    const textarea = document.getElementById('order-note-input-' + docId);
+    const counter = document.getElementById('order-note-count-' + docId);
+    if (!textarea || !counter) return;
+    counter.textContent = textarea.value.length + '/' + ORDER_NOTE_MAX_LENGTH;
+};
+
+function initCheckoutDeliveryNoteField() {
+    const field = document.getElementById('c-delivery-note');
+    const counter = document.getElementById('c-delivery-note-count');
+    if (!field) return;
+    try {
+        const saved = localStorage.getItem(CHECKOUT_NOTE_STORAGE_KEY);
+        if (saved && !field.value) field.value = saved;
+    } catch (e) { /* ignore */ }
+    const syncCount = function() {
+        if (counter) counter.textContent = field.value.length + '/' + ORDER_NOTE_MAX_LENGTH;
+    };
+    syncCount();
+    if (!field.dataset.noteBound) {
+        field.dataset.noteBound = '1';
+        field.addEventListener('input', function() {
+            syncCount();
+            try {
+                localStorage.setItem(CHECKOUT_NOTE_STORAGE_KEY, field.value.slice(0, ORDER_NOTE_MAX_LENGTH));
+            } catch (e) { /* ignore */ }
+        });
+    }
+}
+
+function readCheckoutDeliveryNote() {
+    const field = document.getElementById('c-delivery-note');
+    return field ? field.value.trim().slice(0, ORDER_NOTE_MAX_LENGTH) : '';
+}
+
+function clearCheckoutDeliveryNote() {
+    const field = document.getElementById('c-delivery-note');
+    if (field) field.value = '';
+    const counter = document.getElementById('c-delivery-note-count');
+    if (counter) counter.textContent = '0/' + ORDER_NOTE_MAX_LENGTH;
+    try { localStorage.removeItem(CHECKOUT_NOTE_STORAGE_KEY); } catch (e) { /* ignore */ }
+}
+
+async function notifyAdminCustomerNoteUpdated(orderDocId, order, noteText) {
+    try {
+        const cfgSnap = await db.collection('settings').doc('telegram').get();
+        if (!cfgSnap.exists) return;
+        const cfg = cfgSnap.data();
+        const botToken = cfg.token;
+        let chatIds = [];
+        if (Array.isArray(cfg.chatIds)) chatIds = cfg.chatIds.filter(function(id) { return id && String(id).trim(); });
+        else if (cfg.chatId) chatIds = [String(cfg.chatId).trim()];
+        if (!botToken || !chatIds.length) return;
+
+        const orderId = order.orderId || orderDocId.slice(-6).toUpperCase();
+        const message = [
+            '📝 Customer updated delivery note',
+            '',
+            'Order #' + orderId,
+            'Customer: ' + (order.recipient || 'N/A'),
+            'Phone: ' + (order.phone || 'N/A'),
+            '',
+            noteText ? ('Note:\n' + noteText) : '(Note cleared)',
+            '',
+            'Status: ' + (order.status || 'pending')
+        ].join('\n');
+
+        await Promise.all(chatIds.map(function(chatId) {
+            const url = 'https://api.telegram.org/bot' + botToken + '/sendMessage?chat_id=' + chatId + '&text=' + encodeURIComponent(message);
+            return fetch(url, { method: 'GET' }).catch(function() {});
+        }));
+    } catch (e) {
+        console.warn('Note update telegram notify failed:', e);
+    }
+}
+
+window.saveOrderCustomerNote = async function(orderDocId) {
+    if (!currentUser) return showToast('Please sign in to save delivery notes.');
+    const textarea = document.getElementById('order-note-input-' + orderDocId);
+    if (!textarea) return;
+
+    const text = textarea.value.trim();
+    if (text.length > ORDER_NOTE_MAX_LENGTH) {
+        return showToast('Note must be under ' + ORDER_NOTE_MAX_LENGTH + ' characters.');
+    }
+
+    const btn = document.querySelector('#order-note-block-' + orderDocId + ' .order-customer-note__save');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+    }
+
+    try {
+        const ref = db.collection('orders').doc(orderDocId);
+        const snap = await ref.get();
+        if (!snap.exists) return showToast('Order not found.');
+        const order = snap.data();
+
+        if (!canUserEditOrderNote(order, currentUser)) {
+            return showToast('You can only edit notes on your own orders.');
+        }
+
+        if (!isOrderCustomerNoteEditable(order)) {
+            const reason = getOrderNoteLockReason(order);
+            return showToast(reason === 'shipped' ? 'Notes are locked — order has shipped.' : 'Notes are locked for this order.');
+        }
+
+        const prevNote = parseOrderCustomerNote(order);
+        const history = (prevNote.history || []).slice(-4);
+        if (prevNote.text && prevNote.text !== text) {
+            history.push({
+                text: prevNote.text,
+                updatedAt: prevNote.updatedAt || null
+            });
+        }
+
+        await ref.set({
+            customerNote: {
+                text: text,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: currentUser.uid,
+                source: prevNote.source || 'profile',
+                history: history
+            },
+            'notifications.noteUpdated': {
+                at: firebase.firestore.FieldValue.serverTimestamp(),
+                by: currentUser.uid
+            }
+        }, { merge: true });
+
+        const meta = document.getElementById('order-note-meta-' + orderDocId);
+        if (meta) meta.textContent = 'Saved just now';
+        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('order_note_updated', { orderId: order.orderId || orderDocId });
+        notifyAdminCustomerNoteUpdated(orderDocId, order, text);
+        showToast(text ? 'Delivery note saved' : 'Note cleared');
+    } catch (err) {
+        console.error('Save order note failed:', err);
+        showToast('Could not save note. Try again.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Save note';
+        }
+    }
+};
+
+window.parseOrderCustomerNote = parseOrderCustomerNote;
+window.escOrderNoteText = escOrderNoteText;
+window.formatOrderNoteTimestamp = formatOrderNoteTimestamp;
+window.isOrderCustomerNoteEditable = isOrderCustomerNoteEditable;
+window.isOrderShipped = isOrderShipped;
 
 const ORDER_STATUSES = [
     { value: 'pending', label: '⏳ Pending' },
@@ -2039,6 +2431,7 @@ window.filterAndRenderOrders = function() {
             const email = (o.email || '').toLowerCase();
             const address = (o.address || '').toLowerCase();
             const payment = (o.paymentMethod || '').toLowerCase();
+            const customerNote = (parseOrderCustomerNote(o).text || '').toLowerCase();
             
             const matchesItems = (o.items || []).some(item => {
                 return (item.name || '').toLowerCase().includes(searchVal) ||
@@ -2056,6 +2449,7 @@ window.filterAndRenderOrders = function() {
                    email.includes(searchVal) ||
                    address.includes(searchVal) ||
                    payment.includes(searchVal) ||
+                   customerNote.includes(searchVal) ||
                    matchesItems;
         });
     }
@@ -2365,6 +2759,8 @@ function renderOrdersList(docs) {
                 </div>
 
                 ${refundSectionHtml}
+
+                ${buildAdminOrderCustomerNoteHtml(o)}
                 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid #222;">
                     ${o.showOverallStatus === true 
@@ -2460,6 +2856,8 @@ function renderOrdersList(docs) {
                     ${itemsHtml}
                 </div>
 
+                ${buildCustomerOrderNoteHtml(docId, o)}
+
                 ${promoInfo}
 
                 <!-- Footer: total -->
@@ -2510,9 +2908,9 @@ function loadOrders() {
         const searchInp = document.getElementById('admin-orders-search-input');
         if (searchInp) {
             if (isAdmin) {
-                searchInp.placeholder = "Search by Order ID, Customer Name, Phone, Item...";
+                searchInp.placeholder = "Search by Order ID, Customer Name, Phone, delivery note...";
             } else {
-                searchInp.placeholder = "Search by Order ID, Item name, tracking ID...";
+                searchInp.placeholder = "Search by Order ID, item, tracking, delivery note...";
             }
         }
         
@@ -2523,25 +2921,49 @@ function loadOrders() {
         ordersUnsubscribe();
         ordersUnsubscribe = null;
     }
+    if (window.ordersEmailUnsubscribe) {
+        window.ordersEmailUnsubscribe();
+        window.ordersEmailUnsubscribe = null;
+    }
     
     let ordersRef = db.collection("orders"); 
     let query = isAdmin 
         ? ordersRef.orderBy("timestamp", "desc").limit(displayedOrdersLimit + 1) 
-        : ordersRef.where("uid", "==", currentUser.uid); 
-    
-    ordersUnsubscribe = query.onSnapshot(snap => { 
-        if (snap.empty) { 
-            container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
+        : ordersRef.where("uid", "==", currentUser.uid);
+
+    function renderCustomerOrdersFromMap(docsMap) {
+        const docs = Array.from(docsMap.values()).sort(function(a, b) {
+            const tsA = a.data().timestamp ? (a.data().timestamp.toMillis ? a.data().timestamp.toMillis() : 0) : 0;
+            const tsB = b.data().timestamp ? (b.data().timestamp.toMillis ? b.data().timestamp.toMillis() : 0) : 0;
+            return tsB - tsA;
+        });
+        if (!docs.length) {
+            container.innerHTML = '<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>';
             const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
             if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
             if (countContainer) {
                 countContainer.innerHTML = '0 Orders';
                 countContainer.style.display = 'inline-flex';
             }
-            return; 
-        } 
-        
+            window.allOrders = [];
+            return;
+        }
+        window.allOrders = docs;
+        filterAndRenderOrders();
+    }
+    
+    ordersUnsubscribe = query.onSnapshot(snap => { 
         if (isAdmin) {
+            if (snap.empty) { 
+                container.innerHTML = `<p style="text-align:center;color:#444;font-size:12px">No orders yet.</p>`; 
+                const loadMoreBtnContainer = document.getElementById('orders-load-more-container');
+                if (loadMoreBtnContainer) loadMoreBtnContainer.innerHTML = '';
+                if (countContainer) {
+                    countContainer.innerHTML = '0 Orders';
+                    countContainer.style.display = 'inline-flex';
+                }
+                return; 
+            }
             if (!window.allDatabaseOrdersLoaded) {
                 window.allOrders = snap.docs;
             } else {
@@ -2561,18 +2983,23 @@ function loadOrders() {
             }
             filterAndRenderOrders();
         } else {
-            let docs = snap.docs.sort((a, b) => {
-                const tsA = a.data().timestamp ? a.data().timestamp.toMillis() : 0;
-                const tsB = b.data().timestamp ? b.data().timestamp.toMillis() : 0;
-                return tsB - tsA;
-            });
-            window.allOrders = docs;
-            filterAndRenderOrders();
+            if (!window._customerOrdersMap) window._customerOrdersMap = new Map();
+            snap.docs.forEach(function(d) { window._customerOrdersMap.set(d.id, d); });
+            renderCustomerOrdersFromMap(window._customerOrdersMap);
         }
     }, error => {
         console.error("Orders load error:", error);
         container.innerHTML = `<p style="text-align:center;color:#e74c3c;font-size:12px;">Error loading orders. Please try again.</p>`;
-    }); 
+    });
+
+    if (!isAdmin && currentUser.email) {
+        const userEmail = currentUser.email.toLowerCase().trim();
+        window.ordersEmailUnsubscribe = ordersRef.where('email', '==', userEmail).onSnapshot(function(snap) {
+            if (!window._customerOrdersMap) window._customerOrdersMap = new Map();
+            snap.docs.forEach(function(d) { window._customerOrdersMap.set(d.id, d); });
+            renderCustomerOrdersFromMap(window._customerOrdersMap);
+        }, function() {});
+    }
 }
 
 function loadMoreOrders() {
@@ -2784,6 +3211,7 @@ window.showAdminOrderDetailsModal = async function(docId) {
         </div>`;
 
         document.getElementById('adm-ord-modal-content').innerHTML = `
+            ${buildAdminOrderCustomerNoteHtml(o)}
             ${globalShippingHtml}
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <div style="font-weight:700; color:#fff; font-size:13px; margin:5px 0 0;">📦 Order Items Fulfillment</div>
@@ -3110,6 +3538,10 @@ async function triggerTelegramNotification(orderData, docId, newStatus) {
             `📱 <b>Phone:</b> ${escapeHTML(orderData.phone || 'N/A')}`,
             `📧 <b>Email:</b> ${escapeHTML(orderData.email || 'N/A')}${orderData.isGuest ? ' <b>(Guest Checkout)</b>' : ''}`,
             `📍 <b>Address:</b> ${escapeHTML(orderData.address || 'N/A')}`,
+            (function() {
+                const note = parseOrderCustomerNote(orderData);
+                return note.text ? `📝 <b>Customer note:</b> ${escapeHTML(note.text)}` : '';
+            })(),
             ``,
             `🧾 <b>Fulfillment Details & Items:</b>`,
             itemsListTelegram,
@@ -3186,10 +3618,10 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
             statusMsg = `Your order <strong>#${orderId}</strong> has been partially confirmed. We will contact you or update the order status once verification is completed.`;
         } else if (newStatus === 'confirmed') {
             statusTitle = "Order Confirmed! ✅";
-            statusMsg = `Great news! Your order <strong>#${orderId}</strong> has been confirmed. We are starting to process it now.`;
+            statusMsg = `Great news! Your order <strong>#${orderId}</strong> has been confirmed. We are starting to process it now. You can add or update delivery instructions from <strong>My Orders</strong> until we ship.`;
         } else if (newStatus === 'processing') {
             statusTitle = "Your Order is being Prepared! 📦";
-            statusMsg = `We are preparing your order <strong>#${orderId}</strong> for shipment. We will notify you once it's shipped.`;
+            statusMsg = `We are preparing your order <strong>#${orderId}</strong> for shipment. You can still update delivery notes from <strong>My Orders</strong> until it ships.`;
         } else if (newStatus === 'payment_processed') {
             statusTitle = "Payment Received & Processed! 💳";
             statusMsg = `Thank you! Your payment for order <strong>#${orderId}</strong> has been successfully processed. We are preparing your order for shipment.`;
@@ -3306,6 +3738,14 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
             }
         }
 
+        const note = parseOrderCustomerNote(orderData);
+        const noteEmailBlock = note.text
+            ? `<div style="background:#fffbea;border:1px dashed #f0d878;border-radius:8px;padding:12px 14px;margin:16px 0;">
+                <div style="font-size:10px;font-weight:700;color:#b8860b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Delivery note</div>
+                <div style="font-size:13px;color:#444;line-height:1.5;white-space:pre-wrap;">${escOrderNoteText(note.text)}</div>
+               </div>`
+            : '';
+
         const htmlContent = `
         <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;padding:24px;">
             <div style="text-align:center;background:#000000;padding:20px;border-radius:8px;margin-bottom:20px;">
@@ -3314,6 +3754,7 @@ async function triggerEmailNotification(orderData, docId, newStatus) {
             <h2 style="color:#111;margin-top:0;">${statusTitle}</h2>
             <p style="font-size:14px;color:#555;line-height:1.6;">Hi ${orderData.recipient || 'Customer'},</p>
             <p style="font-size:14px;color:#555;line-height:1.6;">${statusMsg}</p>
+            ${noteEmailBlock}
             
             <div style="padding:14px 0 0;">
                <div style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:2px;text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid #eee;">ITEMS ORDERED</div>

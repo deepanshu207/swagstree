@@ -1,0 +1,15 @@
+/* TEAM */
+Swag Stree — Premium Fashion E-commerce
+Site: https://swagstree.com
+Contact: support@swagstree.com
+WhatsApp: +91 8800467686
+Instagram: https://instagram.com/swag_stree
+
+/* THANKS */
+Google Firebase, Cloudflare Workers, Cloudinary
+
+/* SITE */
+Last update: 2026-07-11
+Standards: HTML5, CSS3, JSON-LD, Open Graph, Twitter Cards
+Sitemap: /sitemap.xml
+AI discovery: /llms.txt

@@ -1,0 +1,51 @@
+# Swag Stree
+
+> Premium fashion e-commerce store in India — kurtas, coord sets, sarees, ethnic wear, streetwear & accessories. COD, UPI, Paytm, Google Pay, fast pan-India delivery.
+
+## Brand & discovery
+- Brand names: Swag Stree, Swagstree, swag stree fashion, swagstree.com
+- Category: Online fashion boutique, Indian apparel, women's & men's clothing
+- Languages: English (India), en-IN
+- Sitemap: /sitemap.xml
+- Product feed: /sitemap-products.xml
+- Robots: /robots.txt
+- Humans: /humans.txt
+
+## Contact & social
+- Website: production Cloudflare Workers deployment (origin varies)
+- Instagram: https://instagram.com/swag_stree
+- WhatsApp: +91 8800467686
+- Support email: support@swagstree.com
+- Facebook: https://www.facebook.com/share/1CRwnQckvY/
+
+## Shopping & payments
+- Cash on Delivery (COD) across India
+- UPI, Paytm, Google Pay for prepaid orders
+- Guest checkout supported
+- Delivery notes at checkout; editable until order ships
+- Order tracking via account (email / phone)
+
+## URL patterns
+- Home: /
+- Product: /?id={productId}
+- Product with variant: /?id={productId}&color={color}&size={size}
+- Category browse: /?category={category-slug}
+- Search: /?q={search-term}
+
+## Popular search topics
+- kurtas online India, coord sets, sarees, ethnic wear, streetwear
+- COD fashion shopping, UPI clothes store, premium boutique India
+- wedding guest outfits, festive collection, office wear women
+- cotton kurtas, linen outfits, plus size fashion India
+- Swag Stree new arrivals, Swag Stree sale, Swag Stree reviews
+
+## Product catalog
+- Live inventory synced from Firestore
+- Categories managed dynamically (see /sitemap-pages.xml)
+- Customer reviews with star ratings on product pages
+- Product images hosted on Cloudinary CDN
+
+## Policies
+- Privacy policy and about us in storefront footer (when enabled)
+- Returns/exchanges per store policy at checkout
+- Verified-purchase reviews only

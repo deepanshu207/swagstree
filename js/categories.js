@@ -53,6 +53,9 @@ function toggleCategoryFilterForView(view, categoryId) {
     if (idx >= 0) current.splice(idx, 1);
     else current.push(categoryId);
     setCategoryFiltersForView(view, current);
+    if (categoryId && typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('category_filter', { categoryId: categoryId, view: view });
+    }
 }
 
 function renderCategoryBarForView(view, barId) {
@@ -1501,6 +1504,8 @@ function loadProductCategories() {
         renderHomeCategoryBar();
         renderWishCategoryBar();
         renderCategoryFilterChips();
+        if (typeof refreshSeoCategoryIndex === 'function') refreshSeoCategoryIndex();
+        if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
         if (typeof renderAdmin === 'function') renderAdmin();
     }, err => {
         console.error('categories onSnapshot error:', err);

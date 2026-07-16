@@ -17,8 +17,16 @@ window.supportChatState = window.supportChatState || {
     adminThreadId: null,
     mode: 'ai',
     activeTab: 'ai',
-    loaded: false
+    loaded: false,
+    lastSuggestionIds: [],
+    pendingPickAction: null,
+    complaintDraft: '',
+    selectedProductId: null,
+    selectedOrderId: null
 };
+
+const CHAT_PICK_CANDIDATE_LIMIT = 5;
+const CHAT_RECENT_VIEWS_KEY = 'swag_chat_recent_views';
 
 let customerMessagesUnsub = null;
 let adminInboxUnsub = null;
@@ -40,10 +48,35 @@ const STAFF_ADMIN_EMAILS = ['admin@swagstree.com', 'superadmin@swagstree.com'];
 const ADMIN_SUPPORT_INBOX_FETCH_LIMIT = 100;
 
 const AI_SUPPORT_CHIPS = [
+    'What can you help with?',
     'Suggest outfits under ₹1000',
-    'Track my order',
     'Best sellers',
-    'Contact support'
+    "What's new?",
+    'Gift ideas under ₹1500',
+    'Complete outfit under ₹3000',
+    'Browse categories',
+    'Track my order',
+    'My cart',
+    'Offers & promos',
+    'Payment & COD',
+    'Product issue / complaint',
+    'Talk to admin'
+];
+
+const CHAT_OCCASION_KEYWORDS = {
+    wedding: ['wedding', 'shaadi', 'bridal', 'reception', 'sangeet'],
+    party: ['party', 'celebration', 'night out', 'cocktail'],
+    office: ['office', 'work', 'formal', 'professional', 'corporate'],
+    casual: ['casual', 'everyday', 'daily wear', 'relaxed'],
+    festive: ['festive', 'festival', 'diwali', 'holi', 'eid', 'navratri', 'puja'],
+    ethnic: ['ethnic', 'traditional', 'indian wear'],
+    date: ['date night', 'dinner date', 'romantic']
+};
+
+const CHAT_COLOR_KEYWORDS = [
+    'red', 'maroon', 'crimson', 'blue', 'navy', 'indigo', 'green', 'olive', 'emerald',
+    'black', 'white', 'cream', 'beige', 'pink', 'rose', 'gold', 'yellow', 'orange',
+    'purple', 'violet', 'brown', 'grey', 'gray', 'teal', 'turquoise', 'peach', 'mint'
 ];
 
 const ADMIN_SUPPORT_CHIPS = [
@@ -129,7 +162,433 @@ function applySupportChatTabsVisibility() {
 }
 window.applySupportChatTabsVisibility = applySupportChatTabsVisibility;
 
-const CHAT_PRODUCT_DISPLAY_LIMIT = 10;
+const CHAT_PRODUCT_PAGE_SIZE = 5;
+const CHAT_PRODUCT_QUERY_LIMIT = 500;
+const CHAT_PRODUCT_DISPLAY_LIMIT = CHAT_PRODUCT_QUERY_LIMIT;
+
+function getProductSearchHaystack(p) {
+    const colors = [];
+    const sizes = [];
+    if (Array.isArray(p.sizes)) sizes.push(...p.sizes);
+    if (p.sizeColorMap && typeof p.sizeColorMap === 'object') {
+        Object.values(p.sizeColorMap).forEach(arr => {
+            if (Array.isArray(arr)) colors.push(...arr);
+        });
+    }
+    if (Array.isArray(p.variants)) {
+        p.variants.forEach(v => {
+            if (v.size) sizes.push(v.size);
+            if (v.colorName) colors.push(v.colorName);
+            if (v.color) colors.push(v.color);
+            if (v.pattern) colors.push(v.pattern);
+        });
+    }
+    const cat = typeof resolveProductCategoryLabel === 'function'
+        ? resolveProductCategoryLabel(p)
+        : (p.categoryName || '');
+    return `${p.name || ''} ${p.description || ''} ${cat} ${colors.join(' ')} ${sizes.join(' ')}`.toLowerCase();
+}
+
+function getCatalogCategoriesForChat(limit = 12) {
+    const fromCats = (window.productCategories || []).map(c => c.name).filter(Boolean);
+    if (fromCats.length) return fromCats.slice(0, limit);
+    const set = new Set();
+    (window.products || []).forEach(p => {
+        const c = typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(p)
+            : (p.categoryName || '');
+        if (c) set.add(c);
+    });
+    return [...set].slice(0, limit);
+}
+
+function getCatalogPriceRange() {
+    const prices = (window.products || []).map(p => Number(p.price) || 0).filter(n => n > 0);
+    if (!prices.length) return null;
+    return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
+function getNewArrivalProducts(limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    const list = (window.products || []).slice();
+    list.sort((a, b) => {
+        const ta = a.createdAt?.toMillis?.() || a.createdAt || 0;
+        const tb = b.createdAt?.toMillis?.() || b.createdAt || 0;
+        return tb - ta;
+    });
+    return list.slice(0, limit);
+}
+
+function getInStockProducts(limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    return (window.products || []).filter(p => {
+        if (p.stockManaged === false) return true;
+        if (typeof p.stock === 'number') return p.stock > 0;
+        if (Array.isArray(p.variants) && p.variants.length) {
+            return p.variants.some(v => (v.stock ?? 1) > 0);
+        }
+        return true;
+    }).slice(0, limit);
+}
+
+function searchProductsByCategory(categoryQuery, displayLimit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    const q = (categoryQuery || '').toLowerCase().trim();
+    const list = (window.products || []).filter(p => {
+        const cat = (typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(p)
+            : (p.categoryName || '')).toLowerCase();
+        return !q || cat.includes(q) || q.split(/\s+/).some(w => w.length > 2 && cat.includes(w));
+    });
+    return { items: list.slice(0, displayLimit), total: list.length };
+}
+
+function getCartSummaryForChat() {
+    const cart = window.cart || [];
+    if (!cart.length) return { empty: true, count: 0, total: 0, items: [] };
+    const total = cart.reduce((s, i) => s + (Number(i.price) || 0) * (i.qty || 1), 0);
+    return { empty: false, count: cart.reduce((s, i) => s + (i.qty || 1), 0), total, items: cart.slice(0, 5) };
+}
+
+function getWishlistCountForChat() {
+    const wish = window.wishlist || window.wishlistIds || [];
+    if (Array.isArray(wish)) return wish.length;
+    return 0;
+}
+
+function getActivePromoHints() {
+    if (typeof activePromosList !== 'undefined' && Array.isArray(activePromosList) && activePromosList.length) {
+        return activePromosList.slice(0, 5).map(p => p.code).filter(Boolean);
+    }
+    return [];
+}
+
+function buildChatHelpMenuHtml() {
+    return `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Best sellers')">Best sellers</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Suggest outfits under ₹1000')">Under ₹1000</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText(&quot;What's new?&quot;)">New arrivals</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Browse categories')">Categories</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('My cart')">My cart</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Track my order')">Orders</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Offers & promos')">Promos</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Gift ideas under ₹1500')">Gifts</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Complete outfit under ₹3000')">Full outfit</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Cheapest products')">Budget picks</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Talk to admin')">Live support</button>
+    </div>`;
+}
+
+function getAiSupportChipsFromSettings() {
+    const custom = (window.APP_FEATURES_CONTENT?.chatbotChips || '').trim();
+    if (!custom) return AI_SUPPORT_CHIPS.slice();
+    const parsed = custom.split(',').map(s => s.trim()).filter(Boolean);
+    return parsed.length ? parsed : AI_SUPPORT_CHIPS.slice();
+}
+
+function findProductByNameQuery(query) {
+    const q = cleanProductSearchQuery(query);
+    if (!q || q.length < 2) return null;
+    const list = window.products || [];
+    const exact = list.find(p => (p.name || '').toLowerCase() === q);
+    if (exact) return exact;
+    const words = q.split(/\s+/).filter(w => w.length > 2);
+    let best = null;
+    let bestScore = 0;
+    list.forEach(p => {
+        const hay = getProductSearchHaystack(p);
+        const score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+        if (score > bestScore) {
+            bestScore = score;
+            best = p;
+        }
+    });
+    return bestScore >= Math.min(2, words.length) ? best : null;
+}
+
+function getProductSizeColorSummary(p) {
+    if (!p) return '';
+    const sizes = Array.isArray(p.sizes) ? [...new Set(p.sizes)].filter(Boolean) : [];
+    const colors = [];
+    if (p.sizeColorMap && typeof p.sizeColorMap === 'object') {
+        Object.values(p.sizeColorMap).forEach(arr => {
+            if (Array.isArray(arr)) colors.push(...arr);
+        });
+    }
+    if (Array.isArray(p.variants)) {
+        p.variants.forEach(v => {
+            if (v.size && !sizes.includes(v.size)) sizes.push(v.size);
+            if (v.colorName) colors.push(v.colorName);
+        });
+    }
+    const uniqueColors = [...new Set(colors)].filter(Boolean);
+    const parts = [];
+    if (sizes.length) parts.push(`Sizes: ${sizes.join(', ')}`);
+    if (uniqueColors.length) parts.push(`Colors: ${uniqueColors.join(', ')}`);
+    return parts.join(' · ');
+}
+
+function extractMinPrice(text) {
+    if (!text) return null;
+    const q = String(text).toLowerCase().replace(/₹/g, ' ').replace(/,/g, '');
+    const patterns = [
+        /(?:above|over|more than|minimum|min|at least|from)\s*(\d{2,6})/,
+        /(?:between|from)\s*(\d{2,6})\s*(?:and|to|-)\s*(\d{2,6})/
+    ];
+    const between = q.match(patterns[1]);
+    if (between) {
+        const n = parseInt(between[1], 10);
+        if (n >= 50 && n <= 100000) return n;
+    }
+    const m = q.match(patterns[0]);
+    if (m) {
+        const n = parseInt(m[1], 10);
+        if (n >= 50 && n <= 100000) return n;
+    }
+    return null;
+}
+
+function extractColorsFromQuery(text) {
+    const q = (text || '').toLowerCase();
+    return CHAT_COLOR_KEYWORDS.filter(c => new RegExp(`\\b${c}\\b`).test(q));
+}
+
+function detectOccasionFromQuery(text) {
+    const q = (text || '').toLowerCase();
+    for (const [occasion, keywords] of Object.entries(CHAT_OCCASION_KEYWORDS)) {
+        if (keywords.some(kw => q.includes(kw))) return occasion;
+    }
+    return null;
+}
+
+function productMatchesColors(p, colors) {
+    if (!colors || !colors.length) return true;
+    const hay = getProductSearchHaystack(p);
+    return colors.some(c => hay.includes(c));
+}
+
+function scoreProductRelevance(p, queryTokens, colors, occasion) {
+    const hay = getProductSearchHaystack(p);
+    let score = 0;
+    queryTokens.forEach(t => { if (t.length > 2 && hay.includes(t)) score += 2; });
+    if (colors.length && productMatchesColors(p, colors)) score += 3;
+    if (occasion) {
+        const occWords = CHAT_OCCASION_KEYWORDS[occasion] || [];
+        if (occWords.some(w => hay.includes(w))) score += 2;
+    }
+    score += (p.salesCount || p.popularity || 0) * 0.01;
+    return score;
+}
+
+function searchProductsAdvanced(text, displayLimit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    const list = window.products || [];
+    const maxPrice = extractMaxPrice(text);
+    const minPrice = extractMinPrice(text);
+    const colors = extractColorsFromQuery(text);
+    const occasion = detectOccasionFromQuery(text);
+    const inStockOnly = /in stock|available now/.test((text || '').toLowerCase());
+    const q = cleanProductSearchQuery(text);
+    const tokens = q.split(/\s+/).filter(w => w.length > 2);
+
+    let filtered = list.filter(p => {
+        const price = Number(p.price) || 0;
+        if (maxPrice != null && price > maxPrice) return false;
+        if (minPrice != null && price < minPrice) return false;
+        if (colors.length && !productMatchesColors(p, colors)) return false;
+        if (inStockOnly) {
+            if (p.stockManaged !== false && typeof p.stock === 'number' && p.stock <= 0) return false;
+        }
+        if (!tokens.length && !occasion) return true;
+        const hay = getProductSearchHaystack(p);
+        if (occasion) {
+            const occWords = CHAT_OCCASION_KEYWORDS[occasion] || [];
+            if (occWords.some(w => hay.includes(w))) return true;
+        }
+        if (!tokens.length) return !!occasion;
+        return hay.includes(q) || tokens.some(w => hay.includes(w));
+    });
+
+    filtered = filtered.slice().sort((a, b) => {
+        const sa = scoreProductRelevance(a, tokens, colors, occasion);
+        const sb = scoreProductRelevance(b, tokens, colors, occasion);
+        if (sb !== sa) return sb - sa;
+        return (Number(a.price) || 0) - (Number(b.price) || 0);
+    });
+
+    return {
+        items: filtered.slice(0, displayLimit),
+        total: filtered.length,
+        meta: { maxPrice, minPrice, colors, occasion }
+    };
+}
+
+function findProductsForComparison(text) {
+    const raw = (text || '').trim();
+    const patterns = [
+        /compare\s+(.+?)\s+(?:and|with|vs\.?|versus)\s+(.+)/i,
+        /(.+?)\s+vs\.?\s+(.+)/i,
+        /(?:which is (?:better|cheaper)|difference between)\s+(.+?)\s+(?:and|or)\s+(.+)/i,
+        /(.+?)\s+or\s+(.+?)\s+(?:which|what)/i
+    ];
+    for (const re of patterns) {
+        const m = raw.match(re);
+        if (!m) continue;
+        const a = findProductByNameQuery(m[1]);
+        const b = findProductByNameQuery(m[2]);
+        if (a && b && a.id !== b.id) return [a, b];
+        if (a || b) return [a, b].filter(Boolean);
+    }
+    return [];
+}
+
+function buildProductComparisonText(products) {
+    if (!products || products.length < 2) return null;
+    const [a, b] = products;
+    const priceA = Number(a.price) || 0;
+    const priceB = Number(b.price) || 0;
+    const cheaper = priceA <= priceB ? a : b;
+    const pricier = priceA <= priceB ? b : a;
+    const diff = Math.abs(priceA - priceB);
+    const sumA = getProductSizeColorSummary(a);
+    const sumB = getProductSizeColorSummary(b);
+    return `**Compare:**\n\n**${a.name}** — ₹${priceA}${sumA ? `\n${sumA}` : ''}\n\n**${b.name}** — ₹${priceB}${sumB ? `\n${sumB}` : ''}\n\n**Verdict:** **${cheaper.name}** is ₹${diff} cheaper. Open each product for full details, reviews & size guide.`;
+}
+
+function getSimilarProducts(anchor, limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    if (!anchor) return [];
+    const cat = (typeof resolveProductCategoryLabel === 'function'
+        ? resolveProductCategoryLabel(anchor)
+        : (anchor.categoryName || '')).toLowerCase();
+    const tokens = (anchor.name || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const list = (window.products || []).filter(p => p.id !== anchor.id);
+    const scored = list.map(p => {
+        const hay = getProductSearchHaystack(p);
+        const pCat = (typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(p)
+            : (p.categoryName || '')).toLowerCase();
+        let score = 0;
+        if (cat && pCat === cat) score += 4;
+        else if (cat && pCat.includes(cat.split(' ')[0])) score += 2;
+        tokens.forEach(t => { if (hay.includes(t)) score += 2; });
+        if (productMatchesColors(p, extractColorsFromQuery(anchor.name || ''))) score += 1;
+        score += (p.salesCount || p.popularity || 0) * 0.01;
+        return { p, score };
+    });
+    scored.sort((x, y) => y.score - x.score);
+    return scored.filter(x => x.score > 0).slice(0, limit).map(x => x.p);
+}
+
+function getCheapestProducts(limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    return (window.products || []).slice()
+        .filter(p => (Number(p.price) || 0) > 0)
+        .sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0))
+        .slice(0, limit);
+}
+
+function getPremiumProducts(limit = CHAT_PRODUCT_DISPLAY_LIMIT) {
+    return (window.products || []).slice()
+        .filter(p => (Number(p.price) || 0) > 0)
+        .sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0))
+        .slice(0, limit);
+}
+
+function buildOutfitBundleUnderBudget(budget, limit = 3) {
+    const max = Number(budget) || 3000;
+    const list = (window.products || []).slice()
+        .filter(p => (Number(p.price) || 0) > 0 && (Number(p.price) || 0) <= max)
+        .sort((a, b) => (b.salesCount || b.popularity || 0) - (a.salesCount || a.popularity || 0));
+    const picked = [];
+    const usedCats = new Set();
+    let total = 0;
+    for (const p of list) {
+        if (picked.length >= limit) break;
+        const cat = (typeof resolveProductCategoryLabel === 'function'
+            ? resolveProductCategoryLabel(p)
+            : (p.categoryName || 'other')).toLowerCase();
+        const price = Number(p.price) || 0;
+        if (usedCats.has(cat) && picked.length < limit - 1) continue;
+        if (total + price > max) continue;
+        picked.push(p);
+        usedCats.add(cat);
+        total += price;
+    }
+    if (!picked.length) {
+        return { items: list.slice(0, limit), total: list.slice(0, limit).reduce((s, p) => s + (Number(p.price) || 0), 0), budget: max, partial: true };
+    }
+    return { items: picked, total, budget: max, partial: false };
+}
+
+function getGiftRecipientHint(text) {
+    const q = (text || '').toLowerCase();
+    if (/mom|mother|mum|maa/.test(q)) return 'mom';
+    if (/dad|father|papa/.test(q)) return 'dad';
+    if (/wife|husband|partner|spouse/.test(q)) return 'partner';
+    if (/friend|bestie|bff/.test(q)) return 'friend';
+    if (/sister|brother|sibling/.test(q)) return 'sibling';
+    if (/girlfriend|boyfriend/.test(q)) return 'partner';
+    return 'someone special';
+}
+
+function buildStylingAdviceReply(text) {
+    const anchor = findProductByNameQuery(text);
+    const colors = extractColorsFromQuery(text);
+    if (anchor) {
+        const similar = getSimilarProducts(anchor, 4);
+        const anchorColors = extractColorsFromQuery(getProductSearchHaystack(anchor));
+        const tips = [
+            'Pair with **neutral tones** (cream, beige, white) for an elegant look.',
+            'Add **gold or statement accessories** to elevate ethnic pieces.',
+            'Match footwear to the occasion — flats for daily, heels for parties.'
+        ];
+        if (anchorColors.length) {
+            tips.unshift(`**${anchor.name}** comes in ${anchorColors.join(', ')} — try contrasting or tonal accessories.`);
+        }
+        return {
+            text: `**Style tips for ${anchor.name}:**\n\n${tips.map(t => `• ${t}`).join('\n')}\n\nSimilar picks you may like:`,
+            products: similar.length ? similar : [anchor],
+            totalCount: similar.length || 1
+        };
+    }
+    if (colors.length) {
+        const result = searchProductsAdvanced(`${colors[0]} outfit`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        return {
+            text: `**${colors[0].charAt(0).toUpperCase() + colors[0].slice(1)} styling:** Works well with neutrals, metallics, or complementary tones. Here are **${colors[0]}** picks from our catalog:`,
+            products: result.items,
+            totalCount: result.total,
+            filterMaxPrice: result.meta?.maxPrice ?? null
+        };
+    }
+    return {
+        text: '**Styling tips:**\n• Mention a **product name** for pairing advice\n• Ask e.g. *"red kurta under ₹1500"* or *"complete outfit under ₹3000"*\n• For weddings/parties, say the **occasion** + budget'
+    };
+}
+
+function searchFabricCareInCatalog(text) {
+    const q = (text || '').toLowerCase();
+    const fabricTerms = ['cotton', 'silk', 'linen', 'rayon', 'georgette', 'chiffon', 'velvet', 'wool', 'polyester', 'satin'];
+    const careTerms = ['wash', 'dry clean', 'iron', 'care'];
+    const terms = [...fabricTerms, ...careTerms].filter(t => q.includes(t));
+    const product = findProductByNameQuery(text);
+    if (product && product.description) {
+        const desc = product.description.slice(0, 280);
+        return {
+            text: `**${product.name}** — fabric & care from listing:\n\n${desc}${product.description.length > 280 ? '…' : ''}\n\nSee the product page for full details.`,
+            products: [product],
+            totalCount: 1
+        };
+    }
+    const list = (window.products || []).filter(p => {
+        const hay = `${p.description || ''} ${getProductSearchHaystack(p)}`.toLowerCase();
+        return terms.some(t => hay.includes(t));
+    });
+    if (list.length) {
+        return {
+            text: `Found **${list.length}** item${list.length === 1 ? '' : 's'} with fabric/care info matching your question:`,
+            products: list.slice(0, CHAT_PRODUCT_DISPLAY_LIMIT),
+            totalCount: list.length
+        };
+    }
+    return {
+        text: '**Fabric & care:** Details are on each product page (description + care notes). Tell me a **product name**, or say **Talk to admin** for specific fabric questions.'
+    };
+}
 const SUPPORT_CHANNEL = 'support';
 const AI_CHANNEL = 'ai';
 window.SUPPORT_CHANNEL = SUPPORT_CHANNEL;
@@ -744,6 +1203,9 @@ async function escalateSupportThread(threadId, reason) {
         escalateReason: reason || 'customer_request',
         escalatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('support_escalated', { reason: reason || 'customer_request' });
+    }
 }
 
 function isSupportChatOpen() {
@@ -851,8 +1313,8 @@ function extractMaxPrice(text) {
 
 function cleanProductSearchQuery(query) {
     return (query || '')
-        .replace(/suggest|recommend|show|more|under|below|outfits?|styles?|rs\.?|₹|please|help|want|need|find|another|other/gi, ' ')
-        .replace(/\d+/g, ' ')
+        .replace(/suggest|recommend|show|more|under|below|outfits?|styles?|rs\.?|₹|please|help|want|need|find|another|other|compare|similar|gift|complete|cheapest|premium|versus|vs\.?/gi, ' ')
+        .replace(/\b\d+\b/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
         .toLowerCase();
@@ -865,7 +1327,7 @@ function searchProducts(query, maxPrice, displayLimit = CHAT_PRODUCT_DISPLAY_LIM
         const price = Number(p.price) || 0;
         if (maxPrice != null && price > maxPrice) return false;
         if (!q) return true;
-        const hay = `${p.name} ${p.description || ''} ${p.categoryName || ''} ${typeof resolveProductCategoryLabel === 'function' ? resolveProductCategoryLabel(p) : ''}`.toLowerCase();
+        const hay = getProductSearchHaystack(p);
         return hay.includes(q) || q.split(/\s+/).some(w => w.length > 2 && hay.includes(w));
     });
     if (maxPrice != null) {
@@ -875,21 +1337,6 @@ function searchProducts(query, maxPrice, displayLimit = CHAT_PRODUCT_DISPLAY_LIM
         items: filtered.slice(0, displayLimit),
         total: filtered.length
     };
-}
-
-function buildExploreMoreHtml(total, shown, maxPrice) {
-    if (total <= shown) return '';
-    const more = total - shown;
-    const filterBtn = maxPrice != null
-        ? `<button type="button" class="btn-gold ai-chat-filter-btn" onclick="applyChatPriceFilter(${maxPrice})">Apply under ₹${maxPrice} filter</button>`
-        : '';
-    return `<div class="ai-chat-explore-hint" style="margin-top:8px;font-size:11px;color:#aaa;line-height:1.5;">
-        <strong style="color:var(--gold);">${more} more</strong> style${more > 1 ? 's' : ''} match — explore the full catalog or let me filter Home for you.
-        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-            ${filterBtn}
-            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>
-        </div>
-    </div>`;
 }
 
 window.applyChatPriceFilter = function(maxPrice) {
@@ -926,47 +1373,439 @@ function detectSupportIntent(text) {
     const q = text.toLowerCase().trim();
     const maxPrice = extractMaxPrice(text);
     if (/^(hi|hello|hey|namaste|good morning|good evening)\b/.test(q)) return 'greeting';
-    if (/talk to admin|human|agent|real person|speak to support|connect.*admin|live support/.test(q)) return 'human';
+    if (/^(pick\s*|select\s*|choose\s*)?#?([1-5])\b|^(the\s+)?(first|second|third|fourth|fifth)(\s+one)?\b/.test(q)) return 'pick_number';
+    if (/^(help|what can you help|what can you do|options|menu)\b/.test(q)) return 'help';
+    if (/browse categor|shop by categor|all categor|list categor/.test(q)) return 'category';
+    if (/offer|promo|coupon|discount|wheel|deal/.test(q)) return 'promo';
+    if (/deliver|shipping|dispatch|when will i get/.test(q)) return 'delivery';
+    if (/compare|versus|vs\.?\s+\w|difference between|which is (better|cheaper)/.test(q)) return 'compare';
+    if (/similar to|like this|alternative to|something like|alternate to|items like/.test(q)) return 'similar';
+    if (/complete (the )?look|full outfit|entire outfit|outfit combo|outfit under|complete outfit/.test(q)) return 'outfit_bundle';
+    if (/gift (for|idea)|present for|birthday gift|anniversary gift|gift under/.test(q)) return 'gift';
+    if (/what goes with|pair with|coordinate with|style (with|tip)|fashion advice|what color (goes|matches)|color combination/.test(q)) return 'styling_advice';
+    if (/cheapest|lowest price|most affordable|budget pick|under ₹?\d+.*cheapest/.test(q)) return 'cheapest';
+    if (/premium|luxury|most expensive|highest price|splurge|top tier/.test(q)) return 'premium';
+    if (/fabric|material|cotton|silk|linen|georgette|chiffon|wash|care instruction|dry clean|how to wash/.test(q)) return 'fabric_care';
+    if (/bulk order|wholesale|large quantity|corporate order|bulk purchase/.test(q)) return 'bulk';
+    const occasion = detectOccasionFromQuery(q);
+    if (occasion && /wear|outfit|dress|suggest|recommend|look|for/.test(q)) return { type: 'occasion', occasion };
+    if (extractColorsFromQuery(q).length >= 1 && (maxPrice != null || /under|below|in /.test(q))) return 'advanced_search';
+    if (/talk to admin|human|agent|real person|speak to support|connect.*admin|live support|contact support/.test(q)) return 'human';
+    if (/wrong item|wrong order|not what i ordered|missing item|damaged in delivery|order problem|issue with (my )?order|quality issue|defective item|product issue/.test(q)) return 'order_issue';
+    if (/tell me (more )?about|details on|info on|more on|question about|help with (this |a )?product|which product|about this product/.test(q)) return 'product_inquiry';
     if (/complaint|issue|problem|defect|damaged|wrong item|return|refund|complain/.test(q)) return 'complaint';
+    if (/my cart|what.?s in my cart|cart items|shopping cart/.test(q)) return 'cart';
+    if (/wishlist|wish list|saved items|heart list/.test(q)) return 'wishlist';
     if (/track|order status|where is my order|my order|track my order/.test(q)) return 'order';
     if (/contact|email|phone|call|whatsapp|support mail|contact support/.test(q)) return 'contact';
+    if (/cod|cash on delivery|upi advance|pay on delivery/.test(q)) return 'payment';
+    if (/payment|pay online|upi|card|how to pay|checkout/.test(q)) return 'payment';
+    if (/how to order|place order|how do i buy|how to shop/.test(q)) return 'how_to_order';
+    if (/sign in|login|log in|create account|register/.test(q)) return 'login';
+    if (/size guide|size chart|measurement|what size|fit guide/.test(q)) return 'size_guide';
+    if (/new arrival|what.?s new|latest|just launched|new in/.test(q)) return 'new_arrivals';
+    if (/in stock|available now|out of stock|stock/.test(q)) return 'stock';
+    if (/categor|collection|section/.test(q) && !/suggest|recommend|under/.test(q)) return 'category';
     if (/best seller|best sellers|best selling|top selling|popular picks|most popular/.test(q)) return 'best_sellers';
+    if (/all products?|full (catalog|list)|entire catalog|every product|whole catalog|complete (catalog|list)|products? list|give all|show all products?|list all products?|see all products?|browse all|view all products?|entire (stock|range|collection)/.test(q)) return 'full_catalog';
     if (maxPrice != null) return { type: 'price_filter', max: maxPrice };
-    if (/suggest|recommend|show me|outfit|dress|kurta|saree|product|styles/.test(q)) return 'suggest';
+    if (/suggest|recommend|show me|outfit|dress|kurta|saree|coord|shirt|product|styles|looking for/.test(q)) return 'suggest';
     if (/price|cost|how much|₹|budget|cheap|affordable/.test(q)) return 'price';
     return 'ai';
 }
 
-function buildProductCardsHtml(products) {
-    if (!products.length) return '<p style="margin:0;font-size:12px;color:#888;">No matching products found right now.</p>';
-    const cards = products.map(p => {
-        const img = (p.images && p.images[0]) || (p.variants && p.variants[0]?.images?.[0]) || '';
-        return `
-        <div class="ai-chat-product-card" onclick="showDetail('${p.id}'); toggleAIChat();">
-            ${img ? `<img src="${escHtml(img)}" alt="">` : `<div style="width:52px;height:52px;background:#222;border-radius:8px;display:flex;align-items:center;justify-content:center;"><i class="fa fa-shopping-bag" style="color:var(--gold);"></i></div>`}
+function getFullCatalogProducts(limit = CHAT_PRODUCT_QUERY_LIMIT) {
+    return (window.products || []).slice(0, limit);
+}
+
+function formatChatProductListIntro(count, label = 'product') {
+    if (!count) return '';
+    const plural = count === 1 ? label : `${label}s`;
+    const initial = Math.min(CHAT_PRODUCT_PAGE_SIZE, count);
+    if (count <= CHAT_PRODUCT_PAGE_SIZE) return `**${count}** ${plural}`;
+    return `**${count}** ${plural} — showing **${initial}** (tap **Show more** for ${CHAT_PRODUCT_PAGE_SIZE} more)`;
+}
+
+function chatCatalogOverflowExtra(total, stored, maxPrice) {
+    return stored < total ? buildExploreMoreHtml(total, stored, maxPrice) : '';
+}
+
+function getProductById(id) {
+    return (window.products || []).find(p => p.id === id) || null;
+}
+
+window.trackChatProductView = function(productId) {
+    if (!productId) return;
+    try {
+        const raw = JSON.parse(localStorage.getItem(CHAT_RECENT_VIEWS_KEY) || '[]');
+        const list = Array.isArray(raw) ? raw : [];
+        const next = [{ id: productId, ts: Date.now() }, ...list.filter(x => x.id !== productId)].slice(0, 12);
+        localStorage.setItem(CHAT_RECENT_VIEWS_KEY, JSON.stringify(next));
+    } catch (e) { /* ignore */ }
+};
+
+function getRecentlyViewedProductIds(limit = CHAT_PICK_CANDIDATE_LIMIT) {
+    try {
+        const raw = JSON.parse(localStorage.getItem(CHAT_RECENT_VIEWS_KEY) || '[]');
+        return (Array.isArray(raw) ? raw : [])
+            .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+            .map(x => x.id)
+            .filter(Boolean)
+            .slice(0, limit);
+    } catch (e) {
+        return [];
+    }
+}
+
+function recordChatProductSuggestion(products) {
+    const ids = (products || []).map(p => p.id).filter(Boolean);
+    if (!ids.length) return;
+    window.supportChatState.lastSuggestionIds = ids.slice(0, 20);
+    try {
+        const prev = JSON.parse(localStorage.getItem('swag_chat_last_picks') || '[]');
+        const merged = [...ids, ...(Array.isArray(prev) ? prev : [])];
+        localStorage.setItem('swag_chat_last_picks', JSON.stringify([...new Set(merged)].slice(0, 15)));
+    } catch (e) { /* ignore */ }
+}
+
+function getLastChatPickIds(limit = CHAT_PICK_CANDIDATE_LIMIT) {
+    const fromState = window.supportChatState.lastSuggestionIds || [];
+    if (fromState.length) return fromState.slice(0, limit);
+    try {
+        const raw = JSON.parse(localStorage.getItem('swag_chat_last_picks') || '[]');
+        return (Array.isArray(raw) ? raw : []).slice(0, limit);
+    } catch (e) {
+        return [];
+    }
+}
+
+function getSmartPickCandidates(limit = CHAT_PICK_CANDIDATE_LIMIT) {
+    const seen = new Set();
+    const out = [];
+    const addId = (id) => {
+        const p = getProductById(id);
+        if (!p || seen.has(p.id)) return;
+        seen.add(p.id);
+        out.push(p);
+    };
+    getLastChatPickIds(limit).forEach(addId);
+    getRecentlyViewedProductIds(limit).forEach(addId);
+    (window.cart || []).forEach(item => addId(item.productId || item.id));
+    if (window.supportChatState.selectedProductId) addId(window.supportChatState.selectedProductId);
+    return out.slice(0, limit);
+}
+
+function resolveChatListPickIndex(text) {
+    const q = (text || '').trim().toLowerCase();
+    const num = q.match(/^(?:pick\s*|select\s*|choose\s*|#)?([1-5])\b/);
+    if (num) return parseInt(num[1], 10) - 1;
+    const words = { first: 0, second: 1, third: 2, fourth: 3, fifth: 4, '1st': 0, '2nd': 1, '3rd': 2 };
+    for (const [word, idx] of Object.entries(words)) {
+        if (new RegExp(`^(the\\s+)?${word}(\\s+one)?\\b`).test(q)) return idx;
+    }
+    return null;
+}
+
+function resolveChatOrderPickIndex(text) {
+    const idx = resolveChatListPickIndex(text);
+    if (idx == null) return null;
+    const ids = window.supportChatState.lastOrderPickIds || [];
+    return idx < ids.length ? ids[idx] : null;
+}
+
+function buildPickListHint(pickable) {
+    if (!pickable) return '';
+    return '\n\n_Tap **Select** or reply **1–5** to choose._';
+}
+
+function buildProductDetailChatReply(p, context) {
+    const summary = getProductSizeColorSummary(p);
+    if (context === 'complaint') return buildComplaintAfterPickReply(p);
+    let text = `**${p.name}** — **₹${p.price}**${summary ? `\n${summary}` : ''}`;
+    text += context === 'size'
+        ? '\n\nOpen the product page for the full **Size Guide**.'
+        : '\n\nWhat would you like to do with this item?';
+    const extraHtml = `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="showDetail('${p.id}'); toggleAIChat();">View</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="showDetail('${p.id}'); toggleAIChat();">Add to cart</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Size guide for ${String(p.name).replace(/'/g, "\\'")}')">Sizes</button>
+        <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:5px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('I have a problem with ${String(p.name).replace(/'/g, "\\'")}')">Report issue</button>
+    </div>`;
+    return { text, products: [p], totalCount: 1, extraHtml };
+}
+
+function buildComplaintAfterPickReply(p) {
+    const draft = window.supportChatState.complaintDraft || '';
+    window.supportChatState.complaintDraft = '';
+    const contact = getContactInfo();
+    const issueHint = draft ? `\n\nYour note: _"${draft.slice(0, 120)}"_` : '';
+    const text = `Issue registered for **${p.name}** (₹${p.price}).${issueHint}\n\n**We can help with:** returns · exchanges · wrong/damaged items · size issues`;
+    const liveBtn = canUseStorefrontLiveSupport()
+        ? `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin:0;" onclick="switchSupportChatTab('admin'); sendChatMessageWithText('Issue with ${String(p.name).replace(/'/g, "\\'")}')">Open Live Support</button>`
+        : `<a href="https://wa.me/${contact.wa}?text=${encodeURIComponent('Issue with ' + p.name)}" target="_blank" style="font-size:10px;color:var(--gold);">WhatsApp</a>`;
+    return {
+        text,
+        products: [p],
+        totalCount: 1,
+        extraHtml: `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">${liveBtn}
+            <button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin:0;" onclick="sendChatMessageWithText('Similar to ${String(p.name).replace(/'/g, "\\'")}')">Similar styles</button></div>`
+    };
+}
+
+function buildProductPickerReply(title, products, pickMode) {
+    const picks = (products || []).slice(0, CHAT_PICK_CANDIDATE_LIMIT);
+    window.supportChatState.pendingPickAction = pickMode;
+    return {
+        text: `${title}${buildPickListHint(true)}`,
+        products: picks,
+        totalCount: picks.length,
+        pickMode,
+        pickable: true
+    };
+}
+
+async function getRecentOrdersForChat(limit = CHAT_PICK_CANDIDATE_LIMIT) {
+    if (!currentUser?.uid) return [];
+    if (Array.isArray(window.supportChatOrdersCache) && window.supportChatOrdersCache.length) {
+        return window.supportChatOrdersCache.slice(0, limit);
+    }
+    try {
+        const snap = await db.collection('orders').where('uid', '==', currentUser.uid).limit(20).get();
+        const orders = [];
+        snap.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+        orders.sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+        window.supportChatOrdersCache = orders;
+        return orders.slice(0, limit);
+    } catch (e) {
+        return [];
+    }
+}
+
+function buildOrderPickCardHtml(order, index) {
+    const items = Array.isArray(order.items) ? order.items : [];
+    const preview = items.slice(0, 2).map(i => i.name || 'Item').join(', ');
+    const more = items.length > 2 ? ` +${items.length - 2} more` : '';
+    const date = order.timestamp?.toDate ? order.timestamp.toDate().toLocaleDateString() : '';
+    const status = order.status || 'Processing';
+    const total = order.total != null ? `₹${order.total}` : '';
+    return `
+    <div class="ai-chat-order-pick-card">
+        <span class="ai-chat-pick-num">${index + 1}</span>
+        <div class="ai-chat-order-pick-info">
+            <div class="ai-chat-order-pick-id">Order #${escHtml(String(order.id).slice(-8).toUpperCase())}</div>
+            <div class="ai-chat-order-pick-meta">${escHtml(date)} · ${escHtml(status)}${total ? ` · ${total}` : ''}</div>
+            <div class="ai-chat-order-pick-items">${escHtml(preview)}${escHtml(more)}</div>
+        </div>
+        <button type="button" class="ai-chat-pick-btn" onclick="selectChatOrder('${escHtml(order.id)}', 'order_issue')">Select</button>
+    </div>`;
+}
+
+function appendOrderPickCards(orders) {
+    const body = getChatBody(AI_CHANNEL);
+    if (!body || !orders.length) return;
+    const list = orders.slice(0, CHAT_PICK_CANDIDATE_LIMIT);
+    window.supportChatState.lastOrderPickIds = list.map(o => o.id);
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-chat-order-pick-list';
+    wrap.style.cssText = 'margin:4px 0 8px 0;max-width:92%';
+    wrap.innerHTML = list.map((o, i) => buildOrderPickCardHtml(o, i)).join('');
+    body.appendChild(wrap);
+    body.scrollTop = body.scrollHeight;
+    window.supportChatState.pendingPickAction = 'order_issue';
+}
+
+window.selectChatOrder = async function(orderId) {
+    const orders = window.supportChatOrdersCache || [];
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    window.supportChatState.selectedOrderId = orderId;
+    window.supportChatState.pendingPickAction = null;
+    appendSupportBubble('customer', `Selected order #${String(orderId).slice(-8).toUpperCase()}`, '', AI_CHANNEL);
+    const items = Array.isArray(order.items) ? order.items : [];
+    const products = items.map(i => getProductById(i.productId || i.id)).filter(Boolean);
+    if (products.length) {
+        const reply = buildProductPickerReply('**Order selected.** Which item is the issue about?', products, 'complaint');
+        appendSupportBubble('bot', reply.text, '', AI_CHANNEL);
+        appendSupportProductCards(reply.products, AI_CHANNEL, { pickMode: 'complaint', pickable: true });
+    } else {
+        appendSupportBubble('bot',
+            `**Order #${String(orderId).slice(-8).toUpperCase()}** — ${order.status || 'Processing'}.\n\nDescribe the issue below.`,
+            canUseStorefrontLiveSupport()
+                ? `<button type="button" class="btn-gold ai-chat-filter-btn" style="margin-top:8px;width:auto;padding:6px 10px;font-size:10px;" onclick="switchSupportChatTab('admin')">Live Support</button>`
+                : getContactInfoHtml(),
+            AI_CHANNEL
+        );
+    }
+};
+
+window.selectChatProduct = async function(productId, pickMode) {
+    const p = getProductById(productId);
+    if (!p) {
+        if (typeof showToast === 'function') showToast('Product not found');
+        return;
+    }
+    window.supportChatState.selectedProductId = productId;
+    const mode = pickMode || window.supportChatState.pendingPickAction || 'browse';
+    window.supportChatState.pendingPickAction = null;
+    await handleChatProductSelection(p, mode);
+};
+
+async function handleChatProductSelection(product, mode) {
+    const p = typeof product === 'string' ? getProductById(product) : product;
+    if (!p) return;
+    const threadId = getCurrentCustomerThreadId();
+    appendSupportBubble('customer', `Selected: ${p.name}`, '', AI_CHANNEL);
+    try {
+        await persistAiChatMessage(threadId, { sender: 'customer', text: `Selected: ${p.name}`, type: 'text' });
+    } catch (e) { /* ignore */ }
+    const reply = (mode === 'complaint' || mode === 'order_issue')
+        ? buildComplaintAfterPickReply(p)
+        : buildProductDetailChatReply(p, mode === 'size' ? 'size' : 'browse');
+    appendSupportBubble('bot', reply.text, reply.extraHtml || '', AI_CHANNEL);
+    if (reply.products?.length) {
+        appendSupportProductCards(reply.products, AI_CHANNEL, { pickMode: 'browse', pickable: false });
+    }
+    try {
+        await persistAiChatMessage(threadId, { sender: 'bot', text: reply.text, ...buildAiPersistMeta(reply) });
+    } catch (e) { /* ignore */ }
+}
+
+function getChatProductImage(p) {
+    if (!p) return '';
+    return (p.images && p.images[0]) || (p.variants && p.variants[0]?.images?.[0]) || '';
+}
+
+window.supportChatProductLists = window.supportChatProductLists || {};
+
+function registerChatProductList(productIds, opts = {}) {
+    const id = 'cpl_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+    const ids = (productIds || []).filter(Boolean).slice(0, CHAT_PRODUCT_QUERY_LIMIT);
+    window.supportChatProductLists[id] = {
+        ids,
+        shown: Math.min(CHAT_PRODUCT_PAGE_SIZE, ids.length),
+        pickMode: opts.pickMode || 'browse',
+        pickable: opts.pickable !== false
+    };
+    return id;
+}
+
+function getProductsForChatList(listId) {
+    const state = window.supportChatProductLists[listId];
+    if (!state) return [];
+    const catalog = window.products || [];
+    return state.ids.map(pid => catalog.find(p => p.id === pid)).filter(Boolean);
+}
+
+function buildSingleProductCardHtml(p, index, opts = {}) {
+    const pickMode = opts.pickMode || 'browse';
+    const pickable = opts.pickable !== false;
+    const num = typeof index === 'number' ? index + 1 : null;
+    const numBadge = num != null ? `<span class="ai-chat-pick-num">${num}</span>` : '';
+    const img = getChatProductImage(p);
+    const thumb = img
+        ? `<div class="ai-chat-product-card-img-wrap"><img src="${escHtml(img)}" alt="${escHtml(p.name || 'Product')}" loading="lazy"></div>`
+        : `<div class="ai-chat-product-card-img-wrap ai-chat-product-card-img-wrap--empty"><i class="fa fa-shopping-bag" style="color:var(--gold);"></i></div>`;
+    const safeName = String(p.name || '').replace(/'/g, "\\'");
+    const actions = pickable
+        ? `<div class="ai-chat-product-actions">
+            <button type="button" class="ai-chat-pick-btn" onclick="event.stopPropagation(); selectChatProduct('${p.id}', '${pickMode}')">Select</button>
+            <button type="button" class="ai-chat-view-btn" onclick="event.stopPropagation(); showDetail('${p.id}'); toggleAIChat();">View</button>
+           </div>`
+        : `<div class="ai-chat-product-btn" onclick="event.stopPropagation(); showDetail('${p.id}'); toggleAIChat();">View product →</div>`;
+  return `
+        <div class="ai-chat-product-card${pickable ? ' ai-chat-product-card--pickable' : ''}">
+            ${numBadge}
+            ${thumb}
             <div class="ai-chat-product-info">
                 <div class="ai-chat-product-name">${escHtml(p.name)}</div>
                 <div class="ai-chat-product-price">₹${p.price}</div>
-                <div class="ai-chat-product-btn">View product →</div>
+                ${actions}
             </div>
         </div>`;
-    }).join('');
-    const scrollClass = products.length > 4 ? ' ai-chat-product-scroll' : '';
-    return `<div class="${scrollClass.trim()}">${cards}</div>`;
+}
+
+function buildShowMoreButtonHtml(listId, shown, total) {
+    const remaining = total - shown;
+    if (remaining <= 0) return '';
+    const next = Math.min(CHAT_PRODUCT_PAGE_SIZE, remaining);
+    return `<button type="button" class="btn-gold ai-chat-show-more-btn" data-list-id="${escHtml(listId)}" onclick="showMoreChatProducts('${escHtml(listId)}')">Show more (${shown} of ${total} · +${next})</button>`;
+}
+
+function buildPaginatedProductListHtml(listId) {
+    const state = window.supportChatProductLists[listId];
+    if (!state) return '';
+    const all = getProductsForChatList(listId);
+    const visible = all.slice(0, state.shown);
+    const cardOpts = { pickMode: state.pickMode || 'browse', pickable: state.pickable !== false };
+    const cards = visible.map((p, i) => buildSingleProductCardHtml(p, i, cardOpts)).join('');
+    const showMore = buildShowMoreButtonHtml(listId, state.shown, all.length);
+    const endHint = !showMore && all.length > CHAT_PRODUCT_PAGE_SIZE
+        ? `<p class="ai-chat-list-end-hint">All ${all.length} products shown</p>`
+        : '';
+    return `<div class="ai-chat-product-list" id="${escHtml(listId)}">${cards}${showMore}${endHint}</div>`;
+}
+
+window.showMoreChatProducts = function(listId) {
+    const state = window.supportChatProductLists[listId];
+    const container = document.getElementById(listId);
+    if (!state || !container) return;
+    const all = getProductsForChatList(listId);
+    const prevShown = state.shown;
+    state.shown = Math.min(state.shown + CHAT_PRODUCT_PAGE_SIZE, all.length);
+    const newItems = all.slice(prevShown, state.shown);
+    const cardOpts = { pickMode: state.pickMode || 'browse', pickable: state.pickable !== false };
+
+    container.querySelectorAll('.ai-chat-show-more-btn, .ai-chat-list-end-hint').forEach(el => el.remove());
+
+    if (newItems.length) {
+        container.insertAdjacentHTML('beforeend', newItems.map((p, i) => buildSingleProductCardHtml(p, prevShown + i, cardOpts)).join(''));
+    }
+
+    const showMore = buildShowMoreButtonHtml(listId, state.shown, all.length);
+    if (showMore) {
+        container.insertAdjacentHTML('beforeend', showMore);
+    } else if (all.length > CHAT_PRODUCT_PAGE_SIZE) {
+        container.insertAdjacentHTML('beforeend', `<p class="ai-chat-list-end-hint">All ${all.length} products shown</p>`);
+    }
+
+    const body = getChatBody(AI_CHANNEL);
+    if (body) body.scrollTop = body.scrollHeight;
+};
+
+function buildProductCardsHtml(products, opts = {}) {
+    if (!products.length) return '<p style="margin:0;font-size:12px;color:#888;">No matching products found right now.</p>';
+    const listId = registerChatProductList(products.map(p => p.id), opts);
+    return buildPaginatedProductListHtml(listId);
+}
+
+function buildExploreMoreHtml(total, storedCount, maxPrice) {
+    if (total <= storedCount) return '';
+    const more = total - storedCount;
+    const filterBtn = maxPrice != null
+        ? `<button type="button" class="btn-gold ai-chat-filter-btn" onclick="applyChatPriceFilter(${maxPrice})">Apply under ₹${maxPrice} filter</button>`
+        : '';
+    return `<div class="ai-chat-explore-hint" style="margin-top:8px;font-size:11px;color:#aaa;line-height:1.5;">
+        <strong style="color:var(--gold);">${more} more</strong> style${more > 1 ? 's' : ''} in catalog — open Home to browse all, or refine your search.
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+            ${filterBtn}
+            <button type="button" class="btn-gold ai-chat-filter-btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>
+        </div>
+    </div>`;
 }
 
 function renderSupportQuickChips(tab) {
     const container = document.getElementById('ai-chat-chips');
     if (!container) return;
-    let chips = tab === 'admin' ? ADMIN_SUPPORT_CHIPS.slice() : AI_SUPPORT_CHIPS.slice();
+    let chips = tab === 'admin' ? ADMIN_SUPPORT_CHIPS.slice() : getAiSupportChipsFromSettings();
     if (tab === 'ai' && !isAdminSupportChatEnabled()) {
-        chips = chips.filter(chip => chip !== 'Contact support');
+        chips = chips.filter(chip => !/talk to admin|contact support|live support/i.test(chip));
     }
     container.style.display = chips.length ? 'flex' : 'none';
     container.innerHTML = chips.map(chip =>
         `<div class="ai-chat-chip" onclick="sendChatMessageWithText('${chip.replace(/'/g, "\\'")}')">${escHtml(chip)}</div>`
     ).join('');
 }
+window.renderSupportQuickChips = renderSupportQuickChips;
 
 function updateSupportChatTabUI(tab) {
     window.supportChatState.activeTab = tab;
@@ -997,6 +1836,7 @@ window.switchSupportChatTab = function(tab) {
     updateSupportChatTabUI(tab);
     showChatBodyForTab(tab);
     if (tab === 'admin') {
+        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('live_support_tab');
         const body = getChatBody(SUPPORT_CHANNEL);
         const hasAdminHint = body && body.querySelector('[data-admin-tab-hint]');
         if (body && !hasAdminHint && body.childElementCount === 0) {
@@ -1059,13 +1899,17 @@ function appendSupportBubble(sender, text, htmlExtra, channel) {
     }
 }
 
-function appendSupportProductCards(products, channel) {
+function appendSupportProductCards(products, channel, opts = {}) {
     const body = getChatBody(channel || AI_CHANNEL);
     if (!body) return;
+    const list = (products || []).filter(Boolean);
+    if (!list.length) return;
+    recordChatProductSuggestion(list);
     const wrap = document.createElement('div');
+    wrap.className = 'ai-chat-product-list-wrap';
     wrap.style.margin = '4px 0 8px 0';
     wrap.style.maxWidth = '92%';
-    wrap.innerHTML = buildProductCardsHtml(products);
+    wrap.innerHTML = buildProductCardsHtml(list, opts);
     body.appendChild(wrap);
     body.scrollTop = body.scrollHeight;
 }
@@ -1076,10 +1920,294 @@ async function generateSmartSupportReply(userText) {
 
     if (intent === 'greeting') {
         return {
-            text: "Hello! Welcome to **Swag Stree**. I can help with outfit suggestions, prices, orders, or connect you with our team. What are you looking for today?"
+            text: "Hello! Welcome to **Swag Stree**. I can help with **products**, **prices**, **orders**, **cart**, and **styling tips**. What are you looking for today?",
+            extraHtml: buildChatHelpMenuHtml()
+        };
+    }
+    if (intent === 'help') {
+        const cats = getCatalogCategoriesForChat(6);
+        const range = getCatalogPriceRange();
+        const rangeTxt = range ? ` Prices from **₹${range.min}** to **₹${range.max}**.` : '';
+        const catTxt = cats.length ? `\n\n**Shop by category:** ${cats.join(', ')}` : '';
+        return {
+            text: `I can help you with:${rangeTxt}\n\n• **Product suggestions** — tap **Select** on any result (or reply **1–5**)\n• **Issues & complaints** — pick the product, then get help\n• **Advanced:** compare, similar, gifts, outfits, occasion wear\n• **Orders**, **cart**, **payment / COD**\n• **Talk to admin** for live help${catTxt}`,
+            extraHtml: buildChatHelpMenuHtml()
+        };
+    }
+    if (intent === 'cart') {
+        const cart = getCartSummaryForChat();
+        if (cart.empty) {
+            return {
+                text: 'Your **cart is empty**. Browse Home or ask me for suggestions — e.g. *Best sellers* or *Suggest outfits under ₹1000*.',
+                extraHtml: `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>`
+            };
+        }
+        const lines = cart.items.map(i => `• ${i.name} (×${i.qty || 1}) — ₹${(Number(i.price) || 0) * (i.qty || 1)}`).join('\n');
+        return {
+            text: `**Your cart** (${cart.count} item${cart.count === 1 ? '' : 's'}) — total **₹${cart.total}**:\n${lines}\n\nTap the cart icon to checkout when ready.`,
+            extraHtml: `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="if(typeof openCart==='function')openCart(); toggleAIChat();">Open cart</button>`
+        };
+    }
+    if (intent === 'wishlist') {
+        const count = getWishlistCountForChat();
+        return {
+            text: count > 0
+                ? `You have **${count} item${count === 1 ? '' : 's'}** in your wishlist. Open the **Wish** tab to view them.`
+                : 'Your **wishlist is empty**. Tap the heart on any product to save it for later.',
+            extraHtml: `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('wish'); toggleAIChat();">Open Wishlist</button>`
+        };
+    }
+    if (intent === 'payment' || intent === 'how_to_order') {
+        const promos = getActivePromoHints();
+        const promoTxt = promos.length ? `\n\n**Active promo codes:** ${promos.map(c => `\`${c}\``).join(', ')}` : '\n\nTry code **WELCOME10** or spin the **Discount Wheel** on Home.';
+        return {
+            text: intent === 'how_to_order'
+                ? `**How to order:**\n1. Browse Home & tap a product\n2. Pick size/color → **Add to cart**\n3. Open cart → **Checkout**\n4. Enter address & pay (UPI / card / **COD**)\n\nSigned-in users can track orders in **Profile → My Orders**.${promoTxt}`
+                : `**Payment options:** UPI, cards & **COD** (Cash on Delivery). Some COD orders may need a small UPI advance — shown at checkout.${promoTxt}`,
+            extraHtml: `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('home'); toggleAIChat();">Start shopping</button>`
+        };
+    }
+    if (intent === 'login') {
+        return {
+            text: currentUser
+                ? `You're **signed in** as ${currentUser.email || 'your account'}. Open **Profile** for orders, wishlist & account settings.`
+                : '**Sign in** to track orders, save your wishlist & checkout faster. Guest checkout is also available.',
+            extraHtml: currentUser
+                ? `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('user'); toggleAIChat();">Open Profile</button>`
+                : `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('user'); toggleAIChat();">Sign in</button>`
+        };
+    }
+    if (intent === 'size_guide') {
+        const product = findProductByNameQuery(userText);
+        if (product) {
+            const summary = getProductSizeColorSummary(product);
+            return {
+                text: `**${product.name}** — ₹${product.price}${summary ? `\n${summary}` : ''}\n\nOpen the product page for the full **Size Guide** and measurements.`,
+                products: [product],
+                totalCount: 1
+            };
+        }
+        return {
+            text: '**Size guide:** Open any product → tap **Size Guide** on the product page for measurements.\n\nTell me a **product name** and I can list available sizes & colors from our catalog.'
+        };
+    }
+    if (intent === 'promo') {
+        const promos = getActivePromoHints();
+        const promoTxt = promos.length
+            ? `**Active promo codes:** ${promos.map(c => `\`${c}\``).join(', ')}`
+            : 'Try code **WELCOME10** for 10% off.';
+        return {
+            text: `${promoTxt}\n\nYou can also spin the **Discount Wheel** on Home for surprise offers. Codes apply at checkout.`,
+            extraHtml: `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('home'); toggleAIChat();">Go to Home</button>`
+        };
+    }
+    if (intent === 'delivery') {
+        return {
+            text: '**Delivery:** Timelines depend on your location and order status.\n\n• Signed-in customers: **Profile → My Orders** for updates\n• Guest orders: sign in with the same email used at checkout\n• Need help? Say **Track my order** or **Talk to admin**'
+        };
+    }
+    if (intent === 'compare') {
+        const pair = findProductsForComparison(userText);
+        if (pair.length >= 2) {
+            const text = buildProductComparisonText(pair);
+            return { text, products: pair, totalCount: 2 };
+        }
+        if (pair.length === 1) {
+            const similar = getSimilarProducts(pair[0], 4);
+            return {
+                text: `I found **${pair[0].name}** (₹${pair[0].price}). Name a **second product** to compare, or browse similar styles:`,
+                products: similar.length ? similar : [pair[0]],
+                totalCount: similar.length || 1
+            };
+        }
+        return {
+            text: '**Compare products:** Ask e.g. *"Compare [product A] and [product B]"* or *"[name] vs [name]"*. I\'ll show price, sizes & colors side by side.'
+        };
+    }
+    if (intent === 'similar') {
+        const anchor = findProductByNameQuery(userText.replace(/similar to|like this|alternative to|something like|alternate to|items like/gi, ''));
+        if (!anchor) {
+            return { text: 'Tell me a **product name** — e.g. *"Similar to Blue Floral Kurta"* — and I\'ll find matching styles.' };
+        }
+        const similar = getSimilarProducts(anchor);
+        return {
+            text: similar.length
+                ? `Styles **similar to ${anchor.name}** (₹${anchor.price}):`
+                : `No close matches yet for **${anchor.name}**. Try browsing the same category on Home.`,
+            products: similar.length ? similar : [anchor],
+            totalCount: similar.length || 1
+        };
+    }
+    if (intent === 'outfit_bundle') {
+        const budget = extractMaxPrice(userText) || 3000;
+        const bundle = buildOutfitBundleUnderBudget(budget);
+        const lines = bundle.items.map(p => `• ${p.name} — ₹${p.price}`).join('\n');
+        return {
+            text: bundle.partial
+                ? `Couldn't build a full multi-piece look under **₹${budget}** — here are top picks within budget (total ₹${bundle.total}):`
+                : `**Complete look under ₹${budget}** (total **₹${bundle.total}**):\n${lines}\n\nMix & match — tap any item for sizes & colors.`,
+            products: bundle.items,
+            totalCount: bundle.items.length,
+            filterMaxPrice: budget
+        };
+    }
+    if (intent === 'gift') {
+        const max = extractMaxPrice(userText) || 1500;
+        const recipient = getGiftRecipientHint(userText);
+        const result = searchProductsAdvanced(`gift festive elegant under ${max}`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const items = result.items.length ? result.items : getBestSellerProducts().filter(p => (Number(p.price) || 0) <= max);
+        return {
+            text: items.length
+                ? `**Gift ideas for ${recipient}** under **₹${max}** — popular picks customers love:`
+                : `No gifts under **₹${max}** right now. Try a higher budget or *Best sellers*.`,
+            products: items,
+            totalCount: items.length,
+            filterMaxPrice: max
+        };
+    }
+    if (typeof intent === 'object' && intent.type === 'occasion') {
+        const max = extractMaxPrice(userText);
+        const occLabel = intent.occasion.charAt(0).toUpperCase() + intent.occasion.slice(1);
+        const searchText = `${intent.occasion} wear outfit ${max ? `under ${max}` : ''}`;
+        const result = searchProductsAdvanced(searchText, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const items = result.items.length ? result.items : searchProducts(searchText, max).items;
+        return {
+            text: items.length
+                ? `**${occLabel} wear** picks${max ? ` under **₹${max}**` : ''}:`
+                : `No exact **${occLabel.toLowerCase()}** matches — try a higher budget or browse **Best sellers**.`,
+            products: items,
+            totalCount: result.total || items.length,
+            filterMaxPrice: max
+        };
+    }
+    if (intent === 'styling_advice') {
+        return buildStylingAdviceReply(userText);
+    }
+    if (intent === 'cheapest') {
+        const max = extractMaxPrice(userText);
+        let items = getCheapestProducts();
+        if (max != null) items = items.filter(p => (Number(p.price) || 0) <= max);
+        return {
+            text: items.length
+                ? `**Most affordable** picks${max ? ` under **₹${max}**` : ''} in our catalog:`
+                : 'Catalog is loading — try again in a moment.',
+            products: items,
+            totalCount: items.length,
+            filterMaxPrice: max
+        };
+    }
+    if (intent === 'premium') {
+        const items = getPremiumProducts();
+        return {
+            text: items.length ? '**Premium / top-priced** styles in our catalog:' : 'Catalog is loading.',
+            products: items,
+            totalCount: items.length
+        };
+    }
+    if (intent === 'fabric_care') {
+        return searchFabricCareInCatalog(userText);
+    }
+    if (intent === 'bulk') {
+        const contact = getContactInfo();
+        return {
+            text: `**Bulk / wholesale orders:** For large quantities or corporate gifting, our team can help with pricing & availability.\n\n• **Talk to admin** (Live Support tab)\n• WhatsApp: wa.me/${contact.wa}\n• Email: ${contact.email}`,
+            extraHtml: canUseStorefrontLiveSupport()
+                ? `<button class="btn-gold" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="switchSupportChatTab('admin')">Open Live Support</button>`
+                : `<a href="https://wa.me/${contact.wa}" target="_blank" style="font-size:10px;color:var(--gold);">WhatsApp us</a>`
+        };
+    }
+    if (intent === 'advanced_search') {
+        const result = searchProductsAdvanced(userText, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const { items, total, meta } = result;
+        const parts = [];
+        if (meta.colors?.length) parts.push(meta.colors.join(', '));
+        if (meta.maxPrice != null) parts.push(`under ₹${meta.maxPrice}`);
+        if (meta.minPrice != null) parts.push(`above ₹${meta.minPrice}`);
+        if (meta.occasion) parts.push(`${meta.occasion} wear`);
+        const filterDesc = parts.length ? ` (${parts.join(', ')})` : '';
+        return {
+            text: items.length
+                ? `Found ${formatChatProductListIntro(total, 'match')}${filterDesc}:`
+                : `No exact matches${filterDesc}. Try fewer filters or browse **Best sellers**.`,
+            products: items,
+            totalCount: total,
+            filterMaxPrice: meta.maxPrice ?? null,
+            extraHtml: chatCatalogOverflowExtra(total, items.length, meta.maxPrice ?? null)
+        };
+    }
+    if (intent === 'full_catalog') {
+        const catalogTotal = (window.products || []).length;
+        const all = getFullCatalogProducts();
+        return {
+            text: all.length
+                ? `Here is our **full catalog** — ${formatChatProductListIntro(catalogTotal || all.length)}:`
+                : 'Products are still loading — try again in a moment, or browse Home.',
+            products: all,
+            totalCount: catalogTotal || all.length,
+            extraHtml: chatCatalogOverflowExtra(catalogTotal, all.length, null)
+        };
+    }
+    if (intent === 'new_arrivals') {
+        const matched = getNewArrivalProducts();
+        return {
+            text: matched.length
+                ? `Here are our **latest arrivals** — ${formatChatProductListIntro(matched.length, 'item')}:`
+                : 'Products are still loading — try again in a moment, or browse Home.',
+            products: matched,
+            totalCount: matched.length
+        };
+    }
+    if (intent === 'stock') {
+        const inStock = getInStockProducts();
+        const oos = (window.products || []).length - inStock.length;
+        if (/out of stock|sold out/.test(userText.toLowerCase())) {
+            return { text: 'Out-of-stock items are marked on the product page. Try another size/color or ask for **similar styles**.' };
+        }
+        return {
+            text: inStock.length
+                ? `${formatChatProductListIntro(inStock.length, 'style')} in stock right now${oos > 0 ? ` (${oos} may be limited)` : ''}:`
+                : 'Catalog is loading — check Home in a moment.',
+            products: inStock,
+            totalCount: inStock.length
+        };
+    }
+    if (intent === 'category') {
+        const cats = getCatalogCategoriesForChat();
+        const q = userText.replace(/categor|collection|section|show|browse|in/gi, ' ').trim();
+        const result = q.length > 2 ? searchProductsByCategory(q) : { items: [], total: 0 };
+        if (result.items.length) {
+            return {
+                text: `${formatChatProductListIntro(result.total, 'product')} in matching categories:`,
+                products: result.items,
+                totalCount: result.total,
+                extraHtml: chatCatalogOverflowExtra(result.total, result.items.length, null)
+            };
+        }
+        return {
+            text: cats.length
+                ? `**Browse by category:** ${cats.join(' · ')}\n\nTell me a category name (e.g. "kurta sets") for picks.`
+                : 'Categories are loading — browse **Home** or ask for *Best sellers*.',
+            extraHtml: `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('home'); toggleAIChat();">Browse Home</button>`
         };
     }
     if (intent === 'human' || intent === 'complaint') {
+        const namedProduct = findProductByNameQuery(userText);
+        if (intent === 'complaint' && namedProduct) {
+            window.supportChatState.complaintDraft = userText;
+            return buildComplaintAfterPickReply(namedProduct);
+        }
+        if (intent === 'complaint') {
+            let picks = getSmartPickCandidates();
+            if (!picks.length) picks = getBestSellerProducts(CHAT_PICK_CANDIDATE_LIMIT);
+            if (picks.length) {
+                window.supportChatState.complaintDraft = userText;
+                return buildProductPickerReply(
+                    "Sorry to hear that. **Which product** is this about?",
+                    picks,
+                    'complaint'
+                );
+            }
+        }
         if (canUseStorefrontLiveSupport()) {
             return {
                 text: "For **live help from our team**, please open the **Live Support** tab above.",
@@ -1104,6 +2232,45 @@ async function generateSmartSupportReply(userText) {
             </div>`
         };
     }
+    if (intent === 'order_issue') {
+        window.supportChatState.complaintDraft = userText;
+        const namedProduct = findProductByNameQuery(userText);
+        if (namedProduct) return buildComplaintAfterPickReply(namedProduct);
+        if (currentUser) {
+            const orders = await getRecentOrdersForChat();
+            if (orders.length) {
+                return {
+                    text: `Sorry you're having an order issue. **Pick your order** below${buildPickListHint(true)}:`,
+                    orderPick: orders,
+                    pickable: true
+                };
+            }
+        }
+        const picks = getSmartPickCandidates().length
+            ? getSmartPickCandidates()
+            : getBestSellerProducts(CHAT_PICK_CANDIDATE_LIMIT);
+        if (picks.length) {
+            return buildProductPickerReply('**Which product** from your order is affected?', picks, 'complaint');
+        }
+        return {
+            text: currentUser
+                ? 'Please **sign in** and open **Profile → My Orders**, or describe the product name here.'
+                : '**Sign in** to link your orders, or tell me the **product name** for help.',
+            extraHtml: `<button type="button" class="btn-gold ai-chat-filter-btn" style="width:auto;padding:6px 10px;font-size:10px;margin-top:8px;" onclick="navigateTo('user'); toggleAIChat();">Profile / Sign in</button>`
+        };
+    }
+    if (intent === 'product_inquiry') {
+        const named = findProductByNameQuery(userText);
+        if (named) return buildProductDetailChatReply(named, 'browse');
+        const picks = getSmartPickCandidates();
+        if (picks.length) {
+            return buildProductPickerReply('**Which product** would you like to know about?', picks, 'browse');
+        }
+        return { text: 'Tell me a **product name**, or search first (e.g. *Best sellers*) then tap **Select** on a item.' };
+    }
+    if (intent === 'pick_number') {
+        return { text: '', pickIntercept: true };
+    }
     if (intent === 'order') {
         return {
             text: currentUser
@@ -1124,32 +2291,33 @@ async function generateSmartSupportReply(userText) {
     }
     if (intent === 'best_sellers') {
         const matched = getBestSellerProducts();
-        const catalogTotal = (window.products || []).length;
         return {
             text: matched.length
-                ? `Here are our **${matched.length} best-selling pick${matched.length > 1 ? 's' : ''}** right now:`
+                ? `Here are our **best-selling picks** — ${formatChatProductListIntro(matched.length, 'pick')}:`
                 : 'Products are still loading — try again in a moment, or browse Home.',
             products: matched,
-            totalCount: catalogTotal,
-            extraHtml: matched.length >= CHAT_PRODUCT_DISPLAY_LIMIT && catalogTotal > matched.length
-                ? buildExploreMoreHtml(catalogTotal, matched.length, null)
-                : ''
+            totalCount: matched.length
         };
     }
     if (intent === 'suggest' || intent === 'price') {
         const max = extractMaxPrice(userText);
-        const result = searchProducts(userText, max);
-        const { items, total } = result;
+        const advanced = searchProductsAdvanced(userText, CHAT_PRODUCT_DISPLAY_LIMIT);
+        const result = advanced.items.length ? advanced : searchProducts(userText, max);
+        const items = result.items || result;
+        const total = result.total ?? items.length;
+        const budgetTxt = max != null ? ` under **₹${max}**` : '';
         return {
             text: items.length
-                ? `Showing **${items.length}${total > items.length ? ` of ${total}` : ''}** style${total !== 1 ? 's' : ''}${max != null ? ` under **₹${max}**` : ''}:`
+                ? `Showing ${formatChatProductListIntro(total, 'style')}${budgetTxt}:${buildPickListHint(true)}`
                 : max != null
                     ? `No products under **₹${max}** right now. Try a higher budget or browse Home.`
                     : "I couldn't find an exact match. Try a product name, color, or budget (e.g. under ₹800).",
             products: items,
             totalCount: total,
             filterMaxPrice: max,
-            extraHtml: buildExploreMoreHtml(total, items.length, max)
+            pickMode: 'browse',
+            pickable: true,
+            extraHtml: chatCatalogOverflowExtra(total, items.length, max)
         };
     }
     if (typeof intent === 'object' && intent.type === 'price_filter') {
@@ -1157,12 +2325,12 @@ async function generateSmartSupportReply(userText) {
         const { items, total } = result;
         return {
             text: items.length
-                ? `Showing **${items.length} of ${total}** styles under **₹${intent.max}**:`
+                ? `Showing ${formatChatProductListIntro(total, 'style')} under **₹${intent.max}**:`
                 : `No products under **₹${intent.max}** right now. Try a higher budget or browse our full catalog.`,
             products: items,
             totalCount: total,
             filterMaxPrice: intent.max,
-            extraHtml: buildExploreMoreHtml(total, items.length, intent.max)
+            extraHtml: chatCatalogOverflowExtra(total, items.length, intent.max)
         };
     }
 
@@ -1182,32 +2350,70 @@ async function generateSmartSupportReply(userText) {
 
 function generateLocalFallbackReply(userText) {
     const q = (userText || '').toLowerCase();
-    if (/^(hi|hello|hey|namaste)\b/.test(q.trim())) {
-        return { text: "Hello! Welcome to **Swag Stree**. Ask for outfit suggestions, prices, order help, or say **Talk to admin** for live support." };
+    if (/^(hi|hello|hey|namaste|help)\b/.test(q.trim())) {
+        return {
+            text: "Hello! Welcome to **Swag Stree**. Ask for outfit suggestions, prices, orders, cart, or say **Talk to admin** for live support.",
+            extraHtml: buildChatHelpMenuHtml()
+        };
+    }
+    if (/all products?|full catalog|products? list|give all|show all products?|list all|entire catalog/.test(q)) {
+        const catalogTotal = (window.products || []).length;
+        const all = getFullCatalogProducts();
+        return {
+            text: all.length
+                ? `Here is our **full catalog** — ${formatChatProductListIntro(catalogTotal || all.length)}:`
+                : 'Products are still loading — try again in a moment.',
+            products: all,
+            totalCount: catalogTotal || all.length,
+            extraHtml: chatCatalogOverflowExtra(catalogTotal, all.length, null)
+        };
     }
     const max = extractMaxPrice(userText);
+    const advanced = searchProductsAdvanced(userText, CHAT_PRODUCT_DISPLAY_LIMIT);
+    if (advanced.items.length) {
+        const { items, total, meta } = advanced;
+        const parts = [];
+        if (meta.colors?.length) parts.push(meta.colors.join(', '));
+        if (meta.maxPrice != null) parts.push(`under ₹${meta.maxPrice}`);
+        const filterDesc = parts.length ? ` (${parts.join(', ')})` : '';
+        return {
+            text: `Here are ${formatChatProductListIntro(total, 'item')} that may match${filterDesc}:`,
+            products: items,
+            totalCount: total,
+            filterMaxPrice: meta.maxPrice ?? max,
+            extraHtml: chatCatalogOverflowExtra(total, items.length, meta.maxPrice ?? max)
+        };
+    }
     const result = searchProducts(userText.replace(/help|please|want|need|show|find/gi, ''), max);
     const { items, total } = result;
     if (items.length) {
         return {
-            text: `Here are **${items.length}${total > items.length ? ` of ${total}` : ''} item${total !== 1 ? 's' : ''}** that may match${max != null ? ` under ₹${max}` : ''}:`,
+            text: `Here are ${formatChatProductListIntro(total, 'item')} that may match${max != null ? ` under ₹${max}` : ''}:`,
             products: items,
             totalCount: total,
             filterMaxPrice: max,
-            extraHtml: buildExploreMoreHtml(total, items.length, max)
+            extraHtml: chatCatalogOverflowExtra(total, items.length, max)
         };
     }
     if (/size|fit|measurement/.test(q)) {
         return { text: "Check the **Size Guide** on any product page. For fit advice, tell me the product name or say **Talk to admin**." };
     }
     if (/discount|coupon|offer|code|wheel/.test(q)) {
-        return { text: "Try code **WELCOME10** for 10% off, or spin the **Discount Wheel** on the homepage for more savings." };
+        const promos = getActivePromoHints();
+        const promoTxt = promos.length ? promos.map(c => `**${c}**`).join(', ') : '**WELCOME10**';
+        return { text: `Try promo code ${promoTxt}, or spin the **Discount Wheel** on the homepage for more savings.` };
     }
     if (/delivery|shipping|dispatch/.test(q)) {
         return { text: "Delivery timelines vary by location. For a specific order update, sign in and open **Profile → My Orders**, or say **Track my order**." };
     }
+  if (/return|exchange|refund/.test(q)) {
+        return { text: "For returns or refunds, open **Live Support** (Talk to admin) with your order ID and our team will help." };
+    }
+    const cats = getCatalogCategoriesForChat(5);
+    const catHint = cats.length ? ` Categories: ${cats.join(', ')}.` : '';
     return {
-        text: "I'm here to help with **products**, **prices**, **orders**, and **styling**.\n\nTry: *Best sellers*, *Suggest outfits under ₹1000*, *Track my order*, or **Talk to admin**."
+        text: `I'm here to help with **products**, **prices**, **orders**, and **styling**.${catHint}\n\n**Advanced:** compare products, similar styles, gifts, full outfits, occasion wear, color + budget filters.\n\nTry: *Best sellers*, *red kurta under ₹1500*, *Compare [A] and [B]*, or **Talk to admin**.`,
+        extraHtml: buildChatHelpMenuHtml()
     };
 }
 
@@ -1239,19 +2445,55 @@ function rebuildAiReplyProducts(customerText, msg) {
     if (msg.type !== 'product_suggest' || !customerText) return [];
     const intent = detectSupportIntent(customerText);
     if (intent === 'best_sellers') return getBestSellerProducts();
+    if (intent === 'full_catalog') return getFullCatalogProducts();
+    if (intent === 'new_arrivals') return getNewArrivalProducts();
+    if (intent === 'stock') return getInStockProducts();
+    if (intent === 'cheapest') {
+        const max = extractMaxPrice(customerText);
+        let items = getCheapestProducts();
+        if (max != null) items = items.filter(p => (Number(p.price) || 0) <= max);
+        return items;
+    }
+    if (intent === 'premium') return getPremiumProducts();
+    if (intent === 'compare') return findProductsForComparison(customerText);
+    if (intent === 'similar') {
+        const anchor = findProductByNameQuery(customerText.replace(/similar to|like this|alternative to|something like/gi, ''));
+        return anchor ? getSimilarProducts(anchor) : [];
+    }
+    if (intent === 'outfit_bundle') {
+        const budget = extractMaxPrice(customerText) || 3000;
+        return buildOutfitBundleUnderBudget(budget).items;
+    }
+    if (intent === 'gift') {
+        const max = extractMaxPrice(customerText) || 1500;
+        const r = searchProductsAdvanced(`gift under ${max}`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        return r.items.length ? r.items : getBestSellerProducts().filter(p => (Number(p.price) || 0) <= max);
+    }
+    if (typeof intent === 'object' && intent.type === 'occasion') {
+        const max = extractMaxPrice(customerText);
+        const r = searchProductsAdvanced(`${intent.occasion} wear ${max ? `under ${max}` : ''}`, CHAT_PRODUCT_DISPLAY_LIMIT);
+        return r.items.length ? r.items : searchProducts(`${intent.occasion} wear`, max).items;
+    }
+    if (intent === 'advanced_search') return searchProductsAdvanced(customerText).items;
+    if (intent === 'category') {
+        const q = customerText.replace(/categor|collection|section|show|browse|in/gi, ' ').trim();
+        return (q.length > 2 ? searchProductsByCategory(q) : searchProductsByCategory('')).items;
+    }
     if (typeof intent === 'object' && intent.type === 'price_filter') {
         return searchProducts('', intent.max).items;
     }
     if (intent === 'suggest' || intent === 'price') {
         const max = extractMaxPrice(customerText);
+        const adv = searchProductsAdvanced(customerText);
+        if (adv.items.length) return adv.items;
         return searchProducts(customerText, max).items;
     }
     return searchProducts(customerText.replace(/help|please|want|need|show|find/gi, ''), extractMaxPrice(customerText)).items;
 }
 
 function buildStoredExploreHtml(msg) {
-    if (!msg.totalProductCount || !msg.productIds || msg.totalProductCount <= msg.productIds.length) return '';
-    return buildExploreMoreHtml(msg.totalProductCount, msg.productIds.length, msg.filterMaxPrice ?? null);
+    if (!msg.totalProductCount || !msg.productIds) return '';
+    return chatCatalogOverflowExtra(msg.totalProductCount, msg.productIds.length, msg.filterMaxPrice ?? null);
 }
 
 function buildAiPersistMeta(reply) {
@@ -1262,7 +2504,9 @@ function buildAiPersistMeta(reply) {
         type: 'product_suggest',
         productIds: reply.products.map(p => p.id),
         totalProductCount: reply.totalCount ?? reply.products.length,
-        filterMaxPrice: reply.filterMaxPrice ?? null
+        filterMaxPrice: reply.filterMaxPrice ?? null,
+        pickMode: reply.pickMode || 'browse',
+        pickable: reply.pickable !== false
     });
 }
 
@@ -1288,7 +2532,11 @@ function renderChannelMessages(messages, channel) {
             if (channel === AI_CHANNEL) {
                 const products = rebuildAiReplyProducts(lastCustomerText, msg);
                 if (products.length) {
-                    appendSupportProductCards(products, channel);
+                    recordChatProductSuggestion(products);
+                    appendSupportProductCards(products, channel, {
+                        pickMode: msg.pickMode || 'browse',
+                        pickable: msg.pickable !== false
+                    });
                 } else if (msg.type === 'product_suggest' && !(window.products || []).length) {
                     const hint = document.createElement('p');
                     hint.style.cssText = 'margin:4px 0 8px;font-size:11px;color:#888;';
@@ -1454,57 +2702,80 @@ function renderAdminChatMessages(messages, customerName) {
     body.scrollTop = body.scrollHeight;
 }
 
-async function ensureProductsForChat() {
+async function ensureProductsForChat(maxAttempts = 6) {
     if ((window.products || []).length) return true;
-    for (let i = 0; i < 24; i++) {
-        await new Promise(resolve => setTimeout(resolve, 125));
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(resolve => setTimeout(resolve, 80));
         if ((window.products || []).length) return true;
     }
     return false;
 }
 
+function chatMessageNeedsCatalog(text) {
+    return /best seller|suggest|recommend|outfit|under|styles|show me|price filter|what.?s new|categor|cart|stock|promo|discount|compare|similar|gift|wedding|party|cheapest|premium|all product|full catalog|product list|give all|show all|complaint|issue|order problem|product issue|kurta|saree|dress|shirt/i.test(text || '');
+}
+
 async function handleAiSupportMessage(text) {
     const threadId = getCurrentCustomerThreadId();
     const profile = getCustomerProfile();
-
-    await ensureSupportThread(threadId, profile);
+    const intent = detectSupportIntent(text);
+    const intentKey = typeof intent === 'object'
+        ? String(intent.type || intent.occasion || 'complex')
+        : String(intent || 'ai');
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('chat_intent', { intent: intentKey });
+    }
 
     window.supportChatState.loaded = true;
     appendSupportBubble('customer', text, '', AI_CHANNEL);
 
-    const customerMsg = {
-        sender: 'customer',
-        text,
-        type: 'text'
-    };
-    try {
-        await persistAiChatMessage(threadId, customerMsg);
-    } catch (e) {
-        console.warn('Could not persist AI chat message:', e);
-    }
-
     const typing = typeof appendTypingIndicator === 'function' ? appendTypingIndicator() : null;
+
+    ensureSupportThread(threadId, profile).catch(e => console.warn('Support thread sync:', e));
+    persistAiChatMessage(threadId, { sender: 'customer', text, type: 'text' }).catch(e => console.warn('Could not persist AI chat message:', e));
+
     try {
-        if (/best seller|suggest|recommend|outfit|under|styles|show me|price filter/i.test(text)) {
-            await ensureProductsForChat();
+        const orderPickId = resolveChatOrderPickIndex(text);
+        if (orderPickId) {
+            if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
+            await window.selectChatOrder(orderPickId);
+            return;
         }
-        const reply = await generateSmartSupportReply(text);
+        const pickIdx = resolveChatListPickIndex(text);
+        const pickIds = window.supportChatState.lastSuggestionIds || [];
+        if (pickIdx != null && pickIds[pickIdx]) {
+            if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
+            await window.selectChatProduct(pickIds[pickIdx], window.supportChatState.pendingPickAction || 'browse');
+            return;
+        }
+
+        const catalogPromise = chatMessageNeedsCatalog(text) && !(window.products || []).length
+            ? ensureProductsForChat()
+            : Promise.resolve(true);
+        const replyPromise = generateSmartSupportReply(text);
+        const [, reply] = await Promise.all([catalogPromise, replyPromise]);
+
+        if (reply.pickIntercept) {
+            if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
+            appendSupportBubble('bot', 'Please **Select** a product from the list above, or reply **1–5**.', '', AI_CHANNEL);
+            return;
+        }
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
 
         appendSupportBubble('bot', reply.text, reply.extraHtml || '', AI_CHANNEL);
-        if (reply.products && reply.products.length) appendSupportProductCards(reply.products, AI_CHANNEL);
+        if (reply.orderPick?.length) appendOrderPickCards(reply.orderPick);
+        if (reply.products?.length) {
+            appendSupportProductCards(reply.products, AI_CHANNEL, {
+                pickMode: reply.pickMode || 'browse',
+                pickable: reply.pickable !== false
+            });
+        }
 
-        const aiMsg = {
+        persistAiChatMessage(threadId, {
             sender: 'bot',
             text: reply.text,
             ...buildAiPersistMeta(reply)
-        };
-
-        try {
-            await persistAiChatMessage(threadId, aiMsg);
-        } catch (persistErr) {
-            console.warn('Could not persist AI reply (shown locally):', persistErr);
-        }
+        }).catch(persistErr => console.warn('Could not persist AI reply (shown locally):', persistErr));
     } catch (e) {
         if (typeof removeTypingIndicator === 'function') removeTypingIndicator();
         console.error('Support chat reply failed:', e);
@@ -1562,11 +2833,11 @@ function subscribeCustomerThread(threadId) {
                 renderChannelMessages(split.ai, AI_CHANNEL);
                 renderChannelMessages(split.support, SUPPORT_CHANNEL);
                 if (isAiChatEnabled() && !split.ai.length) {
-                    let welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, or orders.";
+                    let welcome = (window.APP_FEATURES_CONTENT?.chatbotWelcome) || "Hi! I'm your Swag Stree stylist. Ask about products, prices, orders, cart, or promos.";
                     if (isAdminSupportChatEnabled() && isLoggedInCustomer()) {
                         welcome += ' Need a person? Open the **Live Support** tab.';
                     }
-                    appendSupportBubble('bot', welcome, '', AI_CHANNEL);
+                    appendSupportBubble('bot', welcome, buildChatHelpMenuHtml(), AI_CHANNEL);
                 }
                 if (isAdminSupportChatEnabled() && canUseStorefrontLiveSupport() && !split.support.length) {
                     const hint = getChatBody(SUPPORT_CHANNEL);
@@ -1642,6 +2913,7 @@ window.openSupportChat = async function() {
 
     await syncSupportChatHeaderFromThread(threadId);
     applySupportUnreadBadge(0);
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('support_chat_open');
 };
 
 window.toggleAIChat = function() {
@@ -1676,9 +2948,10 @@ window.sendChatMessageWithText = async function(text) {
     if (!text || window.supportChatState?.sendLock) return;
     window.supportChatState.sendLock = true;
     try {
+        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('chat_message_sent');
         await handleSupportCustomerMessage(text);
     } finally {
-        setTimeout(() => { window.supportChatState.sendLock = false; }, 500);
+        window.supportChatState.sendLock = false;
     }
 };
 

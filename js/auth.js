@@ -49,7 +49,9 @@ function updateAdminPrivilegesUI() {
 
     if (typeof syncCurrentAdminCapabilities === 'function') syncCurrentAdminCapabilities();
     if (typeof updateCommentsAdminUIVisibility === 'function') updateCommentsAdminUIVisibility();
+    if (typeof updateAdminAnalyticsUIVisibility === 'function') updateAdminAnalyticsUIVisibility();
     if (typeof applyAdminPanelVisibility === 'function') applyAdminPanelVisibility();
+    if (typeof applyAdminSeoPanelVisibility === 'function') applyAdminSeoPanelVisibility();
     if (typeof updateSupportChatVisibility === 'function') updateSupportChatVisibility();
     if (typeof refreshSupportChatChrome === 'function') refreshSupportChatChrome();
 }
@@ -93,6 +95,7 @@ db.collection("admins").onSnapshot(snap => {
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+            if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
             if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();
@@ -173,6 +176,27 @@ auth.onAuthStateChanged(user => {
 
         // Load and merge user cart from Firestore
         db.collection("users").doc(user.uid).get().then(doc => {
+            const data = doc.exists ? doc.data() : {};
+            const providersList = user.providerData ? user.providerData.map(p => p.providerId) : [];
+            const creationMs = user.metadata && user.metadata.creationTime
+                ? new Date(user.metadata.creationTime).getTime() : 0;
+            const isBrandNew = creationMs && (Date.now() - creationMs) < 120000;
+            const loginMethod = providersList.includes('google.com') ? 'google' : 'email';
+
+            if (!doc.exists || !data.createdAt) {
+                db.collection("users").doc(user.uid).set({
+                    email: user.email || data.email || '',
+                    displayName: user.displayName || data.displayName || '',
+                    providers: providersList,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true }).catch(function() {});
+                if (isBrandNew && typeof trackAnalyticsSignup === 'function') {
+                    trackAnalyticsSignup(loginMethod);
+                }
+            } else if (typeof trackAnalyticsLogin === 'function') {
+                trackAnalyticsLogin(loginMethod);
+            }
+
             if (doc.exists && doc.data().cart) {
                 const savedCart = doc.data().cart;
                 if (Array.isArray(savedCart)) {
@@ -260,6 +284,7 @@ auth.onAuthStateChanged(user => {
             if (typeof loadCommentsModeration === 'function') loadCommentsModeration();
             if (typeof loadCommentsSettings === 'function') loadCommentsSettings();
             if (typeof loadAdminSupportInbox === 'function') loadAdminSupportInbox();
+            if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
             if (isSuperAdmin && typeof loadSessionSettings === 'function') loadSessionSettings();
             if (isSuperAdmin && typeof loadBackupSettings === 'function') loadBackupSettings();
             if (isSuperAdmin && typeof loadAutoRetentionSettings === 'function') loadAutoRetentionSettings();
@@ -297,6 +322,7 @@ auth.onAuthStateChanged(user => {
     } else {
         isSuperAdmin = false;
         isAdmin = false;
+        if (typeof clearAnalyticsLoginSession === 'function') clearAnalyticsLoginSession();
         isRegMode = false;
         const nameField = document.getElementById('reg-name-field');
         const phoneField = document.getElementById('reg-phone-field');
@@ -1694,18 +1720,29 @@ window.openSuperViewOrders = async function(uid, email) {
             let itemsText = '';
             if (o.items && Array.isArray(o.items)) {
                 itemsText = o.items.map(item => {
-                    const sizeStr = item.size ? ` (Size: ${item.size})` : '';
-                    return `<div style="font-size:11px; color:#ccc; margin-top:2px;">• ${item.name} x ${item.quantity || 1}${sizeStr}</div>`;
+                    const qty = item.qty || item.quantity || 1;
+                    const sizeStr = item.variantSize || item.size ? ` (${item.variantSize || item.size})` : '';
+                    return `<div style="font-size:11px; color:#ccc; margin-top:2px;">• ${item.name} × ${qty}${sizeStr}</div>`;
                 }).join('');
             } else {
                 itemsText = `<div style="font-size:11px; color:#666;">No items details.</div>`;
             }
             
+            const note = parseOrderCustomerNote(o);
+            const noteUpdated = formatOrderNoteTimestamp(note.updatedAt);
+            const noteBlock = note.text
+                ? `<div style="margin-top:8px; padding:8px 10px; background:rgba(255,215,0,0.06); border:1px solid rgba(255,215,0,0.18); border-radius:8px;">
+                        <div style="font-size:9px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:4px;">📝 Customer note</div>
+                        <div style="font-size:11px; color:#ddd; line-height:1.45; white-space:pre-wrap;">${escOrderNoteText(note.text)}</div>
+                        ${noteUpdated ? `<div style="font-size:9px; color:#666; margin-top:4px;">Updated: ${escOrderNoteText(noteUpdated)}</div>` : ''}
+                   </div>`
+                : `<div style="margin-top:8px; font-size:10px; color:#555; font-style:italic;">No customer delivery note</div>`;
+
             html += `
                 <div style="background:#111; border:1px solid #333; padding:12px; border-radius:10px; display:flex; flex-direction:column; gap:8px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <span style="font-size:11px; font-weight:700; color:var(--gold);">#${o.id}</span>
+                            <span style="font-size:11px; font-weight:700; color:var(--gold);">#${o.orderId || o.id}</span>
                             <div style="font-size:10px; color:#555; margin-top:2px;">${dateStr}</div>
                         </div>
                         <div style="text-align:right;">
@@ -1719,6 +1756,7 @@ window.openSuperViewOrders = async function(uid, email) {
                         <div style="font-size:9px; color:#666; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Items:</div>
                         ${itemsText}
                     </div>
+                    ${noteBlock}
                     ${o.trackingId ? `
                         <div style="font-size:10px; color:#aaa; display:flex; gap:4px; align-items:center;">
                             <span>🚚</span> Tracking: <code style="color:var(--gold); font-size:10px;">${o.trackingId}</code>
@@ -2364,6 +2402,8 @@ async function loadSuperadminFeatures() {
             }
             if (document.getElementById('toggle-product-comments')) document.getElementById('toggle-product-comments').checked = data.productComments !== false;
             if (document.getElementById('toggle-product-categories')) document.getElementById('toggle-product-categories').checked = data.productCategories !== false;
+            if (document.getElementById('toggle-seo-indexing')) document.getElementById('toggle-seo-indexing').checked = data.seoIndexing !== false;
+            if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
             if (document.getElementById('toggle-admin-storefront-content')) {
                 document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
             }
@@ -2429,6 +2469,7 @@ async function saveSuperadminFeatures() {
         announcementBell: !!document.getElementById('toggle-announcement-bell')?.checked,
         productComments: !!document.getElementById('toggle-product-comments')?.checked,
         productCategories: !!document.getElementById('toggle-product-categories')?.checked,
+        seoIndexing: !!document.getElementById('toggle-seo-indexing')?.checked,
         adminStorefrontContent: !!document.getElementById('toggle-admin-storefront-content')?.checked,
         adminCrudDrafts: !!document.getElementById('toggle-admin-crud-drafts')?.checked,
         adminCrudDraftsMedia: !!document.getElementById('toggle-admin-crud-drafts-media')?.checked,
@@ -2465,7 +2506,9 @@ async function saveSuperadminFeatures() {
         await db.collection("settings").doc("comments").set({
             enabled: updateObj.productComments
         }, { merge: true });
-        showToast("✅ Superadmin features and theme updated successfully!");
+        showToast(updateObj.seoIndexing
+            ? "✅ Superadmin features and theme updated successfully!"
+            : "✅ Saved. SEO & indexing is OFF — search engines blocked until re-enabled.");
     } catch(e) {
         console.error("saveSuperadminFeatures error:", e);
         showToast("Failed to save superadmin config.");

@@ -133,6 +133,7 @@ function syncCurrentAdminCapabilities() {
     const docData = adminDoc ? { status: adminDoc.status, capabilities: adminDoc.capabilities } : null;
     window.currentAdminCapabilities = resolveFullCapabilitiesForEmail(emailLower, docData);
     updateCommentsAdminUIVisibility();
+    if (typeof updateAdminAnalyticsUIVisibility === 'function') updateAdminAnalyticsUIVisibility();
 }
 window.syncCurrentAdminCapabilities = syncCurrentAdminCapabilities;
 
@@ -746,6 +747,11 @@ window.loadProductComments = function(productId) {
                 return tb - ta;
             });
             renderProductCommentsSection();
+            if (typeof syncSeoForProduct === 'function' && activeProductId === productId
+                && typeof isSeoIndexingEnabled === 'function' && isSeoIndexingEnabled()) {
+                const p = (window.products || []).find(function(x) { return x.id === productId; });
+                if (p) syncSeoForProduct(p);
+            }
         }, err => {
             console.error('Product comments listener error:', err);
             renderProductCommentsSection();
@@ -859,6 +865,7 @@ window.submitProductComment = async function() {
             resetCommentFormState();
             if (textEl) textEl.value = '';
             showToast('✅ Review submitted! It will appear after admin approval.');
+            if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('review_submitted', { productId: activeProductId, rating: rating });
         }
         renderProductCommentsSection();
     } catch (e) {

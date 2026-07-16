@@ -1,0 +1,6 @@
+Contact: mailto:support@swagstree.com
+Contact: https://wa.me/918800467686
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: en, hi
+Canonical: https://swagstree.com/.well-known/security.txt
+Policy: https://swagstree.com/

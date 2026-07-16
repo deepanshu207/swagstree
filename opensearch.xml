@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>Swag Stree</ShortName>
+  <Description>Search premium fashion at Swag Stree — kurtas, coord sets, sarees &amp; more</Description>
+  <InputEncoding>UTF-8</InputEncoding>
+  <Image width="16" height="16" type="image/png">/assets/logo.png</Image>
+  <Url type="text/html" method="get" template="/?q={searchTerms}"/>
+  <Url type="application/rss+xml" method="get" template="/feed.xml"/>
+  <Language>en-IN</Language>
+  <Tags>fashion shopping india cod upi kurtas sarees</Tags>
+  <Contact>support@swagstree.com</Contact>
+</OpenSearchDescription>

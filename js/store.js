@@ -282,6 +282,9 @@ function checkDeepLink() {
 
     // Hide overlay then open product — no flash, URL stays as share link
     if (overlay) overlay.style.display = 'none';
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('deep_link_open', { productId: id, source: color ? 'share_variant' : 'share' });
+    }
     showDetail(id, color, size);
 }
 
@@ -447,6 +450,7 @@ function handleProductsSnapshot(snap) {
         p.normalizedVariants = normalizeVariants(p);
         return p;
     });
+    window.products = products;
     window.productsLoaded = true;
 
     const deepOverlay = document.getElementById('deep-link-overlay');
@@ -461,9 +465,12 @@ function handleProductsSnapshot(snap) {
     if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
     if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
     if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
+    if (typeof applySearchDeepLink === 'function') applySearchDeepLink();
+    if (typeof refreshSeoProductIndex === 'function') refreshSeoProductIndex(products);
     if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
     if (typeof renderAdmin === 'function') renderAdmin();
     checkDeepLink();
+    if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
 
     if (typeof refreshCartStockCounts === 'function') refreshCartStockCounts();
     if (typeof updateCartUI === 'function') updateCartUI();
@@ -599,8 +606,13 @@ function productCardHtml(p, options = {}) {
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
     </div>`;
 
+    const seoOn = typeof isSeoIndexingEnabled === 'function' ? isSeoIndexingEnabled() : true;
+    const seoMicro = seoOn
+        ? ` itemscope itemtype="https://schema.org/Product"><meta itemprop="sku" content="${String(p.id).replace(/"/g, '&quot;')}"><link itemprop="url" href="/?id=${encodeURIComponent(p.id)}">`
+        : '>';
+
     return `
-    <div class="card"> 
+    <div class="card"${seoMicro}
         <div class="wish-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleWish('${p.id}')">
             <i class="fa${isFav ? 's' : 'r'} fa-heart"></i>
         </div> 
@@ -616,7 +628,7 @@ function productCardHtml(p, options = {}) {
             ` : ''}
             ${isOutOfStock ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px 15px 0 0;"><span style="background:rgba(255,0,0,0.85); color:#fff; padding:6px 12px; border-radius:4px; font-weight:800; font-size:12px; letter-spacing:1px;">OUT OF STOCK</span></div>' : ''}
             <div class="carousel" onscroll="updateDots(this)">
-                ${displayImages.length ? displayImages.map(img => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">')}
+                ${displayImages.length ? displayImages.map((img, idx) => `<img src="${img}" loading="lazy"${seoOn && idx === 0 ? ' itemprop="image"' : ''}>`).join('') : (p.hideNoImagePlaceholder ? '' : `<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy"${seoOn ? ' itemprop="image"' : ''}>`)}
             </div> 
             <div class="indicators">
                 ${displayImages.length > 1 ? displayImages.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : ''}
@@ -624,8 +636,12 @@ function productCardHtml(p, options = {}) {
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
             ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
-            <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${p.name}</div> 
-            <div style="color:var(--gold); font-weight:800; margin-top:4px">₹${p.price}</div> 
+            <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+                ${seoOn
+                    ? `<a href="/?id=${encodeURIComponent(p.id)}" class="product-card__seo-link" itemprop="url" onclick="event.preventDefault(); showDetail('${p.id}')" title="View ${String(p.name || '').replace(/"/g, '&quot;')}"><span itemprop="name">${p.name}</span></a>`
+                    : `<span>${p.name}</span>`}
+            </div>
+            <div style="color:var(--gold); font-weight:800; margin-top:4px">${seoOn ? '<span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="INR"><span itemprop="price" content="' + (Number(p.price) || 0) + '">₹' + p.price + '</span></span>' : '₹' + p.price}</div>
         </div> 
     </div>`;
 }
@@ -1438,18 +1454,172 @@ function detailNeedsSizePicker(uniqueSizes) {
     return uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
 }
 
+function getVariantPreviewImage(v) {
+    if (!v) return '';
+    if (v.previewImage && !isPlaceholderImageUrl(v.previewImage)) return v.previewImage;
+    const imgs = Array.isArray(v.images) ? v.images : [];
+    const real = imgs.find(img => img && !isPlaceholderImageUrl(img));
+    return real || '';
+}
+
 function getDetailColorOptions(p) {
-    const colors = [];
-    const seenColorKeys = new Set();
+    const colorMap = new Map();
     (p.normalizedVariants || []).filter(v => sizesMatch(v.size, selectedSize)).forEach(v => {
         const key = getVariantColorKey(v);
         if (!key) return;
         const norm = normalizeColorKey(key);
-        if (seenColorKeys.has(norm)) return;
-        seenColorKeys.add(norm);
-        colors.push({ key, variant: v });
+        const existing = colorMap.get(norm);
+        if (!existing) {
+            colorMap.set(norm, { key, variant: v });
+            return;
+        }
+        const existingImg = getVariantPreviewImage(existing.variant);
+        const nextImg = getVariantPreviewImage(v);
+        if (!existingImg && nextImg) {
+            colorMap.set(norm, { key, variant: v });
+        }
     });
-    return colors;
+    return Array.from(colorMap.values());
+}
+
+function getDetailColorOptionForKey(p, colorKey) {
+    const colors = getDetailColorOptions(p);
+    const hit = colors.find(c => colorsMatch(c.key, colorKey) || variantColorMatches(c.variant, colorKey));
+    if (hit) return hit.variant;
+    return (p.normalizedVariants || []).find(v =>
+        sizesMatch(v.size, selectedSize) && variantColorMatches(v, colorKey)
+    ) || null;
+}
+
+function setActiveDetailColorChip(colorKey) {
+    document.querySelectorAll('#detail-color-selector .color-chip').forEach(chip => {
+        const chipKey = chip.getAttribute('data-color-key') || '';
+        chip.classList.toggle('active', colorsMatch(chipKey, colorKey));
+    });
+}
+
+function setActiveDetailPatternChip(patternKey) {
+    if (!patternKey) return;
+    document.querySelectorAll('#detail-pattern-selector .color-chip, #detail-pattern-selector .size-chip').forEach(chip => {
+        const chipKey = chip.getAttribute('data-pattern-key') || '';
+        chip.classList.toggle('active', patternsMatch(chipKey, patternKey));
+    });
+}
+
+function resolveGallerySlideElement(slideElOrIdx) {
+    const detGallery = document.getElementById('det-gallery');
+    if (!detGallery) return null;
+    if (slideElOrIdx && slideElOrIdx.getAttribute) return slideElOrIdx;
+    const idx = Number(slideElOrIdx);
+    if (!Number.isFinite(idx) || idx < 0) return null;
+    return detGallery.children[idx] || null;
+}
+
+function syncDetailSelectionFromGallery(slideElOrIdx, slideIdx = null) {
+    const slideEl = resolveGallerySlideElement(slideElOrIdx);
+    if (!slideEl || !activeProductId) return false;
+
+    const map = window.detailGallerySlideMap || [];
+    const idx = slideIdx !== null && slideIdx !== undefined
+        ? slideIdx
+        : Number(slideEl.getAttribute('data-index'));
+    const mapInfo = Number.isFinite(idx) ? (map[idx] || {}) : {};
+    const p = products.find(x => x.id === activeProductId);
+    if (!p) return false;
+
+    const meta = getGallerySlideMeta(slideEl, mapInfo);
+    const imgColor = meta.color;
+    const imgSize = meta.size;
+    const imgPattern = meta.pattern;
+
+    let changed = false;
+
+    if (imgColor && !colorsMatch(imgColor, selectedColor)) {
+        selectedColor = imgColor;
+        window.selectedPattern = '';
+        changed = true;
+    }
+
+    if (imgSize && imgSize !== 'Standard' && !sizesEqual(imgSize, selectedSize)) {
+        selectedSize = imgSize;
+        changed = true;
+    }
+
+    if (imgPattern && !patternsMatch(imgPattern, window.selectedPattern)) {
+        window.selectedPattern = imgPattern;
+        changed = true;
+    }
+
+    if (!changed) return false;
+
+    ensureDetailSelectionDefaults(p);
+    syncSizeChips();
+    renderDetailColors(p);
+    renderDetailPatterns(p);
+    setActiveDetailColorChip(selectedColor);
+    setActiveDetailPatternChip(window.selectedPattern);
+    updateVariantUI(p, false, Number.isFinite(idx) ? idx : 0);
+    updateDetailURL();
+    return true;
+}
+
+function findGalleryIndexForSelection(slideMap, opts = {}) {
+    const map = slideMap || [];
+    const color = opts.color || '';
+    const size = opts.size || '';
+    const pattern = opts.pattern || '';
+
+    const scoreSlide = (m) => {
+        if (!m || m.type === 'video' || m.isPlaceholder || m.is360Preview) return -1;
+        let score = 0;
+        if (color) {
+            if (!m.color || !colorsMatch(m.color, color)) return -1;
+            score += 4;
+        }
+        if (pattern) {
+            if (!m.pattern || !patternsMatch(m.pattern, pattern)) return -1;
+            score += 2;
+        }
+        if (size && size !== 'Standard' && m.size) {
+            if (!sizesEqual(m.size, size)) return -1;
+            score += 1;
+        }
+        if (!m.color && !m.pattern && m.scope === 'main') score -= 1;
+        return score;
+    };
+
+    let bestIdx = -1;
+    let bestScore = -1;
+    map.forEach((m, i) => {
+        const score = scoreSlide(m);
+        if (score > bestScore) {
+            bestScore = score;
+            bestIdx = i;
+        }
+    });
+    return bestIdx;
+}
+
+function variantMatchesDetailGallery(variant) {
+    if (!variant || variant.isActive === false) return false;
+    if (variant.hideDetailsGallery === true || variant.hideDetailsGallery === 'true') return false;
+    if (selectedSize && selectedSize !== 'Standard' && variant.size && !sizesMatch(variant.size, selectedSize)) return false;
+    return true;
+}
+
+function scrollDetailGalleryToIndex(idx, smooth = true) {
+    const detGallery = document.getElementById('det-gallery');
+    if (!detGallery || idx < 0) return;
+    const imgEl = detGallery.children[idx];
+    if (!imgEl) return;
+    window.detGalleryScrollingNow = true;
+    clearTimeout(window.detGalleryScrollEndTimeout);
+    detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
+    updateActiveThumbnailBorder(idx);
+    updateDetailGalleryActions(idx);
+    window.detGalleryScrollEndTimeout = setTimeout(() => {
+        window.detGalleryScrollingNow = false;
+    }, smooth ? 800 : 120);
 }
 
 function isValidDetailColorPick(colorKey, colors) {
@@ -1498,6 +1668,9 @@ function ensureDetailSelectionDefaults(p, opts = {}) {
 function showDetail(id, initialColor = null, initialSize = null) {
     const p = products.find(x => x.id === id);
     if (!p) return;
+    if (typeof window.trackChatProductView === 'function') window.trackChatProductView(id);
+    if (typeof trackAnalyticsPageView === 'function') trackAnalyticsPageView('product', { productId: id });
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('product_view', { productId: id });
 
     const overlay = document.getElementById('deep-link-overlay');
     if (overlay) overlay.style.display = 'none';
@@ -1532,6 +1705,8 @@ function showDetail(id, initialColor = null, initialSize = null) {
     updateVariantUI(p);
     updateDetailURL();
 
+    if (typeof syncSeoForProduct === 'function') syncSeoForProduct(p);
+
     const detView = document.getElementById('detail-view');
     detView.style.display = 'block';
     detView.classList.add('active-detail-flex');
@@ -1546,6 +1721,9 @@ function selectDetailSize(sz, el) {
     const p = products.find(x => x.id === activeProductId);
     if (p && !isDetailSizeInStock(p, sz)) {
         if (typeof showToast === 'function') showToast('This size is out of stock for the selected color.');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('oos_friction', { productId: activeProductId, variant: 'size', reason: 'size_oos' });
+        }
         return;
     }
     selectedSize = sz;
@@ -1553,6 +1731,9 @@ function selectDetailSize(sz, el) {
     el.classList.add('active');
 
     if (p) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'size', method: sz });
+        }
         renderDetailColors(p);
         renderDetailPatterns(p);
         updateVariantUI(p);
@@ -1564,13 +1745,22 @@ function selectDetailColor(col, el) {
     const p = products.find(x => x.id === activeProductId);
     if (p && !isDetailColorInStock(p, col)) {
         if (typeof showToast === 'function') showToast('This color is out of stock for the selected size.');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('oos_friction', { productId: activeProductId, variant: 'color', reason: 'color_oos' });
+        }
         return;
     }
+    const colorChanged = !colorsMatch(selectedColor, col);
     selectedColor = col;
+    if (colorChanged) window.selectedPattern = '';
     el.parentElement.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
 
     if (p) {
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'color', method: col });
+        }
+        ensureDetailSelectionDefaults(p);
         renderDetailPatterns(p);
         updateVariantUI(p);
         updateDetailURL();
@@ -1604,8 +1794,10 @@ function renderDetailColors(p, initialColor = null) {
         colorSelector.innerHTML = colors.map(({ key, variant: v }) => {
             const col = key;
             const isActive = isValidDetailColorPick(selectedColor, [ { key: col, variant: v } ]);
+            const displayName = v ? (v.colorName || formatColorName(col)) : formatColorName(col);
+            const safeCol = col.replace(/'/g, "\\'");
             // Normalize for CSS: hex stays as-is; check customColorsMap; otherwise strip spaces
-            let cleanColor = col.trim();
+            let cleanColor = (v?.color || col).trim();
             if (!cleanColor.startsWith('#')) {
                 const normName = cleanColor.toLowerCase();
                 const normNameNoSpaces = normName.replace(/\s+/g, '');
@@ -1620,11 +1812,11 @@ function renderDetailColors(p, initialColor = null) {
             const isWhite = cleanColor === '#ffffff' || cleanColor === 'white' || cleanColor === '#fff';
             const indicatorBorder = isWhite ? '1px solid rgba(255, 255, 255, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)';
             const colorPreview = `<span class="color-indicator" style="background:${cleanColor}; border:${indicatorBorder};"></span>`;
-
             const oos = !isDetailColorInStock(p, col);
+            const oosTitle = oos ? 'Out of stock for this color' : displayName;
             return `
-                <div class="color-chip ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" onclick="selectDetailColor('${col.replace(/'/g, "\\'")}', this)" title="${oos ? 'Out of stock for this color' : ''}">
-                    ${colorPreview}<span>${v ? (v.colorName || formatColorName(col)) : formatColorName(col)}</span>
+                <div class="color-chip ${isActive ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-color-key="${safeCol.replace(/"/g, '&quot;')}" onclick="selectDetailColor('${safeCol}', this)" title="${oosTitle}">
+                    ${colorPreview}<span>${displayName}</span>
                 </div>
             `;
         }).join('');
@@ -1635,13 +1827,22 @@ function selectDetailPattern(pat, el) {
     const p = products.find(x => x.id === activeProductId);
     if (p && !isDetailPatternInStock(p, pat)) {
         if (typeof showToast === 'function') showToast('This pattern is out of stock.');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('oos_friction', { productId: activeProductId, variant: 'pattern', reason: 'pattern_oos' });
+        }
         return;
     }
     window.selectedPattern = pat;
     el.parentElement.querySelectorAll('.size-chip, .color-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('variant_selected', { productId: activeProductId, variant: 'pattern', method: pat });
+    }
 
-    if (p) updateVariantUI(p);
+    if (p) {
+        updateVariantUI(p);
+        updateDetailURL();
+    }
 }
 
 function renderDetailPatterns(p) {
@@ -1674,11 +1875,12 @@ function renderDetailPatterns(p) {
 
             const oos = !isDetailPatternInStock(p, pat);
             const oosTitle = oos ? 'Out of stock' : displayText;
+            const safePat = pat.replace(/'/g, "\\'");
             if (hasImage) {
                 const imgHtml = `<img src="${v.previewImage}" style="width:28px; height:28px; border-radius:5px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); vertical-align:middle; flex-shrink:0;">`;
                 const textHtml = shouldShowText ? `<span style="font-size:11px; font-weight:600; margin-left:5px; line-height:1.2;">${displayText}</span>` : '';
                 return `
-                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
+                <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" style="padding:5px ${shouldShowText ? '8px 5px 5px' : '5px'}; border-radius:8px; display:inline-flex; align-items:center; gap:0;" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
                     ${imgHtml}${textHtml}
                 </div>
                 `;
@@ -1686,7 +1888,7 @@ function renderDetailPatterns(p) {
 
             // Text-only pattern
             return `
-            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${pat.replace(/'/g, "\\'")}', this)" title="${oosTitle}">
+            <div class="size-chip color-chip ${pat === window.selectedPattern ? 'active' : ''} ${oos ? 'chip-oos' : ''}" data-pattern-key="${safePat.replace(/"/g, '&quot;')}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-flex; align-items:center;" onclick="selectDetailPattern('${safePat}', this)" title="${oosTitle}">
                 <span>${displayText}</span>
             </div>
             `;
@@ -1706,10 +1908,13 @@ function colorsMatch(a, b) {
 
 function getVariantColorKey(v) {
     if (!v) return '';
-    if (v.color && String(v.color).trim()) return String(v.color).trim();
-    if (v.colorName && String(v.colorName).trim()) return String(v.colorName).trim();
+    const colorName = v.colorName && String(v.colorName).trim();
+    const color = v.color && String(v.color).trim();
+    if (colorName) return colorName;
+    if (color) return color;
     return '';
 }
+window.getVariantColorKey = getVariantColorKey;
 
 function variantColorMatches(variant, colorKey) {
     if (!colorKey) return true;
@@ -1743,6 +1948,118 @@ function variantMatchesDetailSelection(variant) {
     return true;
 }
 
+function getGalleryActiveIndex(gallery) {
+    if (!gallery || !gallery.children.length) return 0;
+    const scrollCenter = gallery.scrollLeft + gallery.offsetWidth / 2;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    Array.from(gallery.children).forEach((child, i) => {
+        const center = child.offsetLeft + child.offsetWidth / 2;
+        const dist = Math.abs(scrollCenter - center);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+        }
+    });
+    return bestIdx;
+}
+
+function getGallerySlideMeta(slideEl, mapInfo = {}) {
+    if (!slideEl) {
+        return {
+            color: mapInfo.color || '',
+            size: mapInfo.size || '',
+            pattern: mapInfo.pattern || ''
+        };
+    }
+    const imgEl = slideEl.matches && slideEl.matches('img') ? slideEl : (slideEl.querySelector('img') || slideEl);
+    return {
+        color: slideEl.getAttribute('data-color') || (imgEl && imgEl.getAttribute('data-color')) || mapInfo.color || '',
+        size: slideEl.getAttribute('data-size') || (imgEl && imgEl.getAttribute('data-size')) || mapInfo.size || '',
+        pattern: slideEl.getAttribute('data-pattern') || (imgEl && imgEl.getAttribute('data-pattern')) || mapInfo.pattern || ''
+    };
+}
+
+function buildGallerySlideDataAttrs(mapInfo, index) {
+    const color = mapInfo.color || '';
+    const size = mapInfo.size || '';
+    const pattern = mapInfo.pattern || '';
+    return `data-color="${color}" data-size="${size}" data-pattern="${pattern}" data-index="${index}" data-type="${mapInfo.type || 'image'}"`;
+}
+
+function mergeDetailGalleryPhotoLists(variantPhotos, variantPhotosMap, sharedMain, sharedMainMap, pos) {
+    const photos = [];
+    const map = [];
+    const urlToIndex = new Map();
+
+    function addSlide(url, meta) {
+        if (isPlaceholderImageUrl(url)) return;
+        if (urlToIndex.has(url)) {
+            const i = urlToIndex.get(url);
+            const existing = map[i];
+            const incomingIsVariant = meta.scope === 'variant' && (meta.color || meta.pattern);
+            const existingIsMain = !existing.color && !existing.pattern && existing.scope === 'main';
+            if (incomingIsVariant && (existingIsMain || !existing.color)) {
+                map[i] = Object.assign({}, existing, meta, { url });
+            }
+            return;
+        }
+        urlToIndex.set(url, photos.length);
+        photos.push(url);
+        map.push(Object.assign({}, meta, { url }));
+    }
+
+    const addVariants = () => {
+        variantPhotos.forEach((url, i) => addSlide(url, variantPhotosMap[i] || {}));
+    };
+    const addMain = () => {
+        sharedMain.forEach((url, i) => addSlide(url, sharedMainMap[i] || {}));
+    };
+
+    if (pos === 'start') {
+        addMain();
+        addVariants();
+    } else {
+        addVariants();
+        addMain();
+    }
+
+    return { photoSlides: photos, photoMap: map };
+}
+
+function isGalleryZoomableSlide(mapEntry) {
+    if (!mapEntry || mapEntry.type === 'video' || mapEntry.isPlaceholder || mapEntry.is360Preview) return false;
+    return !isPlaceholderImageUrl(mapEntry.url);
+}
+
+function buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx) {
+    const attrs = buildGallerySlideDataAttrs(mapInfo, index);
+    if (mapInfo.type === 'video') {
+        const poster = mapInfo.poster || '';
+        const badge360 = mapInfo.is360Video ? '<span class="det-gallery-360-badge" title="Immersive 360° video"><i class="fa fa-street-view"></i></span>' : '';
+        return `<div class="det-gallery-slide det-gallery-video${mapInfo.is360Video ? ' det-gallery-video--360' : ''}" ${attrs} data-video-url="${mapInfo.url}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
+            ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
+            ${badge360}
+            <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
+        </div>`;
+    }
+    if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
+        return `<div class="det-gallery-slide det-gallery-slide--placeholder" ${attrs}>
+            <img src="${img}" class="det-gallery-placeholder" alt="No image">
+        </div>`;
+    }
+    if (mapInfo.is360Preview && activeProductId) {
+        return `<div class="det-gallery-slide det-gallery-slide--360" ${attrs} onclick="open360Viewer(activeProductId)" role="button" aria-label="Rotate product">
+            <img src="${img}" alt="Rotation preview">
+            <div class="det-gallery-360-cta"><i class="fa fa-arrows-rotate"></i> Tap to rotate</div>
+        </div>`;
+    }
+    const zoomAttr = zoomIdx >= 0 ? ` onclick="openProductDetailImageZoom(${zoomIdx}, event)"` : '';
+    return `<div class="det-gallery-slide" ${attrs}>
+        <img src="${img}" class="det-gallery-zoomable"${zoomAttr} alt="Product image${zoomIdx >= 0 ? ' ' + (zoomIdx + 1) : ''}">
+    </div>`;
+}
+
 function isPlaceholderImageUrl(url) {
     const u = String(url || '');
     return !u || u.includes('placehold.co') || u.includes('No+Image') || u.includes('text=No');
@@ -1768,27 +2085,39 @@ function buildDetailGallerySlides(p, productMedia) {
     const variantPhotosMap = [];
     const selectedVariant = getSelectedVariant(p);
     const variantSources = [];
+    const seenSlideKeys = new Set();
 
     if (p.normalizedVariants && p.normalizedVariants.length > 0) {
         p.normalizedVariants.forEach(variant => {
-            if (variantMatchesDetailSelection(variant)) variantSources.push(variant);
+            if (variantMatchesDetailGallery(variant)) variantSources.push(variant);
         });
     }
     if (variantSources.length === 0 && selectedVariant) variantSources.push(selectedVariant);
 
     variantSources.forEach(variant => {
+        const slideImages = [];
+        const preview = variant.previewImage && !isPlaceholderImageUrl(variant.previewImage) ? variant.previewImage : '';
+        if (preview) slideImages.push(preview);
         (variant.images || []).forEach(img => {
             if (isPlaceholderImageUrl(img)) return;
-            if (!variantPhotos.includes(img)) {
-                variantPhotos.push(img);
-                variantPhotosMap.push({
-                    url: img,
-                    color: getVariantColorKey(variant) || variant.color || '',
-                    size: variant.size || '',
-                    type: 'image',
-                    scope: 'variant'
-                });
-            }
+            if (preview && img === preview) return;
+            slideImages.push(img);
+        });
+
+        slideImages.forEach(img => {
+            const colorKey = getVariantColorKey(variant) || variant.color || '';
+            const slideKey = `${img}|${colorKey}|${variant.pattern || ''}|${variant.size || ''}`;
+            if (seenSlideKeys.has(slideKey)) return;
+            seenSlideKeys.add(slideKey);
+            variantPhotos.push(img);
+            variantPhotosMap.push({
+                url: img,
+                color: colorKey,
+                size: variant.size || '',
+                pattern: variant.pattern || '',
+                type: 'image',
+                scope: 'variant'
+            });
         });
     });
 
@@ -1799,14 +2128,10 @@ function buildDetailGallerySlides(p, productMedia) {
     if (usingMainFallback) {
         photoSlides = [...sharedMain];
         photoMap = sharedMainMap.map(m => ({ ...m, isFallback: true }));
-    } else if (variantPhotos.length > 0) {
-        if (pos === 'start') {
-            photoSlides = [...sharedMain, ...variantPhotos];
-            photoMap = [...sharedMainMap, ...variantPhotosMap];
-        } else {
-            photoSlides = [...variantPhotos, ...sharedMain];
-            photoMap = [...variantPhotosMap, ...sharedMainMap];
-        }
+    } else if (variantPhotos.length > 0 || sharedMain.length > 0) {
+        const merged = mergeDetailGalleryPhotoLists(variantPhotos, variantPhotosMap, sharedMain, sharedMainMap, pos);
+        photoSlides = merged.photoSlides;
+        photoMap = merged.photoMap;
     } else if (!p.hideNoImagePlaceholder) {
         const placeholderImg = 'https://placehold.co/400x400/222/FFF?text=No+Image';
         photoSlides = [placeholderImg];
@@ -1891,11 +2216,15 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
         ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
-        : 0;
+        : Math.max(0, findGalleryIndexForSelection(imageToVariantMap, {
+            color: selectedColor,
+            size: selectedSize,
+            pattern: window.selectedPattern || ''
+        }));
 
     window.detailGalleryImages = imagesToDisplay.filter((_, i) => {
         const m = imageToVariantMap[i] || {};
-        return m.type !== 'video' && !m.isPlaceholder && !isPlaceholderImageUrl(m.url || imagesToDisplay[i]);
+        return isGalleryZoomableSlide(m);
     });
     window.detailGallerySlideMap = imageToVariantMap;
     window.detailGalleryActiveIndex = activeThumbIdx;
@@ -1906,32 +2235,21 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         ? imagesToDisplay.map((img, index) => {
             const mapInfo = imageToVariantMap[index] || { color: '', size: '', type: 'image' };
             if (mapInfo.type === 'video') {
-                const poster = mapInfo.poster || '';
-                const badge360 = mapInfo.is360Video ? '<span class="det-gallery-360-badge" title="Immersive 360° video"><i class="fa fa-street-view"></i></span>' : '';
-                return `<div class="det-gallery-video${mapInfo.is360Video ? ' det-gallery-video--360' : ''}" data-type="video" data-video-url="${mapInfo.url}" data-index="${index}" onclick="openCurrentDetailVideoAt(${index}, event)" role="button" aria-label="Play product video">
-                    ${poster ? `<img src="${poster}" alt="Video preview">` : ''}
-                    ${badge360}
-                    <div class="det-gallery-video-play"><i class="fa fa-play"></i></div>
-                </div>`;
+                return buildDetailGallerySlideHtml(img, mapInfo, index, -1);
             }
-            const zoomIdx = imageOnlyIdx++;
-            if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
-                return `<img src="${img}" class="det-gallery-placeholder" data-type="image" alt="No image">`;
-            }
-            if (mapInfo.is360Preview && activeProductId) {
-                return `<div class="det-gallery-360-preview" data-type="image" data-index="${index}" onclick="open360Viewer(activeProductId)" role="button" aria-label="Rotate product" style="position:relative; width:100%; height:100%; flex-shrink:0; scroll-snap-align:center; cursor:pointer; background:#000; display:flex; align-items:center; justify-content:center;">
-                    <img src="${img}" alt="Rotation preview" style="max-width:100%; max-height:100%; object-fit:contain; pointer-events:none;">
-                    <div style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); border:1px solid var(--gold); color:var(--gold); padding:6px 14px; border-radius:999px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:6px; pointer-events:none;">
-                        <i class="fa fa-arrows-rotate"></i> Tap to rotate
-                    </div>
-                </div>`;
-            }
-            return `<img src="${img}" class="det-gallery-zoomable" data-color="${mapInfo.color}" data-size="${mapInfo.size}" data-index="${index}" data-type="image" onclick="openProductDetailImageZoom(${zoomIdx}, event)" alt="Product image ${zoomIdx + 1}">`;
+            const isZoomable = isGalleryZoomableSlide(mapInfo) && !isPlaceholderImageUrl(img);
+            const zoomIdx = isZoomable ? imageOnlyIdx++ : -1;
+            return buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx);
         }).join('')
-        : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" class="det-gallery-placeholder" alt="No image">');
+        : (p.hideNoImagePlaceholder ? '' : buildDetailGallerySlideHtml(
+            'https://placehold.co/400x400/222/FFF?text=No+Image',
+            { color: '', size: '', type: 'image', isPlaceholder: true },
+            0,
+            0
+        ));
 
     const detGallery = document.getElementById('det-gallery');
-    const galleryCacheKey = `${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
+    const galleryCacheKey = `${p.id}|${selectedSize}|${imagesToDisplay.join(',')}`;
     let galleryChanged = true;
     if (detGallery) {
         const prevKey = detGallery.getAttribute('data-loaded-images');
@@ -1940,7 +2258,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             detGallery.innerHTML = galleryHtml;
             detGallery.setAttribute('data-loaded-images', galleryCacheKey);
         }
-        if (galleryChanged || scrollGallery) {
+        if (galleryChanged) {
             detGallery.scrollLeft = detGallery.children[activeThumbIdx]?.offsetLeft || 0;
         }
     }
@@ -1949,10 +2267,16 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
     }
     
     const indicatorsContainer = document.getElementById('det-indicators');
-    if (indicatorsContainer && galleryChanged) {
-        indicatorsContainer.innerHTML = imagesToDisplay.length > 1 
-            ? imagesToDisplay.map((_, i) => `<div class="dot ${i === activeThumbIdx ? 'active' : ''}"></div>`).join('') 
-            : '';
+    if (indicatorsContainer) {
+        if (galleryChanged) {
+            indicatorsContainer.innerHTML = imagesToDisplay.length > 1
+                ? imagesToDisplay.map((_, i) => `<div class="dot ${i === activeThumbIdx ? 'active' : ''}"></div>`).join('')
+                : '';
+        } else if (imagesToDisplay.length > 1) {
+            indicatorsContainer.querySelectorAll('.dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === activeThumbIdx);
+            });
+        }
     }
 
     // Render thumbnails strip
@@ -1990,22 +2314,9 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     updateDetailGalleryActions(activeThumbIdx > -1 ? activeThumbIdx : 0, p);
 
-    // Scroll to the current selected variant's first image if we're not triggered by a scroll event
-    if (scrollGallery && galleryChanged && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow) {
-        if (activeThumbIdx > -1) {
-            const imgEl = detGallery.children[activeThumbIdx];
-            if (imgEl) {
-                window.detGalleryScrollingNow = true; // Block scroll listener from interfering during smooth scroll transitions
-                clearTimeout(window.detGalleryScrollEndTimeout);
-                setTimeout(() => {
-                    detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
-                    updateActiveThumbnailBorder(activeThumbIdx);
-                    setTimeout(() => {
-                        window.detGalleryScrollingNow = false;
-                    }, 800); // Failsafe unlock after 800ms
-                }, 50);
-            }
-        }
+    // Scroll gallery to the slide matching current variant when selectors change
+    if (scrollGallery && imagesToDisplay.length > 0 && !window.detGalleryScrollingNow && activeThumbIdx > -1) {
+        scrollDetailGalleryToIndex(activeThumbIdx, true);
     }
 
     // Update Button and Stock Info
@@ -2122,9 +2433,9 @@ function updateDetailGalleryActions(idx, productOverride) {
 
     let zoomIdx = 0;
     for (let i = 0; i < idx; i++) {
-        if ((map[i] || {}).type !== 'video') zoomIdx++;
+        if (isGalleryZoomableSlide(map[i])) zoomIdx++;
     }
-    window.detailGalleryZoomIndex = slide && slide.type !== 'video' ? zoomIdx : 0;
+    window.detailGalleryZoomIndex = isGalleryZoomableSlide(slide) ? zoomIdx : 0;
 
     const hasRealPhotos = galleryHasRealPhotos(map);
     const media = p ? resolveProductMedia(p) : null;
@@ -2221,6 +2532,7 @@ function closeDetail(options = {}) {
     }
 
     if (typeof updateWhatsAppVisibility === 'function') updateWhatsAppVisibility();
+    if (typeof syncSeoForView === 'function') syncSeoForView('home');
 }
 window.closeDetail = closeDetail;
 
@@ -2256,8 +2568,12 @@ if (!window._detailPopStateBound) {
 // 4. INTERACTIVITY
 function toggleWish(id) {
     if (!currentUser) return showToast("Login first");
-    let newWish = wishlist.includes(id) ? wishlist.filter(x => x !== id) : [...wishlist, id];
+    const adding = !wishlist.includes(id);
+    let newWish = adding ? [...wishlist, id] : wishlist.filter(x => x !== id);
     db.collection("users").doc(currentUser.uid).set({ wishlist: newWish }, { merge: true });
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent(adding ? 'add_to_wishlist' : 'remove_from_wishlist', { productId: id });
+    }
 }
 
 async function shareProduct(id) {
@@ -2283,11 +2599,47 @@ async function shareProduct(id) {
         copyToClipboard(shareUrl);
         showToast('Link copied to clipboard!');
     }
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('product_share', { productId: id });
+}
+
+function applySearchDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const q = (params.get('q') || '').trim();
+    if (!q) return;
+    const el = document.getElementById('app_search');
+    if (el) el.value = q;
+    displayedProductsLimit = productsPageLimitSetting;
 }
 
 function searchHandler() {
     displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
+    const el = document.getElementById('app_search');
+    const q = el ? (el.value || '').trim() : '';
+    if (q) {
+        const seoOn = typeof isSeoIndexingEnabled === 'function' ? isSeoIndexingEnabled() : true;
+        if (seoOn) {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('q') !== q) {
+                params.set('q', q);
+                params.delete('id');
+                params.delete('color');
+                params.delete('size');
+                window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+            }
+            if (typeof syncSeoForView === 'function') syncSeoForView('home');
+        } else {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('q') || params.has('category')) {
+                params.delete('q');
+                params.delete('category');
+                const qs = params.toString();
+                window.history.replaceState({}, '', qs ? window.location.pathname + '?' + qs : window.location.pathname);
+            }
+        }
+    }
+    if (q && typeof trackAnalyticsSearch === 'function') trackAnalyticsSearch(q);
+    else if (q && typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('search', { query: q.slice(0, 80) });
 }
 
 function getStorefrontSearchQuery() {
@@ -2365,7 +2717,9 @@ function wishSearchHandler() {
 window.wishSearchHandler = wishSearchHandler;
 
 function updateDots(el) {
-    const idx = Math.round(el.scrollLeft / el.offsetWidth);
+    const idx = el.id === 'det-gallery'
+        ? getGalleryActiveIndex(el)
+        : Math.round(el.scrollLeft / el.offsetWidth);
     const diariesRoot = el.closest('.feedback-diaries-carousel');
     const dotRoot = diariesRoot || el.parentElement;
     const dots = dotRoot.querySelectorAll('.dot');
@@ -2388,42 +2742,7 @@ function updateDots(el) {
         }
         const activeImg = el.children[idx];
         if (activeImg) {
-            const imgColor = activeImg.getAttribute('data-color');
-            const imgSize = activeImg.getAttribute('data-size');
-            const p = products.find(x => x.id === activeProductId);
-            
-            if (p) {
-                let changed = false;
-
-                // Sync visible color only when slide belongs to a different variant color
-                if (imgColor && !colorsMatch(imgColor, selectedColor)) {
-                    selectedColor = imgColor;
-                    changed = true;
-                    // Highlight color chip
-                    const colorChips = document.querySelectorAll('#detail-color-selector .color-chip');
-                    colorChips.forEach(chip => {
-                        const clickAttr = chip.getAttribute('onclick') || '';
-                        chip.classList.toggle('active', clickAttr.includes(`'${imgColor}'`));
-                    });
-                }
-
-                // Sync visible size
-                if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
-                    selectedSize = imgSize;
-                    changed = true;
-                }
-
-                if (changed) {
-                    // Update selectors and buttons without scrolling the gallery container again
-                    window.detGalleryScrollingNow = true;
-                    syncSizeChips();
-                    renderDetailColors(p);
-                    renderDetailPatterns(p);
-                    updateVariantUI(p, false, idx);
-                    updateDetailURL();
-                    window.detGalleryScrollingNow = false;
-                }
-            }
+            syncDetailSelectionFromGallery(activeImg, idx);
         }
         // Update thumbnail borders to show active image indicator
         updateActiveThumbnailBorder(idx);
@@ -2435,39 +2754,9 @@ function clickDetThumb(idx) {
     const detGallery = document.getElementById('det-gallery');
     if (!detGallery) return;
     const imgEl = detGallery.children[idx];
-    if (imgEl) {
-        window.detGalleryScrollingNow = true;
-        clearTimeout(window.detGalleryScrollEndTimeout);
-        detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: 'smooth' });
-        updateActiveThumbnailBorder(idx);
-        updateDetailGalleryActions(idx);
-        
-        // Also sync option selection states matching this thumbnail
-        const imgColor = imgEl.getAttribute('data-color');
-        const imgSize = imgEl.getAttribute('data-size');
-        const p = products.find(x => x.id === activeProductId);
-        if (p) {
-            let changed = false;
-            if (imgColor && !colorsMatch(imgColor, selectedColor)) {
-                selectedColor = imgColor;
-                changed = true;
-            }
-            if (imgSize && imgSize !== 'Standard' && imgSize !== selectedSize) {
-                selectedSize = imgSize;
-                changed = true;
-            }
-            if (changed) {
-                syncSizeChips();
-                renderDetailColors(p);
-                renderDetailPatterns(p);
-                updateVariantUI(p, false, idx);
-                updateDetailURL();
-            }
-        }
-        setTimeout(() => {
-            window.detGalleryScrollingNow = false;
-        }, 800); // Failsafe unlock after 800ms
-    }
+    if (!imgEl) return;
+    scrollDetailGalleryToIndex(idx, true);
+    syncDetailSelectionFromGallery(imgEl, idx);
 }
 
 function syncSizeChips() {
@@ -2489,6 +2778,9 @@ function updateActiveThumbnailBorder(idx) {
         } else {
             thumb.style.borderColor = '#222';
         }
+    });
+    document.querySelectorAll('#det-indicators .dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === idx);
     });
 }
 
@@ -2519,6 +2811,9 @@ function setFilterSize(el, sz) {
     } else {
         filterActiveSizes.push(sz);
         el.classList.add('active');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('filter_applied', { method: 'size', source: sz });
+        }
     }
     applySortAndFilter();
 }
@@ -2532,6 +2827,9 @@ function setFilterColor(el, col) {
     } else {
         filterActiveColors.push(col);
         el.classList.add('active');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('filter_applied', { method: 'color', source: col });
+        }
     }
     applySortAndFilter();
 }
@@ -2545,6 +2843,9 @@ function setFilterPattern(el, pat) {
     } else {
         filterActivePatterns.push(pat);
         el.classList.add('active');
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('filter_applied', { method: 'pattern', source: pat });
+        }
     }
     applySortAndFilter();
 }
@@ -2882,6 +3183,9 @@ function changeSortLogic(val, source) {
     }
     displayedProductsLimit = productsPageLimitSetting;
     applySortAndFilter();
+    if (val && val !== 'none' && typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('sort_applied', { sort: val, source: source || 'main' });
+    }
 }
 
 function loadMoreProducts() {
@@ -3029,6 +3333,7 @@ window.openFeedbackPost = function (el, evt) {
         targetLink = getActiveFeedbackLink(card) || (el.dataset && el.dataset.link);
     }
     if (!targetLink) return false;
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('diary_click', { source: 'feedback' });
     openNativeOrWebUrl(targetLink);
     return false;
 };
@@ -3875,6 +4180,7 @@ function openAnnouncementModal() {
     currentAnnouncementIndex = 0;
     const modal = document.getElementById('announcement-modal');
     if (modal) modal.style.display = 'flex';
+    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('announcement_viewed');
     renderAnnouncementSlide();
 }
 window.openAnnouncementModal = openAnnouncementModal;
