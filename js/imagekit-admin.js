@@ -3,34 +3,36 @@
 // Server-side purge via /api/imagekit/purge worker route.
 // ==========================================
 
-const IMAGEKIT_HOST_PATTERN = /ik\.imagekit\.io\//i;
+function isImageKitAssetUrl(url) {
+    if (typeof isImageKitUrl === 'function') return isImageKitUrl(url);
+    return /ik\.imagekit\.io\//i.test(String(url || ''));
+}
 
-function collectUrlsFromValueForImageKit(value, bucket, urlEndpoint) {
+function collectUrlsFromValueForImageKit(value, bucket) {
     if (!value) return;
     if (typeof value === 'string') {
         const meta = typeof parseImageKitUrl === 'function'
             ? parseImageKitUrl(value)
-            : (IMAGEKIT_HOST_PATTERN.test(value) ? { filePath: value, url: value } : null);
+            : (isImageKitAssetUrl(value) ? { filePath: value, url: value } : null);
         if (meta && meta.filePath) bucket.paths.add(meta.filePath);
-        else if (IMAGEKIT_HOST_PATTERN.test(value)) bucket.urls.add(value.trim());
+        else if (isImageKitAssetUrl(value)) bucket.urls.add(value.trim());
         return;
     }
     if (Array.isArray(value)) {
-        value.forEach((item) => collectUrlsFromValueForImageKit(item, bucket, urlEndpoint));
+        value.forEach((item) => collectUrlsFromValueForImageKit(item, bucket));
         return;
     }
     if (typeof value === 'object') {
-        Object.values(value).forEach((item) => collectUrlsFromValueForImageKit(item, bucket, urlEndpoint));
+        Object.values(value).forEach((item) => collectUrlsFromValueForImageKit(item, bucket));
     }
 }
 
 async function collectImageKitAssetsFromFirestore() {
-    const endpoint = typeof getImageKitConfig === 'function' ? getImageKitConfig().urlEndpoint : '';
     const bucket = { paths: new Set(), urls: new Set() };
 
     const scanCollection = async (collectionName) => {
         const snap = await db.collection(collectionName).get();
-        snap.forEach((doc) => collectUrlsFromValueForImageKit(doc.data(), bucket, endpoint));
+        snap.forEach((doc) => collectUrlsFromValueForImageKit(doc.data(), bucket));
     };
 
     await scanCollection('products');
@@ -42,7 +44,7 @@ async function collectImageKitAssetsFromFirestore() {
     for (const docId of settingsDocs) {
         try {
             const snap = await db.collection('settings').doc(docId).get();
-            if (snap.exists) collectUrlsFromValueForImageKit(snap.data(), bucket, endpoint);
+            if (snap.exists) collectUrlsFromValueForImageKit(snap.data(), bucket);
         } catch (_) {}
     }
 
