@@ -110,7 +110,7 @@ async function fetchImageKitAuth() {
     return data;
 }
 
-function uploadToCloudinary(file, onProgress, opts) {
+function cloudinaryUploadDirect(file, onProgress, opts) {
     const options = opts || {};
     const isVideo = file.type && file.type.startsWith('video/');
     let resourceType = options.resourceType;
@@ -142,9 +142,8 @@ function uploadToCloudinary(file, onProgress, opts) {
         xhr.send(fd);
     });
 }
-window.uploadToCloudinary = uploadToCloudinary;
 
-function uploadToImageKit(file, onProgress) {
+function imagekitUploadDirect(file, onProgress) {
     const config = getImageKitConfig();
     return fetchImageKitAuth().then((auth) => new Promise((resolve, reject) => {
         const fd = new FormData();
@@ -177,15 +176,22 @@ function uploadToImageKit(file, onProgress) {
         xhr.send(fd);
     }));
 }
-window.uploadToImageKit = uploadToImageKit;
 
 function uploadMediaFile(file, onProgress, opts) {
     if (getMediaProvider() === 'imagekit') {
-        return uploadToImageKit(file, onProgress);
+        return imagekitUploadDirect(file, onProgress);
     }
-    return uploadToCloudinary(file, onProgress, opts);
+    return cloudinaryUploadDirect(file, onProgress, opts);
 }
 window.uploadMediaFile = uploadMediaFile;
+
+// Backward-compatible direct Cloudinary upload (must not call uploadMediaFile — avoids recursion)
+window.uploadToCloudinary = function uploadToCloudinary(file, onProgress, opts) {
+    return cloudinaryUploadDirect(file, onProgress, opts);
+};
+window.uploadToImageKit = function uploadToImageKit(file, onProgress) {
+    return imagekitUploadDirect(file, onProgress);
+};
 
 function updateMediaProviderUI() {
     const provider = getMediaProvider();

@@ -2509,7 +2509,8 @@ async function saveSuperadminFeatures() {
         },
         mediaProvider: (document.getElementById('superadmin-media-provider')?.value === 'imagekit') ? 'imagekit' : 'cloudinary',
         imagekit: {
-            publicKey: (document.getElementById('superadmin-imagekit-public-key')?.value || '').trim(),
+            publicKey: (document.getElementById('superadmin-imagekit-public-key')?.value || '').trim()
+                || 'public_3H/K75xEHd17m+AitdItZIZQuNo=',
             urlEndpoint: (document.getElementById('superadmin-imagekit-url-endpoint')?.value || '').trim().replace(/\/$/, ''),
             folder: (document.getElementById('superadmin-imagekit-folder')?.value || '').trim() || '/swagstree'
         }

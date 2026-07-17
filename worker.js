@@ -21,6 +21,7 @@
 
 const SUPER_ADMIN_DEFAULT = 'superadmin@swagstree.com';
 const FIREBASE_PROJECT_DEFAULT = 'swagstree-web';
+const IMAGEKIT_DEFAULT_PUBLIC_KEY = 'public_3H/K75xEHd17m+AitdItZIZQuNo=';
 const BATCH_SIZE = 100;
 
 function isSearchBot(userAgent) {
@@ -832,7 +833,7 @@ async function getImageKitUploadAuth(env, features) {
     const privateKey = env.IMAGEKIT_PRIVATE_KEY;
     if (!privateKey) return null;
     const ik = (features && features.imagekit) || {};
-    const publicKey = (ik.publicKey || env.IMAGEKIT_PUBLIC_KEY || '').trim();
+    const publicKey = (ik.publicKey || env.IMAGEKIT_PUBLIC_KEY || IMAGEKIT_DEFAULT_PUBLIC_KEY).trim();
     if (!publicKey) return null;
     const token = imagekitRandomToken();
     const expire = Math.floor(Date.now() / 1000) + 3600;

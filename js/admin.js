@@ -3575,41 +3575,6 @@ function renderImagePreviews(targetId = 'base') {
     }
 }
 
-// Upload helper — delegates to media.js (Cloudinary or ImageKit based on superadmin setting)
-function uploadToCloudinary(file, onProgress, opts) {
-    if (typeof uploadMediaFile === 'function') {
-        return uploadMediaFile(file, onProgress, opts);
-    }
-    const options = opts || {};
-    const isVideo = file.type && file.type.startsWith('video/');
-    let resourceType = options.resourceType;
-    if (!resourceType) resourceType = isVideo ? 'video' : 'image';
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('upload_preset', PRESET);
-    const endpointType = resourceType === 'auto' ? 'auto' : resourceType;
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${endpointType}/upload`);
-        if (xhr.upload && typeof onProgress === 'function') {
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) onProgress(e.loaded / e.total);
-            };
-        }
-        xhr.onload = () => {
-            try {
-                const d = JSON.parse(xhr.responseText || '{}');
-                if (d.secure_url) resolve(d.secure_url);
-                else reject(new Error(d.error ? d.error.message : 'Cloudinary upload failed'));
-            } catch (e) {
-                reject(new Error('Cloudinary upload failed'));
-            }
-        };
-        xhr.onerror = () => reject(new Error('Network error during upload'));
-        xhr.send(fd);
-    });
-}
-
 const ADMIN_DEFAULT_FRAME_COUNT = 16;
 const ADMIN_MIN_FRAME_COUNT = 8;
 const ADMIN_MAX_FRAME_COUNT = 72;
