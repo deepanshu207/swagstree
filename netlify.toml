@@ -1,0 +1,6 @@
+# Netlify static deploy — proxy /api/* to Cloudflare Worker (ImageKit auth, purges, SEO)
+[[redirects]]
+  from = "/api/*"
+  to = "https://swagstree.com/api/:splat"
+  status = 200
+  force = true

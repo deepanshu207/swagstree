@@ -16,17 +16,17 @@ const CLOUD_NAME = "mysharecloud";
 const PRESET = "swagstree_upload";
 
 // API origin for /api/* routes (ImageKit auth, Cloudinary purge, etc.)
-// Empty = same-origin (Cloudflare Workers deploy). Set meta worker-api-origin or fallback for Netlify/static hosts.
+// Empty = same-origin. Netlify uses _redirects to proxy /api/* to the Worker (no CORS).
 var WORKER_API_ORIGIN = (function initWorkerApiOrigin() {
     if (typeof location === 'undefined') return '';
     var host = location.hostname.toLowerCase();
     if (host.endsWith('.workers.dev') || host === 'swagstree.com' || host === 'www.swagstree.com') return '';
+    if (host.endsWith('.netlify.app')) return '';
     var meta = document.querySelector('meta[name="worker-api-origin"]');
     if (meta && meta.getAttribute('content')) {
         return meta.getAttribute('content').trim().replace(/\/$/, '');
     }
-    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.netlify.app')
-        || host.endsWith('.web.app') || host.endsWith('.firebaseapp.com')) {
+    if (host === 'localhost' || host === '127.0.0.1') {
         return 'https://swagstree.com';
     }
     return '';

@@ -451,11 +451,12 @@ function jsonResponse(body, status = 200) {
     });
 }
 
-function corsHeaders(methods = 'POST, OPTIONS') {
+function corsHeaders(methods = 'GET, POST, OPTIONS') {
     return {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': methods,
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Max-Age': '86400'
     };
 }
 
@@ -1030,7 +1031,7 @@ export default {
         if (canonicalRedirect) return canonicalRedirect;
 
         if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
-            return new Response(null, { status: 204, headers: corsHeaders() });
+            return new Response(null, { status: 204, headers: corsHeaders('GET, POST, OPTIONS') });
         }
 
         if (url.pathname === '/api/cloudinary/purge' && request.method === 'POST') {
@@ -1057,7 +1058,7 @@ export default {
         if (url.pathname === '/api/auth/export' && request.method === 'GET') {
             const resp = await exportAuthUsers(request, env);
             const headers = new Headers(resp.headers);
-            Object.entries(corsHeaders()).forEach(([k, v]) => headers.set(k, v));
+            Object.entries(corsHeaders('GET, POST, OPTIONS')).forEach(([k, v]) => headers.set(k, v));
             headers.set('X-Robots-Tag', 'noindex, nofollow');
             return new Response(resp.body, { status: resp.status, headers });
         }

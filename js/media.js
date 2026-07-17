@@ -96,10 +96,20 @@ async function getFirebaseIdToken() {
 async function fetchImageKitAuth() {
     const token = await getFirebaseIdToken();
     const url = typeof workerApiUrl === 'function' ? workerApiUrl('/api/imagekit/auth') : '/api/imagekit/auth';
-    const resp = await fetch(url, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${token}` }
-    });
+    let resp;
+    try {
+        resp = await fetch(url, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+    } catch (networkErr) {
+        const origin = (typeof WORKER_API_ORIGIN !== 'undefined' && WORKER_API_ORIGIN) ? WORKER_API_ORIGIN : 'same-origin';
+        throw new Error(
+            'ImageKit auth network error (Failed to fetch). ' +
+            'Redeploy Netlify with the _redirects file, or ensure Worker CORS allows your domain. ' +
+            `API: ${url} (${origin}).`
+        );
+    }
     const raw = await resp.text();
     let data = {};
     try {
