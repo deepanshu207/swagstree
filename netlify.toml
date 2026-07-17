@@ -1,6 +1,16 @@
-# Netlify static deploy — proxy /api/* to Cloudflare Worker (ImageKit auth, purges, SEO)
+# Netlify deploy — ImageKit auth runs as a Netlify Function (same-origin, no CORS).
+# Other /api/* routes proxy to Cloudflare Worker.
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/imagekit/auth"
+  to = "/.netlify/functions/imagekit-auth"
+  status = 200
+
 [[redirects]]
   from = "/api/*"
-  to = "https://swagstree.com/api/:splat"
+  to = "https://swagstree.amazing-deepanshu14.workers.dev/api/:splat"
   status = 200
   force = true

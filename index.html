@@ -2381,7 +2381,8 @@
                             style="margin:0; font-size:12px;">
                         <p style="margin:0; font-size:10px; color:#666; line-height:1.45;">
                             New uploads use the selected provider. Existing CDN links keep working.
-                            Set <code style="color:#aaa;">IMAGEKIT_PRIVATE_KEY</code> in Cloudflare Worker secrets for ImageKit uploads and purge.
+                            <strong>Netlify:</strong> set <code style="color:#aaa;">IMAGEKIT_PRIVATE_KEY</code> in Site → Environment variables.
+                            <strong>Cloudflare Worker:</strong> same secret in Worker secrets if using swagstree.com.
                         </p>
                     </div>
                 </div>
@@ -3799,7 +3800,7 @@
     <script src="js/comments.js?v=10.9"></script>
     <script src="js/support-chat.js?v=11.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/media.js?v=1.5"></script>
+    <script src="js/media.js?v=1.6"></script>
     <script src="js/admin.js?v=17.0"></script>
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
