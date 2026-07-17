@@ -1,0 +1,2 @@
+# Netlify: proxy /api/* to Cloudflare Worker (ImageKit auth, Cloudinary purge, auth export, SEO)
+/api/*  https://swagstree.com/api/:splat  200!

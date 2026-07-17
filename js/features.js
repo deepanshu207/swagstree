@@ -2682,17 +2682,11 @@ function applyFeatureTogglesUI() {
             document.getElementById('toggle-seo-indexing').checked = config.seoIndexing !== false;
         }
         if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
-        const mediaProviderEl = document.getElementById('superadmin-media-provider');
-        if (mediaProviderEl) {
-            mediaProviderEl.value = config.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+        if (!window._mediaProviderUiDirty) {
+            if (typeof syncMediaProviderFieldsFromConfig === 'function') {
+                syncMediaProviderFieldsFromConfig(config);
+            }
         }
-        const ik = config.imagekit || {};
-        const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
-        if (ikPublicEl) ikPublicEl.value = ik.publicKey || '';
-        const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
-        if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || 'https://ik.imagekit.io/fenbexha5';
-        const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
-        if (ikFolderEl) ikFolderEl.value = ik.folder || '/swagstree';
         if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
         if (document.getElementById('toggle-admin-storefront-content')) {
             document.getElementById('toggle-admin-storefront-content').checked = config.adminStorefrontContent !== false;

@@ -58,7 +58,7 @@ async function purgeImageKitViaWorker(payload) {
     const user = typeof auth !== 'undefined' ? auth.currentUser : null;
     if (!user) throw new Error('You must be logged in as superadmin.');
     const token = await user.getIdToken(true);
-    const resp = await fetch('/api/imagekit/purge', {
+    const resp = await fetch(typeof workerApiUrl === 'function' ? workerApiUrl('/api/imagekit/purge') : '/api/imagekit/purge', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

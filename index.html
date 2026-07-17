@@ -23,6 +23,8 @@
     <meta name="apple-mobile-web-app-title" content="Swag Stree">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
+    <!-- Cloudflare Worker API base when frontend is on Netlify / static host (leave blank for Workers deploy) -->
+    <meta name="worker-api-origin" content="https://swagstree.com">
     <meta name="format-detection" content="telephone=yes">
     <link rel="canonical" href="/">
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" id="seo-head-sitemap">
@@ -2357,11 +2359,14 @@
                         <span id="super-media-provider-active" class="super-media-provider-badge super-media-provider-badge--cloudinary">Cloudinary</span>
                     </div>
                     <select id="superadmin-media-provider"
-                        onchange="if(typeof updateMediaProviderUI==='function')updateMediaProviderUI()"
-                        style="width:100%; margin-bottom:10px; font-size:12px; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:8px;">
+                        onchange="if(typeof markMediaProviderUiDirty==='function')markMediaProviderUiDirty();if(typeof updateMediaProviderUI==='function')updateMediaProviderUI()"
+                        style="width:100%; margin-bottom:6px; font-size:12px; padding:8px; background:#111; color:#fff; border:1px solid #333; border-radius:8px;">
                         <option value="cloudinary">Cloudinary</option>
                         <option value="imagekit">ImageKit</option>
                     </select>
+                    <p id="super-media-provider-unsaved-hint" style="display:none; margin:0 0 8px; font-size:10px; color:var(--gold); line-height:1.4;">
+                        Provider changed — click <strong>Save Features &amp; Theme Config</strong> below to apply for uploads.
+                    </p>
                     <div id="super-imagekit-settings" style="display:none; flex-direction:column; gap:8px;">
                         <label style="font-size:10px; color:#888; text-transform:uppercase;">ImageKit Public Key</label>
                         <input id="superadmin-imagekit-public-key" type="text" placeholder="public_..."
@@ -3778,10 +3783,10 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="js/features.js?v=12.8"></script>
+    <script src="js/features.js?v=12.9"></script>
     <script src="js/seo.js?v=1.6"></script>
     <script src="js/analytics.js?v=1.4"></script>
-    <script src="js/app.js?v=10.15"></script>
+    <script src="js/app.js?v=10.16"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
@@ -3790,14 +3795,14 @@
     <script src="js/categories.js?v=12.5"></script>
     <script src="js/store.js?v=10.33"></script>
     <script src="js/checkout.js?v=10.13"></script>
-    <script src="js/auth.js?v=10.17"></script>
+    <script src="js/auth.js?v=10.18"></script>
     <script src="js/comments.js?v=10.9"></script>
     <script src="js/support-chat.js?v=11.7"></script>
     <script src="js/auto-retention.js?v=10.0"></script>
-    <script src="js/media.js?v=1.3"></script>
-    <script src="js/admin.js?v=16.9"></script>
-    <script src="js/cloudinary-admin.js?v=9.91"></script>
-    <script src="js/imagekit-admin.js?v=1.1"></script>
+    <script src="js/media.js?v=1.4"></script>
+    <script src="js/admin.js?v=17.0"></script>
+    <script src="js/cloudinary-admin.js?v=9.92"></script>
+    <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

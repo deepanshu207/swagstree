@@ -95,15 +95,20 @@ async function getFirebaseIdToken() {
 
 async function fetchImageKitAuth() {
     const token = await getFirebaseIdToken();
-    const resp = await fetch('/api/imagekit/auth', {
+    const url = typeof workerApiUrl === 'function' ? workerApiUrl('/api/imagekit/auth') : '/api/imagekit/auth';
+    const resp = await fetch(url, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
     });
+    const raw = await resp.text();
     let data = {};
     try {
-        data = await resp.json();
+        data = raw ? JSON.parse(raw) : {};
     } catch (_) {
-        throw new Error('ImageKit auth server returned an invalid response.');
+        const hint = raw.trim().startsWith('<')
+            ? 'Server returned HTML instead of JSON. If you use Netlify, redeploy with _redirects or set worker-api-origin meta to your Cloudflare Worker URL (e.g. https://swagstree.com).'
+            : (raw.slice(0, 160) || 'empty response');
+        throw new Error('ImageKit auth failed: ' + hint);
     }
     if (!resp.ok || !data.ok) {
         throw new Error(data.error || `ImageKit auth failed (${resp.status}).`);
@@ -195,8 +200,36 @@ window.uploadToImageKit = function uploadToImageKit(file, onProgress) {
     return imagekitUploadDirect(file, onProgress);
 };
 
+function getMediaProviderFromUI() {
+    const el = document.getElementById('superadmin-media-provider');
+    if (el) return el.value === 'imagekit' ? 'imagekit' : 'cloudinary';
+    return getMediaProvider();
+}
+
+function markMediaProviderUiDirty() {
+    window._mediaProviderUiDirty = true;
+}
+window.markMediaProviderUiDirty = markMediaProviderUiDirty;
+
+function syncMediaProviderFieldsFromConfig(config) {
+    const data = config || window.APP_FEATURES || {};
+    const mediaProviderEl = document.getElementById('superadmin-media-provider');
+    if (mediaProviderEl) {
+        mediaProviderEl.value = data.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+    }
+    const ik = data.imagekit || {};
+    const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
+    if (ikPublicEl) ikPublicEl.value = ik.publicKey || IMAGEKIT_DEFAULT_PUBLIC_KEY;
+    const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
+    if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || IMAGEKIT_DEFAULT_URL_ENDPOINT;
+    const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
+    if (ikFolderEl) ikFolderEl.value = ik.folder || IMAGEKIT_DEFAULT_FOLDER;
+}
+window.syncMediaProviderFieldsFromConfig = syncMediaProviderFieldsFromConfig;
+
 function updateMediaProviderUI() {
-    const provider = getMediaProvider();
+    const saved = getMediaProvider();
+    const provider = getMediaProviderFromUI();
     const badge = document.getElementById('super-media-provider-active');
     if (badge) {
         badge.textContent = provider === 'imagekit' ? 'ImageKit' : 'Cloudinary';
@@ -208,5 +241,8 @@ function updateMediaProviderUI() {
     const ikRow = document.getElementById('super-delete-imagekit-row');
     if (cloudRow) cloudRow.style.opacity = provider === 'cloudinary' ? '1' : '0.72';
     if (ikRow) ikRow.style.opacity = provider === 'imagekit' ? '1' : '0.72';
+    const unsavedHint = document.getElementById('super-media-provider-unsaved-hint');
+    if (unsavedHint) unsavedHint.style.display = saved !== provider ? 'block' : 'none';
 }
 window.updateMediaProviderUI = updateMediaProviderUI;
+window.getMediaProviderFromUI = getMediaProviderFromUI;

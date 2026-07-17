@@ -72,7 +72,7 @@ async function getSuperAdminIdToken() {
 
 async function purgeCloudinaryViaWorker(payload) {
     const token = await getSuperAdminIdToken();
-    const resp = await fetch('/api/cloudinary/purge', {
+    const resp = await fetch(typeof workerApiUrl === 'function' ? workerApiUrl('/api/cloudinary/purge') : '/api/cloudinary/purge', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

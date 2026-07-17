@@ -2404,17 +2404,15 @@ async function loadSuperadminFeatures() {
             if (document.getElementById('toggle-product-categories')) document.getElementById('toggle-product-categories').checked = data.productCategories !== false;
             if (document.getElementById('toggle-seo-indexing')) document.getElementById('toggle-seo-indexing').checked = data.seoIndexing !== false;
             if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
-            const mediaProviderEl = document.getElementById('superadmin-media-provider');
-            if (mediaProviderEl) {
-                mediaProviderEl.value = data.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+            window._mediaProviderUiDirty = false;
+            if (typeof syncMediaProviderFieldsFromConfig === 'function') {
+                syncMediaProviderFieldsFromConfig(data);
+            } else {
+                const mediaProviderEl = document.getElementById('superadmin-media-provider');
+                if (mediaProviderEl) {
+                    mediaProviderEl.value = data.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+                }
             }
-            const ik = data.imagekit || {};
-            const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
-            if (ikPublicEl) ikPublicEl.value = ik.publicKey || '';
-            const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
-            if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || 'https://ik.imagekit.io/fenbexha5';
-            const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
-            if (ikFolderEl) ikFolderEl.value = ik.folder || '/swagstree';
             if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
             if (document.getElementById('toggle-admin-storefront-content')) {
                 document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
@@ -2520,6 +2518,7 @@ async function saveSuperadminFeatures() {
     try {
         await db.collection("settings").doc("features_config").set(updateObj, { merge: true });
         window.APP_FEATURES = { ...window.APP_FEATURES, ...updateObj };
+        window._mediaProviderUiDirty = false;
         if (typeof cacheFeaturesConfig === 'function') cacheFeaturesConfig(window.APP_FEATURES);
         if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
         if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();

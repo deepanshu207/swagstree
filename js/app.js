@@ -15,6 +15,31 @@ var auth = firebase.auth();
 const CLOUD_NAME = "mysharecloud";
 const PRESET = "swagstree_upload";
 
+// API origin for /api/* routes (ImageKit auth, Cloudinary purge, etc.)
+// Empty = same-origin (Cloudflare Workers deploy). Set meta worker-api-origin or fallback for Netlify/static hosts.
+var WORKER_API_ORIGIN = (function initWorkerApiOrigin() {
+    if (typeof location === 'undefined') return '';
+    var host = location.hostname.toLowerCase();
+    if (host.endsWith('.workers.dev') || host === 'swagstree.com' || host === 'www.swagstree.com') return '';
+    var meta = document.querySelector('meta[name="worker-api-origin"]');
+    if (meta && meta.getAttribute('content')) {
+        return meta.getAttribute('content').trim().replace(/\/$/, '');
+    }
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.netlify.app')
+        || host.endsWith('.web.app') || host.endsWith('.firebaseapp.com')) {
+        return 'https://swagstree.com';
+    }
+    return '';
+})();
+window.WORKER_API_ORIGIN = WORKER_API_ORIGIN;
+
+function workerApiUrl(path) {
+    var p = path.charAt(0) === '/' ? path : '/' + path;
+    var base = (window.WORKER_API_ORIGIN || '').replace(/\/$/, '');
+    return base ? base + p : p;
+}
+window.workerApiUrl = workerApiUrl;
+
 // 2. GLOBAL STATE
 var products = [];
 var cart = [];

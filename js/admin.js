@@ -6067,7 +6067,7 @@ async function fetchAuthUsersExport() {
     const user = typeof auth !== 'undefined' ? auth.currentUser : null;
     if (!user) throw new Error('You must be logged in to export auth users.');
     const token = await user.getIdToken(true);
-    const resp = await fetch('/api/auth/export', {
+    const resp = await fetch(typeof workerApiUrl === 'function' ? workerApiUrl('/api/auth/export') : '/api/auth/export', {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
     });
