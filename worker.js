@@ -841,9 +841,9 @@ function imagekitRandomToken() {
 }
 
 async function getImageKitUploadAuth(env, features) {
-    const privateKey = env.IMAGEKIT_PRIVATE_KEY;
-    if (!privateKey) return null;
     const ik = (features && features.imagekit) || {};
+    const privateKey = (env.IMAGEKIT_PRIVATE_KEY || ik.privateKey || '').trim();
+    if (!privateKey) return null;
     const publicKey = (ik.publicKey || env.IMAGEKIT_PUBLIC_KEY || IMAGEKIT_DEFAULT_PUBLIC_KEY).trim();
     if (!publicKey) return null;
     const token = imagekitRandomToken();
@@ -955,7 +955,7 @@ async function imagekitAuthHandler(request, env) {
     if (!auth) {
         return jsonResponse({
             ok: false,
-            error: 'ImageKit server auth is not configured. Add IMAGEKIT_PRIVATE_KEY (private_… from ImageKit dashboard → API keys) as a Cloudflare Worker secret, then redeploy.'
+            error: 'ImageKit private key missing. Add IMAGEKIT_PRIVATE_KEY in Worker secrets, or save private_… key in Superadmin → ImageKit settings.'
         }, 503);
     }
     return jsonResponse({ ok: true, ...auth });

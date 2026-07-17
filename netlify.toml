@@ -1,8 +1,14 @@
-# Netlify deploy — ImageKit auth runs as a Netlify Function (same-origin, no CORS).
-# Other /api/* routes proxy to Cloudflare Worker.
+# Netlify deploy — ImageKit auth via Netlify Function (same-origin).
+
+[build]
+  publish = "."
 
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[build.environment]
+  NODE_VERSION = "20"
 
 [[redirects]]
   from = "/api/imagekit/auth"

@@ -95,35 +95,44 @@ async function getFirebaseIdToken() {
 
 async function fetchImageKitAuth() {
     const token = await getFirebaseIdToken();
-    const url = typeof workerApiUrl === 'function' ? workerApiUrl('/api/imagekit/auth') : '/api/imagekit/auth';
-    let resp;
-    try {
-        resp = await fetch(url, {
-            method: 'GET',
-            headers: { Authorization: `Bearer ${token}` }
-        });
-    } catch (networkErr) {
-        const origin = (typeof WORKER_API_ORIGIN !== 'undefined' && WORKER_API_ORIGIN) ? WORKER_API_ORIGIN : 'same-origin';
-        throw new Error(
-            'ImageKit auth network error (Failed to fetch). ' +
-            'Redeploy Netlify with the _redirects file, or ensure Worker CORS allows your domain. ' +
-            `API: ${url} (${origin}).`
-        );
+    const urls = [];
+    urls.push('/.netlify/functions/imagekit-auth');
+    urls.push('/api/imagekit/auth');
+    if (typeof workerApiUrl === 'function') {
+        const workerUrl = workerApiUrl('/api/imagekit/auth');
+        if (urls.indexOf(workerUrl) === -1) urls.push(workerUrl);
     }
-    const raw = await resp.text();
-    let data = {};
-    try {
-        data = raw ? JSON.parse(raw) : {};
-    } catch (_) {
-        const hint = raw.trim().startsWith('<')
-            ? 'Server returned HTML instead of JSON. If you use Netlify, redeploy with _redirects or set worker-api-origin meta to your Cloudflare Worker URL (e.g. https://swagstree.com).'
-            : (raw.slice(0, 160) || 'empty response');
-        throw new Error('ImageKit auth failed: ' + hint);
+    const workerDirect = 'https://swagstree.amazing-deepanshu14.workers.dev/api/imagekit/auth';
+    if (urls.indexOf(workerDirect) === -1) urls.push(workerDirect);
+
+    const errors = [];
+    for (let i = 0; i < urls.length; i++) {
+        const url = urls[i];
+        try {
+            const resp = await fetch(url, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${token}` },
+                credentials: 'omit'
+            });
+            const raw = await resp.text();
+            let data = {};
+            try {
+                data = raw ? JSON.parse(raw) : {};
+            } catch (_) {
+                errors.push(url + ': invalid JSON (HTTP ' + resp.status + ')');
+                continue;
+            }
+            if (resp.ok && data.ok) return data;
+            errors.push(url + ': ' + (data.error || ('HTTP ' + resp.status)));
+        } catch (e) {
+            errors.push(url + ': ' + (e.message || 'network error'));
+        }
     }
-    if (!resp.ok || !data.ok) {
-        throw new Error(data.error || `ImageKit auth failed (${resp.status}).`);
-    }
-    return data;
+    throw new Error(
+        'ImageKit auth failed after trying ' + urls.length + ' endpoint(s). ' +
+        errors.join(' · ') +
+        ' — Paste your ImageKit private_… key in Superadmin → ImageKit → Save, then redeploy Netlify.'
+    );
 }
 
 function cloudinaryUploadDirect(file, onProgress, opts) {
@@ -230,6 +239,11 @@ function syncMediaProviderFieldsFromConfig(config) {
     const ik = data.imagekit || {};
     const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
     if (ikPublicEl) ikPublicEl.value = ik.publicKey || IMAGEKIT_DEFAULT_PUBLIC_KEY;
+    const ikPrivateEl = document.getElementById('superadmin-imagekit-private-key');
+    if (ikPrivateEl) {
+        ikPrivateEl.value = '';
+        ikPrivateEl.placeholder = ik.privateKey ? '••••••••  (saved — leave blank to keep)' : 'private_… (paste from ImageKit dashboard)';
+    }
     const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
     if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || IMAGEKIT_DEFAULT_URL_ENDPOINT;
     const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
