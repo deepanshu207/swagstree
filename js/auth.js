@@ -2412,7 +2412,7 @@ async function loadSuperadminFeatures() {
             const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
             if (ikPublicEl) ikPublicEl.value = ik.publicKey || '';
             const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
-            if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || '';
+            if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || 'https://ik.imagekit.io/fenbexha5';
             const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
             if (ikFolderEl) ikFolderEl.value = ik.folder || '/swagstree';
             if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
@@ -2511,7 +2511,8 @@ async function saveSuperadminFeatures() {
         imagekit: {
             publicKey: (document.getElementById('superadmin-imagekit-public-key')?.value || '').trim()
                 || 'public_3H/K75xEHd17m+AitdItZIZQuNo=',
-            urlEndpoint: (document.getElementById('superadmin-imagekit-url-endpoint')?.value || '').trim().replace(/\/$/, ''),
+            urlEndpoint: (document.getElementById('superadmin-imagekit-url-endpoint')?.value || '').trim().replace(/\/$/, '')
+                || 'https://ik.imagekit.io/fenbexha5',
             folder: (document.getElementById('superadmin-imagekit-folder')?.value || '').trim() || '/swagstree'
         }
     };

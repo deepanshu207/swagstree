@@ -11,9 +11,9 @@
  * - CANONICAL_HOST (e.g. swagstree.com) — 301 redirect www to apex
  * - SEO_INDEXING_FORCE_OFF (true) — emergency block all indexing without Firestore
  * - CLOUDINARY_ASSET_PREFIX (e.g. swagstree) — also purge orphans under this folder prefix
- * - IMAGEKIT_PRIVATE_KEY — ImageKit private API key (server only)
+ * - IMAGEKIT_PRIVATE_KEY — ImageKit private API key (server only, required for uploads)
  * - IMAGEKIT_PUBLIC_KEY — optional fallback if not in Firestore features_config
- * - IMAGEKIT_URL_ENDPOINT — optional e.g. https://ik.imagekit.io/your_imagekit_id
+ * - IMAGEKIT_URL_ENDPOINT — optional fallback (default https://ik.imagekit.io/fenbexha5)
  * - IMAGEKIT_FOLDER — optional upload folder (default /swagstree)
  * - FIREBASE_SERVICE_ACCOUNT — JSON service account for Auth user export
  * - FIREBASE_PROJECT_ID (default: swagstree-web)
@@ -22,6 +22,7 @@
 const SUPER_ADMIN_DEFAULT = 'superadmin@swagstree.com';
 const FIREBASE_PROJECT_DEFAULT = 'swagstree-web';
 const IMAGEKIT_DEFAULT_PUBLIC_KEY = 'public_3H/K75xEHd17m+AitdItZIZQuNo=';
+const IMAGEKIT_DEFAULT_URL_ENDPOINT = 'https://ik.imagekit.io/fenbexha5';
 const BATCH_SIZE = 100;
 
 function isSearchBot(userAgent) {
@@ -37,6 +38,15 @@ function parseFirestoreValue(field) {
     if ('doubleValue' in field) return field.doubleValue;
     if ('booleanValue' in field) return field.booleanValue;
     if ('timestampValue' in field) return field.timestampValue;
+    if ('nullValue' in field) return null;
+    if ('mapValue' in field) {
+        const out = {};
+        const fields = (field.mapValue && field.mapValue.fields) || {};
+        Object.keys(fields).forEach((key) => {
+            out[key] = parseFirestoreValue(fields[key]);
+        });
+        return out;
+    }
     if ('arrayValue' in field) return (field.arrayValue.values || []).map(parseFirestoreValue);
     return null;
 }
@@ -837,9 +847,10 @@ async function getImageKitUploadAuth(env, features) {
     if (!publicKey) return null;
     const token = imagekitRandomToken();
     const expire = Math.floor(Date.now() / 1000) + 3600;
-    const signature = await imagekitHmacSha1Hex(privateKey, token + expire);
+    const signature = await imagekitHmacSha1Hex(privateKey, token + String(expire));
     const folder = (ik.folder || env.IMAGEKIT_FOLDER || '/swagstree').trim() || '/swagstree';
-    return { token, expire, signature, publicKey, folder };
+    const urlEndpoint = (ik.urlEndpoint || env.IMAGEKIT_URL_ENDPOINT || IMAGEKIT_DEFAULT_URL_ENDPOINT).trim().replace(/\/$/, '');
+    return { token, expire, signature, publicKey, folder, urlEndpoint };
 }
 
 async function imagekitListFiles(privateKey, queryParams) {
@@ -943,7 +954,7 @@ async function imagekitAuthHandler(request, env) {
     if (!auth) {
         return jsonResponse({
             ok: false,
-            error: 'ImageKit is not configured on the server. Set IMAGEKIT_PRIVATE_KEY in Cloudflare Worker secrets and save ImageKit settings in Superadmin.'
+            error: 'ImageKit server auth is not configured. Add IMAGEKIT_PRIVATE_KEY (private_… from ImageKit dashboard → API keys) as a Cloudflare Worker secret, then redeploy.'
         }, 503);
     }
     return jsonResponse({ ok: true, ...auth });

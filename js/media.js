@@ -3,6 +3,7 @@
 // ==========================================
 
 const IMAGEKIT_DEFAULT_PUBLIC_KEY = 'public_3H/K75xEHd17m+AitdItZIZQuNo=';
+const IMAGEKIT_DEFAULT_URL_ENDPOINT = 'https://ik.imagekit.io/fenbexha5';
 const IMAGEKIT_DEFAULT_FOLDER = '/swagstree';
 
 const CLOUDINARY_HOST_PATTERN = /res\.cloudinary\.com\//i;
@@ -18,7 +19,7 @@ function getImageKitConfig() {
     const cfg = (window.APP_FEATURES && window.APP_FEATURES.imagekit) || {};
     return {
         publicKey: (cfg.publicKey || IMAGEKIT_DEFAULT_PUBLIC_KEY).trim(),
-        urlEndpoint: (cfg.urlEndpoint || '').trim().replace(/\/$/, ''),
+        urlEndpoint: (cfg.urlEndpoint || IMAGEKIT_DEFAULT_URL_ENDPOINT).trim().replace(/\/$/, ''),
         folder: (cfg.folder || IMAGEKIT_DEFAULT_FOLDER).trim() || IMAGEKIT_DEFAULT_FOLDER
     };
 }
@@ -167,9 +168,10 @@ function imagekitUploadDirect(file, onProgress) {
             try {
                 const d = JSON.parse(xhr.responseText || '{}');
                 if (d.url) resolve(d.url);
-                else reject(new Error(d.message || d.error || 'ImageKit upload failed'));
+                const errMsg = d.message || d.error || (d.help && String(d.help)) || (xhr.status ? `HTTP ${xhr.status}` : '');
+                reject(new Error(errMsg || 'ImageKit upload failed'));
             } catch (e) {
-                reject(new Error('ImageKit upload failed'));
+                reject(new Error(xhr.responseText || 'ImageKit upload failed'));
             }
         };
         xhr.onerror = () => reject(new Error('Network error during ImageKit upload'));

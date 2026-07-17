@@ -21,7 +21,7 @@ window.APP_FEATURES = window.APP_FEATURES || {
     mediaProvider: 'cloudinary',
     imagekit: {
         publicKey: 'public_3H/K75xEHd17m+AitdItZIZQuNo=',
-        urlEndpoint: '',
+        urlEndpoint: 'https://ik.imagekit.io/fenbexha5',
         folder: '/swagstree'
     },
     widgets: {
@@ -2690,7 +2690,7 @@ function applyFeatureTogglesUI() {
         const ikPublicEl = document.getElementById('superadmin-imagekit-public-key');
         if (ikPublicEl) ikPublicEl.value = ik.publicKey || '';
         const ikEndpointEl = document.getElementById('superadmin-imagekit-url-endpoint');
-        if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || '';
+        if (ikEndpointEl) ikEndpointEl.value = ik.urlEndpoint || 'https://ik.imagekit.io/fenbexha5';
         const ikFolderEl = document.getElementById('superadmin-imagekit-folder');
         if (ikFolderEl) ikFolderEl.value = ik.folder || '/swagstree';
         if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
