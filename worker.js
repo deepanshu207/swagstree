@@ -400,10 +400,23 @@ function buildCatalogJson(origin, products, categories) {
     };
 }
 
+function resolveSeoOrigin(url, env) {
+    const canonical = (env.CANONICAL_HOST || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (canonical) return `https://${canonical}`;
+    return url.origin;
+}
+
+const SEO_DISCOVERY_PATHS = new Set([
+    '/robots.txt', '/sitemap.xml', '/sitemap-pages.xml', '/sitemap-products.xml',
+    '/feed.xml', '/catalog.json', '/llms.txt', '/ai.txt', '/opensearch.xml',
+    '/humans.txt'
+]);
+
 function maybeCanonicalRedirect(request, env) {
+    const url = new URL(request.url);
+    if (SEO_DISCOVERY_PATHS.has(url.pathname)) return null;
     const canonical = (env.CANONICAL_HOST || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
     if (!canonical) return null;
-    const url = new URL(request.url);
     if (url.hostname === 'www.' + canonical) {
         url.hostname = canonical;
         url.protocol = 'https:';
@@ -1084,43 +1097,40 @@ export default {
         const seoIndexingOn = await isSeoIndexingEnabledWorker(env);
 
         if (url.pathname === '/robots.txt') {
-            const body = seoIndexingOn ? buildRobotsAllowAll(url.origin) : buildRobotsDisallowAll();
+            const body = seoIndexingOn ? buildRobotsAllowAll(resolveSeoOrigin(url, env)) : buildRobotsDisallowAll();
             return textResponse(body, 'text/plain; charset=utf-8', seoIndexingOn ? 3600 : 300);
         }
 
-        const seoDiscoveryPaths = new Set([
-            '/sitemap.xml', '/sitemap-pages.xml', '/sitemap-products.xml',
-            '/feed.xml', '/catalog.json', '/llms.txt', '/ai.txt', '/opensearch.xml',
-            '/humans.txt'
-        ]);
-        if (!seoIndexingOn && seoDiscoveryPaths.has(url.pathname)) {
+        if (!seoIndexingOn && SEO_DISCOVERY_PATHS.has(url.pathname)) {
             return new Response('Indexing disabled', {
                 status: 404,
                 headers: { 'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'no-store' }
             });
         }
 
+        const seoOrigin = resolveSeoOrigin(url, env);
+
         if (url.pathname === '/sitemap.xml') {
-            return xmlResponse(buildSitemapIndex(url.origin));
+            return xmlResponse(buildSitemapIndex(seoOrigin));
         }
         if (url.pathname === '/sitemap-pages.xml') {
             const categories = await fetchAllFirestoreCategories(env);
-            return xmlResponse(buildPagesSitemap(url.origin, categories));
+            return xmlResponse(buildPagesSitemap(seoOrigin, categories));
         }
         if (url.pathname === '/sitemap-products.xml') {
             const products = await fetchAllFirestoreProducts(env);
-            return xmlResponse(buildProductsSitemapXml(url.origin, products));
+            return xmlResponse(buildProductsSitemapXml(seoOrigin, products));
         }
         if (url.pathname === '/feed.xml') {
             const products = await fetchAllFirestoreProducts(env);
-            return xmlResponse(buildRssFeed(url.origin, products));
+            return xmlResponse(buildRssFeed(seoOrigin, products));
         }
         if (url.pathname === '/catalog.json') {
             const [products, categories] = await Promise.all([
                 fetchAllFirestoreProducts(env),
                 fetchAllFirestoreCategories(env)
             ]);
-            return new Response(JSON.stringify(buildCatalogJson(url.origin, products, categories)), {
+            return new Response(JSON.stringify(buildCatalogJson(seoOrigin, products, categories)), {
                 headers: {
                     'Content-Type': 'application/ld+json; charset=utf-8',
                     'Cache-Control': 'public, max-age=1800',
