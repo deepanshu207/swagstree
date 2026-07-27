@@ -1609,7 +1609,7 @@ function scrollDetailGalleryToIndex(idx, smooth = true) {
     window.detGalleryScrollingNow = true;
     clearTimeout(window.detGalleryScrollEndTimeout);
     detGallery.scrollTo({ left: imgEl.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
-    updateActiveThumbnailBorder(idx);
+    updateActiveVariantThumbBorder();
     updateDetailGalleryActions(idx);
     window.detGalleryScrollEndTimeout = setTimeout(() => {
         window.detGalleryScrollingNow = false;
@@ -2040,9 +2040,8 @@ function buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx) {
         </div>`;
     }
     if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
-        return `<div class="det-gallery-slide det-gallery-slide--placeholder" ${attrs} onclick="clickDetailGallerySlide(${index}, event)" role="button" tabindex="0" aria-label="No image for this variant">
+        return `<div class="det-gallery-slide det-gallery-slide--placeholder" ${attrs}>
             <img src="${getNoImagePlaceholderUrl()}" class="det-gallery-placeholder" alt="No image">
-            <span class="det-gallery-placeholder-label">No Image</span>
         </div>`;
     }
     if (mapInfo.is360Preview && activeProductId) {
@@ -2099,124 +2098,49 @@ function collectVariantGalleryImages(variant) {
     return slideImages;
 }
 
-function variantSlideMetaFromVariant(variant) {
-    const colorKey = getVariantColorKey(variant) || variant.color || '';
-    return {
-        url: '',
-        color: colorKey,
-        size: variant.size || '',
-        pattern: variant.pattern || '',
-        type: 'image',
-        scope: 'variant'
-    };
+function getDetailVariantThumbSources(p) {
+    if (!p || !p.normalizedVariants || !p.normalizedVariants.length) return [];
+    return p.normalizedVariants.filter(v => {
+        if (!v || v.isActive === false) return false;
+        if (v.hideDetailsGallery === true || v.hideDetailsGallery === 'true') return false;
+        return true;
+    });
 }
 
-function gallerySlideMatchesVariant(mapInfo, variant) {
-    if (!mapInfo || !variant) return false;
-    if (!sizesMatch(mapInfo.size, variant.size)) return false;
-    if (!variantColorMatches(variant, mapInfo.color || getVariantColorKey(variant))) return false;
-    const variantPattern = variant.pattern || '';
-    const slidePattern = mapInfo.pattern || '';
-    if (variantPattern && slidePattern && !patternsMatch(slidePattern, variantPattern)) return false;
-    if (!variantPattern && slidePattern) return false;
-    return true;
-}
-
-function resolveActiveGalleryIndex(p, slideMap) {
-    const map = slideMap || [];
-    const pattern = window.selectedPattern || '';
-    const strictVariant = getStrictSelectedVariant(p) || getSelectedVariant(p);
-
-    const scoreSlide = (m, opts = {}) => {
-        if (!m || m.type === 'video' || m.is360Preview) return -1;
-        const color = opts.color || '';
-        const size = opts.size || '';
-        const pat = opts.pattern;
-        let score = 0;
-        if (color) {
-            if (!m.color || !colorsMatch(m.color, color)) return -1;
-            score += 4;
-        }
-        if (pat) {
-            if (!m.pattern || !patternsMatch(m.pattern, pat)) return -1;
-            score += 2;
-        } else if (pattern && m.pattern && !patternsMatch(m.pattern, pattern)) {
-            return -1;
-        }
-        if (size && size !== 'Standard' && m.size) {
-            if (!sizesEqual(m.size, size)) return -1;
-            score += 1;
-        }
-        if (m.isPlaceholder) score += 8;
-        if (!m.color && !m.pattern && m.scope === 'main') score -= 2;
-        return score;
-    };
-
-    const tiers = [
-        { color: selectedColor, size: selectedSize, pattern },
-        { color: selectedColor, size: selectedSize, pattern: '' },
-        { color: selectedColor, size: selectedSize },
-        { color: selectedColor }
-    ];
-
-    let bestIdx = -1;
-    let bestScore = -1;
-    tiers.forEach((tier) => {
-        map.forEach((m, i) => {
-            const score = scoreSlide(m, tier);
-            if (score > bestScore) {
-                bestScore = score;
-                bestIdx = i;
-            }
+function buildDetailVariantThumbItems(p) {
+    const seen = new Set();
+    const items = [];
+    getDetailVariantThumbSources(p).forEach(variant => {
+        const colorKey = getVariantColorKey(variant) || variant.color || '';
+        const dedupeKey = `${variant.size || ''}|${colorKey}|${variant.pattern || ''}`;
+        if (seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
+        const images = collectVariantGalleryImages(variant);
+        items.push({
+            variant,
+            previewUrl: images[0] || '',
+            isPlaceholder: images.length === 0,
+            color: colorKey,
+            size: variant.size || '',
+            pattern: variant.pattern || ''
         });
     });
-
-    if (strictVariant && collectVariantGalleryImages(strictVariant).length === 0) {
-        const phIdx = map.findIndex(m => m && m.isPlaceholder && gallerySlideMatchesVariant(m, strictVariant));
-        if (phIdx >= 0) return phIdx;
-    }
-
-    if (strictVariant) {
-        const variantIdx = map.findIndex(m => m && gallerySlideMatchesVariant(m, strictVariant) && !m.isPlaceholder);
-        if (variantIdx >= 0) return variantIdx;
-    }
-
-    return bestIdx;
+    return items;
 }
 
-function appendPlaceholderSlideForVariant(photoSlides, photoMap, variant) {
-    if (!variant) return { photoSlides, photoMap };
-    const placeholderImg = getNoImagePlaceholderUrl();
-    const meta = Object.assign(variantSlideMetaFromVariant(variant), {
-        url: placeholderImg,
-        isPlaceholder: true
-    });
-    const dedupeKey = getGallerySlideDedupeKey(placeholderImg, meta);
-    const existingIdx = photoMap.findIndex((m, i) => getGallerySlideDedupeKey(photoSlides[i], m) === dedupeKey);
-    if (existingIdx >= 0) return { photoSlides, photoMap };
-    return {
-        photoSlides: [...photoSlides, placeholderImg],
-        photoMap: [...photoMap, meta]
-    };
-}
-
-function ensureGallerySlidesForVariants(p, photoSlides, photoMap, variantSources) {
-    if (p.hideNoImagePlaceholder) return { photoSlides, photoMap };
-    let slides = photoSlides;
-    let map = photoMap;
-    (variantSources || []).forEach(variant => {
-        if (collectVariantGalleryImages(variant).length > 0) return;
-        const next = appendPlaceholderSlideForVariant(slides, map, variant);
-        slides = next.photoSlides;
-        map = next.photoMap;
-    });
+function variantThumbMatchesSelection(variant) {
+    if (!variant || !activeProductId) return false;
+    const p = products.find(x => x.id === activeProductId);
+    if (!p) return false;
     const selected = getStrictSelectedVariant(p) || getSelectedVariant(p);
-    if (selected && collectVariantGalleryImages(selected).length === 0) {
-        const next = appendPlaceholderSlideForVariant(slides, map, selected);
-        slides = next.photoSlides;
-        map = next.photoMap;
-    }
-    return { photoSlides: slides, photoMap: map };
+    if (!selected) return false;
+    if (variant.skuKey && selected.skuKey) return variant.skuKey === selected.skuKey;
+    if (selected.size && variant.size && !sizesMatch(variant.size, selected.size)) return false;
+    if (!variantColorMatches(variant, getVariantColorKey(selected) || selected.color || selectedColor)) return false;
+    const selPattern = window.selectedPattern || selected.pattern || '';
+    const varPattern = variant.pattern || '';
+    if (selPattern || varPattern) return patternsMatch(varPattern, selPattern);
+    return true;
 }
 
 function buildDetailGallerySlides(p, productMedia) {
@@ -2293,10 +2217,6 @@ function buildDetailGallerySlides(p, productMedia) {
         }];
     }
 
-    const ensured = ensureGallerySlidesForVariants(p, photoSlides, photoMap, variantSources);
-    photoSlides = ensured.photoSlides;
-    photoMap = ensured.photoMap;
-
     if ((productMedia.has360 || productMedia.hasPanorama360) && photoSlides.length === 0) {
         const preview = (productMedia.spinFrames && productMedia.spinFrames[0])
             || (productMedia.panoramaImages && productMedia.panoramaImages[0]);
@@ -2368,10 +2288,11 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
         ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
-        : (() => {
-            const resolved = resolveActiveGalleryIndex(p, imageToVariantMap);
-            return resolved >= 0 ? resolved : 0;
-        })();
+        : Math.max(0, findGalleryIndexForSelection(imageToVariantMap, {
+            color: selectedColor,
+            size: selectedSize,
+            pattern: window.selectedPattern || ''
+        }));
 
     window.detailGalleryImages = imagesToDisplay.filter((_, i) => {
         const m = imageToVariantMap[i] || {};
@@ -2430,42 +2351,38 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         }
     }
 
-    // Render thumbnails strip
+    // Render variant preview thumbnails (one per variant combo, including no-image variants)
     const thumbsContainer = document.getElementById('det-thumbs');
+    const variantThumbItems = buildDetailVariantThumbItems(p);
+    window.detailVariantThumbItems = variantThumbItems;
     if (thumbsContainer) {
-        if (imagesToDisplay.length > 1) {
+        const thumbsCacheKey = `${p.id}|${variantThumbItems.map(t => `${t.size}|${t.color}|${t.pattern}|${t.isPlaceholder ? '0' : t.previewUrl}`).join(',')}`;
+        if (variantThumbItems.length > 1) {
             thumbsContainer.style.display = 'flex';
-            if (galleryChanged) {
-                const thumbsHtml = imagesToDisplay.map((img, idx) => {
-                const mapInfo = imageToVariantMap[idx] || { color: '', size: '', type: 'image' };
-                const borderStyle = idx === activeThumbIdx ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
-                if (mapInfo.type === 'video') {
-                    const poster = mapInfo.poster || 'https://placehold.co/45x60/111/FFD700?text=▶';
-                    return `
-                    <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; position:relative; ${borderStyle}" onclick="clickDetThumb(${idx})">
-                        <img src="${poster}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
-                        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4);"><i class="fa fa-play" style="color:var(--gold); font-size:10px;"></i></div>
-                    </div>`;
-                }
-                if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
-                    return `
-                    <div class="det-thumb-item det-thumb-item--placeholder" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; display:flex; align-items:center; justify-content:center; background:#222; ${borderStyle}" onclick="clickDetThumb(${idx})" title="No image">
+            const prevThumbKey = thumbsContainer.getAttribute('data-loaded-images');
+            if (prevThumbKey !== thumbsCacheKey) {
+                const activeVariantIdx = Math.max(0, variantThumbItems.findIndex(item => variantThumbMatchesSelection(item.variant)));
+                const thumbsHtml = variantThumbItems.map((item, idx) => {
+                    const borderStyle = idx === activeVariantIdx ? 'border: 2px solid var(--gold);' : 'border: 2px solid #222;';
+                    if (item.isPlaceholder) {
+                        return `
+                    <div class="det-thumb-item det-thumb-item--placeholder" data-variant-idx="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; display:flex; align-items:center; justify-content:center; background:#222; ${borderStyle}" onclick="clickDetVariantThumb(${idx})" title="No image">
                         <span class="det-thumb-placeholder-label">No Image</span>
                     </div>`;
-                }
-                return `
-                    <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetThumb(${idx})">
-                        <img src="${img}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
-                    </div>
-                `;
-            }).join('');
-            
+                    }
+                    return `
+                    <div class="det-thumb-item" data-variant-idx="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; ${borderStyle}" onclick="clickDetVariantThumb(${idx})">
+                        <img src="${item.previewUrl}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;" alt="">
+                    </div>`;
+                }).join('');
                 thumbsContainer.innerHTML = thumbsHtml;
-                thumbsContainer.setAttribute('data-loaded-images', galleryCacheKey);
+                thumbsContainer.setAttribute('data-loaded-images', thumbsCacheKey);
             }
-            updateActiveThumbnailBorder(activeThumbIdx);
+            updateActiveVariantThumbBorder();
         } else {
             thumbsContainer.style.display = 'none';
+            thumbsContainer.innerHTML = '';
+            thumbsContainer.removeAttribute('data-loaded-images');
         }
     }
 
@@ -2901,32 +2818,61 @@ function updateDots(el) {
         if (activeImg) {
             syncDetailSelectionFromGallery(activeImg, idx);
         }
-        // Update thumbnail borders to show active image indicator
-        updateActiveThumbnailBorder(idx);
+        // Update variant thumbnail borders to show active variant
+        updateActiveVariantThumbBorder();
         updateDetailGalleryActions(idx);
     }
 }
 
-function clickDetThumb(idx) {
-    const detGallery = document.getElementById('det-gallery');
-    if (!detGallery) return;
-    const imgEl = detGallery.children[idx];
-    if (!imgEl) return;
-    scrollDetailGalleryToIndex(idx, true);
-    syncDetailSelectionFromGallery(imgEl, idx);
-}
+function clickDetVariantThumb(idx) {
+    const items = window.detailVariantThumbItems || [];
+    const item = items[idx];
+    if (!item || !activeProductId) return;
+    const p = products.find(x => x.id === activeProductId);
+    if (!p) return;
 
-function clickDetailGallerySlide(idx, event) {
-    if (event) event.stopPropagation();
-    const detGallery = document.getElementById('det-gallery');
-    if (!detGallery) return;
-    const slideEl = detGallery.children[idx];
-    if (!slideEl) return;
-    scrollDetailGalleryToIndex(idx, true);
-    syncDetailSelectionFromGallery(slideEl, idx);
-    updateDetailGalleryActions(idx);
+    const v = item.variant;
+    let changed = false;
+    const colorKey = getVariantColorKey(v) || v.color || '';
+    if (colorKey && !colorsMatch(colorKey, selectedColor)) {
+        selectedColor = colorKey;
+        window.selectedPattern = '';
+        changed = true;
+    }
+    if (v.size && !sizesEqual(v.size, selectedSize)) {
+        selectedSize = v.size;
+        changed = true;
+    }
+    const vPattern = v.pattern || '';
+    const curPattern = window.selectedPattern || '';
+    if (!patternsMatch(vPattern, curPattern)) {
+        window.selectedPattern = vPattern;
+        changed = true;
+    }
+    if (!changed) return;
+
+    ensureDetailSelectionDefaults(p);
+    syncSizeChips();
+    renderDetailColors(p);
+    renderDetailPatterns(p);
+    setActiveDetailColorChip(selectedColor);
+    setActiveDetailPatternChip(window.selectedPattern);
+    updateVariantUI(p, true);
+    updateDetailURL();
 }
-window.clickDetailGallerySlide = clickDetailGallerySlide;
+window.clickDetVariantThumb = clickDetVariantThumb;
+
+function updateActiveVariantThumbBorder() {
+    const items = window.detailVariantThumbItems || [];
+    let activeIdx = items.findIndex(item => variantThumbMatchesSelection(item.variant));
+    if (activeIdx < 0) activeIdx = 0;
+    window.detailVariantThumbActiveIndex = activeIdx;
+    const thumbs = document.querySelectorAll('#det-thumbs .det-thumb-item');
+    thumbs.forEach((thumb, i) => {
+        thumb.style.borderColor = i === activeIdx ? 'var(--gold)' : '#222';
+    });
+}
+window.updateActiveVariantThumbBorder = updateActiveVariantThumbBorder;
 
 function syncSizeChips() {
     const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');
@@ -2937,21 +2883,6 @@ function syncSizeChips() {
     });
 }
 window.syncSizeChips = syncSizeChips;
-
-function updateActiveThumbnailBorder(idx) {
-    window.detailGalleryActiveIndex = idx;
-    const thumbs = document.querySelectorAll('#det-thumbs .det-thumb-item');
-    thumbs.forEach((thumb, i) => {
-        if (i === idx) {
-            thumb.style.borderColor = 'var(--gold)';
-        } else {
-            thumb.style.borderColor = '#222';
-        }
-    });
-    document.querySelectorAll('#det-indicators .dot').forEach((dot, i) => {
-        dot.classList.toggle('active', i === idx);
-    });
-}
 
 function selectChip(el, type) {
     el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
