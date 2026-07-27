@@ -10973,8 +10973,29 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0;
     padding: 0;
 }
-/* Product cards: title must stay visible (never use crawl-only clip styles here) */
-.card .product-card__name,
+/* Product card footer — plain markup, no schema microdata (SEO via seo.js JSON-LD) */
+.product-card__footer {
+    padding: 12px;
+}
+.product-card__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    line-height: 1.35;
+    margin: 0 0 4px;
+}
+.product-card__price {
+    color: var(--gold, #ffd700);
+    font-weight: 800;
+    font-size: 14px;
+    line-height: 1.2;
+    margin: 0;
+}
+/* Legacy SEO markup fallback — keep names visible if cached JS still renders hidden links */
 .card .product-card__seo-link,
 .card [itemprop="name"] {
     position: static !important;
@@ -10985,17 +11006,13 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     overflow: visible !important;
     clip: auto !important;
     white-space: normal !important;
-    color: #ccc !important;
+    color: #fff !important;
     display: inline !important;
     visibility: visible !important;
     opacity: 1 !important;
     text-decoration: none !important;
-}
-.card .product-card__name {
-    display: block !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
 }
 body.seo-indexing-off .seo-crawl-links,
 body.seo-indexing-off #seo-primary-nav {

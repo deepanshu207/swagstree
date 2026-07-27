@@ -606,13 +606,11 @@ function productCardHtml(p, options = {}) {
         <i class="fa ${isOutOfStock ? 'fa-ban' : 'fa-plus'}"></i>
     </div>`;
 
-    const seoOn = typeof isSeoIndexingEnabled === 'function' ? isSeoIndexingEnabled() : true;
-    const seoMicro = seoOn
-        ? ` itemscope itemtype="https://schema.org/Product"><meta itemprop="sku" content="${String(p.id).replace(/"/g, '&quot;')}"><link itemprop="url" href="/?id=${encodeURIComponent(p.id)}">`
-        : '>';
+    const displayName = String(p.name || '').trim() || 'Product';
+    const displayPrice = p.price != null && p.price !== '' ? p.price : '0';
 
     return `
-    <div class="card"${seoMicro}
+    <div class="card">
         <div class="wish-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleWish('${p.id}')">
             <i class="fa${isFav ? 's' : 'r'} fa-heart"></i>
         </div> 
@@ -628,20 +626,16 @@ function productCardHtml(p, options = {}) {
             ` : ''}
             ${isOutOfStock ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px 15px 0 0;"><span style="background:rgba(255,0,0,0.85); color:#fff; padding:6px 12px; border-radius:4px; font-weight:800; font-size:12px; letter-spacing:1px;">OUT OF STOCK</span></div>' : ''}
             <div class="carousel" onscroll="updateDots(this)">
-                ${displayImages.length ? displayImages.map((img, idx) => `<img src="${img}" loading="lazy"${seoOn && idx === 0 ? ' itemprop="image"' : ''}>`).join('') : (p.hideNoImagePlaceholder ? '' : `<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy"${seoOn ? ' itemprop="image"' : ''}>`)}
+                ${displayImages.length ? displayImages.map((img) => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">')}
             </div> 
             <div class="indicators">
                 ${displayImages.length > 1 ? displayImages.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : ''}
             </div> 
         </div> 
-        <div style="padding:12px" onclick="showDetail('${p.id}')"> 
+        <div class="product-card__footer" onclick="showDetail('${p.id}')"> 
             ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
-            <div class="product-card__name" style="font-size:12px;font-weight:600;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;visibility:visible;opacity:1">
-                ${seoOn
-                    ? `<span itemprop="name">${escapeCatalogCountHtml(p.name || '')}</span>`
-                    : `<span>${escapeCatalogCountHtml(p.name || '')}</span>`}
-            </div>
-            <div style="color:var(--gold); font-weight:800; margin-top:4px">${seoOn ? '<span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="INR"><span itemprop="price" content="' + (Number(p.price) || 0) + '">₹' + p.price + '</span></span>' : '₹' + p.price}</div>
+            <div class="product-card__name">${escapeCatalogCountHtml(displayName)}</div>
+            <div class="product-card__price">₹${escapeCatalogCountHtml(String(displayPrice))}</div>
         </div> 
     </div>`;
 }

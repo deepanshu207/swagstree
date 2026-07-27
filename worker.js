@@ -412,14 +412,14 @@ function maybeCanonicalRedirect(request, env) {
     return null;
 }
 
-const STOREFRONT_HOTFIX_STYLE = '<style id="swag-product-name-hotfix">.card .product-card__seo-link,.card .product-card__name,.card [itemprop="name"]{position:static!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;clip:auto!important;white-space:normal!important;color:#ccc!important;display:inline!important;visibility:visible!important;opacity:1!important;text-decoration:none!important}</style>';
+const STOREFRONT_HOTFIX_STYLE = '<style id="swag-product-name-hotfix">.card .product-card__seo-link,.card .product-card__name,.card [itemprop="name"]{position:static!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;clip:auto!important;white-space:normal!important;color:#fff!important;display:block!important;visibility:visible!important;opacity:1!important;text-decoration:none!important;font-size:13px!important;font-weight:600!important}.card .product-card__price,[itemprop="price"]{color:var(--gold,#ffd700)!important;font-weight:800!important;font-size:14px!important}</style>';
 
 function injectStorefrontHotfixes(html) {
     if (!html || typeof html !== 'string') return html;
     let out = html;
-    out = out.replace(/store\.js\?v=10\.3[0-5]/g, 'store.js?v=10.36');
-    out = out.replace(/style\.css\?v=9\.8[0-9]/g, 'style.css?v=9.93');
-    out = out.replace(/style\.css\?v=9\.9[0-2]/g, 'style.css?v=9.93');
+    out = out.replace(/store\.js\?v=10\.3[0-6]/g, 'store.js?v=10.37');
+    out = out.replace(/style\.css\?v=9\.8[0-9]/g, 'style.css?v=9.94');
+    out = out.replace(/style\.css\?v=9\.9[0-3]/g, 'style.css?v=9.94');
     if (!out.includes('swag-product-name-hotfix')) {
         if (out.includes('</head>')) {
             out = out.replace('</head>', STOREFRONT_HOTFIX_STYLE + '</head>');
@@ -1181,7 +1181,7 @@ export default {
             if (assetResp.ok && (url.pathname === '/' || url.pathname.endsWith('.html')) && !url.pathname.startsWith('/api/')) {
                 const headers = new Headers(assetResp.headers);
                 headers.set('Content-Type', 'text/html; charset=utf-8');
-                headers.set('Cache-Control', 'public, max-age=60, must-revalidate');
+                headers.set('Cache-Control', 'no-cache, must-revalidate');
                 if (seoIndexingOn) {
                     headers.set('Link', '</sitemap.xml>; rel="sitemap"');
                 } else {
