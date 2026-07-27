@@ -10973,6 +10973,19 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0;
     padding: 0;
 }
+/* Product cards: keep title visible even if cached JS still uses crawl-only .product-card__seo-link */
+.card .product-card__seo-link {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    color: inherit;
+    text-decoration: none;
+}
 body.seo-indexing-off .seo-crawl-links,
 body.seo-indexing-off #seo-primary-nav {
     display: none !important;
