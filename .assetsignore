@@ -1,4 +1,5 @@
 node_modules
+package.json
 package-lock.json
 wrangler.jsonc
 .assetsignore
@@ -9,6 +10,5 @@ wrangler.jsonc
 .dev.vars*
 .env*
 netlify/
-_redirects
 netlify.toml
 assets/demo/
