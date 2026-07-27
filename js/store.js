@@ -638,8 +638,8 @@ function productCardHtml(p, options = {}) {
             ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
             <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
                 ${seoOn
-                    ? `<a href="/?id=${encodeURIComponent(p.id)}" class="product-card__seo-link" itemprop="url" onclick="event.preventDefault(); showDetail('${p.id}')" title="View ${String(p.name || '').replace(/"/g, '&quot;')}"><span itemprop="name">${p.name}</span></a>`
-                    : `<span>${p.name}</span>`}
+                    ? `<span itemprop="name">${escapeCatalogCountHtml(p.name || '')}</span>`
+                    : `<span>${escapeCatalogCountHtml(p.name || '')}</span>`}
             </div>
             <div style="color:var(--gold); font-weight:800; margin-top:4px">${seoOn ? '<span itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="INR"><span itemprop="price" content="' + (Number(p.price) || 0) + '">₹' + p.price + '</span></span>' : '₹' + p.price}</div>
         </div> 
