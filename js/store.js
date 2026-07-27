@@ -636,7 +636,7 @@ function productCardHtml(p, options = {}) {
         </div> 
         <div style="padding:12px" onclick="showDetail('${p.id}')"> 
             ${showCategoryBadges && typeof renderProductCategoryBadges === 'function' ? renderProductCategoryBadges(p) : (showCategoryBadges && typeof resolveProductCategoryLabel === 'function' && resolveProductCategoryLabel(p) ? `<div class="product-category-badge">${escapeCategoryHtml(resolveProductCategoryLabel(p))}</div>` : '')}
-            <div style="font-size:12px; font-weight:600; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+            <div class="product-card__name" style="font-size:12px;font-weight:600;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;visibility:visible;opacity:1">
                 ${seoOn
                     ? `<span itemprop="name">${escapeCatalogCountHtml(p.name || '')}</span>`
                     : `<span>${escapeCatalogCountHtml(p.name || '')}</span>`}

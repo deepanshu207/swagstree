@@ -412,6 +412,24 @@ function maybeCanonicalRedirect(request, env) {
     return null;
 }
 
+const STOREFRONT_HOTFIX_STYLE = '<style id="swag-product-name-hotfix">.card .product-card__seo-link,.card .product-card__name,.card [itemprop="name"]{position:static!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;clip:auto!important;white-space:normal!important;color:#ccc!important;display:inline!important;visibility:visible!important;opacity:1!important;text-decoration:none!important}</style>';
+
+function injectStorefrontHotfixes(html) {
+    if (!html || typeof html !== 'string') return html;
+    let out = html;
+    out = out.replace(/store\.js\?v=10\.3[0-5]/g, 'store.js?v=10.36');
+    out = out.replace(/style\.css\?v=9\.8[0-9]/g, 'style.css?v=9.93');
+    out = out.replace(/style\.css\?v=9\.9[0-2]/g, 'style.css?v=9.93');
+    if (!out.includes('swag-product-name-hotfix')) {
+        if (out.includes('</head>')) {
+            out = out.replace('</head>', STOREFRONT_HOTFIX_STYLE + '</head>');
+        } else {
+            out = STOREFRONT_HOTFIX_STYLE + out;
+        }
+    }
+    return out;
+}
+
 function seoHtmlResponse(html, extraHeaders) {
     const headers = new Headers({
         'Content-Type': 'text/html; charset=utf-8',
@@ -420,7 +438,7 @@ function seoHtmlResponse(html, extraHeaders) {
         'Link': '</sitemap.xml>; rel="sitemap"'
     });
     if (extraHeaders) Object.entries(extraHeaders).forEach(([k, v]) => headers.set(k, v));
-    return new Response(html, { headers });
+    return new Response(injectStorefrontHotfixes(html), { headers });
 }
 
 function textResponse(body, contentType, cacheSeconds) {
@@ -1162,11 +1180,19 @@ export default {
             }
             if (assetResp.ok && (url.pathname === '/' || url.pathname.endsWith('.html')) && !url.pathname.startsWith('/api/')) {
                 const headers = new Headers(assetResp.headers);
+                headers.set('Content-Type', 'text/html; charset=utf-8');
+                headers.set('Cache-Control', 'public, max-age=60, must-revalidate');
                 if (seoIndexingOn) {
                     headers.set('Link', '</sitemap.xml>; rel="sitemap"');
                 } else {
                     headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
                 }
+                const html = injectStorefrontHotfixes(await assetResp.text());
+                return new Response(html, { status: assetResp.status, headers });
+            }
+            if (assetResp.ok && (url.pathname.endsWith('/store.js') || url.pathname.endsWith('/style.css'))) {
+                const headers = new Headers(assetResp.headers);
+                headers.set('Cache-Control', 'public, max-age=300, must-revalidate');
                 return new Response(assetResp.body, { status: assetResp.status, headers });
             }
             return assetResp;

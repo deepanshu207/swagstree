@@ -10973,18 +10973,29 @@ body.catalog-controls-pending #wish-view .catalog-controls-row {
     margin: 0;
     padding: 0;
 }
-/* Product cards: keep title visible even if cached JS still uses crawl-only .product-card__seo-link */
-.card .product-card__seo-link {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    padding: 0;
-    overflow: visible;
-    clip: auto;
-    white-space: normal;
-    color: inherit;
-    text-decoration: none;
+/* Product cards: title must stay visible (never use crawl-only clip styles here) */
+.card .product-card__name,
+.card .product-card__seo-link,
+.card [itemprop="name"] {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    white-space: normal !important;
+    color: #ccc !important;
+    display: inline !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    text-decoration: none !important;
+}
+.card .product-card__name {
+    display: block !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
 }
 body.seo-indexing-off .seo-crawl-links,
 body.seo-indexing-off #seo-primary-nav {
