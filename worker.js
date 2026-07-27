@@ -417,7 +417,7 @@ const STOREFRONT_HOTFIX_STYLE = '<style id="swag-product-name-hotfix">.card .pro
 function injectStorefrontHotfixes(html) {
     if (!html || typeof html !== 'string') return html;
     let out = html;
-    out = out.replace(/store\.js\?v=10\.3[0-7]/g, 'store.js?v=10.38');
+    out = out.replace(/store\.js\?v=10\.3[0-8]/g, 'store.js?v=10.39');
     out = out.replace(/style\.css\?v=9\.8[0-9]/g, 'style.css?v=9.95');
     out = out.replace(/style\.css\?v=9\.9[0-4]/g, 'style.css?v=9.95');
     if (!out.includes('swag-product-name-hotfix')) {

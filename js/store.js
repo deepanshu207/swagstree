@@ -2082,6 +2082,143 @@ function getGallerySlideDedupeKey(url, meta) {
     return String(url || '');
 }
 
+function collectVariantGalleryImages(variant) {
+    if (!variant) return [];
+    const slideImages = [];
+    const preview = variant.previewImage && !isPlaceholderImageUrl(variant.previewImage) ? variant.previewImage : '';
+    if (preview) slideImages.push(preview);
+
+    const usesPatternPreviews = Array.isArray(variant.previewImages) && variant.previewImages.length > 0;
+    if (!usesPatternPreviews) {
+        (variant.images || []).forEach(img => {
+            if (isPlaceholderImageUrl(img)) return;
+            if (preview && img === preview) return;
+            if (!slideImages.includes(img)) slideImages.push(img);
+        });
+    }
+    return slideImages;
+}
+
+function variantSlideMetaFromVariant(variant) {
+    const colorKey = getVariantColorKey(variant) || variant.color || '';
+    return {
+        url: '',
+        color: colorKey,
+        size: variant.size || '',
+        pattern: variant.pattern || '',
+        type: 'image',
+        scope: 'variant'
+    };
+}
+
+function gallerySlideMatchesVariant(mapInfo, variant) {
+    if (!mapInfo || !variant) return false;
+    if (!sizesMatch(mapInfo.size, variant.size)) return false;
+    if (!variantColorMatches(variant, mapInfo.color || getVariantColorKey(variant))) return false;
+    const variantPattern = variant.pattern || '';
+    const slidePattern = mapInfo.pattern || '';
+    if (variantPattern && slidePattern && !patternsMatch(slidePattern, variantPattern)) return false;
+    if (!variantPattern && slidePattern) return false;
+    return true;
+}
+
+function resolveActiveGalleryIndex(p, slideMap) {
+    const map = slideMap || [];
+    const pattern = window.selectedPattern || '';
+    const strictVariant = getStrictSelectedVariant(p) || getSelectedVariant(p);
+
+    const scoreSlide = (m, opts = {}) => {
+        if (!m || m.type === 'video' || m.is360Preview) return -1;
+        const color = opts.color || '';
+        const size = opts.size || '';
+        const pat = opts.pattern;
+        let score = 0;
+        if (color) {
+            if (!m.color || !colorsMatch(m.color, color)) return -1;
+            score += 4;
+        }
+        if (pat) {
+            if (!m.pattern || !patternsMatch(m.pattern, pat)) return -1;
+            score += 2;
+        } else if (pattern && m.pattern && !patternsMatch(m.pattern, pattern)) {
+            return -1;
+        }
+        if (size && size !== 'Standard' && m.size) {
+            if (!sizesEqual(m.size, size)) return -1;
+            score += 1;
+        }
+        if (m.isPlaceholder) score += 8;
+        if (!m.color && !m.pattern && m.scope === 'main') score -= 2;
+        return score;
+    };
+
+    const tiers = [
+        { color: selectedColor, size: selectedSize, pattern },
+        { color: selectedColor, size: selectedSize, pattern: '' },
+        { color: selectedColor, size: selectedSize },
+        { color: selectedColor }
+    ];
+
+    let bestIdx = -1;
+    let bestScore = -1;
+    tiers.forEach((tier) => {
+        map.forEach((m, i) => {
+            const score = scoreSlide(m, tier);
+            if (score > bestScore) {
+                bestScore = score;
+                bestIdx = i;
+            }
+        });
+    });
+
+    if (strictVariant && collectVariantGalleryImages(strictVariant).length === 0) {
+        const phIdx = map.findIndex(m => m && m.isPlaceholder && gallerySlideMatchesVariant(m, strictVariant));
+        if (phIdx >= 0) return phIdx;
+    }
+
+    if (strictVariant) {
+        const variantIdx = map.findIndex(m => m && gallerySlideMatchesVariant(m, strictVariant) && !m.isPlaceholder);
+        if (variantIdx >= 0) return variantIdx;
+    }
+
+    return bestIdx;
+}
+
+function appendPlaceholderSlideForVariant(photoSlides, photoMap, variant) {
+    if (!variant) return { photoSlides, photoMap };
+    const placeholderImg = getNoImagePlaceholderUrl();
+    const meta = Object.assign(variantSlideMetaFromVariant(variant), {
+        url: placeholderImg,
+        isPlaceholder: true
+    });
+    const dedupeKey = getGallerySlideDedupeKey(placeholderImg, meta);
+    const existingIdx = photoMap.findIndex((m, i) => getGallerySlideDedupeKey(photoSlides[i], m) === dedupeKey);
+    if (existingIdx >= 0) return { photoSlides, photoMap };
+    return {
+        photoSlides: [...photoSlides, placeholderImg],
+        photoMap: [...photoMap, meta]
+    };
+}
+
+function ensureGallerySlidesForVariants(p, photoSlides, photoMap, variantSources) {
+    if (p.hideNoImagePlaceholder) return { photoSlides, photoMap };
+    let slides = photoSlides;
+    let map = photoMap;
+    (variantSources || []).forEach(variant => {
+        if (collectVariantGalleryImages(variant).length > 0) return;
+        const next = appendPlaceholderSlideForVariant(slides, map, variant);
+        slides = next.photoSlides;
+        map = next.photoMap;
+    });
+    const selected = getStrictSelectedVariant(p) || getSelectedVariant(p);
+    if (selected && collectVariantGalleryImages(selected).length === 0) {
+        const next = appendPlaceholderSlideForVariant(slides, map, selected);
+        slides = next.photoSlides;
+        map = next.photoMap;
+    }
+    return { photoSlides: slides, photoMap: map };
+}
+
 function buildDetailGallerySlides(p, productMedia) {
     const spinSet = productMedia.spinSet;
     const pos = p.mainImagesPosition || 'end';
@@ -2112,14 +2249,7 @@ function buildDetailGallerySlides(p, productMedia) {
     if (variantSources.length === 0 && selectedVariant) variantSources.push(selectedVariant);
 
     variantSources.forEach(variant => {
-        const slideImages = [];
-        const preview = variant.previewImage && !isPlaceholderImageUrl(variant.previewImage) ? variant.previewImage : '';
-        if (preview) slideImages.push(preview);
-        (variant.images || []).forEach(img => {
-            if (isPlaceholderImageUrl(img)) return;
-            if (preview && img === preview) return;
-            slideImages.push(img);
-        });
+        const slideImages = collectVariantGalleryImages(variant);
 
         slideImages.forEach(img => {
             const colorKey = getVariantColorKey(variant) || variant.color || '';
@@ -2136,24 +2266,6 @@ function buildDetailGallerySlides(p, productMedia) {
                 scope: 'variant'
             });
         });
-
-        if (slideImages.length === 0 && !p.hideNoImagePlaceholder) {
-            const colorKey = getVariantColorKey(variant) || variant.color || '';
-            const slideKey = `__placeholder__|${colorKey}|${variant.pattern || ''}|${variant.size || ''}`;
-            if (seenSlideKeys.has(slideKey)) return;
-            seenSlideKeys.add(slideKey);
-            const placeholderImg = getNoImagePlaceholderUrl();
-            variantPhotos.push(placeholderImg);
-            variantPhotosMap.push({
-                url: placeholderImg,
-                color: colorKey,
-                size: variant.size || '',
-                pattern: variant.pattern || '',
-                type: 'image',
-                scope: 'variant',
-                isPlaceholder: true
-            });
-        }
     });
 
     let photoSlides = [];
@@ -2180,6 +2292,10 @@ function buildDetailGallerySlides(p, productMedia) {
             isPlaceholder: true
         }];
     }
+
+    const ensured = ensureGallerySlidesForVariants(p, photoSlides, photoMap, variantSources);
+    photoSlides = ensured.photoSlides;
+    photoMap = ensured.photoMap;
 
     if ((productMedia.has360 || productMedia.hasPanorama360) && photoSlides.length === 0) {
         const preview = (productMedia.spinFrames && productMedia.spinFrames[0])
@@ -2252,11 +2368,10 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
 
     const activeThumbIdx = (overrideActiveIdx !== null && overrideActiveIdx !== undefined)
         ? Math.max(0, Math.min(overrideActiveIdx, Math.max(0, imagesToDisplay.length - 1)))
-        : Math.max(0, findGalleryIndexForSelection(imageToVariantMap, {
-            color: selectedColor,
-            size: selectedSize,
-            pattern: window.selectedPattern || ''
-        }));
+        : (() => {
+            const resolved = resolveActiveGalleryIndex(p, imageToVariantMap);
+            return resolved >= 0 ? resolved : 0;
+        })();
 
     window.detailGalleryImages = imagesToDisplay.filter((_, i) => {
         const m = imageToVariantMap[i] || {};
@@ -2285,7 +2400,7 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
         ));
 
     const detGallery = document.getElementById('det-gallery');
-    const galleryCacheKey = `${p.id}|${selectedSize}|${imagesToDisplay.join(',')}`;
+    const galleryCacheKey = `${p.id}|${selectedSize}|${selectedColor}|${window.selectedPattern || ''}|${imagesToDisplay.join(',')}`;
     let galleryChanged = true;
     if (detGallery) {
         const prevKey = detGallery.getAttribute('data-loaded-images');
