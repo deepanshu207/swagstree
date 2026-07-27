@@ -626,7 +626,7 @@ function productCardHtml(p, options = {}) {
             ` : ''}
             ${isOutOfStock ? '<div style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px 15px 0 0;"><span style="background:rgba(255,0,0,0.85); color:#fff; padding:6px 12px; border-radius:4px; font-weight:800; font-size:12px; letter-spacing:1px;">OUT OF STOCK</span></div>' : ''}
             <div class="carousel" onscroll="updateDots(this)">
-                ${displayImages.length ? displayImages.map((img) => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : '<img src="https://placehold.co/400x400/222/FFF?text=No+Image" loading="lazy">')}
+                ${displayImages.length ? displayImages.map((img) => `<img src="${img}" loading="lazy">`).join('') : (p.hideNoImagePlaceholder ? '' : `<img src="${getNoImagePlaceholderUrl()}" loading="lazy" alt="No image">`)}
             </div> 
             <div class="indicators">
                 ${displayImages.length > 1 ? displayImages.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}"></div>`).join('') : ''}
@@ -1564,7 +1564,7 @@ function findGalleryIndexForSelection(slideMap, opts = {}) {
     const pattern = opts.pattern || '';
 
     const scoreSlide = (m) => {
-        if (!m || m.type === 'video' || m.isPlaceholder || m.is360Preview) return -1;
+        if (!m || m.type === 'video' || m.is360Preview) return -1;
         let score = 0;
         if (color) {
             if (!m.color || !colorsMatch(m.color, color)) return -1;
@@ -1987,9 +1987,11 @@ function mergeDetailGalleryPhotoLists(variantPhotos, variantPhotosMap, sharedMai
     const urlToIndex = new Map();
 
     function addSlide(url, meta) {
-        if (isPlaceholderImageUrl(url)) return;
-        if (urlToIndex.has(url)) {
-            const i = urlToIndex.get(url);
+        const isPlaceholderSlide = !!(meta && meta.isPlaceholder);
+        if (isPlaceholderImageUrl(url) && !isPlaceholderSlide) return;
+        const dedupeKey = getGallerySlideDedupeKey(url, meta);
+        if (urlToIndex.has(dedupeKey)) {
+            const i = urlToIndex.get(dedupeKey);
             const existing = map[i];
             const incomingIsVariant = meta.scope === 'variant' && (meta.color || meta.pattern);
             const existingIsMain = !existing.color && !existing.pattern && existing.scope === 'main';
@@ -1998,7 +2000,7 @@ function mergeDetailGalleryPhotoLists(variantPhotos, variantPhotosMap, sharedMai
             }
             return;
         }
-        urlToIndex.set(url, photos.length);
+        urlToIndex.set(dedupeKey, photos.length);
         photos.push(url);
         map.push(Object.assign({}, meta, { url }));
     }
@@ -2038,8 +2040,9 @@ function buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx) {
         </div>`;
     }
     if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
-        return `<div class="det-gallery-slide det-gallery-slide--placeholder" ${attrs}>
-            <img src="${img}" class="det-gallery-placeholder" alt="No image">
+        return `<div class="det-gallery-slide det-gallery-slide--placeholder" ${attrs} onclick="clickDetailGallerySlide(${index}, event)" role="button" tabindex="0" aria-label="No image for this variant">
+            <img src="${getNoImagePlaceholderUrl()}" class="det-gallery-placeholder" alt="No image">
+            <span class="det-gallery-placeholder-label">No Image</span>
         </div>`;
     }
     if (mapInfo.is360Preview && activeProductId) {
@@ -2054,9 +2057,29 @@ function buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx) {
     </div>`;
 }
 
+function getNoImagePlaceholderUrl() {
+    if (!getNoImagePlaceholderUrl._cached) {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect fill="#222222" width="400" height="400"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="600">No Image</text></svg>';
+        getNoImagePlaceholderUrl._cached = 'data:image/svg+xml,' + encodeURIComponent(svg);
+    }
+    return getNoImagePlaceholderUrl._cached;
+}
+window.getNoImagePlaceholderUrl = getNoImagePlaceholderUrl;
+
 function isPlaceholderImageUrl(url) {
     const u = String(url || '');
-    return !u || u.includes('placehold.co') || u.includes('No+Image') || u.includes('text=No');
+    return !u
+        || u.includes('placehold.co')
+        || u.includes('No+Image')
+        || u.includes('text=No')
+        || u.startsWith('data:image/svg+xml');
+}
+
+function getGallerySlideDedupeKey(url, meta) {
+    if (meta && meta.isPlaceholder) {
+        return `__placeholder__:${meta.color || ''}|${meta.pattern || ''}|${meta.size || ''}`;
+    }
+    return String(url || '');
 }
 
 function buildDetailGallerySlides(p, productMedia) {
@@ -2113,6 +2136,24 @@ function buildDetailGallerySlides(p, productMedia) {
                 scope: 'variant'
             });
         });
+
+        if (slideImages.length === 0 && !p.hideNoImagePlaceholder) {
+            const colorKey = getVariantColorKey(variant) || variant.color || '';
+            const slideKey = `__placeholder__|${colorKey}|${variant.pattern || ''}|${variant.size || ''}`;
+            if (seenSlideKeys.has(slideKey)) return;
+            seenSlideKeys.add(slideKey);
+            const placeholderImg = getNoImagePlaceholderUrl();
+            variantPhotos.push(placeholderImg);
+            variantPhotosMap.push({
+                url: placeholderImg,
+                color: colorKey,
+                size: variant.size || '',
+                pattern: variant.pattern || '',
+                type: 'image',
+                scope: 'variant',
+                isPlaceholder: true
+            });
+        }
     });
 
     let photoSlides = [];
@@ -2127,12 +2168,13 @@ function buildDetailGallerySlides(p, productMedia) {
         photoSlides = merged.photoSlides;
         photoMap = merged.photoMap;
     } else if (!p.hideNoImagePlaceholder) {
-        const placeholderImg = 'https://placehold.co/400x400/222/FFF?text=No+Image';
+        const placeholderImg = getNoImagePlaceholderUrl();
         photoSlides = [placeholderImg];
         photoMap = [{
             url: placeholderImg,
             color: selectedColor || '',
             size: selectedSize || '',
+            pattern: window.selectedPattern || '',
             type: 'image',
             scope: 'variant',
             isPlaceholder: true
@@ -2236,10 +2278,10 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
             return buildDetailGallerySlideHtml(img, mapInfo, index, zoomIdx);
         }).join('')
         : (p.hideNoImagePlaceholder ? '' : buildDetailGallerySlideHtml(
-            'https://placehold.co/400x400/222/FFF?text=No+Image',
-            { color: '', size: '', type: 'image', isPlaceholder: true },
+            getNoImagePlaceholderUrl(),
+            { color: selectedColor || '', size: selectedSize || '', pattern: window.selectedPattern || '', type: 'image', isPlaceholder: true },
             0,
-            0
+            -1
         ));
 
     const detGallery = document.getElementById('det-gallery');
@@ -2288,6 +2330,12 @@ function updateVariantUI(p, scrollGallery = true, overrideActiveIdx = null) {
                     <div class="det-thumb-item" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; position:relative; ${borderStyle}" onclick="clickDetThumb(${idx})">
                         <img src="${poster}" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
                         <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4);"><i class="fa fa-play" style="color:var(--gold); font-size:10px;"></i></div>
+                    </div>`;
+                }
+                if (mapInfo.isPlaceholder || isPlaceholderImageUrl(img)) {
+                    return `
+                    <div class="det-thumb-item det-thumb-item--placeholder" data-index="${idx}" style="width: 45px; height: 60px; border-radius: 6px; overflow: hidden; cursor: pointer; flex-shrink: 0; transition: border-color 0.2s; display:flex; align-items:center; justify-content:center; background:#222; ${borderStyle}" onclick="clickDetThumb(${idx})" title="No image">
+                        <span class="det-thumb-placeholder-label">No Image</span>
                     </div>`;
                 }
                 return `
@@ -2752,6 +2800,18 @@ function clickDetThumb(idx) {
     scrollDetailGalleryToIndex(idx, true);
     syncDetailSelectionFromGallery(imgEl, idx);
 }
+
+function clickDetailGallerySlide(idx, event) {
+    if (event) event.stopPropagation();
+    const detGallery = document.getElementById('det-gallery');
+    if (!detGallery) return;
+    const slideEl = detGallery.children[idx];
+    if (!slideEl) return;
+    scrollDetailGalleryToIndex(idx, true);
+    syncDetailSelectionFromGallery(slideEl, idx);
+    updateDetailGalleryActions(idx);
+}
+window.clickDetailGallerySlide = clickDetailGallerySlide;
 
 function syncSizeChips() {
     const sizeChips = document.querySelectorAll('#detail-size-selector .size-chip');

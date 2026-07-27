@@ -5907,7 +5907,36 @@ body.media-viewer-open .bottom-nav {
 /* Detail gallery — media bar below image (not over it) */
 #det-gallery img.det-gallery-placeholder {
     object-fit: contain !important;
-    cursor: default;
+    cursor: pointer;
+}
+.det-gallery-slide--placeholder {
+    cursor: pointer;
+}
+.det-gallery-placeholder-label {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: clamp(18px, 5vw, 28px);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    text-align: center;
+    padding: 0 12px;
+}
+.det-thumb-item--placeholder {
+    border: 2px solid #222;
+}
+.det-thumb-placeholder-label {
+    color: #aaa;
+    font-size: 7px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.15;
+    padding: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 #det-box.det-box--placeholder {
     aspect-ratio: 1 / 1;
