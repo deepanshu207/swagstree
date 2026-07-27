@@ -2404,6 +2404,16 @@ async function loadSuperadminFeatures() {
             if (document.getElementById('toggle-product-categories')) document.getElementById('toggle-product-categories').checked = data.productCategories !== false;
             if (document.getElementById('toggle-seo-indexing')) document.getElementById('toggle-seo-indexing').checked = data.seoIndexing !== false;
             if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
+            window._mediaProviderUiDirty = false;
+            if (typeof syncMediaProviderFieldsFromConfig === 'function') {
+                syncMediaProviderFieldsFromConfig(data);
+            } else {
+                const mediaProviderEl = document.getElementById('superadmin-media-provider');
+                if (mediaProviderEl) {
+                    mediaProviderEl.value = data.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+                }
+            }
+            if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
             if (document.getElementById('toggle-admin-storefront-content')) {
                 document.getElementById('toggle-admin-storefront-content').checked = data.adminStorefrontContent !== false;
             }
@@ -2494,15 +2504,39 @@ async function saveSuperadminFeatures() {
                 chat: !!document.getElementById('toggle-wish-chat')?.checked,
                 categories: !!document.getElementById('toggle-wish-categories')?.checked
             }
-        }
+        },
+        mediaProvider: (document.getElementById('superadmin-media-provider')?.value === 'imagekit') ? 'imagekit' : 'cloudinary',
+        imagekit: (function buildImageKitSaveConfig() {
+            const existing = (window.APP_FEATURES && window.APP_FEATURES.imagekit) || {};
+            const cfg = {
+                publicKey: (document.getElementById('superadmin-imagekit-public-key')?.value || '').trim()
+                    || 'public_3H/K75xEHd17m+AitdItZIZQuNo=',
+                urlEndpoint: (document.getElementById('superadmin-imagekit-url-endpoint')?.value || '').trim().replace(/\/$/, '')
+                    || 'https://ik.imagekit.io/fenbexha5',
+                folder: (document.getElementById('superadmin-imagekit-folder')?.value || '').trim() || '/swagstree'
+            };
+            const privateInput = (document.getElementById('superadmin-imagekit-private-key')?.value || '').trim();
+            if (privateInput) cfg.privateKey = privateInput;
+            else if (existing.privateKey) cfg.privateKey = existing.privateKey;
+            return cfg;
+        })()
     };
     
     try {
         await db.collection("settings").doc("features_config").set(updateObj, { merge: true });
         window.APP_FEATURES = { ...window.APP_FEATURES, ...updateObj };
+        window._mediaProviderUiDirty = false;
         if (typeof cacheFeaturesConfig === 'function') cacheFeaturesConfig(window.APP_FEATURES);
         if (typeof applyFeatureTogglesUI === 'function') applyFeatureTogglesUI();
+        if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
         if (!updateObj.adminCrudDrafts && typeof adminDraftRemoveAll === 'function') adminDraftRemoveAll();
+        const ikPrivateEl = document.getElementById('superadmin-imagekit-private-key');
+        if (ikPrivateEl) {
+            ikPrivateEl.value = '';
+            ikPrivateEl.placeholder = updateObj.imagekit.privateKey
+                ? '••••••••  (saved — leave blank to keep)'
+                : 'private_… (paste from ImageKit dashboard)';
+        }
         await db.collection("settings").doc("comments").set({
             enabled: updateObj.productComments
         }, { merge: true });

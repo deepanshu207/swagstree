@@ -18,6 +18,12 @@ window.APP_FEATURES = window.APP_FEATURES || {
     adminCrudDraftsMedia: false,
     adminCrudDraftsClearAll: true,
     seoIndexing: true,
+    mediaProvider: 'cloudinary',
+    imagekit: {
+        publicKey: 'public_3H/K75xEHd17m+AitdItZIZQuNo=',
+        urlEndpoint: 'https://ik.imagekit.io/fenbexha5',
+        folder: '/swagstree'
+    },
     widgets: {
         recentOrders: false,
         discountWheel: false,
@@ -2398,6 +2404,12 @@ function isSeoIndexingFeatureEnabled() {
 }
 window.isSeoIndexingFeatureEnabled = isSeoIndexingFeatureEnabled;
 
+function getActiveMediaProvider() {
+    const f = window.APP_FEATURES || {};
+    return f.mediaProvider === 'imagekit' ? 'imagekit' : 'cloudinary';
+}
+window.getActiveMediaProvider = getActiveMediaProvider;
+
 function isAdminSeoSettingsEnabled() {
     if (!isSeoIndexingFeatureEnabled()) {
         return typeof isSuperAdmin !== 'undefined' && isSuperAdmin;
@@ -2670,6 +2682,12 @@ function applyFeatureTogglesUI() {
             document.getElementById('toggle-seo-indexing').checked = config.seoIndexing !== false;
         }
         if (typeof updateSuperSeoIndexingHint === 'function') updateSuperSeoIndexingHint();
+        if (!window._mediaProviderUiDirty) {
+            if (typeof syncMediaProviderFieldsFromConfig === 'function') {
+                syncMediaProviderFieldsFromConfig(config);
+            }
+        }
+        if (typeof updateMediaProviderUI === 'function') updateMediaProviderUI();
         if (document.getElementById('toggle-admin-storefront-content')) {
             document.getElementById('toggle-admin-storefront-content').checked = config.adminStorefrontContent !== false;
         }

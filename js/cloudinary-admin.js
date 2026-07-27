@@ -3,23 +3,20 @@
 // Server-side purge via /api/cloudinary/purge worker route.
 // ==========================================
 
-const CLOUDINARY_HOST_PATTERN = /res\.cloudinary\.com\//i;
-
-function parseCloudinaryUrl(url) {
+function resolveCloudinaryAssetMeta(url) {
+    if (typeof window.parseCloudinaryUrl === 'function') {
+        return window.parseCloudinaryUrl(url);
+    }
     if (!url || typeof url !== 'string') return null;
     const trimmed = url.trim();
-    if (!CLOUDINARY_HOST_PATTERN.test(trimmed)) return null;
-
+    if (!/res\.cloudinary\.com\//i.test(trimmed)) return null;
     const match = trimmed.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw|auto)\/upload(?:\/v\d+)?\/([^?#]+)/i);
     if (!match) return null;
-
     let resourceType = match[1].toLowerCase();
     let publicId = decodeURIComponent(match[2]).replace(/\.[a-z0-9]+$/i, '');
-
     if (resourceType === 'auto') {
         resourceType = /\.(json|pdf|zip|csv|txt|xml)$/i.test(match[2]) ? 'raw' : 'image';
     }
-
     if (!publicId) return null;
     return { resourceType, publicId };
 }
@@ -27,7 +24,7 @@ function parseCloudinaryUrl(url) {
 function collectUrlsFromValue(value, bucket) {
     if (!value) return;
     if (typeof value === 'string') {
-        const meta = parseCloudinaryUrl(value);
+        const meta = resolveCloudinaryAssetMeta(value);
         if (meta) bucket[meta.resourceType === 'raw' ? 'raw' : 'image'].add(meta.publicId);
         return;
     }
@@ -75,7 +72,7 @@ async function getSuperAdminIdToken() {
 
 async function purgeCloudinaryViaWorker(payload) {
     const token = await getSuperAdminIdToken();
-    const resp = await fetch('/api/cloudinary/purge', {
+    const resp = await fetch(typeof workerApiUrl === 'function' ? workerApiUrl('/api/cloudinary/purge') : '/api/cloudinary/purge', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -145,4 +142,3 @@ window.deleteAllCloudinaryDataPrompt = async function deleteAllCloudinaryDataPro
 };
 
 window.collectCloudinaryAssetsFromFirestore = collectCloudinaryAssetsFromFirestore;
-window.parseCloudinaryUrl = parseCloudinaryUrl;

@@ -1,0 +1,22 @@
+# Netlify deploy — ImageKit auth via Netlify Function (same-origin).
+
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/api/imagekit/auth"
+  to = "/.netlify/functions/imagekit-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://swagstree.amazing-deepanshu14.workers.dev/api/:splat"
+  status = 200
+  force = true

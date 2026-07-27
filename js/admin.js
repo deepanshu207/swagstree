@@ -3575,35 +3575,6 @@ function renderImagePreviews(targetId = 'base') {
     }
 }
 
-// Global helper to upload a file to Cloudinary (images + videos) with optional per-file progress
-function uploadToCloudinary(file, onProgress) {
-    const isVideo = file.type && file.type.startsWith('video/');
-    const resourceType = isVideo ? 'video' : 'image';
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('upload_preset', PRESET);
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
-        if (xhr.upload && typeof onProgress === 'function') {
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) onProgress(e.loaded / e.total);
-            };
-        }
-        xhr.onload = () => {
-            try {
-                const d = JSON.parse(xhr.responseText || '{}');
-                if (d.secure_url) resolve(d.secure_url);
-                else reject(new Error(d.error ? d.error.message : 'Cloudinary upload failed'));
-            } catch (e) {
-                reject(new Error('Cloudinary upload failed'));
-            }
-        };
-        xhr.onerror = () => reject(new Error('Network error during upload'));
-        xhr.send(fd);
-    });
-}
-
 const ADMIN_DEFAULT_FRAME_COUNT = 16;
 const ADMIN_MIN_FRAME_COUNT = 8;
 const ADMIN_MAX_FRAME_COUNT = 72;
@@ -3650,7 +3621,7 @@ async function adminUploadManyFiles(files, onProgress) {
         onProgress(pct, completed, files.length);
     };
     return Promise.all(files.map((file, i) =>
-        uploadToCloudinary(file, (p) => {
+        uploadMediaFile(file, (p) => {
             fileProgress[i] = p;
             report();
         }).then(url => {
@@ -5365,7 +5336,7 @@ async function addFeedbackItem() {
 
             if (feedbackFiles.length > 0) {
                 showToast(`Uploading ${feedbackFiles.length} image(s)...`);
-                const uploadedUrls = await Promise.all(feedbackFiles.map(file => uploadToCloudinary(file)));
+                const uploadedUrls = await Promise.all(feedbackFiles.map(file => uploadMediaFile(file)));
                 imageUrls = imageUrls.concat(uploadedUrls);
             }
             
@@ -5377,7 +5348,7 @@ async function addFeedbackItem() {
         } else {
             if (feedbackFiles.length > 0) {
                 showToast(`Uploading ${feedbackFiles.length} image(s)...`);
-                const uploadedUrls = await Promise.all(feedbackFiles.map(file => uploadToCloudinary(file)));
+                const uploadedUrls = await Promise.all(feedbackFiles.map(file => uploadMediaFile(file)));
                 imageUrls = imageUrls.concat(uploadedUrls);
             }
 
@@ -6096,7 +6067,7 @@ async function fetchAuthUsersExport() {
     const user = typeof auth !== 'undefined' ? auth.currentUser : null;
     if (!user) throw new Error('You must be logged in to export auth users.');
     const token = await user.getIdToken(true);
-    const resp = await fetch('/api/auth/export', {
+    const resp = await fetch(typeof workerApiUrl === 'function' ? workerApiUrl('/api/auth/export') : '/api/auth/export', {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
     });
@@ -6121,17 +6092,8 @@ async function deliverBackupJson(backupData, filename, isAuto, forceEmail) {
     if (isAuto || forceEmail) {
         try {
             showToast('⏳ Uploading backup to secure storage...');
-            const fd = new FormData();
-            fd.append('file', blob, filename);
-            fd.append('upload_preset', typeof PRESET !== 'undefined' ? PRESET : 'swagstree_upload');
-            const cloudName = typeof CLOUD_NAME !== 'undefined' ? CLOUD_NAME : 'mysharecloud';
-            const r = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-                method: 'POST',
-                body: fd
-            });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.error ? d.error.message : 'Cloudinary upload failed');
-            const downloadUrl = d.secure_url;
+            const backupFile = new File([blob], filename, { type: 'application/json' });
+            const downloadUrl = await uploadMediaFile(backupFile, null, { resourceType: 'auto' });
             await db.collection('mail').add({
                 to: 'backup@swagstree.com',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -6562,7 +6524,7 @@ async function handleAnnouncementFileUpload(input) {
 
     try {
         for (const file of files) {
-            const url = await uploadToCloudinary(file);
+            const url = await uploadMediaFile(file);
             window.announcementDraftImages.push(url);
         }
         renderAnnouncementImagesPreview();

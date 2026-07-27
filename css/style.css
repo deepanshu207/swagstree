@@ -10985,3 +10985,25 @@ body.seo-indexing-off .seo-crawl-links,
 body.seo-indexing-off #seo-primary-nav {
     display: none !important;
 }
+
+.super-media-provider-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border: 1px solid #333;
+    background: #151515;
+    color: #ccc;
+}
+.super-media-provider-badge--cloudinary {
+    border-color: rgba(52, 152, 219, 0.45);
+    color: #7ec8ff;
+}
+.super-media-provider-badge--imagekit {
+    border-color: rgba(255, 215, 0, 0.45);
+    color: var(--gold, #ffd700);
+}
