@@ -11069,3 +11069,181 @@ body.seo-indexing-off #seo-primary-nav {
     border-color: rgba(255, 215, 0, 0.45);
     color: var(--gold, #ffd700);
 }
+
+/* Shipping Optimizer Extension — Superadmin panel */
+.so-admin-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.so-admin-tab-btn {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: #1a1a1a;
+    color: #aaa;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.so-admin-tab-btn--active {
+    border-color: var(--gold, #ffd700);
+    color: var(--gold, #ffd700);
+    background: rgba(255, 215, 0, 0.08);
+}
+.so-admin-tab-panel label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.so-admin-tab-panel input,
+.so-admin-tab-panel select,
+.so-admin-tab-panel textarea {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+.so-admin-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+@media (max-width: 640px) {
+    .so-admin-grid { grid-template-columns: 1fr; }
+}
+.so-admin-subhead {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    margin: 8px 0 6px;
+}
+.so-admin-muted {
+    color: #888;
+    font-size: 11px;
+}
+.so-admin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+.so-plan-row,
+.so-list-row,
+.so-license-row {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+.so-plan-row-head,
+.so-license-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.so-plan-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+@media (max-width: 640px) {
+    .so-plan-fields { grid-template-columns: 1fr; }
+}
+.so-plan-check {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px !important;
+    font-size: 11px;
+    color: #ccc;
+}
+.so-plan-actions,
+.so-list-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.so-btn-icon {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #222;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 12px;
+}
+.so-btn-icon--danger {
+    border-color: rgba(255, 71, 87, 0.5);
+    color: #ff6b7a;
+}
+.so-btn-sm {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #222;
+    color: #eee;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.so-btn-sm--danger {
+    border-color: rgba(255, 71, 87, 0.5);
+    color: #ff6b7a;
+}
+.so-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.so-badge--best {
+    background: rgba(255, 215, 0, 0.15);
+    color: var(--gold, #ffd700);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+}
+.so-badge--on {
+    background: rgba(46, 204, 113, 0.12);
+    color: #2ecc71;
+}
+.so-badge--off {
+    background: rgba(255, 71, 87, 0.12);
+    color: #ff6b7a;
+}
+.so-admin-inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+}
+.so-admin-inline-form input {
+    flex: 1;
+    min-width: 100px;
+}
+.so-inline-key-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #222;
+    font-size: 11px;
+}
+.so-license-meta {
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+.so-license-notes {
+    font-size: 11px;
+    color: #aaa;
+    margin-bottom: 6px;
+    font-style: italic;
+}
+
