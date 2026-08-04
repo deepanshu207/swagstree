@@ -19,6 +19,10 @@
         { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, active: true, order: 3 }
     ];
 
+    const DEFAULT_INLINE_DEMO_KEYS = {
+        'MEESHO-DEMOFREE': { days: 30, label: 'Free 30-day trial' }
+    };
+
     let soConfig = null;
     let soPlans = [];
     let soInlineDemoKeys = {};
@@ -148,6 +152,31 @@
         }
     }
 
+    function soParseDate(val) {
+        if (!val) return null;
+        try {
+            if (val.toDate) return val.toDate();
+            const d = new Date(val);
+            return Number.isNaN(d.getTime()) ? null : d;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function soLicenseExpiryDate(lic) {
+        return soParseDate(lic.expiresAt);
+    }
+
+    function soIsLicenseExpired(lic) {
+        const exp = soLicenseExpiryDate(lic);
+        return !!(exp && exp.getTime() < Date.now());
+    }
+
+    function soPlanInUse(planId) {
+        if (!planId) return false;
+        return soLicenses.some(lic => lic.planId === planId || lic.planType === planId);
+    }
+
     function soFormatExpiry(lic) {
         if (lic.expiresAt && typeof lic.expiresAt === 'string' && lic.expiresAt.trim()) return lic.expiresAt;
         if (lic.expiresAt && lic.expiresAt.toDate) return soFormatTs(lic.expiresAt);
@@ -191,7 +220,7 @@
             : DEFAULT_PLANS.slice();
         soPlans = soSortPlans(rawPlans.map(soNormalizePlan));
         soPlans.forEach((p, i) => { p.order = i; });
-        soInlineDemoKeys = Object.assign({}, soConfig.demo_keys || {});
+        soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS, soConfig.demo_keys || {});
         soBindConfigForm();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
@@ -213,21 +242,28 @@
     async function soLoadLicenses() {
         let snap;
         try {
-            snap = await db.collection(SO_LICENSE_COL).orderBy('createdAt', 'desc').limit(SO_LICENSE_MAX).get();
+            snap = await db.collection(SO_LICENSE_COL).orderBy('expiresAt', 'desc').limit(SO_LICENSE_MAX).get();
         } catch (_) {
-            snap = await db.collection(SO_LICENSE_COL).limit(SO_LICENSE_MAX).get();
+            try {
+                snap = await db.collection(SO_LICENSE_COL).orderBy('createdAt', 'desc').limit(SO_LICENSE_MAX).get();
+            } catch (_e) {
+                snap = await db.collection(SO_LICENSE_COL).limit(SO_LICENSE_MAX).get();
+            }
         }
         soLicenses = [];
         snap.forEach(doc => {
             soLicenses.push(Object.assign({ key: doc.id }, doc.data()));
         });
-        if (!snap.query || !String(snap.query).includes('orderBy')) {
-            soLicenses.sort((a, b) => {
-                const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
-                const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
-                return tb - ta;
-            });
-        }
+        soLicenses.sort((a, b) => {
+            const ea = soLicenseExpiryDate(a);
+            const eb = soLicenseExpiryDate(b);
+            const ta = ea ? ea.getTime() : 0;
+            const tb = eb ? eb.getTime() : 0;
+            if (tb !== ta) return tb - ta;
+            const ca = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+            const cb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+            return cb - ca;
+        });
     }
 
     function soBindConfigForm() {
@@ -330,9 +366,14 @@
         renderSoPlansEditor();
     };
 
-    window.removeSoPlan = function(idx) {
-        if (!confirm('Remove this plan from the editor? Set active:false instead if licenses already use this plan id.')) return;
+    window.removeSoPlan = async function(idx) {
         soPlans = soReadPlansFromDom();
+        const plan = soPlans[idx];
+        if (!plan) return;
+        if (soPlanInUse(plan.id)) {
+            return soToast(`Plan "${plan.id}" is used by licenses. Set Show unchecked (active:false) instead of removing.`);
+        }
+        if (!confirm('Remove this plan from the config?')) return;
         soPlans.splice(idx, 1);
         soPlans.forEach((p, i) => { p.order = i; });
         renderSoPlansEditor();
@@ -363,7 +404,7 @@
         const key = String(keyEl && keyEl.value || '').trim().toUpperCase();
         const days = Math.max(1, parseInt(daysEl && daysEl.value, 10) || 30);
         const label = String(labelEl && labelEl.value || '').trim();
-        if (!key) return soToast('Enter a demo key.');
+        if (!key || key.length < 6) return soToast('Demo key must be at least 6 characters.');
         soInlineDemoKeys[key] = { days, label: label || `${days}-day promo` };
         if (keyEl) keyEl.value = '';
         if (labelEl) labelEl.value = '';
@@ -456,6 +497,7 @@
         const days = Math.max(1, parseInt(document.getElementById('so-demo-days-input')?.value, 10) || 30);
         const label = String(document.getElementById('so-demo-label-input')?.value || '').trim();
         if (!key) return soToast('Enter a demo key.');
+        if (key.length < 6) return soToast('Demo key must be at least 6 characters.');
         if (await soKeyExists(key)) return soToast('Key already exists.');
         try {
             await db.collection(SO_DEMO_COL).doc(key).set({
@@ -518,7 +560,7 @@
         if (!sel || !hint) return;
         const opt = sel.options[sel.selectedIndex];
         const days = opt ? parseInt(opt.getAttribute('data-days'), 10) || 30 : 30;
-        hint.textContent = `Expiry starts on activation: ${days} days from activation date.`;
+        hint.textContent = `Expiry starts when customer activates: ${days} days from activation date.`;
     };
 
     window.generateSoLicenseKey = async function() {
@@ -592,14 +634,20 @@
         container.innerHTML = filtered.map(lic => {
             const active = lic.active !== false;
             const activated = !!(lic.activatedAt && String(lic.activatedAt).trim()) || !!(lic.machineId && String(lic.machineId).trim());
+            const expired = soIsLicenseExpired(lic);
+            const activatedLabel = activated
+                ? `Activated: ${soEsc(soFormatTs(lic.activatedAt))}`
+                : 'Not activated yet';
             return `<div class="so-license-row">
                 <div class="so-license-head">
                     <code>${soEsc(lic.key)}</code>
                     <span class="so-badge ${active ? 'so-badge--on' : 'so-badge--off'}">${active ? 'Active' : 'Revoked'}</span>
-                    <span class="so-badge ${activated ? 'so-badge--on' : ''}">${activated ? 'Activated' : 'Not activated'}</span>
+                    <span class="so-badge ${activated ? 'so-badge--on' : ''}">${activated ? 'Activated' : 'Pending'}</span>
+                    ${expired ? '<span class="so-badge so-badge--off">Expired</span>' : ''}
                 </div>
                 <div class="so-license-meta so-admin-muted">
                     Plan: ${soEsc(lic.planId || lic.planType || '—')} (${lic.planDays || '?'}d)
+                    · ${activatedLabel}
                     · Expires: ${soEsc(soFormatExpiry(lic))}
                     · Device: ${soEsc(lic.machineId || '—')}
                 </div>
