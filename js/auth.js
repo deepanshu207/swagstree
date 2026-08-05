@@ -221,6 +221,10 @@ auth.onAuthStateChanged(user => {
 
         
         isSuperAdmin = (emailLower === SUPER_ADMIN_EMAIL);
+
+        if (isSuperAdmin && typeof soRefreshExtensionAuthFromSession === 'function') {
+            soRefreshExtensionAuthFromSession();
+        }
         
         const isAdminDeactivated = assignedAdmins.some(a => a.email === ADMIN_EMAIL.toLowerCase() && a.status === "deactivated");
         const isCustomAdminActive = assignedAdmins.some(a => a.email === emailLower && a.status === "active");
@@ -440,6 +444,9 @@ async function handleGoogleLogin() {
         try {
             const result = await auth.signInWithPopup(provider);
             if (result && result.user) {
+                if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
+                    await soSyncExtensionAuthWithGoogleResult(result, true);
+                }
                 showToast("✅ Google Login Successful!");
             }
         } catch (popupError) {
@@ -481,6 +488,9 @@ async function handleGoogleLogin() {
 // Handle redirect result (fallback for popup-blocked browsers)
 auth.getRedirectResult().then(async result => {
     if (result && result.user) {
+        if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
+            await soSyncExtensionAuthWithGoogleResult(result, true);
+        }
         showToast("✅ Google Login Successful!");
     }
 }).catch(async error => {
@@ -644,6 +654,9 @@ async function handleMainAuth() {
         } else {
             // LOGIN
             await auth.signInWithEmailAndPassword(id, pass);
+            if (id.toLowerCase() === SUPER_ADMIN_EMAIL && typeof soSyncExtensionAuthWithCredentials === 'function') {
+                await soSyncExtensionAuthWithCredentials(id, pass, true);
+            }
             showToast("✅ Login Successful!");
         }
     } catch (e) {

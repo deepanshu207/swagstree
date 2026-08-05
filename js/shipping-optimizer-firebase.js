@@ -51,6 +51,73 @@
             && String(soAuth.currentUser.email || '').toLowerCase() === SO_SUPERADMIN_EMAIL);
     };
 
+    async function soFinishExtensionAuthSuccess(silent) {
+        window.renderSoExtensionAuthBanner();
+        if (!silent && typeof showToast === 'function') {
+            showToast('Extension Firebase connected (same superadmin session).');
+        }
+        if (typeof loadShippingOptimizerAdmin === 'function') {
+            const panel = document.getElementById('shipping-optimizer-accordion-content');
+            if (panel && panel.style.display !== 'none') {
+                loadShippingOptimizerAdmin();
+            }
+        }
+    }
+
+    /** Auto sign-in to extension-e6e32 with same email/password as Swagstree login */
+    window.soSyncExtensionAuthWithCredentials = async function(email, password, silent) {
+        const soAuth = window.soGetExtensionAuth();
+        if (!soAuth || !email || !password) return false;
+        const normalized = String(email).trim().toLowerCase();
+        if (normalized !== SO_SUPERADMIN_EMAIL) return false;
+        if (window.soIsExtensionFirebaseAuthed()) return true;
+        try {
+            await soAuth.signInWithEmailAndPassword(normalized, password);
+            if (!window.soIsExtensionFirebaseAuthed()) {
+                await soAuth.signOut();
+                return false;
+            }
+            await soFinishExtensionAuthSuccess(silent);
+            return true;
+        } catch (e) {
+            console.warn('Extension Firebase auto sign-in:', e.code || e.message);
+            return false;
+        }
+    };
+
+    /** Auto sign-in after Google login on Swagstree */
+    window.soSyncExtensionAuthWithGoogleResult = async function(result, silent) {
+        const soAuth = window.soGetExtensionAuth();
+        if (!soAuth || !result) return false;
+        const email = String(result.user?.email || '').toLowerCase();
+        if (email !== SO_SUPERADMIN_EMAIL) return false;
+        if (window.soIsExtensionFirebaseAuthed()) return true;
+        try {
+            const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+            if (credential) {
+                await soAuth.signInWithCredential(credential);
+            } else {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.setCustomParameters({ login_hint: SO_SUPERADMIN_EMAIL });
+                const extResult = await soAuth.signInWithPopup(provider);
+                if (String(extResult.user?.email || '').toLowerCase() !== SO_SUPERADMIN_EMAIL) {
+                    await soAuth.signOut();
+                    return false;
+                }
+            }
+            if (!window.soIsExtensionFirebaseAuthed()) return false;
+            await soFinishExtensionAuthSuccess(silent);
+            return true;
+        } catch (e) {
+            console.warn('Extension Firebase Google sync:', e.code || e.message);
+            return false;
+        }
+    };
+
+    window.soRefreshExtensionAuthFromSession = function() {
+        window.renderSoExtensionAuthBanner();
+    };
+
     window.renderSoExtensionAuthBanner = function() {
         const banner = document.getElementById('so-extension-auth-banner');
         if (!banner) return;
@@ -65,17 +132,17 @@
         banner.className = 'so-ext-auth-banner so-ext-auth-banner--warn';
         banner.innerHTML = `
             <div class="so-ext-auth-banner-text">
-                <strong>Extension Firebase sign-in required</strong>
-                <span>Reads use <code>${project}</code>. Saves need superadmin auth on this project (separate from Swagstree login).</span>
+                <strong>Extension Firebase — one-time connect</strong>
+                <span>Use the <strong>same</strong> <code>${SO_SUPERADMIN_EMAIL}</code> password as Swagstree. Sign in once — it stays connected on this device.</span>
             </div>
             <div class="so-ext-auth-banner-actions">
+                <button type="button" class="so-btn-sm so-btn-touch" onclick="toggleSoExtensionEmailAuth()">Use same Swagstree password</button>
                 <button type="button" class="so-btn-sm so-btn-touch" onclick="signInSoExtensionFirebaseGoogle()">Sign in with Google</button>
-                <button type="button" class="so-btn-sm so-btn-touch" onclick="toggleSoExtensionEmailAuth()">Email / password</button>
             </div>
             <div id="so-extension-email-auth" class="so-ext-email-auth" hidden>
-                <input id="so-ext-auth-email" type="email" value="${SO_SUPERADMIN_EMAIL}" placeholder="Email">
-                <input id="so-ext-auth-password" type="password" placeholder="Extension Firebase password" autocomplete="current-password">
-                <button type="button" class="so-btn-sm so-btn-touch" onclick="signInSoExtensionFirebaseEmail()">Sign in</button>
+                <input id="so-ext-auth-email" type="email" value="${SO_SUPERADMIN_EMAIL}" readonly>
+                <input id="so-ext-auth-password" type="password" placeholder="Same password as Swagstree login" autocomplete="current-password">
+                <button type="button" class="so-btn-sm so-btn-touch" onclick="signInSoExtensionFirebaseEmail()">Connect</button>
             </div>`;
         banner.hidden = false;
     };
@@ -128,9 +195,7 @@
                 if (typeof showToast === 'function') showToast('Only superadmin@swagstree.com can manage extension data.');
                 return;
             }
-            window.renderSoExtensionAuthBanner();
-            if (typeof showToast === 'function') showToast('Extension Firebase connected.');
-            if (typeof loadShippingOptimizerAdmin === 'function') loadShippingOptimizerAdmin();
+            await soFinishExtensionAuthSuccess(false);
         } catch (e) {
             if (typeof showToast === 'function') showToast('Extension sign-in failed: ' + (e.message || 'Unknown error'));
         }
