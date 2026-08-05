@@ -991,6 +991,7 @@
         if (prodOpen && typeof adminIsProductDirty === 'function' && adminIsProductDirty()) return true;
         if (typeof isAnyCategoryCrudDirty === 'function' && isAnyCategoryCrudDirty()) return true;
         if (typeof isCategoryFormDirty === 'function' && isCategoryFormDirty()) return true;
+        if (typeof soHasUnsavedChanges === 'function' && soHasUnsavedChanges()) return true;
         return false;
     }
 
