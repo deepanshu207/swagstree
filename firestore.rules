@@ -28,7 +28,17 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if isShippingOptimizerSuperAdmin();
       allow update: if request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['machineId', 'activatedAt', 'lastVerifiedAt', 'expiresAt']);
+        .hasOnly([
+          'machineId',
+          'device_ids',
+          'max_devices',
+          'billing_mode',
+          'activatedAt',
+          'lastVerifiedAt',
+          'expiresAt',
+          'credits_balance',
+          'credits_used'
+        ]);
     }
   }
 }
