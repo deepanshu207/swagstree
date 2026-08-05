@@ -2117,13 +2117,12 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <div id="so-inline-demo-keys"></div>
-                            <div class="so-admin-inline-form so-admin-inline-form--stack">
-                                <input id="so-inline-demo-key-input" type="text" placeholder="MEESHO-DEMOFREE" style="text-transform:uppercase;">
-                                <input id="so-inline-demo-days-input" type="number" min="1" value="30" placeholder="Days">
-                                <input id="so-inline-demo-label-input" type="text" placeholder="Label">
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoInlineDemoKey()">Add inline key</button>
+                            <p class="so-admin-muted so-admin-tip">Stored in config <code>demo_keys</code> — extension reads on load. Add multiple keys below, then tap <strong>Save config &amp; plans</strong>.</p>
+                            <div class="so-inline-demo-toolbar">
+                                <span id="so-inline-demo-count" class="so-plans-count">0 keys</span>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoInlineDemoKeyRow()">+ Add demo key</button>
                             </div>
+                            <div id="so-inline-demo-keys" class="so-inline-demo-list"></div>
                         </div>
                     </div>
 
@@ -4100,7 +4099,7 @@
     <script src="js/admin.js?v=17.0"></script>
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=1.5"></script>
+    <script src="js/shipping-optimizer-admin.js?v=1.6"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
