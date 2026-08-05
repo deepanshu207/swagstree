@@ -11327,6 +11327,50 @@ body.seo-indexing-off #seo-primary-nav {
 .so-ext-warnings li {
     margin-bottom: 4px;
 }
+.so-ext-auth-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    font-size: 11px;
+    line-height: 1.45;
+}
+.so-ext-auth-banner--ok {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+}
+.so-ext-auth-banner--warn {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #fcd34d;
+}
+.so-ext-auth-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.so-ext-auth-banner-text strong {
+    color: #fff;
+    font-size: 12px;
+}
+.so-ext-auth-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.so-ext-email-auth {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.so-ext-email-auth input {
+    min-height: 44px;
+}
 .so-section-chevron {
     color: #888;
     font-size: 11px;
