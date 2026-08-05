@@ -2071,8 +2071,45 @@
                                 <div id="so-guide-section-plans" class="admin-guide-section-content" style="display:none;">
                                     <p class="admin-guide-when"><strong>Included credits</strong> = base credits granted when customer buys this plan.</p>
                                     <p class="admin-guide-why"><strong>Credit add-ons</strong> = optional extra bundles (e.g. +25 credits for ₹40) shown under the plan in the extension popup.</p>
-                                    <p class="admin-guide-example"><strong>Example:</strong> Credits Starter plan with 50 base + customer picks +25 add-on → license gets <code>credits_balance: 75</code>.</p>
-                                    <p class="admin-guide-note">Billing modes: <code>subscription</code> (time-based), <code>credits</code> (pay per use), <code>hybrid</code> (both).</p>
+                                    <div class="admin-guide-matrix">
+                                        <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
+                                            <span>Billing mode</span><span>Meaning</span><span>Best for</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">subscription</span>
+                                            <span>Time-based access (days / unlimited)</span>
+                                            <span>Monthly, yearly, lifetime</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag admin-guide-tag--gold">credits</span>
+                                            <span>Pay per use — no expiry required</span>
+                                            <span>Credits Starter, top-up only</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag admin-guide-tag--blue">hybrid</span>
+                                            <span>Subscription + credits together</span>
+                                            <span>Unlimited Pro, power users</span>
+                                        </div>
+                                    </div>
+                                    <div class="admin-guide-matrix" style="margin-top:8px;">
+                                        <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
+                                            <span>Device tier</span><span>Max devices</span><span>Typical plan</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">standard</span><span>1 device</span><span>Monthly, lifetime</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag admin-guide-tag--green">family</span><span>3 devices</span><span>Family yearly</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag admin-guide-tag--blue">friends</span><span>5 devices</span><span>Friends yearly</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag admin-guide-tag--stock">unlimited</span><span>∞ devices</span><span>Unlimited Pro</span>
+                                        </div>
+                                    </div>
+                                    <p class="admin-guide-example"><strong>Plan kind</strong> labels: <code>lifetime</code> = never expires · <code>unlimited</code> = all unlimited flags · <code>custom</code> = credits-first pack.</p>
+                                    <p class="admin-guide-note">Quick-add presets: <strong>Monthly</strong> (30d, 1 device) · <strong>Family/Friends</strong> (yearly, 3/5 devices) · <strong>Lifetime</strong> (forever, 1 device) · <strong>Unlimited Pro</strong> (forever, all unlimited) · <strong>Credits Starter</strong> (credits + add-ons).</p>
                                 </div>
                             </div>
 
@@ -2096,6 +2133,7 @@
                                 <div id="so-guide-section-credits" class="admin-guide-section-content" style="display:none;">
                                     <p>Credit settings control top-up pricing in the extension. <strong>Credit packs</strong> are preset bundles (10 / 20 / 50 credits). Hidden packs are not shown to customers.</p>
                                     <p class="admin-guide-note">Plan <strong>included credits</strong> and <strong>add-ons</strong> are separate from credit packs — packs are for buying more credits after activation.</p>
+                                    <p class="admin-guide-when"><strong>Image generation</strong> uses credits per image and enforces daily/monthly limits per license. Extension tracks <code>images_generated_*</code> counters on each license doc.</p>
                                 </div>
                             </div>
 
@@ -2287,6 +2325,23 @@
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Cost per operation</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('cost-per-op', event)" aria-expanded="false" aria-controls="so-hint-cost-per-op" title="More info">ⓘ</button></span>
                                     <div id="so-hint-cost-per-op" class="so-field-info-panel" hidden role="note">Credits deducted per shipping optimization run. Usually <code>1</code> credit = 1 operation.</div>
                                     <input id="so-credits-cost-op" type="number" min="1" step="1" value="1" oninput="soMarkTabDirty('credits')"></label>
+                            </div>
+                            <div class="so-admin-subhead" style="margin-top:14px;"><i class="fa fa-image"></i> AI image generation limits</div>
+                            <p class="so-admin-muted so-admin-tip">Extension deducts credits per image and enforces limits per license. Counters stored on license docs.</p>
+                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-img-gen-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Image generation enabled</label>
+                            <div class="so-admin-grid">
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Credits per image</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-credits', event)" aria-expanded="false" aria-controls="so-hint-img-gen-credits" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-credits" class="so-field-info-panel" hidden role="note">Credits deducted from license balance for each generated image. Usually 2–5 credits per image.</div>
+                                    <input id="so-img-gen-credits" type="number" min="1" step="1" value="2" oninput="soMarkTabDirty('credits')"></label>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Daily limit per license (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-daily', event)" aria-expanded="false" aria-controls="so-hint-img-gen-daily" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-daily" class="so-field-info-panel" hidden role="note">Max images one license can generate per calendar day. Resets at midnight (extension local time). <code>0</code> = unlimited.</div>
+                                    <input id="so-img-gen-daily-limit" type="number" min="0" step="1" value="20" oninput="soMarkTabDirty('credits')"></label>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Monthly limit per license (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-monthly', event)" aria-expanded="false" aria-controls="so-hint-img-gen-monthly" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-monthly" class="so-field-info-panel" hidden role="note">Cap per license per calendar month. Use for fair-use on unlimited plans. <code>0</code> = unlimited.</div>
+                                    <input id="so-img-gen-monthly-limit" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits')"></label>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Max images per batch</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-batch', event)" aria-expanded="false" aria-controls="so-hint-img-gen-batch" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-batch" class="so-field-info-panel" hidden role="note">How many images customer can request in one generation run (e.g. 4 product angles at once).</div>
+                                    <input id="so-img-gen-batch-max" type="number" min="1" step="1" value="4" oninput="soMarkTabDirty('credits')"></label>
                             </div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
                             <div class="so-admin-inline-form so-admin-inline-form--stack">
@@ -4267,7 +4322,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.1"></script>
-    <script src="js/shipping-optimizer-admin.js?v=2.3"></script>
+    <script src="js/shipping-optimizer-admin.js?v=2.4"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

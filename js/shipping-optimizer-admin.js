@@ -31,6 +31,14 @@
         cost_per_operation: 1
     };
 
+    const DEFAULT_IMAGE_GENERATION = {
+        enabled: true,
+        credits_per_image: 2,
+        daily_limit: 20,
+        monthly_limit: 0,
+        max_batch_size: 4
+    };
+
     const DEFAULT_CREDIT_PACKS = [
         { id: 'pack_10', credits: 10, price: 20, label: '10 credits — ₹20', active: true, order: 0 },
         { id: 'pack_20', credits: 20, price: 38, label: '20 credits — ₹38', active: true, order: 1 },
@@ -95,6 +103,7 @@
     let soDirtyTabs = { config: false, credits: false };
     let soTabSnapshots = { config: null, credits: null };
     let soHydrating = false;
+    let soUserEditsEnabled = false;
     let soDirtyCheckTimer = null;
     let soDraftSaveTimer = null;
     const SO_DRAFT_STORAGE_KEY = 'swagstree_so_admin_draft_v1';
@@ -543,6 +552,13 @@
         return `${ids.length}/${max || 1}`;
     }
 
+    function soFormatImageGenLabel(lic) {
+        const total = parseInt(lic.images_generated_total, 10) || 0;
+        const today = parseInt(lic.images_generated_today, 10) || 0;
+        const month = parseInt(lic.images_generated_month, 10) || 0;
+        return `${total} total · ${today} today · ${month} this month`;
+    }
+
     function soFormatCreditsLabel(lic) {
         if (soIsUnlimitedCredits(lic)) return 'Unlimited';
         const bal = parseInt(lic.credits_balance, 10) || 0;
@@ -761,11 +777,33 @@
     }
 
     window.soMarkTabDirty = function(tab) {
-        if (soHydrating) return;
+        if (soHydrating || !soUserEditsEnabled) return;
         if (tab === 'config' || tab === 'credits') {
             soScheduleDirtyCheck();
             soScheduleDraftSave();
         }
+    };
+
+    function soResetUserEditGate() {
+        soUserEditsEnabled = false;
+    }
+
+    function soEnableUserEditGate() {
+        soUserEditsEnabled = true;
+    }
+
+    function soBindUserEditGate() {
+        const root = document.getElementById('shipping-optimizer-admin-section');
+        if (!root || root.dataset.soEditGateBound) return;
+        root.dataset.soEditGateBound = '1';
+        const enable = () => { soUserEditsEnabled = true; };
+        root.addEventListener('input', enable, true);
+        root.addEventListener('change', enable, true);
+    }
+
+    window.soHasUnsavedChanges = function() {
+        soRecomputeDirtyState();
+        return !!(soDirtyTabs.config || soDirtyTabs.credits);
     };
 
     function soScheduleDirtyCheck() {
@@ -808,24 +846,98 @@
         return sorted;
     }
 
-    function soSerializeConfigTabState() {
-        return JSON.stringify({
-            general: soReadGeneralConfigLenient(),
-            plans: soSerializePlansState(),
-            inlineDemo: soSerializeInlineDemoState()
+    function soNormalizeImageGeneration(raw) {
+        const g = Object.assign({}, DEFAULT_IMAGE_GENERATION, raw && typeof raw === 'object' ? raw : {});
+        g.enabled = g.enabled !== false;
+        g.credits_per_image = Math.max(1, parseInt(g.credits_per_image, 10) || DEFAULT_IMAGE_GENERATION.credits_per_image);
+        g.daily_limit = Math.max(0, parseInt(g.daily_limit, 10) || 0);
+        g.monthly_limit = Math.max(0, parseInt(g.monthly_limit, 10) || 0);
+        g.max_batch_size = Math.max(1, parseInt(g.max_batch_size, 10) || DEFAULT_IMAGE_GENERATION.max_batch_size);
+        return g;
+    }
+
+    function soReadImageGenerationFromDom() {
+        return soNormalizeImageGeneration({
+            enabled: !!document.getElementById('so-img-gen-enabled')?.checked,
+            credits_per_image: document.getElementById('so-img-gen-credits')?.value,
+            daily_limit: document.getElementById('so-img-gen-daily-limit')?.value,
+            monthly_limit: document.getElementById('so-img-gen-monthly-limit')?.value,
+            max_batch_size: document.getElementById('so-img-gen-batch-max')?.value
         });
     }
 
-    function soSerializeCreditsTabState() {
+    function soBindImageGenerationForm() {
+        const img = soNormalizeImageGeneration(soCredits?.image_generation);
+        const enabledEl = document.getElementById('so-img-gen-enabled');
+        if (enabledEl) enabledEl.checked = img.enabled !== false;
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        setVal('so-img-gen-credits', img.credits_per_image);
+        setVal('so-img-gen-daily-limit', img.daily_limit);
+        setVal('so-img-gen-monthly-limit', img.monthly_limit);
+        setVal('so-img-gen-batch-max', img.max_batch_size);
+    }
+
+    function soBuildGeneralCanonical(fromDom) {
+        if (fromDom) return soReadGeneralConfigLenient();
+        return {
+            whatsapp_number: String(soConfig?.whatsapp_number || '919654414891').replace(/\D/g, ''),
+            whatsapp_message: String(soConfig?.whatsapp_message || 'Hi! I want to purchase Shipping Optimizer license.').trim(),
+            extension_enabled: soConfig?.extension_enabled !== false,
+            min_extension_version: String(soConfig?.min_extension_version || '1.0.0').trim(),
+            announcement: String(soConfig?.announcement || '').trim()
+        };
+    }
+
+    function soBuildInlineDemoCanonical(fromDom) {
+        if (fromDom) return soSerializeInlineDemoState();
+        const src = soInlineDemoKeys && Object.keys(soInlineDemoKeys).length
+            ? soInlineDemoKeys
+            : (soConfig?.demo_keys || DEFAULT_INLINE_DEMO_KEYS);
+        const out = {};
+        Object.keys(src).sort().forEach(k => {
+            const key = String(k).trim().toUpperCase();
+            if (key.length < 6) return;
+            out[key] = soDemoKeyEntryToInlineMap(src[k]);
+        });
+        return out;
+    }
+
+    function soBuildPlansCanonical(fromDom) {
+        if (fromDom) return soSerializePlansState();
+        return soPlans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i));
+    }
+
+    function soBuildConfigCanonicalObject(fromDom) {
+        return {
+            general: soBuildGeneralCanonical(fromDom),
+            plans: soBuildPlansCanonical(fromDom),
+            inlineDemo: soBuildInlineDemoCanonical(fromDom)
+        };
+    }
+
+    function soBuildCreditsCanonicalObject(fromDom) {
         const container = document.getElementById('so-credit-packs-editor');
-        const packs = (container && container.querySelector('.so-credit-pack-row'))
+        const packs = fromDom && container && container.querySelector('.so-credit-pack-row')
             ? soReadCreditPacksFromDom()
             : soCreditPacks.slice();
-        return JSON.stringify({
-            enabled: !!document.getElementById('so-credits-enabled')?.checked,
-            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
-            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
-            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+        const c = soCredits || DEFAULT_CREDITS;
+        return {
+            enabled: fromDom
+                ? !!document.getElementById('so-credits-enabled')?.checked
+                : c.enabled !== false,
+            price_per_credit: fromDom
+                ? Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit)
+                : Math.max(0, parseInt(c.price_per_credit, 10) || DEFAULT_CREDITS.price_per_credit),
+            min_purchase: fromDom
+                ? Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase)
+                : Math.max(1, parseInt(c.min_purchase, 10) || DEFAULT_CREDITS.min_purchase),
+            cost_per_operation: fromDom
+                ? Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation)
+                : Math.max(1, parseInt(c.cost_per_operation, 10) || DEFAULT_CREDITS.cost_per_operation),
+            image_generation: fromDom ? soReadImageGenerationFromDom() : soNormalizeImageGeneration(c.image_generation),
             packs: packs.map((p, i) => ({
                 id: p.id,
                 credits: p.credits,
@@ -834,11 +946,24 @@
                 active: p.active !== false,
                 order: i
             }))
-        });
+        };
+    }
+
+    function soSerializeConfigTabState() {
+        return JSON.stringify(soBuildConfigCanonicalObject(true));
+    }
+
+    function soSerializeCreditsTabState() {
+        return JSON.stringify(soBuildCreditsCanonicalObject(true));
     }
 
     function soRecomputeDirtyState() {
-        if (soHydrating) return;
+        if (soHydrating || !soUserEditsEnabled) {
+            soDirtyTabs.config = false;
+            soDirtyTabs.credits = false;
+            soUpdateUnsavedBanner();
+            return;
+        }
         const configDirty = soTabSnapshots.config != null && soSerializeConfigTabState() !== soTabSnapshots.config;
         const creditsDirty = soTabSnapshots.credits != null && soSerializeCreditsTabState() !== soTabSnapshots.credits;
         soDirtyTabs.config = configDirty;
@@ -846,12 +971,39 @@
         soUpdateUnsavedBanner();
     }
 
-    function soCaptureSnapshots() {
-        soTabSnapshots.config = soSerializeConfigTabState();
-        soTabSnapshots.credits = soSerializeCreditsTabState();
+    function soCaptureSnapshots(fromDom) {
+        const useDom = fromDom !== false;
+        soTabSnapshots.config = JSON.stringify(soBuildConfigCanonicalObject(useDom));
+        soTabSnapshots.credits = JSON.stringify(soBuildCreditsCanonicalObject(useDom));
         soDirtyTabs.config = false;
         soDirtyTabs.credits = false;
         soUpdateUnsavedBanner();
+    }
+
+    function soFinalizeAdminLoadState() {
+        soHydrating = true;
+        switchShippingOptimizerTab(soActiveTab);
+        soHydrating = false;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                soCaptureSnapshots(true);
+                soResetUserEditGate();
+                soPruneStaleDraft();
+                soRenderDraftBanner();
+            });
+        });
+    }
+
+    function soPruneStaleDraft() {
+        const draft = soReadDraftFromStorage();
+        if (!draft) return;
+        try {
+            const draftConfig = JSON.stringify(draft.config || {});
+            const draftCredits = JSON.stringify(draft.credits || {});
+            if (draftConfig === soTabSnapshots.config && draftCredits === soTabSnapshots.credits) {
+                soClearDraftStorage();
+            }
+        } catch (_) { /* ignore */ }
     }
 
     function soClearTabDirty(tab) {
@@ -906,7 +1058,7 @@
     }
 
     function soScheduleDraftSave() {
-        if (!soDraftsEnabled()) return;
+        if (!soDraftsEnabled() || !soUserEditsEnabled) return;
         clearTimeout(soDraftSaveTimer);
         soDraftSaveTimer = setTimeout(() => {
             soRecomputeDirtyState();
@@ -960,7 +1112,8 @@
             enabled: credits.enabled !== false,
             price_per_credit: credits.price_per_credit,
             min_purchase: credits.min_purchase,
-            cost_per_operation: credits.cost_per_operation
+            cost_per_operation: credits.cost_per_operation,
+            image_generation: credits.image_generation
         });
         if (Array.isArray(credits.packs)) {
             soCreditPacks = soSortCreditPacks(credits.packs.map(soNormalizeCreditPack));
@@ -968,6 +1121,7 @@
         }
 
         soBindCreditsForm();
+        soBindImageGenerationForm();
         renderSoCreditPacksEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
@@ -1014,6 +1168,7 @@
         const draft = soReadDraftFromStorage();
         if (!draft) return soToast('No draft found.');
         soApplyDraftToForms(draft);
+        soEnableUserEditGate();
         soToast('Draft restored. Save to Firebase when ready.');
         soRenderDraftBanner();
     };
@@ -1051,12 +1206,14 @@
             soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
             soCreditPacks.forEach((p, i) => { p.order = i; });
             soBindCreditsForm();
+            soBindImageGenerationForm();
             renderSoCreditPacksEditor();
             soUpdateCustomCreditCalc();
         }
         soHydrating = false;
         if (soActiveTab === 'config') soClearTabDirty('config');
         else if (soActiveTab === 'credits') soClearTabDirty('credits');
+        soResetUserEditGate();
         soWriteDraftToStorage();
         renderSoExtensionPreview();
         soToast('Reverted to last saved values.');
@@ -1186,6 +1343,7 @@
         soHydrating = true;
         soBindConfigForm();
         soBindCreditsForm();
+        soBindImageGenerationForm();
         renderSoCreditPacksEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
@@ -1616,6 +1774,14 @@
             </div>`
             : '<p class="so-admin-muted">Credits disabled — extension hides credit packs section.</p>';
 
+        const imgGen = soReadImageGenerationFromDom();
+        const imgGenHtml = imgGen.enabled !== false
+            ? `<div class="so-ext-preview-block">
+                <div class="so-ext-preview-label">AI image generation</div>
+                <p class="so-admin-muted">${imgGen.credits_per_image} credits/image · daily limit ${imgGen.daily_limit || '∞'} · monthly ${imgGen.monthly_limit || '∞'} · max ${imgGen.max_batch_size}/batch</p>
+            </div>`
+            : '<p class="so-admin-muted">Image generation disabled in extension.</p>';
+
         const demoKeys = Object.assign({}, inlineDemo);
         collectionDemo.forEach(d => {
             demoKeys[d.key] = {
@@ -1642,6 +1808,7 @@
                 ${plansHtml}
             </div>
             ${creditsHtml}
+            ${imgGenHtml}
             <div class="so-ext-preview-block">
                 <div class="so-ext-preview-label">Demo / promo keys (Firebase merged)</div>
                 ${demoHtml}
@@ -1692,7 +1859,7 @@
             ? JSON.parse(soTabSnapshots.config)
             : JSON.parse(soSerializeConfigTabState());
         if (options.fullConfig) {
-            soCaptureSnapshots();
+            soCaptureSnapshots(true);
         } else {
             if (patch.plans) {
                 snap.plans = soPlans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i));
@@ -1775,6 +1942,7 @@
             price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
             min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
             cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+            image_generation: soReadImageGenerationFromDom(),
             packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => ({
                 id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
             }))
@@ -1787,6 +1955,10 @@
             }, { merge: true });
             soCredits = creditsPayload;
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            soTabSnapshots.credits = soSerializeCreditsTabState();
+            soRecomputeDirtyState();
+            if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
+            else soWriteDraftToStorage();
             renderSoExtensionPreview();
             soToast('Credit settings saved.');
         } catch (e) {
@@ -1800,6 +1972,7 @@
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
         const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
+            image_generation: soReadImageGenerationFromDom(),
             packs: soCreditPacks.map((p, i) => ({
                 id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
             }))
@@ -2229,6 +2402,7 @@
             price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
             min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
             cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+            image_generation: soReadImageGenerationFromDom(),
             packs: soCreditPacks.map((p, i) => ({
                 id: p.id,
                 credits: p.credits,
@@ -2691,6 +2865,11 @@
             expiresAt: '',
             machineId: '',
             activatedAt: '',
+            images_generated_total: 0,
+            images_generated_today: 0,
+            images_generated_today_date: '',
+            images_generated_month: 0,
+            images_generated_month_key: '',
             customer_name: String(document.getElementById('so-license-customer-name')?.value || '').trim(),
             customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
             customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
@@ -2777,6 +2956,7 @@
             const expired = soIsLicenseExpired(lic);
             const billingMode = lic.billing_mode || 'subscription';
             const creditsLabel = soFormatCreditsLabel(lic);
+            const imageGenLabel = soFormatImageGenLabel(lic);
             const expiryLabel = soFormatExpiry(lic);
             const activatedLabel = activated
                 ? `Activated: ${soEsc(soFormatTs(lic.activatedAt))}`
@@ -2804,6 +2984,7 @@
                         · Plan: ${soEsc(lic.planId || lic.planType || '—')}
                         · Devices: ${soEsc(devicesLabel)}
                         · Credits: ${soEsc(creditsLabel)}
+                        · Images: ${soEsc(imageGenLabel)}
                     </div>
                     <div class="so-license-meta so-admin-muted">
                         ${activatedLabel} · Expires: ${soEsc(expiryLabel)} · ${soEsc(billingMode)}
@@ -2816,6 +2997,7 @@
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoLicenseCredits('${soAttr(lic.key)}')">Add credits</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="toggleSoLicenseActive('${soAttr(lic.key)}', ${active})">${active ? 'Revoke' : 'Activate'}</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseAllDevices('${soAttr(lic.key)}')" ${deviceIds.length ? '' : 'disabled'}>Reset devices</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseImageCounts('${soAttr(lic.key)}')">Reset image counts</button>
                         <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="deleteSoLicense('${soAttr(lic.key)}')">Delete</button>
                     </div>
                 </div>
@@ -2858,6 +3040,25 @@
             await soLoadLicenses();
             renderSoLicensesList();
             soToast('All devices reset.');
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.resetSoLicenseImageCounts = async function(key) {
+        if (!soRequireExtensionWrite()) return;
+        if (!confirm(`Reset image generation counters for ${key}? Usage history will be cleared.`)) return;
+        try {
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
+                images_generated_total: 0,
+                images_generated_today: 0,
+                images_generated_today_date: '',
+                images_generated_month: 0,
+                images_generated_month_key: ''
+            }, { merge: true });
+            await soLoadLicenses();
+            renderSoLicensesList();
+            soToast('Image generation counts reset.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
         }
@@ -3027,10 +3228,9 @@
             renderSoExtensionPreview();
             renderSoLicensesList();
             soHydrating = false;
-            soCaptureSnapshots();
-            soRenderDraftBanner();
-            switchShippingOptimizerTab(soActiveTab);
+            soBindUserEditGate();
             soBindFieldInfoDismiss();
+            soFinalizeAdminLoadState();
             soLoaded = true;
         } catch (e) {
             soToast('Load failed: ' + (e.message || 'Unknown error'));
@@ -3038,8 +3238,7 @@
     };
 
     window.addEventListener('beforeunload', (e) => {
-        soRecomputeDirtyState();
-        if (soDirtyTabs.config || soDirtyTabs.credits) {
+        if (typeof soHasUnsavedChanges === 'function' && soHasUnsavedChanges()) {
             e.preventDefault();
             e.returnValue = '';
         }
