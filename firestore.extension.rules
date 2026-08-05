@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// Deploy to Firebase project: extension-e6e32
+// Console → Firestore → Rules (NOT swagstree-web)
+// Shipping Optimizer Chrome extension + Swagstree superadmin panel
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isShippingOptimizerSuperAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'superadmin@swagstree.com';
+    }
+
+    match /shipping_optimizer_config/{doc} {
+      allow read: if true;
+      allow write: if isShippingOptimizerSuperAdmin();
+    }
+
+    match /shipping_optimizer_demo_keys/{key} {
+      allow read: if true;
+      allow write: if isShippingOptimizerSuperAdmin();
+    }
+
+    match /shipping_optimizer_licenses/{key} {
+      allow read: if true;
+      allow create, update, delete: if isShippingOptimizerSuperAdmin();
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'machineId',
+          'device_ids',
+          'max_devices',
+          'billing_mode',
+          'unlimited_time',
+          'unlimited_devices',
+          'unlimited_credits',
+          'activatedAt',
+          'lastVerifiedAt',
+          'expiresAt',
+          'credits_balance',
+          'credits_used'
+        ]);
+    }
+  }
+}

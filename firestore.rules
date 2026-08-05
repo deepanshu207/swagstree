@@ -1,47 +1,16 @@
 rules_version = '2';
 
-// MERGE these Shipping Optimizer rules into your existing Swagstree firestore.rules.
-// Do NOT replace your whole rules file — append inside match /databases/{database}/documents { ... }
+// Swagstree storefront rules (swagstree-web) — merge snippet only.
+// Your full production rules live in Firebase Console for swagstree-web.
+//
+// Shipping Optimizer extension data is on Firebase project extension-e6e32.
+// Deploy firestore.extension.rules to that project (NOT swagstree-web).
+//
+// Legacy: if shipping_optimizer_* collections still exist on swagstree-web, you may
+// remove them after migrating data to extension-e6e32.
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isShippingOptimizerSuperAdmin() {
-      return request.auth != null
-        && request.auth.token.email == 'superadmin@swagstree.com';
-    }
-
     // ... your existing Swagstree rules (products, orders, settings, etc.) ...
-
-    // Shipping Optimizer Extension — Meesho Chrome extension (isolated collections)
-    match /shipping_optimizer_config/{doc} {
-      allow read: if true;
-      allow write: if isShippingOptimizerSuperAdmin();
-    }
-
-    match /shipping_optimizer_demo_keys/{key} {
-      allow read: if true;
-      allow write: if isShippingOptimizerSuperAdmin();
-    }
-
-    match /shipping_optimizer_licenses/{key} {
-      allow read: if true;
-      allow create, update, delete: if isShippingOptimizerSuperAdmin();
-      allow update: if request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly([
-          'machineId',
-          'device_ids',
-          'max_devices',
-          'billing_mode',
-          'unlimited_time',
-          'unlimited_devices',
-          'unlimited_credits',
-          'activatedAt',
-          'lastVerifiedAt',
-          'expiresAt',
-          'credits_balance',
-          'credits_used'
-        ]);
-    }
   }
 }

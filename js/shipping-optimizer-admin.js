@@ -1,7 +1,8 @@
 // ==========================================
 // SWAG STREE | SHIPPING OPTIMIZER EXTENSION ADMIN
-// Firestore: shipping_optimizer_* collections only
-// Access: superadmin@swagstree.com only
+// Firestore: extension-e6e32 → shipping_optimizer_* collections only
+// Swagstree storefront uses swagstree-web (global db) — never touched here
+// Access: superadmin@swagstree.com on BOTH Swagstree + extension-e6e32 Auth
 // ==========================================
 
 (function() {
@@ -89,7 +90,25 @@
     let soExpandedPlanIds = new Set();
     let soExpandedPackIds = new Set();
     let soExpandedLicenseKeys = new Set();
-    let soOpenSections = new Set(['config-general']);
+    let soOpenSections = new Set(['config-general', 'license-list']);
+
+    function soDb() {
+        if (typeof soGetExtensionDb === 'function') {
+            const extDb = soGetExtensionDb();
+            if (extDb) return extDb;
+        }
+        throw new Error('Extension Firestore (extension-e6e32) not ready.');
+    }
+
+    function soRequireExtensionWrite() {
+        if (!soRequireSuperAdmin()) return false;
+        if (typeof soIsExtensionFirebaseAuthed === 'function' && soIsExtensionFirebaseAuthed()) return true;
+        soToast('Sign in to Extension Firebase (extension-e6e32) to save changes.');
+        if (typeof renderSoExtensionAuthBanner === 'function') renderSoExtensionAuthBanner();
+        const banner = document.getElementById('so-extension-auth-banner');
+        if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return false;
+    }
 
     function soEsc(str) {
         if (str === null || str === undefined) return '';
@@ -315,9 +334,9 @@
     async function soKeyExists(key) {
         const upper = String(key || '').trim().toUpperCase();
         if (!upper) return true;
-        const lic = await db.collection(SO_LICENSE_COL).doc(upper).get();
+        const lic = await soDb().collection(SO_LICENSE_COL).doc(upper).get();
         if (lic.exists) return true;
-        const demo = await db.collection(SO_DEMO_COL).doc(upper).get();
+        const demo = await soDb().collection(SO_DEMO_COL).doc(upper).get();
         if (demo.exists) return true;
         if (soInlineDemoKeys && soInlineDemoKeys[upper]) return true;
         if (soConfig && soConfig.demo_keys && soConfig.demo_keys[upper]) return true;
@@ -519,7 +538,7 @@
     };
 
     async function soLoadConfig() {
-        const snap = await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).get();
+        const snap = await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).get();
         if (snap.exists) {
             soConfig = snap.data() || {};
         } else {
@@ -551,7 +570,7 @@
     }
 
     async function soLoadDemoKeys() {
-        const snap = await db.collection(SO_DEMO_COL).limit(100).get();
+        const snap = await soDb().collection(SO_DEMO_COL).limit(100).get();
         soDemoKeys = [];
         snap.forEach(doc => {
             soDemoKeys.push(Object.assign({ key: doc.id }, doc.data()));
@@ -664,12 +683,12 @@
     async function soLoadLicenses() {
         let snap;
         try {
-            snap = await db.collection(SO_LICENSE_COL).orderBy('expiresAt', 'desc').limit(SO_LICENSE_MAX).get();
+            snap = await soDb().collection(SO_LICENSE_COL).orderBy('expiresAt', 'desc').limit(SO_LICENSE_MAX).get();
         } catch (_) {
             try {
-                snap = await db.collection(SO_LICENSE_COL).orderBy('createdAt', 'desc').limit(SO_LICENSE_MAX).get();
+                snap = await soDb().collection(SO_LICENSE_COL).orderBy('createdAt', 'desc').limit(SO_LICENSE_MAX).get();
             } catch (_e) {
-                snap = await db.collection(SO_LICENSE_COL).limit(SO_LICENSE_MAX).get();
+                snap = await soDb().collection(SO_LICENSE_COL).limit(SO_LICENSE_MAX).get();
             }
         }
         soLicenses = [];
@@ -1015,13 +1034,14 @@
 
     async function soPersistConfigPatch(patch, successMsg, options) {
         options = options || {};
-        await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, patch, {
+        if (!soRequireExtensionWrite()) return;
+        await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, patch, {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: soAuthEmail()
         }), { merge: true });
         soConfig = Object.assign({}, soConfig, patch);
         if (patch.demo_keys) {
-            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update({ demo_keys: patch.demo_keys });
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update({ demo_keys: patch.demo_keys });
             soInlineDemoKeys = patch.demo_keys;
             soSyncInlineDemoRowsFromObject();
             renderSoInlineDemoKeysEditor();
@@ -1038,7 +1058,7 @@
     }
 
     window.saveShippingOptimizerGeneral = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         let general;
         try {
             general = soReadGeneralConfigFromDom();
@@ -1053,7 +1073,7 @@
     };
 
     window.saveShippingOptimizerPlans = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         soPlans = soReadPlansFromDom();
         const err = soValidatePlans(soPlans);
         if (err) return soToast(err);
@@ -1066,7 +1086,7 @@
     };
 
     window.saveShippingOptimizerInlineDemoKeys = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         soPreserveInlineDemoRowsFromDom();
         let demoKeysPayload;
         try {
@@ -1082,7 +1102,7 @@
     };
 
     window.saveShippingOptimizerCreditSettings = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
             enabled: !!document.getElementById('so-credits-enabled')?.checked,
             price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
@@ -1093,7 +1113,7 @@
             }))
         });
         try {
-            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: soAuthEmail()
@@ -1108,7 +1128,7 @@
     };
 
     window.saveShippingOptimizerCreditPacks = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         soCreditPacks = soReadCreditPacksFromDom();
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
@@ -1118,7 +1138,7 @@
             }))
         });
         try {
-            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: soAuthEmail()
@@ -1457,7 +1477,7 @@
     };
 
     window.saveShippingOptimizerConfig = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         soPreserveInlineDemoRowsFromDom();
         soPlans = soReadPlansFromDom();
         const err = soValidatePlans(soPlans);
@@ -1485,7 +1505,7 @@
     };
 
     window.saveShippingOptimizerCredits = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         soCreditPacks = soReadCreditPacksFromDom();
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
@@ -1506,7 +1526,7 @@
         };
 
         try {
-            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: soAuthEmail()
@@ -1641,7 +1661,7 @@
     };
 
     window.saveSoDemoKeysBatch = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         soPreserveDemoPendingRowsFromDom();
         if (!soDemoKeyPendingRows.length) return soToast('Add at least one demo key row first.');
 
@@ -1659,9 +1679,9 @@
         }
 
         try {
-            const batch = db.batch();
+            const batch = soDb().batch();
             toWrite.forEach(item => {
-                const ref = db.collection(SO_DEMO_COL).doc(item.key);
+                const ref = soDb().collection(SO_DEMO_COL).doc(item.key);
                 batch.set(ref, Object.assign({}, item.payload, {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 }));
@@ -1678,15 +1698,15 @@
     };
 
     window.saveSoDemoKeysChanges = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         soPreserveDemoEditRowsFromDom();
         if (!soDemoKeyEditRows.length) return soToast('No demo keys to save.');
 
         try {
-            const batch = db.batch();
+            const batch = soDb().batch();
             soDemoKeyEditRows.forEach(row => {
                 if (!row.key) return;
-                const ref = db.collection(SO_DEMO_COL).doc(row.key);
+                const ref = soDb().collection(SO_DEMO_COL).doc(row.key);
                 batch.set(ref, Object.assign({}, soDemoKeyEntryToFirestore(row), {
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedBy: soAuthEmail()
@@ -1702,13 +1722,13 @@
     };
 
     window.deleteSelectedSoDemoKeys = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         if (!soDemoSelectedKeys.size) return soToast('Select keys to delete.');
         if (!confirm(`Delete ${soDemoSelectedKeys.size} selected demo key(s)?`)) return;
         try {
-            const batch = db.batch();
+            const batch = soDb().batch();
             soDemoSelectedKeys.forEach(key => {
-                batch.delete(db.collection(SO_DEMO_COL).doc(key));
+                batch.delete(soDb().collection(SO_DEMO_COL).doc(key));
             });
             await batch.commit();
             soDemoSelectedKeys = new Set();
@@ -1721,9 +1741,9 @@
     };
 
     window.toggleSoDemoKey = async function(key, currentlyActive) {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         try {
-            await db.collection(SO_DEMO_COL).doc(key).set({ active: !currentlyActive }, { merge: true });
+            await soDb().collection(SO_DEMO_COL).doc(key).set({ active: !currentlyActive }, { merge: true });
             await soLoadDemoKeys();
             renderSoDemoKeysList();
             soToast(currentlyActive ? 'Demo key disabled.' : 'Demo key enabled.');
@@ -1733,10 +1753,10 @@
     };
 
     window.deleteSoDemoKey = async function(key) {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         if (!confirm(`Delete demo key ${key}?`)) return;
         try {
-            await db.collection(SO_DEMO_COL).doc(key).delete();
+            await soDb().collection(SO_DEMO_COL).doc(key).delete();
             soDemoSelectedKeys.delete(key);
             await soLoadDemoKeys();
             renderSoDemoKeysList();
@@ -1899,7 +1919,7 @@
     };
 
     window.createSoLicense = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         const key = String(document.getElementById('so-license-key-input')?.value || '').trim().toUpperCase();
         const planId = String(document.getElementById('so-license-plan')?.value || '').trim();
         if (!/^MEESHO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(key)) {
@@ -1939,7 +1959,7 @@
             createdBy: soAuthEmail()
         };
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).set(payload);
+            await soDb().collection(SO_LICENSE_COL).doc(key).set(payload);
             cancelSoLicenseEdit();
             await soLoadLicenses();
             renderSoLicensesList();
@@ -1950,7 +1970,7 @@
     };
 
     window.updateSoLicense = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         const key = soEditingLicenseKey;
         if (!key) return createSoLicense();
         const planId = String(document.getElementById('so-license-plan')?.value || '').trim();
@@ -1981,7 +2001,7 @@
             updatedBy: soAuthEmail()
         };
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
+            await soDb().collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
             cancelSoLicenseEdit();
             await soLoadLicenses();
             renderSoLicensesList();
@@ -2069,12 +2089,12 @@
     };
 
     window.toggleSoLicenseActive = async function(key, currentlyActive) {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         if (currentlyActive) {
             if (!confirm(`Revoke license ${key}? Extension will reject this key.`)) return;
         }
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).set({ active: !currentlyActive }, { merge: true });
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({ active: !currentlyActive }, { merge: true });
             await soLoadLicenses();
             renderSoLicensesList();
             soToast(currentlyActive ? 'License revoked.' : 'License activated.');
@@ -2088,10 +2108,10 @@
     };
 
     window.resetSoLicenseAllDevices = async function(key) {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         if (!confirm(`Reset all device bindings for ${key}? Customer can activate on new device(s).`)) return;
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).set({
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
                 machineId: '',
                 device_ids: [],
                 activatedAt: ''
@@ -2105,13 +2125,13 @@
     };
 
     window.removeSoLicenseDeviceId = async function(key, deviceId) {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         const lic = soLicenses.find(l => l.key === key);
         if (!lic) return soToast('License not found.');
         if (!confirm(`Remove device ${deviceId} from ${key}?`)) return;
         const ids = soGetLicenseDeviceIds(lic).filter(id => id !== deviceId);
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).set({
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
                 device_ids: ids,
                 machineId: ids[0] || ''
             }, { merge: true });
@@ -2160,7 +2180,7 @@
     };
 
     window.confirmSoAddCredits = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         const key = soAddCreditsLicenseKey;
         if (!key) return;
         const lic = soLicenses.find(l => l.key === key);
@@ -2171,7 +2191,7 @@
         }
         const current = parseInt(lic.credits_balance, 10) || 0;
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).set({
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
                 credits_balance: current + addCredits
             }, { merge: true });
             closeSoAddCreditsModal();
@@ -2205,7 +2225,7 @@
     };
 
     window.saveSoLicenseOverrides = async function() {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         const key = soOverridesLicenseKey;
         if (!key) return;
         let maxDevices = document.getElementById('so-overrides-max-devices')?.value;
@@ -2221,7 +2241,7 @@
         if (maxDevices != null) payload.max_devices = maxDevices;
         if (payload.unlimited_devices) payload.max_devices = 0;
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
+            await soDb().collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
             closeSoLicenseOverrides();
             await soLoadLicenses();
             renderSoLicensesList();
@@ -2232,11 +2252,11 @@
     };
 
     window.deleteSoLicense = async function(key) {
-        if (!soRequireSuperAdmin()) return;
+        if (!soRequireExtensionWrite()) return;
         const typed = prompt(`Type DELETE to permanently remove license ${key}:`);
         if (typed !== 'DELETE') return soToast('Delete cancelled.');
         try {
-            await db.collection(SO_LICENSE_COL).doc(key).delete();
+            await soDb().collection(SO_LICENSE_COL).doc(key).delete();
             await soLoadLicenses();
             renderSoLicensesList();
             soToast('License deleted.');
@@ -2247,9 +2267,12 @@
 
     window.loadShippingOptimizerAdmin = async function() {
         if (!soRequireSuperAdmin()) return;
-        if (typeof db === 'undefined' || !db) {
-            soToast('Firestore not ready.');
+        if (typeof soGetExtensionDb !== 'function' || !soGetExtensionDb()) {
+            soToast('Extension Firebase (extension-e6e32) not ready.');
             return;
+        }
+        if (typeof soEnsureExtensionFirebaseReady === 'function') {
+            await soEnsureExtensionFirebaseReady();
         }
         try {
             await soLoadConfig();
