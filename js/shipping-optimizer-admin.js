@@ -85,7 +85,7 @@
     let soExpandedPlanIds = new Set();
     let soExpandedPackIds = new Set();
     let soExpandedLicenseKeys = new Set();
-    let soOpenSections = new Set(['config-general', 'config-plans', 'credits-settings', 'credits-packs', 'demo-add', 'demo-list', 'license-create', 'license-list']);
+    let soOpenSections = new Set(['config-general', 'credits-settings', 'credits-packs', 'demo-add', 'demo-list', 'license-create', 'license-list']);
 
     function soEsc(str) {
         if (str === null || str === undefined) return '';
@@ -427,9 +427,21 @@
         soPlans = soReadPlansFromDom();
         const plan = soPlans[idx];
         if (!plan) return;
+        const opening = !soExpandedPlanIds.has(plan.id);
         if (soExpandedPlanIds.has(plan.id)) soExpandedPlanIds.delete(plan.id);
         else soExpandedPlanIds.add(plan.id);
+        if (opening) {
+            soOpenSections.add('config-plans');
+            const section = document.querySelector('.so-section-accordion[data-so-section="config-plans"]');
+            if (section) section.classList.add('so-section-accordion--open');
+        }
         renderSoPlansEditor();
+        if (opening) {
+            requestAnimationFrame(() => {
+                const card = document.querySelector(`.so-pricing-plan-row[data-plan-idx="${idx}"]`);
+                if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
     };
 
     window.toggleSoPackRow = function(idx) {
@@ -684,55 +696,115 @@
         soMarkTabDirty('credits');
     };
 
+    function soPlanMetaChips(plan) {
+        const chips = [];
+        chips.push(plan.billing_mode || 'subscription');
+        if (soIsUnlimitedTime(plan)) chips.push('No expiry');
+        else if (plan.duration) chips.push(plan.duration);
+        else if (plan.days > 0) chips.push(`${plan.days} days`);
+        if (soIsUnlimitedDevices(plan)) chips.push('Unlimited devices');
+        else chips.push(`${plan.max_devices != null ? plan.max_devices : 1} device${(plan.max_devices || 1) !== 1 ? 's' : ''}`);
+        if (plan.included_credits > 0) chips.push(`${plan.included_credits} credits`);
+        if (plan.plan_kind) chips.push(plan.plan_kind);
+        return chips.map(c => `<span class="so-meta-chip">${soEsc(c)}</span>`).join('');
+    }
+
+    function soUpdatePlansCount() {
+        const el = document.getElementById('so-plans-count');
+        if (!el) return;
+        const n = soPlans.length;
+        el.textContent = n === 1 ? '1 plan' : `${n} plans`;
+    }
+
+    window.expandAllSoPlans = function() {
+        soPlans = soReadPlansFromDom();
+        soPlans.forEach(p => soExpandedPlanIds.add(p.id));
+        renderSoPlansEditor();
+    };
+
+    window.collapseAllSoPlans = function() {
+        soExpandedPlanIds.clear();
+        renderSoPlansEditor();
+    };
+
     function renderSoPlansEditor() {
         const container = document.getElementById('so-plans-editor');
         if (!container) return;
+        soUpdatePlansCount();
         if (!soPlans.length) {
-            container.innerHTML = '<p class="so-admin-muted">No plans yet. Tap + Add Plan.</p>';
+            container.innerHTML = '<div class="so-plans-empty"><i class="fa fa-tags"></i><p>No plans yet</p><span class="so-admin-muted">Use quick-add presets or + Add Plan</span></div>';
             return;
         }
         container.innerHTML = soPlans.map((plan, idx) => {
             const open = soExpandedPlanIds.has(plan.id);
+            const priceLabel = '₹' + (plan.price || 0).toLocaleString('en-IN');
             return `
-            <div class="so-plan-row so-pricing-plan-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-plan-idx="${idx}">
-                <div class="so-plan-row-head" onclick="toggleSoPlanRow(${idx})">
-                    <strong>${soEsc(plan.name)}</strong>
-                    <span class="so-admin-muted">${soEsc(plan.id)} · ₹${plan.price}${plan.unlimited_time ? ' · ∞' : ' · ' + plan.days + 'd'}</span>
-                    ${plan.best ? '<span class="so-badge so-badge--best">BEST</span>' : ''}
-                    ${plan.active ? '' : '<span class="so-badge so-badge--off">Hidden</span>'}
-                    <span class="so-collapsible-toggle"></span>
-                </div>
-                <div class="so-plan-fields" onclick="event.stopPropagation()">
-                    <label><span>Id (slug) — do not rename after use</span><input type="text" data-field="id" value="${soAttr(plan.id)}" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Name</span><input type="text" data-field="name" value="${soAttr(plan.name)}" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Price ₹</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Days (0=unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Device tier</span>
-                        <select data-field="device_tier" onchange="soMarkTabDirty('config')">
-                            ${SO_DEVICE_TIERS.map(t => `<option value="${t}" ${plan.device_tier === t ? 'selected' : ''}>${t}</option>`).join('')}
-                        </select>
-                    </label>
-                    <label><span>Max devices (0=∞)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}" oninput="soMarkTabDirty('config')"></label>
-                    <label><span>Billing mode</span>
-                        <select data-field="billing_mode" onchange="soMarkTabDirty('config')">
-                            ${SO_BILLING_MODES.map(m => `<option value="${m}" ${plan.billing_mode === m ? 'selected' : ''}>${m}</option>`).join('')}
-                        </select>
-                    </label>
-                    <label><span>Included credits</span><input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
-                    <label style="grid-column:1/-1;"><span>Description (admin note)</span><input type="text" data-field="description" value="${soAttr(plan.description || '')}" oninput="soMarkTabDirty('config')"></label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited time</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited devices</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited credits</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show in extension</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Best value</label>
-                </div>
-                <div class="so-plan-actions" onclick="event.stopPropagation()">
-                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, -1)" title="Move up">▲</button>
-                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, 1)" title="Move down">▼</button>
-                    <button type="button" class="so-btn-icon so-btn-icon--danger so-btn-touch" onclick="removeSoPlan(${idx})" title="Remove">✕</button>
+            <div class="so-plan-card so-pricing-plan-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-plan-idx="${idx}">
+                <button type="button" class="so-plan-card-head" onclick="toggleSoPlanRow(${idx})" aria-expanded="${open ? 'true' : 'false'}">
+                    <span class="so-plan-order" aria-hidden="true">${idx + 1}</span>
+                    <div class="so-plan-card-summary">
+                        <div class="so-plan-card-title-row">
+                            <strong class="so-plan-card-name">${soEsc(plan.name)}</strong>
+                            <span class="so-plan-card-price">${soEsc(priceLabel)}</span>
+                        </div>
+                        <div class="so-plan-card-meta">
+                            <code class="so-plan-id-tag">${soEsc(plan.id)}</code>
+                            <div class="so-plan-chips">${soPlanMetaChips(plan)}</div>
+                        </div>
+                        <div class="so-plan-card-badges">
+                            ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
+                            ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                            ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
+                        </div>
+                    </div>
+                    <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
+                </button>
+                <div class="so-plan-card-body" onclick="event.stopPropagation()">
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-circle-info"></i> Basic info</div>
+                        <div class="so-plan-fields so-plan-fields--basic">
+                            <label><span>Id (slug) — never rename after use</span><input type="text" data-field="id" value="${soAttr(plan.id)}" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Display name</span><input type="text" data-field="name" value="${soAttr(plan.name)}" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Price (INR)</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Days (0 = unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}" placeholder="1 Year, Forever" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}" placeholder="Save ₹8000" oninput="soMarkTabDirty('config')"></label>
+                        </div>
+                    </div>
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-sliders"></i> Billing &amp; devices</div>
+                        <div class="so-plan-fields so-plan-fields--billing">
+                            <label><span>Billing mode</span>
+                                <select data-field="billing_mode" onchange="soMarkTabDirty('config')">
+                                    ${SO_BILLING_MODES.map(m => `<option value="${m}" ${plan.billing_mode === m ? 'selected' : ''}>${m}</option>`).join('')}
+                                </select>
+                            </label>
+                            <label><span>Device tier</span>
+                                <select data-field="device_tier" onchange="soMarkTabDirty('config')">
+                                    ${SO_DEVICE_TIERS.map(t => `<option value="${t}" ${plan.device_tier === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                </select>
+                            </label>
+                            <label><span>Max devices (0 = unlimited)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Included credits</span><input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
+                            <label class="so-field-full"><span>Admin note</span><input type="text" data-field="description" value="${soAttr(plan.description || '')}" oninput="soMarkTabDirty('config')"></label>
+                        </div>
+                    </div>
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-infinity"></i> Limits &amp; visibility</div>
+                        <div class="so-plan-flags">
+                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited time</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited devices</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited credits</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show in extension</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Best value badge</label>
+                        </div>
+                    </div>
+                    <div class="so-plan-actions-bar">
+                        <button type="button" class="so-btn-sm" onclick="moveSoPlan(${idx}, -1)" title="Move up"><i class="fa fa-arrow-up"></i> Up</button>
+                        <button type="button" class="so-btn-sm" onclick="moveSoPlan(${idx}, 1)" title="Move down"><i class="fa fa-arrow-down"></i> Down</button>
+                        <button type="button" class="so-btn-sm so-btn-sm--danger" onclick="removeSoPlan(${idx})"><i class="fa fa-trash"></i> Remove</button>
+                    </div>
                 </div>
             </div>`;
         }).join('');
