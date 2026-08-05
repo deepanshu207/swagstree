@@ -93,6 +93,12 @@
     let soOverridesLicenseKey = null;
     let soAddCreditsLicenseKey = null;
     let soDirtyTabs = { config: false, credits: false };
+    let soTabSnapshots = { config: null, credits: null };
+    let soHydrating = false;
+    let soDirtyCheckTimer = null;
+    let soDraftSaveTimer = null;
+    const SO_DRAFT_STORAGE_KEY = 'swagstree_so_admin_draft_v1';
+    const SO_DRAFT_SAVE_MS = 800;
     let soExpandedPlanIds = new Set();
     let soExpandedPackIds = new Set();
     let soExpandedLicenseKeys = new Set();
@@ -266,6 +272,12 @@
     function soToast(msg) {
         if (typeof showToast === 'function') showToast(msg);
     }
+    window.soToast = soToast;
+
+    window.soRefreshExtensionPreview = function() {
+        renderSoExtensionPreview();
+        soToast('Preview refreshed.');
+    };
 
     function soRequireSuperAdmin() {
         if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) return true;
@@ -749,17 +761,103 @@
     }
 
     window.soMarkTabDirty = function(tab) {
+        if (soHydrating) return;
         if (tab === 'config' || tab === 'credits') {
-            soDirtyTabs[tab] = true;
-            soUpdateUnsavedBanner();
+            soScheduleDirtyCheck();
+            soScheduleDraftSave();
         }
     };
 
+    function soScheduleDirtyCheck() {
+        clearTimeout(soDirtyCheckTimer);
+        soDirtyCheckTimer = setTimeout(soRecomputeDirtyState, 0);
+    }
+
+    function soDraftsEnabled() {
+        return typeof adminCrudDraftsEnabled === 'function' ? adminCrudDraftsEnabled() : true;
+    }
+
+    function soReadGeneralConfigLenient() {
+        return {
+            whatsapp_number: String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, ''),
+            whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
+            extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
+            min_extension_version: String(document.getElementById('so-min-version')?.value || '1.2.0').trim(),
+            announcement: String(document.getElementById('so-announcement')?.value || '').trim()
+        };
+    }
+
+    function soSerializePlansState() {
+        const container = document.getElementById('so-plans-editor');
+        const plans = (container && container.querySelector('.so-pricing-plan-row'))
+            ? soReadPlansFromDom()
+            : soPlans.slice();
+        return plans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i));
+    }
+
+    function soSerializeInlineDemoState() {
+        soPreserveInlineDemoRowsFromDom();
+        const out = {};
+        soInlineDemoKeyRows.forEach(row => {
+            const key = String(row.key || '').trim().toUpperCase();
+            if (key.length < 6) return;
+            out[key] = soDemoKeyEntryToInlineMap(row);
+        });
+        const sorted = {};
+        Object.keys(out).sort().forEach(k => { sorted[k] = out[k]; });
+        return sorted;
+    }
+
+    function soSerializeConfigTabState() {
+        return JSON.stringify({
+            general: soReadGeneralConfigLenient(),
+            plans: soSerializePlansState(),
+            inlineDemo: soSerializeInlineDemoState()
+        });
+    }
+
+    function soSerializeCreditsTabState() {
+        const container = document.getElementById('so-credit-packs-editor');
+        const packs = (container && container.querySelector('.so-credit-pack-row'))
+            ? soReadCreditPacksFromDom()
+            : soCreditPacks.slice();
+        return JSON.stringify({
+            enabled: !!document.getElementById('so-credits-enabled')?.checked,
+            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
+            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
+            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+            packs: packs.map((p, i) => ({
+                id: p.id,
+                credits: p.credits,
+                price: p.price,
+                label: p.label,
+                active: p.active !== false,
+                order: i
+            }))
+        });
+    }
+
+    function soRecomputeDirtyState() {
+        if (soHydrating) return;
+        const configDirty = soTabSnapshots.config != null && soSerializeConfigTabState() !== soTabSnapshots.config;
+        const creditsDirty = soTabSnapshots.credits != null && soSerializeCreditsTabState() !== soTabSnapshots.credits;
+        soDirtyTabs.config = configDirty;
+        soDirtyTabs.credits = creditsDirty;
+        soUpdateUnsavedBanner();
+    }
+
+    function soCaptureSnapshots() {
+        soTabSnapshots.config = soSerializeConfigTabState();
+        soTabSnapshots.credits = soSerializeCreditsTabState();
+        soDirtyTabs.config = false;
+        soDirtyTabs.credits = false;
+        soUpdateUnsavedBanner();
+    }
+
     function soClearTabDirty(tab) {
-        if (tab === 'config' || tab === 'credits') {
-            soDirtyTabs[tab] = false;
-            soUpdateUnsavedBanner();
-        }
+        if (tab === 'config') soTabSnapshots.config = soSerializeConfigTabState();
+        if (tab === 'credits') soTabSnapshots.credits = soSerializeCreditsTabState();
+        soRecomputeDirtyState();
     }
 
     function soUpdateUnsavedBanner() {
@@ -767,7 +865,202 @@
         if (!banner) return;
         const dirty = soDirtyTabs[soActiveTab];
         banner.hidden = !dirty;
+        const label = banner.querySelector('span');
+        if (label && dirty) {
+            const tabName = soActiveTab === 'credits' ? 'Credits & Packs' : 'Config & Pricing';
+            label.textContent = `Unsaved changes on ${tabName}`;
+        }
     }
+
+    function soReadDraftFromStorage() {
+        if (!soDraftsEnabled()) return null;
+        try {
+            const raw = localStorage.getItem(SO_DRAFT_STORAGE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || parsed.v !== 1) return null;
+            return parsed;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function soWriteDraftToStorage() {
+        if (!soDraftsEnabled()) return;
+        if (soHydrating) return;
+        if (!soDirtyTabs.config && !soDirtyTabs.credits) {
+            try { localStorage.removeItem(SO_DRAFT_STORAGE_KEY); } catch (_) { /* ignore */ }
+            soRenderDraftBanner();
+            return;
+        }
+        try {
+            const payload = {
+                v: 1,
+                config: JSON.parse(soSerializeConfigTabState()),
+                credits: JSON.parse(soSerializeCreditsTabState()),
+                savedAt: Date.now()
+            };
+            localStorage.setItem(SO_DRAFT_STORAGE_KEY, JSON.stringify(payload));
+        } catch (_) { /* ignore quota */ }
+        soRenderDraftBanner();
+    }
+
+    function soScheduleDraftSave() {
+        if (!soDraftsEnabled()) return;
+        clearTimeout(soDraftSaveTimer);
+        soDraftSaveTimer = setTimeout(() => {
+            soRecomputeDirtyState();
+            soWriteDraftToStorage();
+        }, SO_DRAFT_SAVE_MS);
+    }
+
+    function soClearDraftStorage() {
+        try { localStorage.removeItem(SO_DRAFT_STORAGE_KEY); } catch (_) { /* ignore */ }
+        soRenderDraftBanner();
+    }
+
+    function soDraftMatchesCurrent(draft) {
+        if (!draft) return true;
+        try {
+            const currentConfig = JSON.parse(soSerializeConfigTabState());
+            const currentCredits = JSON.parse(soSerializeCreditsTabState());
+            return JSON.stringify(draft.config) === JSON.stringify(currentConfig)
+                && JSON.stringify(draft.credits) === JSON.stringify(currentCredits);
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function soApplyDraftToForms(draft) {
+        if (!draft) return;
+        soHydrating = true;
+        const general = draft.config?.general || {};
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        setVal('so-whatsapp-number', general.whatsapp_number || '');
+        setVal('so-whatsapp-message', general.whatsapp_message || '');
+        setVal('so-min-version', general.min_extension_version || '1.2.0');
+        setVal('so-announcement', general.announcement || '');
+        const enabledEl = document.getElementById('so-extension-enabled');
+        if (enabledEl) enabledEl.checked = general.extension_enabled !== false;
+
+        if (Array.isArray(draft.config?.plans)) {
+            soPlans = soSortPlans(draft.config.plans.map(soNormalizePlan));
+            soPlans.forEach((p, i) => { p.order = i; });
+        }
+        if (draft.config?.inlineDemo && typeof draft.config.inlineDemo === 'object') {
+            soInlineDemoKeys = Object.assign({}, draft.config.inlineDemo);
+            soSyncInlineDemoRowsFromObject();
+        }
+
+        const credits = draft.credits || {};
+        soCredits = Object.assign({}, DEFAULT_CREDITS, {
+            enabled: credits.enabled !== false,
+            price_per_credit: credits.price_per_credit,
+            min_purchase: credits.min_purchase,
+            cost_per_operation: credits.cost_per_operation
+        });
+        if (Array.isArray(credits.packs)) {
+            soCreditPacks = soSortCreditPacks(credits.packs.map(soNormalizeCreditPack));
+            soCreditPacks.forEach((p, i) => { p.order = i; });
+        }
+
+        soBindCreditsForm();
+        renderSoCreditPacksEditor();
+        renderSoPlansEditor();
+        renderSoInlineDemoKeysEditor();
+        soPopulateLicensePlanSelect();
+        soUpdateCustomCreditCalc();
+        soHydrating = false;
+        soRecomputeDirtyState();
+    }
+
+    function soRenderDraftBanner() {
+        const banner = document.getElementById('so-draft-recovery-banner');
+        if (!banner) return;
+        const draft = soReadDraftFromStorage();
+        if (!draft || soDraftMatchesCurrent(draft)) {
+            banner.hidden = true;
+            banner.innerHTML = '';
+            return;
+        }
+        const age = typeof adminDraftFormatAge === 'function'
+            ? adminDraftFormatAge(draft.savedAt)
+            : 'recently';
+        const differsFromFirebase = soTabSnapshots.config && (
+            JSON.stringify(draft.config) !== soTabSnapshots.config ||
+            JSON.stringify(draft.credits) !== soTabSnapshots.credits
+        );
+        const hint = differsFromFirebase
+            ? 'Local draft differs from last saved Firebase data. Restore to continue editing, or discard.'
+            : 'Local draft differs from current form. Restore to apply it, or discard.';
+        banner.hidden = false;
+        banner.innerHTML = `
+            <div class="admin-draft-banner admin-draft-banner--inline so-draft-banner">
+                <div class="admin-draft-banner__text">
+                    <strong>Unpublished draft</strong> saved ${soEsc(age)}
+                    <div class="admin-draft-recovery-hint">${hint}</div>
+                </div>
+                <div class="admin-draft-banner__actions">
+                    <button type="button" class="btn-gold so-btn-sm" onclick="soRestoreDraft()">Restore draft</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soDiscardDraft()">Discard draft</button>
+                </div>
+            </div>`;
+    }
+
+    window.soRestoreDraft = function() {
+        const draft = soReadDraftFromStorage();
+        if (!draft) return soToast('No draft found.');
+        soApplyDraftToForms(draft);
+        soToast('Draft restored. Save to Firebase when ready.');
+        soRenderDraftBanner();
+    };
+
+    window.soDiscardDraft = function() {
+        if (!confirm('Discard the local Shipping Optimizer draft? Firebase data will stay as-is.')) return;
+        soClearDraftStorage();
+        soToast('Draft discarded.');
+    };
+
+    window.soDiscardLocalEdits = function() {
+        if (!confirm('Revert unsaved changes on this tab to last saved data?')) return;
+        soHydrating = true;
+        if (soActiveTab === 'config') {
+            const rawPlans = Array.isArray(soConfig?.plans) && soConfig.plans.length
+                ? soConfig.plans
+                : DEFAULT_PLANS.slice();
+            soPlans = soSortPlans(rawPlans.map(soNormalizePlan));
+            soPlans.forEach((p, i) => { p.order = i; });
+            if (soConfig?.demo_keys && typeof soConfig.demo_keys === 'object') {
+                soInlineDemoKeys = Object.assign({}, soConfig.demo_keys);
+            } else {
+                soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS);
+            }
+            soSyncInlineDemoRowsFromObject();
+            soBindConfigForm();
+            renderSoPlansEditor();
+            renderSoInlineDemoKeysEditor();
+        } else if (soActiveTab === 'credits') {
+            const rawCredits = soConfig?.credits && typeof soConfig.credits === 'object' ? soConfig.credits : {};
+            soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
+            const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
+                ? rawCredits.packs
+                : DEFAULT_CREDIT_PACKS.slice();
+            soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
+            soCreditPacks.forEach((p, i) => { p.order = i; });
+            soBindCreditsForm();
+            renderSoCreditPacksEditor();
+            soUpdateCustomCreditCalc();
+        }
+        soHydrating = false;
+        if (soActiveTab === 'config') soClearTabDirty('config');
+        else if (soActiveTab === 'credits') soClearTabDirty('credits');
+        soWriteDraftToStorage();
+        renderSoExtensionPreview();
+        soToast('Reverted to last saved values.');
+    };
 
     window.soSaveCurrentTab = function() {
         if (soActiveTab === 'config') saveShippingOptimizerConfig();
@@ -775,6 +1068,7 @@
     };
 
     function soConfirmLeaveTab(nextTab) {
+        soRecomputeDirtyState();
         if (!soDirtyTabs[soActiveTab]) return true;
         return confirm('You have unsaved changes on this tab. Leave without saving?');
     }
@@ -889,11 +1183,13 @@
             soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS);
         }
         soSyncInlineDemoRowsFromObject();
+        soHydrating = true;
         soBindConfigForm();
         soBindCreditsForm();
         renderSoCreditPacksEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
+        soHydrating = false;
     }
 
     async function soLoadDemoKeys() {
@@ -1392,8 +1688,40 @@
             soPopulateLicensePlanSelect();
         }
         renderSoExtensionPreview();
-        if (options.clearDirty) soClearTabDirty('config');
+        const snap = soTabSnapshots.config
+            ? JSON.parse(soTabSnapshots.config)
+            : JSON.parse(soSerializeConfigTabState());
+        if (options.fullConfig) {
+            soCaptureSnapshots();
+        } else {
+            if (patch.plans) {
+                snap.plans = soPlans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i));
+            }
+            if (patch.demo_keys) {
+                snap.inlineDemo = Object.assign({}, patch.demo_keys);
+                const sorted = {};
+                Object.keys(snap.inlineDemo).sort().forEach(k => { sorted[k] = snap.inlineDemo[k]; });
+                snap.inlineDemo = sorted;
+            }
+            if (soPatchTouchesGeneral(patch)) {
+                snap.general = soReadGeneralConfigLenient();
+            }
+            soTabSnapshots.config = JSON.stringify(snap);
+            soRecomputeDirtyState();
+        }
+        if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
+        else soWriteDraftToStorage();
         soToast(successMsg);
+    }
+
+    function soPatchTouchesGeneral(patch) {
+        return patch && (
+            patch.whatsapp_number != null ||
+            patch.whatsapp_message != null ||
+            patch.extension_enabled != null ||
+            patch.min_extension_version != null ||
+            patch.announcement != null
+        );
     }
 
     window.saveShippingOptimizerGeneral = async function() {
@@ -1884,7 +2212,7 @@
         });
 
         try {
-            await soPersistConfigPatch(payload, 'Config, plans & demo keys saved to Firebase.', { clearDirty: true });
+            await soPersistConfigPatch(payload, 'Config, plans & demo keys saved to Firebase.', { fullConfig: true });
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
@@ -1919,7 +2247,10 @@
             }, { merge: true });
             soCredits = creditsPayload;
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
-            soClearTabDirty('credits');
+            soTabSnapshots.credits = soSerializeCreditsTabState();
+            soRecomputeDirtyState();
+            if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
+            else soWriteDraftToStorage();
             soToast('Credits & packs saved.');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
@@ -2686,15 +3017,18 @@
             await soLoadConfig();
             await soLoadDemoKeys();
             await soLoadLicenses();
+            soHydrating = true;
             soPopulateLicensePlanSelect();
             soSetLicenseFormMode(null);
-            soUpdateUnsavedBanner();
             soUpdateCustomCreditCalc();
             soRestoreSectionAccordions();
             renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
             renderSoExtensionPreview();
             renderSoLicensesList();
+            soHydrating = false;
+            soCaptureSnapshots();
+            soRenderDraftBanner();
             switchShippingOptimizerTab(soActiveTab);
             soBindFieldInfoDismiss();
             soLoaded = true;
@@ -2702,4 +3036,12 @@
             soToast('Load failed: ' + (e.message || 'Unknown error'));
         }
     };
+
+    window.addEventListener('beforeunload', (e) => {
+        soRecomputeDirtyState();
+        if (soDirtyTabs.config || soDirtyTabs.credits) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 })();
