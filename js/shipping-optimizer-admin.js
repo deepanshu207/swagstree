@@ -24,6 +24,7 @@
     };
 
     const DEFAULT_CREDITS = {
+        enabled: true,
         price_per_credit: 2,
         min_purchase: 10,
         cost_per_operation: 1
@@ -36,9 +37,37 @@
         { id: 'pack_100', credits: 100, price: 170, label: '100 credits — ₹170', active: true, order: 3 }
     ];
 
-    const SO_DEVICE_TIER_MAX = { standard: 1, family: 3, friends: 5 };
+    const SO_DEVICE_TIER_MAX = { standard: 1, family: 3, friends: 5, unlimited: 0 };
     const SO_BILLING_MODES = ['subscription', 'credits', 'hybrid'];
-    const SO_DEVICE_TIERS = ['standard', 'family', 'friends'];
+    const SO_DEVICE_TIERS = ['standard', 'family', 'friends', 'unlimited'];
+
+    const SO_PLAN_PRESETS = {
+        monthly: {
+            id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month',
+            max_devices: 1, device_tier: 'standard', billing_mode: 'subscription', active: true
+        },
+        family_yearly: {
+            id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
+            max_devices: 3, device_tier: 'family', billing_mode: 'subscription', active: true
+        },
+        friends_yearly: {
+            id: 'friends_yearly', name: 'Friends Yearly', price: 6999, days: 365, duration: '1 Year',
+            max_devices: 5, device_tier: 'friends', billing_mode: 'subscription', active: true
+        },
+        lifetime: {
+            id: 'lifetime', name: 'Lifetime', price: 9999, days: 0, duration: 'Forever',
+            unlimited_time: true, plan_kind: 'lifetime', max_devices: 1, billing_mode: 'subscription', active: true
+        },
+        unlimited_pro: {
+            id: 'unlimited_pro', name: 'Unlimited Pro', price: 19999, days: 0, duration: 'Forever',
+            unlimited_time: true, unlimited_devices: true, unlimited_credits: true,
+            plan_kind: 'unlimited', billing_mode: 'hybrid', max_devices: 0, device_tier: 'unlimited', active: true
+        },
+        credits_starter: {
+            id: 'credits_starter', name: 'Credits Starter', price: 99, days: 0,
+            billing_mode: 'credits', included_credits: 50, plan_kind: 'custom', max_devices: 1, active: true
+        }
+    };
 
     let soConfig = null;
     let soPlans = [];
@@ -50,6 +79,7 @@
     let soActiveTab = 'config';
     let soLoaded = false;
     let soEditingLicenseKey = null;
+    let soOverridesLicenseKey = null;
 
     function soEsc(str) {
         if (str === null || str === undefined) return '';
@@ -95,25 +125,80 @@
         p.id = soSlugifyId(p.id || p.name || `plan_${index}`);
         p.name = String(p.name || p.id || 'Plan').trim();
         p.price = Math.max(0, parseInt(p.price, 10) || 0);
-        p.days = Math.max(1, parseInt(p.days, 10) || 30);
+        p.days = Math.max(0, parseInt(p.days, 10));
+        if (!Number.isFinite(p.days)) p.days = 30;
         p.duration = String(p.duration || '').trim();
         p.save = String(p.save || '').trim();
+        p.plan_kind = String(p.plan_kind || '').trim();
+        p.description = String(p.description || '').trim();
         p.active = p.active !== false;
         p.best = !!p.best;
+        p.unlimited_time = !!p.unlimited_time || p.days === 0;
+        p.unlimited_devices = !!p.unlimited_devices;
+        p.unlimited_credits = !!p.unlimited_credits;
         p.order = Number.isFinite(Number(p.order)) ? Number(p.order) : index;
-        if (!p.duration && p.days) {
+        if (!p.duration && p.days > 0) {
             if (p.days === 30) p.duration = '1 Month';
             else if (p.days === 90) p.duration = '3 Months';
             else if (p.days === 180) p.duration = '6 Months';
             else if (p.days === 365) p.duration = '1 Year';
             else p.duration = `${p.days} days`;
+        } else if (p.unlimited_time && !p.duration) {
+            p.duration = 'Forever';
         }
         p.device_tier = SO_DEVICE_TIERS.includes(p.device_tier) ? p.device_tier : 'standard';
-        const tierDefault = SO_DEVICE_TIER_MAX[p.device_tier] || 1;
-        p.max_devices = Math.max(1, parseInt(p.max_devices, 10) || tierDefault);
+        const tierDefault = SO_DEVICE_TIER_MAX[p.device_tier];
+        const rawMax = parseInt(p.max_devices, 10);
+        if (p.unlimited_devices || p.device_tier === 'unlimited') {
+            p.max_devices = 0;
+            p.unlimited_devices = true;
+        } else if (Number.isFinite(rawMax) && rawMax >= 0) {
+            p.max_devices = rawMax;
+        } else {
+            p.max_devices = tierDefault != null ? tierDefault : 1;
+        }
         p.billing_mode = SO_BILLING_MODES.includes(p.billing_mode) ? p.billing_mode : 'subscription';
         p.included_credits = Math.max(0, parseInt(p.included_credits, 10) || 0);
         return p;
+    }
+
+    function soPlanToFirestore(p, order) {
+        const out = {
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            days: p.days,
+            active: p.active !== false,
+            order: order,
+            device_tier: p.device_tier || 'standard',
+            max_devices: p.max_devices != null ? p.max_devices : 1,
+            billing_mode: p.billing_mode || 'subscription'
+        };
+        if (p.duration) out.duration = p.duration;
+        if (p.save) out.save = p.save;
+        if (p.best) out.best = true;
+        if (p.plan_kind) out.plan_kind = p.plan_kind;
+        if (p.description) out.description = p.description;
+        if (p.included_credits > 0) out.included_credits = p.included_credits;
+        if (p.unlimited_time) out.unlimited_time = true;
+        if (p.unlimited_devices) out.unlimited_devices = true;
+        if (p.unlimited_credits) out.unlimited_credits = true;
+        return out;
+    }
+
+    function soIsUnlimitedTime(obj) {
+        return !!(obj && (obj.unlimited_time || parseInt(obj.days, 10) === 0));
+    }
+
+    function soIsUnlimitedDevices(obj) {
+        if (!obj) return false;
+        if (obj.unlimited_devices) return true;
+        const max = parseInt(obj.max_devices, 10);
+        return max === 0;
+    }
+
+    function soIsUnlimitedCredits(obj) {
+        return !!(obj && obj.unlimited_credits);
     }
 
     function soNormalizeCreditPack(pack, index) {
@@ -153,12 +238,34 @@
     }
 
     function soGetLicenseMaxDevices(lic) {
+        if (soIsUnlimitedDevices(lic)) return 0;
         const override = parseInt(lic.max_devices, 10);
-        if (override >= 1) return override;
+        if (Number.isFinite(override) && override >= 0) {
+            if (override === 0) return 0;
+            return override;
+        }
         const planId = lic.planId || lic.planType;
         const plan = soPlans.find(p => p.id === planId);
-        if (plan && parseInt(plan.max_devices, 10) >= 1) return parseInt(plan.max_devices, 10);
+        if (plan) {
+            if (soIsUnlimitedDevices(plan)) return 0;
+            const pm = parseInt(plan.max_devices, 10);
+            if (Number.isFinite(pm) && pm >= 1) return pm;
+        }
         return 1;
+    }
+
+    function soFormatDevicesLabel(lic) {
+        const ids = soGetLicenseDeviceIds(lic);
+        if (soIsUnlimitedDevices(lic)) return `${ids.length} / Unlimited`;
+        const max = soGetLicenseMaxDevices(lic);
+        return `${ids.length}/${max || 1}`;
+    }
+
+    function soFormatCreditsLabel(lic) {
+        if (soIsUnlimitedCredits(lic)) return 'Unlimited';
+        const bal = parseInt(lic.credits_balance, 10) || 0;
+        const used = parseInt(lic.credits_used, 10) || 0;
+        return `${bal} balance · ${used} used`;
     }
 
     function soValidatePlans(plans) {
@@ -170,7 +277,7 @@
             if (ids.has(p.id)) return `Duplicate plan id "${p.id}".`;
             ids.add(p.id);
             if (p.price < 0) return `Plan "${p.id}": price must be ≥ 0.`;
-            if (p.days < 1) return `Plan "${p.id}": days must be ≥ 1.`;
+            if (p.days < 0) return `Plan "${p.id}": days must be ≥ 0 (0 = unlimited).`;
         }
         const bestCount = plans.filter(p => p.best).length;
         if (bestCount > 1) return 'Only one plan can have BEST VALUE (best: true).';
@@ -238,6 +345,7 @@
     }
 
     function soIsLicenseExpired(lic) {
+        if (soIsUnlimitedTime(lic)) return false;
         const exp = soLicenseExpiryDate(lic);
         return !!(exp && exp.getTime() < Date.now());
     }
@@ -248,10 +356,13 @@
     }
 
     function soFormatExpiry(lic) {
+        if (soIsUnlimitedTime(lic)) return 'Unlimited';
         if (lic.expiresAt && typeof lic.expiresAt === 'string' && lic.expiresAt.trim()) return lic.expiresAt;
         if (lic.expiresAt && lic.expiresAt.toDate) return soFormatTs(lic.expiresAt);
         if (!lic.activatedAt && lic.expiry_starts_on_activation !== false) {
-            return `Starts on activation (${lic.planDays || '?'} days)`;
+            const days = lic.planDays != null ? lic.planDays : '?';
+            if (parseInt(days, 10) === 0) return 'Unlimited — starts on activation';
+            return `Starts on activation (${days} days)`;
         }
         return '—';
     }
@@ -274,6 +385,10 @@
         document.querySelectorAll('.so-admin-tab-panel').forEach(panel => {
             panel.style.display = panel.id === `so-tab-${soActiveTab}` ? 'block' : 'none';
         });
+        if (soActiveTab === 'credits') {
+            soBindCreditsForm();
+            soUpdateCustomCreditCalc();
+        }
         if (soActiveTab === 'demo') renderSoDemoKeysList();
         if (soActiveTab === 'licenses') renderSoLicensesList();
     };
@@ -299,6 +414,7 @@
         soCreditPacks.forEach((p, i) => { p.order = i; });
         soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS, soConfig.demo_keys || {});
         soBindConfigForm();
+        soBindCreditsForm();
         renderSoCreditPacksEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
@@ -355,10 +471,33 @@
         setVal('so-announcement', soConfig.announcement || '');
         const enabledEl = document.getElementById('so-extension-enabled');
         if (enabledEl) enabledEl.checked = soConfig.extension_enabled !== false;
-        setVal('so-credits-price-per', soCredits ? soCredits.price_per_credit : DEFAULT_CREDITS.price_per_credit);
-        setVal('so-credits-min-purchase', soCredits ? soCredits.min_purchase : DEFAULT_CREDITS.min_purchase);
-        setVal('so-credits-cost-op', soCredits ? soCredits.cost_per_operation : DEFAULT_CREDITS.cost_per_operation);
     }
+
+    function soBindCreditsForm() {
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        const credits = soCredits || DEFAULT_CREDITS;
+        const enabledEl = document.getElementById('so-credits-enabled');
+        if (enabledEl) enabledEl.checked = credits.enabled !== false;
+        setVal('so-credits-price-per', credits.price_per_credit);
+        setVal('so-credits-min-purchase', credits.min_purchase);
+        setVal('so-credits-cost-op', credits.cost_per_operation);
+    }
+
+    window.soUpdateCustomCreditCalc = function() {
+        const pricePer = Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit);
+        const minPurchase = Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase);
+        const amountRaw = parseInt(document.getElementById('so-credits-custom-amount')?.value, 10);
+        const amount = Number.isFinite(amountRaw) ? Math.max(0, amountRaw) : minPurchase;
+        const effective = Math.max(amount, minPurchase);
+        const total = effective * pricePer;
+        const el = document.getElementById('so-credits-custom-price');
+        if (el) {
+            el.textContent = `${effective} credits × ₹${pricePer} = ₹${total}${amount < minPurchase ? ` (min ${minPurchase})` : ''}`;
+        }
+    };
 
     function renderSoCreditPacksEditor() {
         const container = document.getElementById('so-credit-packs-editor');
@@ -458,7 +597,7 @@
             <div class="so-plan-row" data-plan-idx="${idx}">
                 <div class="so-plan-row-head">
                     <strong>${soEsc(plan.name)}</strong>
-                    <span class="so-admin-muted">${soEsc(plan.id)} · ₹${plan.price} · ${plan.days}d · ${soEsc(plan.billing_mode || 'subscription')}</span>
+                    <span class="so-admin-muted">${soEsc(plan.id)} · ₹${plan.price} · ${plan.unlimited_time ? '∞' : plan.days + 'd'} · ${soEsc(plan.billing_mode || 'subscription')}${plan.plan_kind ? ' · ' + soEsc(plan.plan_kind) : ''}</span>
                     ${plan.best ? '<span class="so-badge so-badge--best">BEST</span>' : ''}
                     ${plan.active ? '' : '<span class="so-badge so-badge--off">Hidden</span>'}
                 </div>
@@ -466,21 +605,26 @@
                     <label><span>Id (slug)</span><input type="text" data-field="id" value="${soAttr(plan.id)}" ${idx < soPlans.length ? '' : ''}></label>
                     <label><span>Name</span><input type="text" data-field="name" value="${soAttr(plan.name)}"></label>
                     <label><span>Price ₹</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}"></label>
-                    <label><span>Days</span><input type="number" min="1" step="1" data-field="days" value="${plan.days}"></label>
+                    <label><span>Days (0=unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}"></label>
                     <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}"></label>
                     <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}"></label>
+                    <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited, custom"></label>
                     <label><span>Device tier</span>
                         <select data-field="device_tier">
                             ${SO_DEVICE_TIERS.map(t => `<option value="${t}" ${plan.device_tier === t ? 'selected' : ''}>${t}</option>`).join('')}
                         </select>
                     </label>
-                    <label><span>Max devices</span><input type="number" min="1" step="1" data-field="max_devices" value="${plan.max_devices || 1}"></label>
+                    <label><span>Max devices (0=∞)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}"></label>
                     <label><span>Billing mode</span>
                         <select data-field="billing_mode">
                             ${SO_BILLING_MODES.map(m => `<option value="${m}" ${plan.billing_mode === m ? 'selected' : ''}>${m}</option>`).join('')}
                         </select>
                     </label>
-                    <label><span>Included credits</span><input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" title="For credits/hybrid plans"></label>
+                    <label><span>Included credits</span><input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}"></label>
+                    <label style="grid-column:1/-1;"><span>Description (admin note)</span><input type="text" data-field="description" value="${soAttr(plan.description || '')}"></label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''}> Unlimited time</label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''}> Unlimited devices</label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''}> Unlimited credits</label>
                     <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''}> Show in extension</label>
                     <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''}> Best value</label>
                 </div>
@@ -512,10 +656,15 @@
                 days: get('days'),
                 duration: get('duration'),
                 save: get('save'),
+                plan_kind: get('plan_kind'),
+                description: get('description'),
                 device_tier: get('device_tier'),
                 max_devices: get('max_devices'),
                 billing_mode: get('billing_mode'),
                 included_credits: get('included_credits'),
+                unlimited_time: get('unlimited_time'),
+                unlimited_devices: get('unlimited_devices'),
+                unlimited_credits: get('unlimited_credits'),
                 active: get('active'),
                 best: get('best'),
                 order: idx
@@ -523,6 +672,24 @@
         });
         return plans;
     }
+
+    window.addSoPlanPreset = function(presetKey) {
+        const preset = SO_PLAN_PRESETS[presetKey];
+        if (!preset) return soToast('Unknown preset.');
+        soPlans = soReadPlansFromDom();
+        const existing = soPlans.findIndex(p => p.id === preset.id);
+        const normalized = soNormalizePlan(Object.assign({}, preset), soPlans.length);
+        if (existing >= 0) {
+            soPlans[existing] = normalized;
+            soToast(`Updated preset "${preset.name}" in list.`);
+        } else {
+            normalized.order = soPlans.length;
+            soPlans.push(normalized);
+            soToast(`Added preset "${preset.name}".`);
+        }
+        soPlans.forEach((p, i) => { p.order = i; });
+        renderSoPlansEditor();
+    };
 
     window.addSoPlan = function() {
         soPlans = soReadPlansFromDom();
@@ -607,16 +774,42 @@
     window.saveShippingOptimizerConfig = async function() {
         if (!soRequireSuperAdmin()) return;
         soPlans = soReadPlansFromDom();
-        soCreditPacks = soReadCreditPacksFromDom();
         const err = soValidatePlans(soPlans);
         if (err) return soToast(err);
-        const packErr = soValidateCreditPacks(soCreditPacks);
-        if (packErr) return soToast(packErr);
 
         const whatsappRaw = String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, '');
         if (whatsappRaw.length < 10) return soToast('WhatsApp number must be at least 10 digits.');
 
+        const payload = {
+            whatsapp_number: whatsappRaw,
+            whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
+            extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
+            min_extension_version: String(document.getElementById('so-min-version')?.value || '1.2.0').trim(),
+            announcement: String(document.getElementById('so-announcement')?.value || '').trim(),
+            plans: soPlans.map((p, i) => soPlanToFirestore(p, i)),
+            demo_keys: soInlineDemoKeys,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: soAuthEmail()
+        };
+
+        try {
+            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(payload, { merge: true });
+            soConfig = Object.assign({}, soConfig, payload);
+            soPopulateLicensePlanSelect();
+            soToast('Config & plans saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveShippingOptimizerCredits = async function() {
+        if (!soRequireSuperAdmin()) return;
+        soCreditPacks = soReadCreditPacksFromDom();
+        const packErr = soValidateCreditPacks(soCreditPacks);
+        if (packErr) return soToast(packErr);
+
         const creditsPayload = {
+            enabled: !!document.getElementById('so-credits-enabled')?.checked,
             price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
             min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
             cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
@@ -630,41 +823,15 @@
             }))
         };
 
-        const payload = {
-            whatsapp_number: whatsappRaw,
-            whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
-            extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
-            min_extension_version: String(document.getElementById('so-min-version')?.value || '1.0.0').trim(),
-            announcement: String(document.getElementById('so-announcement')?.value || '').trim(),
-            credits: creditsPayload,
-            plans: soPlans.map((p, i) => {
-                const out = {
-                    id: p.id,
-                    name: p.name,
-                    price: p.price,
-                    days: p.days,
-                    active: p.active !== false,
-                    order: i,
-                    device_tier: p.device_tier || 'standard',
-                    max_devices: p.max_devices || 1,
-                    billing_mode: p.billing_mode || 'subscription'
-                };
-                if (p.duration) out.duration = p.duration;
-                if (p.save) out.save = p.save;
-                if (p.best) out.best = true;
-                if (p.included_credits > 0) out.included_credits = p.included_credits;
-                return out;
-            }),
-            demo_keys: soInlineDemoKeys,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedBy: soAuthEmail()
-        };
-
         try {
-            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(payload, { merge: true });
-            soConfig = Object.assign({}, soConfig, payload);
+            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                credits: creditsPayload,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }, { merge: true });
             soCredits = creditsPayload;
-            soToast('Shipping Optimizer config saved.');
+            soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            soToast('Credits & packs saved.');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
@@ -751,17 +918,23 @@
         }
     };
 
+    function soGetAllPlansForSelect() {
+        return soSortPlans(soPlans.length ? soPlans : DEFAULT_PLANS);
+    }
+
     function soGetActivePlansForSelect() {
-        return soSortPlans(soPlans.length ? soPlans : DEFAULT_PLANS).filter(p => p.active !== false);
+        return soGetAllPlansForSelect().filter(p => p.active !== false);
     }
 
     function soPopulateLicensePlanSelect() {
         const sel = document.getElementById('so-license-plan');
         if (!sel) return;
-        const plans = soGetActivePlansForSelect();
-        sel.innerHTML = plans.map(p =>
-            `<option value="${soAttr(p.id)}" data-days="${p.days}">${soEsc(p.name)} — ₹${p.price} (${p.days} days)</option>`
-        ).join('');
+        const plans = soGetAllPlansForSelect();
+        sel.innerHTML = plans.map(p => {
+            const inactive = p.active === false ? ' [hidden]' : '';
+            const daysLabel = p.unlimited_time ? '∞' : `${p.days}d`;
+            return `<option value="${soAttr(p.id)}" data-days="${p.days}">${soEsc(p.name)} — ₹${p.price} (${daysLabel})${inactive}</option>`;
+        }).join('');
         soUpdateLicensePlanHint();
     }
 
@@ -781,15 +954,31 @@
     function soReadLicenseFormFields() {
         const billingMode = String(document.getElementById('so-license-billing-mode')?.value || 'subscription').trim();
         const maxDevicesRaw = document.getElementById('so-license-max-devices')?.value;
-        const maxDevices = maxDevicesRaw === '' || maxDevicesRaw == null
-            ? null
-            : Math.max(1, parseInt(maxDevicesRaw, 10) || 1);
+        let maxDevices = null;
+        if (maxDevicesRaw !== '' && maxDevicesRaw != null) {
+            maxDevices = Math.max(0, parseInt(maxDevicesRaw, 10));
+            if (!Number.isFinite(maxDevices)) maxDevices = 1;
+        }
         return {
             billing_mode: SO_BILLING_MODES.includes(billingMode) ? billingMode : 'subscription',
             max_devices: maxDevices,
             credits_balance: Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0),
-            credits_used: Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0)
+            credits_used: Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0),
+            unlimited_time: !!document.getElementById('so-license-unlimited-time')?.checked,
+            unlimited_devices: !!document.getElementById('so-license-unlimited-devices')?.checked,
+            unlimited_credits: !!document.getElementById('so-license-unlimited-credits')?.checked
         };
+    }
+
+    function soSetLicenseUnlimitedCheckboxes(licOrPlan) {
+        const src = licOrPlan || {};
+        const set = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!val;
+        };
+        set('so-license-unlimited-time', src.unlimited_time || soIsUnlimitedTime(src));
+        set('so-license-unlimited-devices', src.unlimited_devices || soIsUnlimitedDevices(src));
+        set('so-license-unlimited-credits', src.unlimited_credits || soIsUnlimitedCredits(src));
     }
 
     function soApplyPlanDefaultsToLicenseForm(plan) {
@@ -799,11 +988,16 @@
         const maxEl = document.getElementById('so-license-max-devices');
         if (maxEl) maxEl.value = plan.max_devices != null ? plan.max_devices : '';
         const balEl = document.getElementById('so-license-credits-balance');
-        if (balEl && plan.billing_mode === 'credits') {
-            balEl.value = plan.included_credits > 0 ? plan.included_credits : 50;
-        } else if (balEl && plan.billing_mode === 'hybrid' && plan.included_credits > 0) {
-            balEl.value = plan.included_credits;
+        if (balEl) {
+            if (plan.billing_mode === 'credits') {
+                balEl.value = plan.included_credits > 0 ? plan.included_credits : 50;
+            } else if (plan.billing_mode === 'hybrid' && plan.included_credits > 0) {
+                balEl.value = plan.included_credits;
+            } else if (plan.included_credits > 0) {
+                balEl.value = plan.included_credits;
+            }
         }
+        soSetLicenseUnlimitedCheckboxes(plan);
     }
 
     window.soUpdateLicensePlanHint = function() {
@@ -811,12 +1005,15 @@
         const hint = document.getElementById('so-license-plan-hint');
         if (!sel || !hint) return;
         const planId = sel.value;
-        const plan = soPlans.find(p => p.id === planId) || soGetActivePlansForSelect().find(p => p.id === planId);
+        const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+        const unlimitedTime = plan ? soIsUnlimitedTime(plan) : false;
         const days = plan ? plan.days : (parseInt(sel.options[sel.selectedIndex]?.getAttribute('data-days'), 10) || 30);
         const tier = plan ? (plan.device_tier || 'standard') : 'standard';
-        const maxDev = plan ? (plan.max_devices || 1) : 1;
+        const maxDev = plan ? (soIsUnlimitedDevices(plan) ? 'Unlimited' : (plan.max_devices || 1)) : 1;
         const billing = plan ? (plan.billing_mode || 'subscription') : 'subscription';
-        hint.textContent = `Expiry starts on activation: ${days} days · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`;
+        hint.textContent = unlimitedTime
+            ? `Unlimited — no expiry · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`
+            : `Expiry starts on activation: ${days} days · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`;
         if (!soEditingLicenseKey) soApplyPlanDefaultsToLicenseForm(plan);
     };
 
@@ -831,6 +1028,7 @@
         document.getElementById('so-license-credits-balance').value = '0';
         document.getElementById('so-license-credits-used').value = '0';
         document.getElementById('so-license-billing-mode').value = 'subscription';
+        soSetLicenseUnlimitedCheckboxes({});
         soUpdateLicensePlanHint();
     };
 
@@ -845,6 +1043,7 @@
         document.getElementById('so-license-max-devices').value = lic.max_devices != null ? lic.max_devices : '';
         document.getElementById('so-license-credits-balance').value = lic.credits_balance != null ? lic.credits_balance : 0;
         document.getElementById('so-license-credits-used').value = lic.credits_used != null ? lic.credits_used : 0;
+        soSetLicenseUnlimitedCheckboxes(lic);
         document.getElementById('so-license-customer-name').value = lic.customer_name || '';
         document.getElementById('so-license-customer-phone').value = lic.customer_phone || '';
         document.getElementById('so-license-customer-email').value = lic.customer_email || '';
@@ -875,12 +1074,14 @@
             return soToast('License key must match MEESHO-XXXX-XXXX-XXXX.');
         }
         if (await soKeyExists(key)) return soToast('Key already exists.');
-        const plan = soPlans.find(p => p.id === planId) || soGetActivePlansForSelect().find(p => p.id === planId);
+        const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
         if (!plan) return soToast('Select a valid plan.');
         const formFields = soReadLicenseFormFields();
-        const maxDevices = formFields.max_devices != null
-            ? formFields.max_devices
-            : (plan.max_devices || SO_DEVICE_TIER_MAX[plan.device_tier] || 1);
+        let maxDevices = formFields.max_devices;
+        if (maxDevices == null) {
+            maxDevices = soIsUnlimitedDevices(plan) ? 0 : (plan.max_devices != null ? plan.max_devices : (SO_DEVICE_TIER_MAX[plan.device_tier] != null ? SO_DEVICE_TIER_MAX[plan.device_tier] : 1));
+        }
+        if (formFields.unlimited_devices) maxDevices = 0;
         const payload = {
             active: true,
             planId: plan.id,
@@ -890,6 +1091,9 @@
             max_devices: maxDevices,
             credits_balance: formFields.credits_balance,
             credits_used: formFields.credits_used,
+            unlimited_time: formFields.unlimited_time || soIsUnlimitedTime(plan),
+            unlimited_devices: formFields.unlimited_devices || soIsUnlimitedDevices(plan),
+            unlimited_credits: formFields.unlimited_credits || soIsUnlimitedCredits(plan),
             device_ids: [],
             expiry_starts_on_activation: true,
             expiresAt: '',
@@ -918,12 +1122,14 @@
         const key = soEditingLicenseKey;
         if (!key) return createSoLicense();
         const planId = String(document.getElementById('so-license-plan')?.value || '').trim();
-        const plan = soPlans.find(p => p.id === planId) || soGetActivePlansForSelect().find(p => p.id === planId);
+        const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
         if (!plan) return soToast('Select a valid plan.');
         const formFields = soReadLicenseFormFields();
-        const maxDevices = formFields.max_devices != null
-            ? formFields.max_devices
-            : (plan.max_devices || SO_DEVICE_TIER_MAX[plan.device_tier] || 1);
+        let maxDevices = formFields.max_devices;
+        if (maxDevices == null) {
+            maxDevices = soIsUnlimitedDevices(plan) ? 0 : (plan.max_devices != null ? plan.max_devices : 1);
+        }
+        if (formFields.unlimited_devices) maxDevices = 0;
         const payload = {
             planId: plan.id,
             planType: plan.id,
@@ -932,6 +1138,9 @@
             max_devices: maxDevices,
             credits_balance: formFields.credits_balance,
             credits_used: formFields.credits_used,
+            unlimited_time: formFields.unlimited_time,
+            unlimited_devices: formFields.unlimited_devices,
+            unlimited_credits: formFields.unlimited_credits,
             customer_name: String(document.getElementById('so-license-customer-name')?.value || '').trim(),
             customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
             customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
@@ -970,14 +1179,14 @@
         container.innerHTML = filtered.map(lic => {
             const active = lic.active !== false;
             const deviceIds = soGetLicenseDeviceIds(lic);
-            const maxDevices = soGetLicenseMaxDevices(lic);
+            const devicesLabel = soFormatDevicesLabel(lic);
             const activated = deviceIds.length > 0
                 || !!(lic.activatedAt && String(lic.activatedAt).trim())
                 || !!(lic.machineId && String(lic.machineId).trim());
             const expired = soIsLicenseExpired(lic);
             const billingMode = lic.billing_mode || 'subscription';
-            const creditsBal = parseInt(lic.credits_balance, 10) || 0;
-            const creditsUsed = parseInt(lic.credits_used, 10) || 0;
+            const creditsLabel = soFormatCreditsLabel(lic);
+            const expiryLabel = soFormatExpiry(lic);
             const activatedLabel = activated
                 ? `Activated: ${soEsc(soFormatTs(lic.activatedAt))}`
                 : 'Not activated yet';
@@ -997,14 +1206,13 @@
                     <span class="so-badge">${soEsc(billingMode)}</span>
                 </div>
                 <div class="so-license-meta so-admin-muted">
-                    Plan: ${soEsc(lic.planId || lic.planType || '—')} (${lic.planDays || '?'}d)
+                    Plan: ${soEsc(lic.planId || lic.planType || '—')} (${lic.planDays != null ? (parseInt(lic.planDays, 10) === 0 ? '∞' : lic.planDays + 'd') : '?'})
                     · ${activatedLabel}
-                    · Expires: ${soEsc(soFormatExpiry(lic))}
-                    · Devices: ${deviceIds.length}/${maxDevices}
+                    · Expires: ${soEsc(expiryLabel)}
+                    · Devices: ${soEsc(devicesLabel)}
                 </div>
                 <div class="so-license-meta so-admin-muted">
-                    Credits: ${creditsBal} balance · ${creditsUsed} used
-                    · Max devices: ${maxDevices}
+                    Credits: ${soEsc(creditsLabel)}
                 </div>
                 <div class="so-license-meta">${deviceListHtml}</div>
                 <div class="so-license-meta so-admin-muted">
@@ -1013,9 +1221,10 @@
                 ${lic.support_notes ? `<div class="so-license-notes">${soEsc(lic.support_notes)}</div>` : ''}
                 <div class="so-list-actions">
                     <button type="button" class="so-btn-sm" onclick="editSoLicense('${soAttr(lic.key)}')">Edit</button>
+                    <button type="button" class="so-btn-sm" onclick="openSoLicenseOverrides('${soAttr(lic.key)}')">Overrides</button>
                     <button type="button" class="so-btn-sm" onclick="toggleSoLicenseActive('${soAttr(lic.key)}', ${active})">${active ? 'Revoke' : 'Activate'}</button>
                     <button type="button" class="so-btn-sm" onclick="addSoLicenseCredits('${soAttr(lic.key)}')">Add credits</button>
-                    <button type="button" class="so-btn-sm" onclick="resetSoLicenseAllDevices('${soAttr(lic.key)}')" ${deviceIds.length ? '' : 'disabled'}>Reset all devices</button>
+                    <button type="button" class="so-btn-sm" onclick="resetSoLicenseAllDevices('${soAttr(lic.key)}')" ${deviceIds.length ? '' : 'disabled'}>Reset devices</button>
                     <button type="button" class="so-btn-sm so-btn-sm--danger" onclick="deleteSoLicense('${soAttr(lic.key)}')">Delete</button>
                 </div>
             </div>`;
@@ -1117,6 +1326,54 @@
         }
     };
 
+    window.openSoLicenseOverrides = function(key) {
+        const lic = soLicenses.find(l => l.key === key);
+        if (!lic) return soToast('License not found.');
+        soOverridesLicenseKey = key;
+        const label = document.getElementById('so-overrides-key-label');
+        if (label) label.textContent = `License: ${key}`;
+        document.getElementById('so-overrides-billing-mode').value = lic.billing_mode || 'subscription';
+        document.getElementById('so-overrides-max-devices').value = lic.max_devices != null ? lic.max_devices : '';
+        document.getElementById('so-overrides-unlimited-time').checked = soIsUnlimitedTime(lic);
+        document.getElementById('so-overrides-unlimited-devices').checked = soIsUnlimitedDevices(lic);
+        document.getElementById('so-overrides-unlimited-credits').checked = soIsUnlimitedCredits(lic);
+        const modal = document.getElementById('so-license-overrides-modal');
+        if (modal) modal.style.display = 'flex';
+    };
+
+    window.closeSoLicenseOverrides = function() {
+        soOverridesLicenseKey = null;
+        const modal = document.getElementById('so-license-overrides-modal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.saveSoLicenseOverrides = async function() {
+        if (!soRequireSuperAdmin()) return;
+        const key = soOverridesLicenseKey;
+        if (!key) return;
+        let maxDevices = document.getElementById('so-overrides-max-devices')?.value;
+        maxDevices = maxDevices === '' || maxDevices == null
+            ? null
+            : Math.max(0, parseInt(maxDevices, 10));
+        const payload = {
+            billing_mode: document.getElementById('so-overrides-billing-mode')?.value || 'subscription',
+            unlimited_time: !!document.getElementById('so-overrides-unlimited-time')?.checked,
+            unlimited_devices: !!document.getElementById('so-overrides-unlimited-devices')?.checked,
+            unlimited_credits: !!document.getElementById('so-overrides-unlimited-credits')?.checked
+        };
+        if (maxDevices != null) payload.max_devices = maxDevices;
+        if (payload.unlimited_devices) payload.max_devices = 0;
+        try {
+            await db.collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
+            closeSoLicenseOverrides();
+            await soLoadLicenses();
+            renderSoLicensesList();
+            soToast(`Overrides saved for ${key}.`);
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
     window.deleteSoLicense = async function(key) {
         if (!soRequireSuperAdmin()) return;
         const typed = prompt(`Type DELETE to permanently remove license ${key}:`);
@@ -1143,6 +1400,7 @@
             await soLoadLicenses();
             soPopulateLicensePlanSelect();
             soSetLicenseFormMode(null);
+            soUpdateCustomCreditCalc();
             renderSoDemoKeysList();
             renderSoLicensesList();
             switchShippingOptimizerTab(soActiveTab);
