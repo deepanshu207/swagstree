@@ -130,6 +130,139 @@
         return soEsc(str).replace(/`/g, '&#96;');
     }
 
+    const SO_FIELD_HINTS = {
+        'plan-id': 'Slug used in Firebase and the extension. <strong>Never rename</strong> after any license uses this id.',
+        'plan-billing-mode': '<code>subscription</code> = time-based · <code>credits</code> = pay per use · <code>hybrid</code> = both.',
+        'plan-included-credits': 'Base credits included when customer buys this plan. Added to any selected add-ons for total balance.',
+        'plan-allow-addons': 'Shows optional credit bundles under this plan in the extension popup (e.g. +25 credits for ₹40).',
+        'plan-max-addon-selections': 'Limit how many add-ons customer can pick. <code>0</code> = unlimited selections.',
+        'plan-unlimited-time': 'License never expires (lifetime / forever plans). Sets days to 0 in extension logic.',
+        'plan-unlimited-devices': 'Customer can activate on any number of devices.',
+        'plan-unlimited-credits': 'No credit deductions — unlimited operations.'
+    };
+
+    function soFieldHintId(hintKey, idSuffix) {
+        return idSuffix != null && idSuffix !== '' ? `so-hint-${hintKey}-${idSuffix}` : `so-hint-${hintKey}`;
+    }
+
+    function soFieldToggleKey(hintKey, idSuffix) {
+        return idSuffix != null && idSuffix !== '' ? `${hintKey}-${idSuffix}` : hintKey;
+    }
+
+    function soFieldLabelHtml(label, hintKey, idSuffix) {
+        const hint = SO_FIELD_HINTS[hintKey];
+        if (!hint) return `<span>${soEsc(label)}</span>`;
+        const panelId = soFieldHintId(hintKey, idSuffix);
+        const toggleKey = soFieldToggleKey(hintKey, idSuffix);
+        return `<span class="so-field-label-row"><span>${soEsc(label)}</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('${soAttr(toggleKey)}', event)" aria-expanded="false" aria-controls="${panelId}" title="More info">ⓘ</button></span><div id="${panelId}" class="so-field-info-panel" hidden role="note">${hint}</div>`;
+    }
+
+    function soCheckboxInfoHtml(label, hintKey, field, checked, idSuffix) {
+        const hint = SO_FIELD_HINTS[hintKey];
+        const panelId = soFieldHintId(hintKey, idSuffix);
+        const toggleKey = soFieldToggleKey(hintKey, idSuffix);
+        const infoBtn = hint
+            ? `<button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('${soAttr(toggleKey)}', event)" aria-expanded="false" aria-controls="${panelId}" title="More info">ⓘ</button>`
+            : '';
+        const panel = hint ? `<div id="${panelId}" class="so-field-info-panel" hidden role="note">${hint}</div>` : '';
+        return `<label class="so-plan-check so-plan-check--with-info"><input type="checkbox" data-field="${field}" ${checked ? 'checked' : ''} onchange="soMarkTabDirty('config')"><span class="so-field-label-row"><span>${soEsc(label)}</span>${infoBtn}</span>${panel}</label>`;
+    }
+
+    window.toggleSoFieldInfo = function(key, event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const panel = document.getElementById('so-hint-' + key);
+        if (!panel) return;
+        const btn = event && event.currentTarget;
+        const opening = panel.hidden;
+        document.querySelectorAll('#shipping-optimizer-admin-section .so-field-info-panel').forEach(p => {
+            if (p === panel) return;
+            p.hidden = true;
+            const ctrlId = p.id;
+            const otherBtn = document.querySelector(`#shipping-optimizer-admin-section .so-field-info-btn[aria-controls="${ctrlId}"]`);
+            if (otherBtn) otherBtn.setAttribute('aria-expanded', 'false');
+        });
+        panel.hidden = !opening;
+        if (btn) btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    };
+
+    window.toggleSoAdminGuide = function(forceOpen) {
+        const content = document.getElementById('so-admin-guide-content');
+        const icon = document.getElementById('so-admin-guide-icon');
+        const accordion = document.getElementById('so-admin-guide-accordion');
+        const header = accordion?.querySelector('.admin-product-guide-header');
+        if (!content || !accordion) return;
+        const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : content.style.display === 'none' || !content.style.display;
+        content.style.display = shouldOpen ? 'block' : 'none';
+        accordion.classList.toggle('is-open', shouldOpen);
+        if (icon) icon.style.transform = shouldOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+        if (header) header.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    };
+
+    window.toggleSoGuideSection = function(sectionId) {
+        const content = document.getElementById(`so-guide-section-${sectionId}`);
+        const icon = document.getElementById(`so-guide-section-icon-${sectionId}`);
+        const accordion = document.getElementById(`so-guide-section-accord-${sectionId}`);
+        const header = accordion?.querySelector('.admin-guide-section-header');
+        if (!content || !accordion) return;
+        const shouldOpen = content.style.display === 'none' || !content.style.display;
+        content.style.display = shouldOpen ? 'block' : 'none';
+        accordion.classList.toggle('is-open', shouldOpen);
+        if (icon) icon.style.transform = shouldOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+        if (header) header.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    };
+
+    window.collapseAllSoSections = function() {
+        document.querySelectorAll('#shipping-optimizer-admin-section .so-section-accordion').forEach(el => {
+            el.classList.remove('so-section-accordion--open');
+            const id = el.getAttribute('data-so-section');
+            if (id) soOpenSections.delete(id);
+        });
+        soExpandedPlanIds.clear();
+        soExpandedPackIds.clear();
+        renderSoPlansEditor();
+        renderSoCreditPacksEditor();
+        soToast('All sections collapsed.');
+    };
+
+    window.copySoDeployChecklist = function() {
+        const text = [
+            'Shipping Optimizer — deploy checklist',
+            '1. Deploy firestore.extension.rules to extension-e6e32',
+            '2. Create Auth user superadmin@swagstree.com on extension Firebase',
+            '3. Update Meesho extension config.js → project extension-e6e32',
+            '4. Superadmin → Shipping Optimizer → sign in → save config',
+            '5. Reload extension at chrome://extensions (~5 min cache)'
+        ].join('\n');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => soToast('Checklist copied.')).catch(() => soToast('Copy failed — select text manually.'));
+        } else {
+            soToast(text);
+        }
+    };
+
+    function soSyncTabChips() {
+        document.querySelectorAll('.so-tab-chip[data-so-tab-chip]').forEach(chip => {
+            chip.classList.toggle('so-tab-chip--active', chip.getAttribute('data-so-tab-chip') === soActiveTab);
+        });
+    }
+
+    function soBindFieldInfoDismiss() {
+        if (document.body.dataset.soFieldInfoBound) return;
+        document.body.dataset.soFieldInfoBound = '1';
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.so-field-info-btn') || e.target.closest('.so-field-info-panel')) return;
+            document.querySelectorAll('#shipping-optimizer-admin-section .so-field-info-panel:not([hidden])').forEach(panel => {
+                panel.hidden = true;
+                const ctrlId = panel.id;
+                const btn = document.querySelector(`#shipping-optimizer-admin-section .so-field-info-btn[aria-controls="${ctrlId}"]`);
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+            });
+        });
+    }
+
     function soToast(msg) {
         if (typeof showToast === 'function') showToast(msg);
     }
@@ -711,6 +844,7 @@
         document.querySelectorAll('.so-admin-tab-btn').forEach(btn => {
             btn.classList.toggle('so-admin-tab-btn--active', btn.getAttribute('data-so-tab') === soActiveTab);
         });
+        soSyncTabChips();
         document.querySelectorAll('.so-admin-tab-panel').forEach(panel => {
             panel.style.display = panel.id === `so-tab-${soActiveTab}` ? 'block' : 'none';
         });
@@ -1121,6 +1255,11 @@
                 warnings.push(`Collection demo key "${r.key}": unlimited_time needs extension patch in license.js.`);
             }
         });
+        soReadPlansFromDom().forEach(p => {
+            if (p.allow_credit_addons && soGetActivePlanCreditAddons(p).length) {
+                warnings.push(`Plan "${p.name}" has credit add-ons — extension must support credit_addons[] in popup (see extension prompt).`);
+            }
+        });
         return warnings;
     }
 
@@ -1431,7 +1570,7 @@
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-circle-info"></i> Basic info</div>
                         <div class="so-plan-fields so-plan-fields--basic">
-                            <label><span>Id (slug) — never rename after use</span><input type="text" data-field="id" value="${soAttr(plan.id)}" oninput="soMarkTabDirty('config')"></label>
+                            <label>${soFieldLabelHtml('Id (slug) — never rename after use', 'plan-id', idx)}<input type="text" data-field="id" value="${soAttr(plan.id)}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Display name</span><input type="text" data-field="name" value="${soAttr(plan.name)}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Price (INR)</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Days (0 = unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soMarkTabDirty('config')"></label>
@@ -1442,7 +1581,7 @@
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-sliders"></i> Billing &amp; devices</div>
                         <div class="so-plan-fields so-plan-fields--billing">
-                            <label><span>Billing mode</span>
+                            <label>${soFieldLabelHtml('Billing mode', 'plan-billing-mode', idx)}
                                 <select data-field="billing_mode" onchange="soMarkTabDirty('config')">
                                     ${SO_BILLING_MODES.map(m => `<option value="${m}" ${plan.billing_mode === m ? 'selected' : ''}>${m}</option>`).join('')}
                                 </select>
@@ -1453,7 +1592,7 @@
                                 </select>
                             </label>
                             <label><span>Max devices (0 = unlimited)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}" oninput="soMarkTabDirty('config')"></label>
-                            <label><span>Included credits</span><input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
+                            <label>${soFieldLabelHtml('Included credits', 'plan-included-credits', idx)}<input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-field-full"><span>Admin note</span><input type="text" data-field="description" value="${soAttr(plan.description || '')}" oninput="soMarkTabDirty('config')"></label>
                         </div>
@@ -1470,9 +1609,9 @@
                         <div class="so-field-group-title"><i class="fa fa-coins"></i> Credit add-ons (per plan)</div>
                         <p class="so-field-group-hint">Optional extra credit bundles customers can buy with this plan. Extension shows these under the plan card.</p>
                         <div class="so-plan-flags so-plan-flags--simple">
-                            <label class="so-plan-check"><input type="checkbox" data-field="allow_credit_addons" ${plan.allow_credit_addons ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Allow credit add-ons</label>
+                            ${soCheckboxInfoHtml('Allow credit add-ons', 'plan-allow-addons', 'allow_credit_addons', plan.allow_credit_addons, idx)}
                         </div>
-                        <label><span>Max add-on selections (0 = unlimited)</span>
+                        <label>${soFieldLabelHtml('Max add-on selections (0 = unlimited)', 'plan-max-addon-selections', idx)}
                             <input type="number" min="0" step="1" data-field="max_addon_selections" value="${plan.max_addon_selections || 0}" oninput="soMarkTabDirty('config')"></label>
                         <div class="so-plan-addon-list">
                             ${(plan.credit_addons || []).map((addon, aidx) => soRenderPlanCreditAddonRowHtml(addon, idx, aidx)).join('')}
@@ -1483,9 +1622,9 @@
                         <div class="so-field-group-title"><i class="fa fa-infinity"></i> Unlimited overrides</div>
                         <p class="so-field-group-hint">Optional — only for lifetime / unlimited / enterprise plans.</p>
                         <div class="so-plan-flags so-plan-flags--simple">
-                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Never expires</label>
-                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited devices</label>
-                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited credits</label>
+                            ${soCheckboxInfoHtml('Never expires', 'plan-unlimited-time', 'unlimited_time', plan.unlimited_time, idx)}
+                            ${soCheckboxInfoHtml('Unlimited devices', 'plan-unlimited-devices', 'unlimited_devices', plan.unlimited_devices, idx)}
+                            ${soCheckboxInfoHtml('Unlimited credits', 'plan-unlimited-credits', 'unlimited_credits', plan.unlimited_credits, idx)}
                         </div>
                     </div>
                     <div class="so-plan-actions-bar">
@@ -2557,6 +2696,7 @@
             renderSoExtensionPreview();
             renderSoLicensesList();
             switchShippingOptimizerTab(soActiveTab);
+            soBindFieldInfoDismiss();
             soLoaded = true;
         } catch (e) {
             soToast('Load failed: ' + (e.message || 'Unknown error'));

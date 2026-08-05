@@ -2037,9 +2037,110 @@
             <div id="shipping-optimizer-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:14px;">
                 <div id="so-extension-auth-banner" class="so-ext-auth-banner" hidden></div>
-                <p class="so-admin-muted so-admin-workflow-hint">
-                    Open one accordion section at a time, edit, then use that section’s <strong>Save</strong> button. Preview shows how the Meesho extension popup will read Firebase data (~5 min cache).
-                </p>
+
+                <div id="so-admin-guide-accordion" class="admin-product-guide-accordion so-admin-guide-accordion">
+                    <div class="admin-product-guide-header" onclick="toggleSoAdminGuide()" role="button" tabindex="0" aria-expanded="false" aria-controls="so-admin-guide-content" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoAdminGuide();}">
+                        <div class="admin-product-guide-header-text">
+                            <i class="fa fa-book" aria-hidden="true"></i>
+                            <span>Quick guide — Shipping Optimizer admin</span>
+                        </div>
+                        <i id="so-admin-guide-icon" class="fa fa-chevron-down admin-product-guide-chevron" aria-hidden="true"></i>
+                    </div>
+                    <div id="so-admin-guide-content" class="admin-product-guide-content" style="display:none;">
+                        <div class="admin-guide-body">
+                            <p class="admin-guide-intro">Tap <strong>ⓘ</strong> next to any field for help. Open one section at a time → edit → tap that section’s <strong>Save</strong>. Extension caches Firebase config ~5 minutes.</p>
+
+                            <div id="so-guide-section-accord-workflow" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('workflow')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-workflow" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('workflow');}">
+                                    <span><i class="fa fa-list-check"></i> Daily workflow</span>
+                                    <i id="so-guide-section-icon-workflow" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-workflow" class="admin-guide-section-content" style="display:none;">
+                                    <p class="admin-guide-how"><strong>1.</strong> Sign in to <code>extension-e6e32</code> (auto-syncs with Swagstree superadmin login).</p>
+                                    <p class="admin-guide-how"><strong>2.</strong> Pick a tab → expand one accordion → edit → <strong>Save</strong> that section (or sticky “Save all” at bottom).</p>
+                                    <p class="admin-guide-how"><strong>3.</strong> Open <strong>Extension preview</strong> to see what the Meesho popup will show.</p>
+                                    <p class="admin-guide-caution"><strong>Never</strong> rename a plan id after licenses exist. Removed inline demo keys are deleted from Firebase on save.</p>
+                                </div>
+                            </div>
+
+                            <div id="so-guide-section-accord-plans" class="admin-guide-section-accordion">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('plans')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-plans" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('plans');}">
+                                    <span><i class="fa fa-tags"></i> Plans &amp; credit add-ons</span>
+                                    <i id="so-guide-section-icon-plans" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-plans" class="admin-guide-section-content" style="display:none;">
+                                    <p class="admin-guide-when"><strong>Included credits</strong> = base credits granted when customer buys this plan.</p>
+                                    <p class="admin-guide-why"><strong>Credit add-ons</strong> = optional extra bundles (e.g. +25 credits for ₹40) shown under the plan in the extension popup.</p>
+                                    <p class="admin-guide-example"><strong>Example:</strong> Credits Starter plan with 50 base + customer picks +25 add-on → license gets <code>credits_balance: 75</code>.</p>
+                                    <p class="admin-guide-note">Billing modes: <code>subscription</code> (time-based), <code>credits</code> (pay per use), <code>hybrid</code> (both).</p>
+                                </div>
+                            </div>
+
+                            <div id="so-guide-section-accord-demo" class="admin-guide-section-accordion">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('demo')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-demo" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('demo');}">
+                                    <span><i class="fa fa-key"></i> Demo keys — inline vs collection</span>
+                                    <i id="so-guide-section-icon-demo" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-demo" class="admin-guide-section-content" style="display:none;">
+                                    <p class="admin-guide-when"><strong>Inline</strong> (Config tab): stored in <code>demo_keys</code> map inside config doc — good for fixed public keys like <code>MEESHO-DEMOFREE</code>.</p>
+                                    <p class="admin-guide-when"><strong>Collection</strong> (Demo tab): one doc per key in <code>shipping_optimizer_demo_keys</code> — good for batch promos, search, bulk delete.</p>
+                                    <p class="admin-guide-caution">Unlimited-time demo keys need an extension patch in <code>license.js</code> (days: 0 currently expires immediately).</p>
+                                </div>
+                            </div>
+
+                            <div id="so-guide-section-accord-credits" class="admin-guide-section-accordion">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('credits')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-credits" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('credits');}">
+                                    <span><i class="fa fa-coins"></i> Credits &amp; packs</span>
+                                    <i id="so-guide-section-icon-credits" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-credits" class="admin-guide-section-content" style="display:none;">
+                                    <p>Credit settings control top-up pricing in the extension. <strong>Credit packs</strong> are preset bundles (10 / 20 / 50 credits). Hidden packs are not shown to customers.</p>
+                                    <p class="admin-guide-note">Plan <strong>included credits</strong> and <strong>add-ons</strong> are separate from credit packs — packs are for buying more credits after activation.</p>
+                                </div>
+                            </div>
+
+                            <div id="so-guide-section-accord-licenses" class="admin-guide-section-accordion">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('licenses')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-licenses" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('licenses');}">
+                                    <span><i class="fa fa-id-card"></i> Paid licenses</span>
+                                    <i id="so-guide-section-icon-licenses" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-licenses" class="admin-guide-section-content" style="display:none;">
+                                    <p>Create keys after payment. Pick plan → optional credit add-ons auto-calculate balance. Use <strong>Overrides</strong> on a license to tweak billing without changing the plan.</p>
+                                    <p class="admin-guide-caution">Deleting a license is permanent — type DELETE to confirm.</p>
+                                </div>
+                            </div>
+
+                            <div id="so-guide-section-accord-deploy" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('deploy')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-deploy" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('deploy');}">
+                                    <span><i class="fa fa-rocket"></i> Deploy checklist</span>
+                                    <i id="so-guide-section-icon-deploy" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-deploy" class="admin-guide-section-content" style="display:none;">
+                                    <ol class="admin-guide-list">
+                                        <li>Deploy Swagstree + extension Firestore rules to <code>extension-e6e32</code></li>
+                                        <li>Auth user <code>superadmin@swagstree.com</code> on extension Firebase</li>
+                                        <li>Update extension <code>config.js</code> → project <code>extension-e6e32</code></li>
+                                        <li>Save config here → reload extension at <code>chrome://extensions</code></li>
+                                    </ol>
+                                    <button type="button" class="so-btn-sm so-btn-touch" style="margin-top:8px;" onclick="copySoDeployChecklist()"><i class="fa fa-copy"></i> Copy checklist</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="so-admin-toolbar">
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="renderSoExtensionPreview(); soToast('Preview refreshed.');" title="Refresh extension preview"><i class="fa fa-rotate"></i> Refresh preview</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="collapseAllSoSections()" title="Collapse all accordion sections"><i class="fa fa-compress"></i> Collapse all</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="copySoDeployChecklist()" title="Copy deploy steps"><i class="fa fa-copy"></i> Copy checklist</button>
+                </div>
+
+                <div class="so-tab-chips" aria-label="Quick jump">
+                    <button type="button" class="so-tab-chip so-tab-chip--active" data-so-tab-chip="config" onclick="switchShippingOptimizerTab('config')">Config</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="credits" onclick="switchShippingOptimizerTab('credits')">Credits</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="demo" onclick="switchShippingOptimizerTab('demo')">Demo keys</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="licenses" onclick="switchShippingOptimizerTab('licenses')">Licenses</button>
+                </div>
 
                 <!-- Mobile-friendly tab picker + desktop tabs -->
                 <label class="so-tab-select-wrap">
@@ -2072,14 +2173,18 @@
                         <div class="so-section-accordion-body">
                             <p class="so-admin-muted so-admin-tip">WhatsApp, extension toggle, announcement banner — saved separately from plans.</p>
                             <div class="so-admin-grid">
-                                <label><span class="admin-settings-field-label">WhatsApp number (digits only)</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">WhatsApp number (digits only)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('whatsapp', event)" aria-expanded="false" aria-controls="so-hint-whatsapp" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-whatsapp" class="so-field-info-panel" hidden role="note">Country code first, digits only (e.g. <code>919654414891</code>). Extension opens WhatsApp with this number when customer taps Buy.</div>
                                     <input id="so-whatsapp-number" type="text" inputmode="numeric" placeholder="919654414891" oninput="soMarkTabDirty('config')"></label>
-                                <label><span class="admin-settings-field-label">WhatsApp message</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">WhatsApp message</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('whatsapp-msg', event)" aria-expanded="false" aria-controls="so-hint-whatsapp-msg" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-whatsapp-msg" class="so-field-info-panel" hidden role="note">Pre-filled message when customer taps Buy in the extension popup. Include plan name if you want them to mention it.</div>
                                     <input id="so-whatsapp-message" type="text" placeholder="Hi! I want to purchase Shipping Optimizer license." oninput="soMarkTabDirty('config')"></label>
-                                <label><span class="admin-settings-field-label">Min extension version</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Min extension version</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('min-version', event)" aria-expanded="false" aria-controls="so-hint-min-version" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-min-version" class="so-field-info-panel" hidden role="note">Semver like <code>1.2.0</code>. Older extension versions see an “please update” notice instead of plans.</div>
                                     <input id="so-min-version" type="text" placeholder="1.2.0" oninput="soMarkTabDirty('config')"></label>
                                 <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
-                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Announcement banner</span>
+                                <label style="grid-column:1/-1;"><span class="so-field-label-row"><span class="admin-settings-field-label">Announcement banner</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('announcement', event)" aria-expanded="false" aria-controls="so-hint-announcement" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-announcement" class="so-field-info-panel" hidden role="note">Optional text shown at top of extension popup (e.g. sale, maintenance). Leave empty to hide.</div>
                                     <textarea id="so-announcement" rows="2" placeholder="Optional banner text" oninput="soMarkTabDirty('config'); renderSoExtensionPreview()"></textarea></label>
                             </div>
                             <div class="so-section-save-bar">
@@ -2094,7 +2199,10 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Mirrors <code>firebaseLicense.js</code> plan/credit/demo rendering — active plans only, same labels as the popup.</p>
+                            <div class="so-preview-toolbar">
+                                <p class="so-admin-muted so-admin-tip">Mirrors <code>firebaseLicense.js</code> plan/credit/demo rendering — active plans only, same labels as the popup.</p>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="renderSoExtensionPreview(); soToast('Preview refreshed.');"><i class="fa fa-rotate"></i> Refresh</button>
+                            </div>
                             <div id="so-extension-preview" class="so-ext-preview-root"></div>
                             <div id="so-extension-warnings" class="so-ext-warnings-wrap"></div>
                         </div>
@@ -2166,11 +2274,14 @@
                             <p class="so-admin-muted so-admin-tip">Rates and toggles — saved separately from pack list.</p>
                             <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-credits-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Credits enabled in extension</label>
                             <div class="so-admin-grid">
-                                <label><span class="admin-settings-field-label">Price per credit (₹)</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Price per credit (₹)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('price-per-credit', event)" aria-expanded="false" aria-controls="so-hint-price-per-credit" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-price-per-credit" class="so-field-info-panel" hidden role="note">Used for custom credit top-ups in the extension (not plan price). Example: 10 credits × ₹2 = ₹20.</div>
                                     <input id="so-credits-price-per" type="number" min="0" step="1" value="2" oninput="soUpdateCustomCreditCalc(); soMarkTabDirty('credits')"></label>
-                                <label><span class="admin-settings-field-label">Min purchase (credits)</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Min purchase (credits)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('min-purchase', event)" aria-expanded="false" aria-controls="so-hint-min-purchase" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-min-purchase" class="so-field-info-panel" hidden role="note">Smallest custom top-up amount customers can buy (e.g. 10 credits minimum).</div>
                                     <input id="so-credits-min-purchase" type="number" min="1" step="1" value="10" oninput="soUpdateCustomCreditCalc(); soMarkTabDirty('credits')"></label>
-                                <label><span class="admin-settings-field-label">Cost per operation</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Cost per operation</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('cost-per-op', event)" aria-expanded="false" aria-controls="so-hint-cost-per-op" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-cost-per-op" class="so-field-info-panel" hidden role="note">Credits deducted per shipping optimization run. Usually <code>1</code> credit = 1 operation.</div>
                                     <input id="so-credits-cost-op" type="number" min="1" step="1" value="1" oninput="soMarkTabDirty('credits')"></label>
                             </div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
@@ -2262,9 +2373,11 @@
                                         <button type="button" class="so-btn-sm so-btn-touch" onclick="generateSoLicenseKey()" title="Generate">🎲 Generate</button>
                                     </div>
                                 </label>
-                                <label><span class="admin-settings-field-label">Plan</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Plan</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('license-plan', event)" aria-expanded="false" aria-controls="so-hint-license-plan" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-license-plan" class="so-field-info-panel" hidden role="note">Links license to a pricing plan. Changing plan updates defaults (devices, credits, billing mode).</div>
                                     <select id="so-license-plan" onchange="soUpdateLicensePlanHint()"></select></label>
-                                <label><span class="admin-settings-field-label">Billing mode</span>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Billing mode</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('billing-mode', event)" aria-expanded="false" aria-controls="so-hint-billing-mode" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-billing-mode" class="so-field-info-panel" hidden role="note"><code>subscription</code> = time-based access · <code>credits</code> = pay per use · <code>hybrid</code> = subscription plus credits.</div>
                                     <select id="so-license-billing-mode">
                                         <option value="subscription">subscription</option>
                                         <option value="credits">credits</option>
@@ -4150,7 +4263,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.1"></script>
-    <script src="js/shipping-optimizer-admin.js?v=2.0"></script>
+    <script src="js/shipping-optimizer-admin.js?v=2.1"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
