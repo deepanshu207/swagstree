@@ -11146,6 +11146,17 @@ body.seo-indexing-off #seo-primary-nav {
     font-size: 11px;
     font-weight: 600;
 }
+.so-unsaved-banner__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.so-draft-recovery-banner {
+    margin-bottom: 8px;
+}
+.so-draft-recovery-banner .so-draft-banner {
+    margin: 0;
+}
 .so-section-accordion {
     border: 1px solid #2a2a2a;
     border-radius: 12px;

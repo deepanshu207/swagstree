@@ -2158,9 +2158,13 @@
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
                 </div>
+                <div id="so-draft-recovery-banner" class="so-draft-recovery-banner" hidden></div>
                 <div id="so-unsaved-banner" class="so-unsaved-banner" hidden>
                     <span>Unsaved changes on this tab</span>
-                    <button type="button" class="so-btn-sm" onclick="soSaveCurrentTab()">Save now</button>
+                    <div class="so-unsaved-banner__actions">
+                        <button type="button" class="so-btn-sm" onclick="soSaveCurrentTab()">Save now</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soDiscardLocalEdits()">Revert</button>
+                    </div>
                 </div>
 
                 <!-- Tab 1: Config & Pricing -->
@@ -4263,7 +4267,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.1"></script>
-    <script src="js/shipping-optimizer-admin.js?v=2.1"></script>
+    <script src="js/shipping-optimizer-admin.js?v=2.2"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
