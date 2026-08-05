@@ -80,6 +80,12 @@
     let soLoaded = false;
     let soEditingLicenseKey = null;
     let soOverridesLicenseKey = null;
+    let soAddCreditsLicenseKey = null;
+    let soDirtyTabs = { config: false, credits: false };
+    let soExpandedPlanIds = new Set();
+    let soExpandedPackIds = new Set();
+    let soExpandedLicenseKeys = new Set();
+    let soOpenSections = new Set(['config-general', 'config-plans', 'credits-settings', 'credits-packs', 'demo-add', 'demo-list', 'license-create', 'license-list']);
 
     function soEsc(str) {
         if (str === null || str === undefined) return '';
@@ -367,6 +373,80 @@
         return '—';
     }
 
+    window.toggleSoSectionAccordion = function(sectionId) {
+        const el = document.querySelector(`.so-section-accordion[data-so-section="${sectionId}"]`);
+        if (!el) return;
+        el.classList.toggle('so-section-accordion--open');
+        if (el.classList.contains('so-section-accordion--open')) {
+            soOpenSections.add(sectionId);
+        } else {
+            soOpenSections.delete(sectionId);
+        }
+    };
+
+    function soRestoreSectionAccordions() {
+        document.querySelectorAll('.so-section-accordion[data-so-section]').forEach(el => {
+            const id = el.getAttribute('data-so-section');
+            if (soOpenSections.has(id)) el.classList.add('so-section-accordion--open');
+            else el.classList.remove('so-section-accordion--open');
+        });
+    }
+
+    window.soMarkTabDirty = function(tab) {
+        if (tab === 'config' || tab === 'credits') {
+            soDirtyTabs[tab] = true;
+            soUpdateUnsavedBanner();
+        }
+    };
+
+    function soClearTabDirty(tab) {
+        if (tab === 'config' || tab === 'credits') {
+            soDirtyTabs[tab] = false;
+            soUpdateUnsavedBanner();
+        }
+    }
+
+    function soUpdateUnsavedBanner() {
+        const banner = document.getElementById('so-unsaved-banner');
+        if (!banner) return;
+        const dirty = soDirtyTabs[soActiveTab];
+        banner.hidden = !dirty;
+    }
+
+    window.soSaveCurrentTab = function() {
+        if (soActiveTab === 'config') saveShippingOptimizerConfig();
+        else if (soActiveTab === 'credits') saveShippingOptimizerCredits();
+    };
+
+    function soConfirmLeaveTab(nextTab) {
+        if (!soDirtyTabs[soActiveTab]) return true;
+        return confirm('You have unsaved changes on this tab. Leave without saving?');
+    }
+
+    window.toggleSoPlanRow = function(idx) {
+        soPlans = soReadPlansFromDom();
+        const plan = soPlans[idx];
+        if (!plan) return;
+        if (soExpandedPlanIds.has(plan.id)) soExpandedPlanIds.delete(plan.id);
+        else soExpandedPlanIds.add(plan.id);
+        renderSoPlansEditor();
+    };
+
+    window.toggleSoPackRow = function(idx) {
+        soCreditPacks = soReadCreditPacksFromDom();
+        const pack = soCreditPacks[idx];
+        if (!pack) return;
+        if (soExpandedPackIds.has(pack.id)) soExpandedPackIds.delete(pack.id);
+        else soExpandedPackIds.add(pack.id);
+        renderSoCreditPacksEditor();
+    };
+
+    window.toggleSoLicenseRow = function(key) {
+        if (soExpandedLicenseKeys.has(key)) soExpandedLicenseKeys.delete(key);
+        else soExpandedLicenseKeys.add(key);
+        renderSoLicensesList();
+    };
+
     window.toggleShippingOptimizerAccordion = function() {
         const content = document.getElementById('shipping-optimizer-accordion-content');
         const icon = document.getElementById('shipping-optimizer-accordion-icon');
@@ -378,13 +458,23 @@
     };
 
     window.switchShippingOptimizerTab = function(tab) {
-        soActiveTab = tab || 'config';
+        const next = tab || 'config';
+        if (next !== soActiveTab && !soConfirmLeaveTab(next)) {
+            const sel = document.getElementById('so-tab-select');
+            if (sel) sel.value = soActiveTab;
+            return;
+        }
+        soActiveTab = next;
+        const tabSel = document.getElementById('so-tab-select');
+        if (tabSel && tabSel.value !== soActiveTab) tabSel.value = soActiveTab;
         document.querySelectorAll('.so-admin-tab-btn').forEach(btn => {
             btn.classList.toggle('so-admin-tab-btn--active', btn.getAttribute('data-so-tab') === soActiveTab);
         });
         document.querySelectorAll('.so-admin-tab-panel').forEach(panel => {
             panel.style.display = panel.id === `so-tab-${soActiveTab}` ? 'block' : 'none';
         });
+        soUpdateUnsavedBanner();
+        soRestoreSectionAccordions();
         if (soActiveTab === 'credits') {
             soBindCreditsForm();
             soUpdateCustomCreditCalc();
@@ -506,27 +596,30 @@
             container.innerHTML = '<p class="so-admin-muted">No credit packs yet. Tap + Add credit pack.</p>';
             return;
         }
-        container.innerHTML = soCreditPacks.map((pack, idx) => `
-            <div class="so-plan-row so-credit-pack-row" data-pack-idx="${idx}">
-                <div class="so-plan-row-head">
+        container.innerHTML = soCreditPacks.map((pack, idx) => {
+            const open = soExpandedPackIds.has(pack.id);
+            return `
+            <div class="so-plan-row so-credit-pack-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-pack-idx="${idx}">
+                <div class="so-plan-row-head" onclick="toggleSoPackRow(${idx})">
                     <strong>${soEsc(pack.label || pack.id)}</strong>
-                    <span class="so-admin-muted">${soEsc(pack.id)} · ${pack.credits} cr · ₹${pack.price}</span>
+                    <span class="so-admin-muted">${pack.credits} cr · ₹${pack.price}</span>
                     ${pack.active ? '' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                    <span class="so-collapsible-toggle"></span>
                 </div>
-                <div class="so-plan-fields">
-                    <label><span>Id (slug)</span><input type="text" data-field="id" value="${soAttr(pack.id)}"></label>
-                    <label><span>Credits</span><input type="number" min="1" step="1" data-field="credits" value="${pack.credits}"></label>
-                    <label><span>Price ₹</span><input type="number" min="0" step="1" data-field="price" value="${pack.price}"></label>
-                    <label><span>Label</span><input type="text" data-field="label" value="${soAttr(pack.label || '')}"></label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="active" ${pack.active ? 'checked' : ''}> Show in extension</label>
+                <div class="so-plan-fields" onclick="event.stopPropagation()">
+                    <label><span>Id (slug)</span><input type="text" data-field="id" value="${soAttr(pack.id)}" oninput="soMarkTabDirty('credits')"></label>
+                    <label><span>Credits</span><input type="number" min="1" step="1" data-field="credits" value="${pack.credits}" oninput="soMarkTabDirty('credits')"></label>
+                    <label><span>Price ₹</span><input type="number" min="0" step="1" data-field="price" value="${pack.price}" oninput="soMarkTabDirty('credits')"></label>
+                    <label><span>Label</span><input type="text" data-field="label" value="${soAttr(pack.label || '')}" oninput="soMarkTabDirty('credits')"></label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="active" ${pack.active ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show in extension</label>
                 </div>
-                <div class="so-plan-actions">
-                    <button type="button" class="so-btn-icon" onclick="moveSoCreditPack(${idx}, -1)" title="Move up">▲</button>
-                    <button type="button" class="so-btn-icon" onclick="moveSoCreditPack(${idx}, 1)" title="Move down">▼</button>
-                    <button type="button" class="so-btn-icon so-btn-icon--danger" onclick="removeSoCreditPack(${idx})" title="Remove">✕</button>
+                <div class="so-plan-actions" onclick="event.stopPropagation()">
+                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoCreditPack(${idx}, -1)" title="Move up">▲</button>
+                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoCreditPack(${idx}, 1)" title="Move down">▼</button>
+                    <button type="button" class="so-btn-icon so-btn-icon--danger so-btn-touch" onclick="removeSoCreditPack(${idx})" title="Remove">✕</button>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     }
 
     function soReadCreditPacksFromDom() {
@@ -564,7 +657,10 @@
             active: true,
             order: nextOrder
         }, nextOrder));
+        const added = soCreditPacks[soCreditPacks.length - 1];
+        soExpandedPackIds.add(added.id);
         renderSoCreditPacksEditor();
+        soMarkTabDirty('credits');
     };
 
     window.moveSoCreditPack = function(idx, dir) {
@@ -576,6 +672,7 @@
         soCreditPacks[next] = tmp;
         soCreditPacks.forEach((p, i) => { p.order = i; });
         renderSoCreditPacksEditor();
+        soMarkTabDirty('credits');
     };
 
     window.removeSoCreditPack = function(idx) {
@@ -584,6 +681,7 @@
         soCreditPacks.splice(idx, 1);
         soCreditPacks.forEach((p, i) => { p.order = i; });
         renderSoCreditPacksEditor();
+        soMarkTabDirty('credits');
     };
 
     function renderSoPlansEditor() {
@@ -593,54 +691,57 @@
             container.innerHTML = '<p class="so-admin-muted">No plans yet. Tap + Add Plan.</p>';
             return;
         }
-        container.innerHTML = soPlans.map((plan, idx) => `
-            <div class="so-plan-row" data-plan-idx="${idx}">
-                <div class="so-plan-row-head">
+        container.innerHTML = soPlans.map((plan, idx) => {
+            const open = soExpandedPlanIds.has(plan.id);
+            return `
+            <div class="so-plan-row so-pricing-plan-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-plan-idx="${idx}">
+                <div class="so-plan-row-head" onclick="toggleSoPlanRow(${idx})">
                     <strong>${soEsc(plan.name)}</strong>
-                    <span class="so-admin-muted">${soEsc(plan.id)} · ₹${plan.price} · ${plan.unlimited_time ? '∞' : plan.days + 'd'} · ${soEsc(plan.billing_mode || 'subscription')}${plan.plan_kind ? ' · ' + soEsc(plan.plan_kind) : ''}</span>
+                    <span class="so-admin-muted">${soEsc(plan.id)} · ₹${plan.price}${plan.unlimited_time ? ' · ∞' : ' · ' + plan.days + 'd'}</span>
                     ${plan.best ? '<span class="so-badge so-badge--best">BEST</span>' : ''}
                     ${plan.active ? '' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                    <span class="so-collapsible-toggle"></span>
                 </div>
-                <div class="so-plan-fields">
-                    <label><span>Id (slug)</span><input type="text" data-field="id" value="${soAttr(plan.id)}" ${idx < soPlans.length ? '' : ''}></label>
-                    <label><span>Name</span><input type="text" data-field="name" value="${soAttr(plan.name)}"></label>
-                    <label><span>Price ₹</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}"></label>
-                    <label><span>Days (0=unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}"></label>
-                    <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}"></label>
-                    <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}"></label>
-                    <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited, custom"></label>
+                <div class="so-plan-fields" onclick="event.stopPropagation()">
+                    <label><span>Id (slug) — do not rename after use</span><input type="text" data-field="id" value="${soAttr(plan.id)}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Name</span><input type="text" data-field="name" value="${soAttr(plan.name)}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Price ₹</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Days (0=unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
                     <label><span>Device tier</span>
-                        <select data-field="device_tier">
+                        <select data-field="device_tier" onchange="soMarkTabDirty('config')">
                             ${SO_DEVICE_TIERS.map(t => `<option value="${t}" ${plan.device_tier === t ? 'selected' : ''}>${t}</option>`).join('')}
                         </select>
                     </label>
-                    <label><span>Max devices (0=∞)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}"></label>
+                    <label><span>Max devices (0=∞)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}" oninput="soMarkTabDirty('config')"></label>
                     <label><span>Billing mode</span>
-                        <select data-field="billing_mode">
+                        <select data-field="billing_mode" onchange="soMarkTabDirty('config')">
                             ${SO_BILLING_MODES.map(m => `<option value="${m}" ${plan.billing_mode === m ? 'selected' : ''}>${m}</option>`).join('')}
                         </select>
                     </label>
-                    <label><span>Included credits</span><input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}"></label>
-                    <label style="grid-column:1/-1;"><span>Description (admin note)</span><input type="text" data-field="description" value="${soAttr(plan.description || '')}"></label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''}> Unlimited time</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''}> Unlimited devices</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''}> Unlimited credits</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''}> Show in extension</label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''}> Best value</label>
+                    <label><span>Included credits</span><input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
+                    <label style="grid-column:1/-1;"><span>Description (admin note)</span><input type="text" data-field="description" value="${soAttr(plan.description || '')}" oninput="soMarkTabDirty('config')"></label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited time</label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited devices</label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited credits</label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show in extension</label>
+                    <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Best value</label>
                 </div>
-                <div class="so-plan-actions">
-                    <button type="button" class="so-btn-icon" onclick="moveSoPlan(${idx}, -1)" title="Move up">▲</button>
-                    <button type="button" class="so-btn-icon" onclick="moveSoPlan(${idx}, 1)" title="Move down">▼</button>
-                    <button type="button" class="so-btn-icon so-btn-icon--danger" onclick="removeSoPlan(${idx})" title="Remove">✕</button>
+                <div class="so-plan-actions" onclick="event.stopPropagation()">
+                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, -1)" title="Move up">▲</button>
+                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, 1)" title="Move down">▼</button>
+                    <button type="button" class="so-btn-icon so-btn-icon--danger so-btn-touch" onclick="removeSoPlan(${idx})" title="Remove">✕</button>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     }
 
     function soReadPlansFromDom() {
         const container = document.getElementById('so-plans-editor');
         if (!container) return [];
-        const rows = container.querySelectorAll('.so-plan-row');
+        const rows = container.querySelectorAll('.so-pricing-plan-row');
         const plans = [];
         rows.forEach((row, idx) => {
             const get = (field) => {
@@ -688,13 +789,16 @@
             soToast(`Added preset "${preset.name}".`);
         }
         soPlans.forEach((p, i) => { p.order = i; });
+        soExpandedPlanIds.add(normalized.id);
         renderSoPlansEditor();
+        soMarkTabDirty('config');
+        toggleSoSectionAccordion('config-plans');
     };
 
     window.addSoPlan = function() {
         soPlans = soReadPlansFromDom();
         const nextOrder = soPlans.length;
-        soPlans.push(soNormalizePlan({
+        const newPlan = soNormalizePlan({
             id: `plan_${nextOrder + 1}`,
             name: 'New Plan',
             price: 499,
@@ -706,8 +810,12 @@
             included_credits: 0,
             active: true,
             order: nextOrder
-        }, nextOrder));
+        }, nextOrder);
+        soPlans.push(newPlan);
+        soExpandedPlanIds.add(newPlan.id);
         renderSoPlansEditor();
+        soMarkTabDirty('config');
+        soToast('New plan added — tap row to edit fields.');
     };
 
     window.moveSoPlan = function(idx, dir) {
@@ -719,6 +827,7 @@
         soPlans[next] = tmp;
         soPlans.forEach((p, i) => { p.order = i; });
         renderSoPlansEditor();
+        soMarkTabDirty('config');
     };
 
     window.removeSoPlan = async function(idx) {
@@ -732,6 +841,7 @@
         soPlans.splice(idx, 1);
         soPlans.forEach((p, i) => { p.order = i; });
         renderSoPlansEditor();
+        soMarkTabDirty('config');
     };
 
     function renderSoInlineDemoKeysEditor() {
@@ -764,11 +874,14 @@
         if (keyEl) keyEl.value = '';
         if (labelEl) labelEl.value = '';
         renderSoInlineDemoKeysEditor();
+        soMarkTabDirty('config');
     };
 
     window.removeSoInlineDemoKey = function(key) {
+        if (!confirm(`Remove inline demo key ${key}?`)) return;
         delete soInlineDemoKeys[key];
         renderSoInlineDemoKeysEditor();
+        soMarkTabDirty('config');
     };
 
     window.saveShippingOptimizerConfig = async function() {
@@ -796,6 +909,7 @@
             await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(payload, { merge: true });
             soConfig = Object.assign({}, soConfig, payload);
             soPopulateLicensePlanSelect();
+            soClearTabDirty('config');
             soToast('Config & plans saved.');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
@@ -831,6 +945,7 @@
             }, { merge: true });
             soCredits = creditsPayload;
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            soClearTabDirty('credits');
             soToast('Credits & packs saved.');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
@@ -940,11 +1055,13 @@
 
     function soSetLicenseFormMode(editingKey) {
         soEditingLicenseKey = editingKey || null;
-        const btn = document.querySelector('#so-tab-licenses .btn-gold');
+        const btn = document.querySelector('#so-tab-licenses .so-btn-save');
         if (btn) {
             btn.textContent = soEditingLicenseKey ? 'Update license' : 'Create license';
             btn.onclick = soEditingLicenseKey ? () => updateSoLicense() : () => createSoLicense();
         }
+        const titleEl = document.getElementById('so-license-form-title');
+        if (titleEl) titleEl.textContent = soEditingLicenseKey ? `Edit license ${soEditingLicenseKey}` : 'Create license';
         const cancelBtn = document.getElementById('so-license-cancel-edit');
         if (cancelBtn) cancelBtn.style.display = soEditingLicenseKey ? 'block' : 'none';
         const keyEl = document.getElementById('so-license-key-input');
@@ -1049,8 +1166,10 @@
         document.getElementById('so-license-customer-email').value = lic.customer_email || '';
         document.getElementById('so-license-support-notes').value = lic.support_notes || '';
         soUpdateLicensePlanHint();
-        document.getElementById('so-tab-licenses')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        soToast(`Editing ${key}. Update fields and tap Update license.`);
+        switchShippingOptimizerTab('licenses');
+        toggleSoSectionAccordion('license-create');
+        document.getElementById('so-license-key-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        soToast(`Editing ${key} — update fields and tap Update license.`);
     };
 
     window.generateSoLicenseKey = async function() {
@@ -1197,35 +1316,36 @@
                     </div>`
                 ).join('')}</div>`
                 : '<span class="so-admin-muted">No devices bound</span>';
-            return `<div class="so-license-row">
-                <div class="so-license-head">
+            const open = soExpandedLicenseKeys.has(lic.key);
+            const summaryPhone = lic.customer_phone ? soEsc(lic.customer_phone) : '';
+            const summaryName = lic.customer_name ? soEsc(lic.customer_name) : '';
+            return `<div class="so-license-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}">
+                <div class="so-license-head" onclick="toggleSoLicenseRow('${soAttr(lic.key)}')" style="cursor:pointer;">
                     <code>${soEsc(lic.key)}</code>
                     <span class="so-badge ${active ? 'so-badge--on' : 'so-badge--off'}">${active ? 'Active' : 'Revoked'}</span>
-                    <span class="so-badge ${activated ? 'so-badge--on' : ''}">${activated ? 'Activated' : 'Pending'}</span>
                     ${expired ? '<span class="so-badge so-badge--off">Expired</span>' : ''}
-                    <span class="so-badge">${soEsc(billingMode)}</span>
+                    <span class="so-collapsible-toggle"></span>
                 </div>
-                <div class="so-license-meta so-admin-muted">
-                    Plan: ${soEsc(lic.planId || lic.planType || '—')} (${lic.planDays != null ? (parseInt(lic.planDays, 10) === 0 ? '∞' : lic.planDays + 'd') : '?'})
-                    · ${activatedLabel}
-                    · Expires: ${soEsc(expiryLabel)}
-                    · Devices: ${soEsc(devicesLabel)}
-                </div>
-                <div class="so-license-meta so-admin-muted">
-                    Credits: ${soEsc(creditsLabel)}
-                </div>
-                <div class="so-license-meta">${deviceListHtml}</div>
-                <div class="so-license-meta so-admin-muted">
-                    ${lic.customer_name ? soEsc(lic.customer_name) + ' · ' : ''}${lic.customer_phone ? soEsc(lic.customer_phone) + ' · ' : ''}${lic.customer_email ? soEsc(lic.customer_email) : ''}
-                </div>
-                ${lic.support_notes ? `<div class="so-license-notes">${soEsc(lic.support_notes)}</div>` : ''}
-                <div class="so-list-actions">
-                    <button type="button" class="so-btn-sm" onclick="editSoLicense('${soAttr(lic.key)}')">Edit</button>
-                    <button type="button" class="so-btn-sm" onclick="openSoLicenseOverrides('${soAttr(lic.key)}')">Overrides</button>
-                    <button type="button" class="so-btn-sm" onclick="toggleSoLicenseActive('${soAttr(lic.key)}', ${active})">${active ? 'Revoke' : 'Activate'}</button>
-                    <button type="button" class="so-btn-sm" onclick="addSoLicenseCredits('${soAttr(lic.key)}')">Add credits</button>
-                    <button type="button" class="so-btn-sm" onclick="resetSoLicenseAllDevices('${soAttr(lic.key)}')" ${deviceIds.length ? '' : 'disabled'}>Reset devices</button>
-                    <button type="button" class="so-btn-sm so-btn-sm--danger" onclick="deleteSoLicense('${soAttr(lic.key)}')">Delete</button>
+                <div class="so-license-body" onclick="event.stopPropagation()">
+                    <div class="so-license-meta so-admin-muted">
+                        ${summaryName}${summaryName && summaryPhone ? ' · ' : ''}${summaryPhone}
+                        · Plan: ${soEsc(lic.planId || lic.planType || '—')}
+                        · Devices: ${soEsc(devicesLabel)}
+                        · Credits: ${soEsc(creditsLabel)}
+                    </div>
+                    <div class="so-license-meta so-admin-muted">
+                        ${activatedLabel} · Expires: ${soEsc(expiryLabel)} · ${soEsc(billingMode)}
+                    </div>
+                    <div class="so-license-meta">${deviceListHtml}</div>
+                    ${lic.support_notes ? `<div class="so-license-notes">${soEsc(lic.support_notes)}</div>` : ''}
+                    <div class="so-list-actions so-list-actions--grid">
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="editSoLicense('${soAttr(lic.key)}')">Edit</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoLicenseOverrides('${soAttr(lic.key)}')">Overrides</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoLicenseCredits('${soAttr(lic.key)}')">Add credits</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="toggleSoLicenseActive('${soAttr(lic.key)}', ${active})">${active ? 'Revoke' : 'Activate'}</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseAllDevices('${soAttr(lic.key)}')" ${deviceIds.length ? '' : 'disabled'}>Reset devices</button>
+                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="deleteSoLicense('${soAttr(lic.key)}')">Delete</button>
+                    </div>
                 </div>
             </div>`;
         }).join('');
@@ -1290,34 +1410,58 @@
         }
     };
 
-    window.addSoLicenseCredits = async function(key) {
+    window.addSoLicenseCredits = function(key) {
         if (!soRequireSuperAdmin()) return;
         const lic = soLicenses.find(l => l.key === key);
         if (!lic) return soToast('License not found.');
+        soAddCreditsLicenseKey = key;
+        const label = document.getElementById('so-add-credits-key-label');
+        const balLabel = document.getElementById('so-add-credits-balance-label');
+        if (label) label.textContent = `License: ${key}`;
+        if (balLabel) balLabel.textContent = `Current balance: ${parseInt(lic.credits_balance, 10) || 0} credits`;
+        const amountEl = document.getElementById('so-add-credits-amount');
+        if (amountEl) amountEl.value = '';
         const activePacks = soSortCreditPacks(soCreditPacks.length ? soCreditPacks : DEFAULT_CREDIT_PACKS)
             .filter(p => p.active !== false);
-        let lines = activePacks.map(p => `${p.id}: +${p.credits} credits (₹${p.price})`).join('\n');
-        if (!lines) lines = '(no packs in config — enter custom amount below)';
-        const input = prompt(
-            `Add credits to ${key}\nCurrent balance: ${parseInt(lic.credits_balance, 10) || 0}\n\nPacks:\n${lines}\n\nEnter pack id (e.g. pack_20) or credit amount:`
-        );
-        if (input == null || !String(input).trim()) return;
-        const raw = String(input).trim();
-        let addCredits = 0;
-        const pack = activePacks.find(p => p.id === raw || p.id === soSlugifyId(raw));
-        if (pack) {
-            addCredits = pack.credits;
-        } else {
-            addCredits = parseInt(raw, 10);
-            if (!Number.isFinite(addCredits) || addCredits < 1) {
-                return soToast('Enter a valid pack id or credit amount.');
-            }
+        const packsEl = document.getElementById('so-add-credits-packs');
+        if (packsEl) {
+            packsEl.innerHTML = activePacks.length
+                ? activePacks.map(p =>
+                    `<button type="button" class="so-pack-quick-btn" onclick="soSelectAddCreditsPack(${p.credits})">${soEsc(p.label || p.id)}<br><span class="so-admin-muted">+${p.credits} · ₹${p.price}</span></button>`
+                ).join('')
+                : '<p class="so-admin-muted">No packs configured — enter custom amount below.</p>';
+        }
+        const modal = document.getElementById('so-add-credits-modal');
+        if (modal) modal.style.display = 'flex';
+    };
+
+    window.soSelectAddCreditsPack = function(credits) {
+        const el = document.getElementById('so-add-credits-amount');
+        if (el) el.value = credits;
+    };
+
+    window.closeSoAddCreditsModal = function() {
+        soAddCreditsLicenseKey = null;
+        const modal = document.getElementById('so-add-credits-modal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.confirmSoAddCredits = async function() {
+        if (!soRequireSuperAdmin()) return;
+        const key = soAddCreditsLicenseKey;
+        if (!key) return;
+        const lic = soLicenses.find(l => l.key === key);
+        if (!lic) return soToast('License not found.');
+        const addCredits = parseInt(document.getElementById('so-add-credits-amount')?.value, 10);
+        if (!Number.isFinite(addCredits) || addCredits < 1) {
+            return soToast('Enter credits to add (minimum 1).');
         }
         const current = parseInt(lic.credits_balance, 10) || 0;
         try {
             await db.collection(SO_LICENSE_COL).doc(key).set({
                 credits_balance: current + addCredits
             }, { merge: true });
+            closeSoAddCreditsModal();
             await soLoadLicenses();
             renderSoLicensesList();
             soToast(`Added ${addCredits} credits. New balance: ${current + addCredits}.`);
@@ -1400,7 +1544,9 @@
             await soLoadLicenses();
             soPopulateLicensePlanSelect();
             soSetLicenseFormMode(null);
+            soUpdateUnsavedBanner();
             soUpdateCustomCreditCalc();
+            soRestoreSectionAccordions();
             renderSoDemoKeysList();
             renderSoLicensesList();
             switchShippingOptimizerTab(soActiveTab);

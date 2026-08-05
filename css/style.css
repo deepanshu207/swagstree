@@ -11071,10 +11071,291 @@ body.seo-indexing-off #seo-primary-nav {
 }
 
 /* Shipping Optimizer Extension — Superadmin panel */
+#shipping-optimizer-admin-section {
+    margin: 0 12px 20px !important;
+    padding: 12px 14px !important;
+}
+@media (max-width: 640px) {
+    #shipping-optimizer-admin-section {
+        margin: 0 8px 16px !important;
+        padding: 10px 12px !important;
+        border-radius: 14px !important;
+    }
+}
+.so-admin-workflow-hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+.so-tab-select-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.so-tab-select {
+    width: 100%;
+    min-height: 44px;
+    font-size: 14px !important;
+}
+@media (max-width: 768px) {
+    .so-tab-select-wrap { display: flex; }
+    .so-admin-tabs--desktop { display: none; }
+}
 .so-admin-tabs {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+.so-admin-tabs--desktop .so-admin-tab-btn {
+    flex: 1;
+    min-width: 100px;
+}
+.so-unsaved-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    color: var(--gold, #ffd700);
+    font-size: 11px;
+    font-weight: 600;
+}
+.so-section-accordion {
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    background: #151515;
+}
+.so-section-accordion-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border: none;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+    min-height: 44px;
+}
+.so-section-accordion-head span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.so-section-accordion-head i.fa-gear,
+.so-section-accordion-head i.fa-tags,
+.so-section-accordion-head i.fa-key,
+.so-section-accordion-head i.fa-coins,
+.so-section-accordion-head i.fa-box,
+.so-section-accordion-head i.fa-plus,
+.so-section-accordion-head i.fa-list,
+.so-section-accordion-head i.fa-file-circle-plus,
+.so-section-accordion-head i.fa-id-card {
+    color: var(--gold, #ffd700);
+    width: 16px;
+    text-align: center;
+}
+.so-section-chevron {
+    color: #888;
+    font-size: 11px;
+    transition: transform 0.2s;
+}
+.so-section-accordion--open .so-section-chevron {
+    transform: rotate(180deg);
+}
+.so-section-accordion-body {
+    display: none;
+    padding: 12px 14px 14px;
+    border-top: 1px solid #2a2a2a;
+}
+.so-section-accordion--open .so-section-accordion-body {
+    display: block;
+}
+.so-admin-tip {
+    margin: 0 0 10px;
+    font-size: 11px;
+    line-height: 1.45;
+}
+.so-sticky-save {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    padding: 10px 0 4px;
+    margin-top: 8px;
+    background: linear-gradient(transparent, #111 30%);
+}
+.so-btn-save {
+    width: 100%;
+    padding: 14px 12px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    min-height: 48px;
+}
+.so-btn-touch {
+    min-height: 44px;
+    padding: 10px 14px !important;
+    font-size: 12px !important;
+}
+.so-input-with-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+@media (min-width: 480px) {
+    .so-input-with-btn {
+        flex-direction: row;
+        align-items: stretch;
+    }
+    .so-input-with-btn input { flex: 1; }
+}
+.so-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 10px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+}
+.so-details-block {
+    margin-top: 10px;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    padding: 0 12px 12px;
+    background: #1a1a1a;
+}
+.so-details-block summary {
+    cursor: pointer;
+    padding: 12px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ccc;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+}
+.so-collapsible-row {
+    cursor: pointer;
+}
+.so-collapsible-row .so-plan-fields,
+.so-collapsible-row .so-plan-actions,
+.so-collapsible-row .so-license-body {
+    display: none;
+}
+.so-collapsible-row.so-collapsible-row--open .so-plan-fields {
+    display: grid;
+}
+.so-collapsible-row.so-collapsible-row--open .so-plan-actions,
+.so-collapsible-row.so-collapsible-row--open .so-list-actions {
+    display: flex;
+}
+.so-collapsible-row.so-collapsible-row--open .so-license-body {
+    display: block;
+}
+.so-collapsible-row.so-collapsible-row--open .so-list-actions--grid {
+    display: grid !important;
+}
+.so-collapsible-toggle {
+    margin-left: auto;
+    color: #888;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+.so-collapsible-row--open .so-collapsible-toggle::after {
+    content: 'Hide';
+}
+.so-collapsible-row:not(.so-collapsible-row--open) .so-collapsible-toggle::after {
+    content: 'Edit';
+}
+.so-admin-list--tall {
+    max-height: none;
+}
+@media (min-width: 769px) {
+    .so-admin-list--tall {
+        max-height: 480px;
+        overflow-y: auto;
+    }
+}
+.so-list-actions--grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+@media (max-width: 480px) {
+    .so-list-actions--grid {
+        grid-template-columns: 1fr;
+    }
+}
+.so-list-actions--grid .so-btn-sm {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+}
+.so-list-actions--grid .so-btn-sm--danger {
+    grid-column: 1 / -1;
+}
+.so-admin-inline-form--stack {
+    flex-direction: column;
+    align-items: stretch;
+}
+.so-admin-inline-form--stack input,
+.so-admin-inline-form--stack button {
+    width: 100%;
+    min-width: 0;
+}
+.so-pack-quick-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+}
+@media (max-width: 400px) {
+    .so-pack-quick-btns { grid-template-columns: 1fr; }
+}
+.so-pack-quick-btn {
+    min-height: 48px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #444;
+    background: #222;
+    color: #eee;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+}
+.so-pack-quick-btn:active {
+    background: rgba(255, 215, 0, 0.12);
+    border-color: var(--gold, #ffd700);
+}
+.so-modal-title {
+    margin: 0 0 12px;
+    color: #fff;
+    font-size: 15px;
+}
+.so-modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+@media (min-width: 480px) {
+    .so-modal-actions {
+        flex-direction: row;
+    }
+    .so-modal-actions .btn-gold { flex: 1; }
 }
 .so-admin-tab-btn {
     flex: 1;
@@ -11104,6 +11385,16 @@ body.seo-indexing-off #seo-primary-nav {
     margin: 0;
     width: 100%;
     box-sizing: border-box;
+    min-height: 44px;
+    font-size: 16px !important; /* prevents iOS zoom on focus */
+}
+.so-admin-tab-panel textarea {
+    min-height: 80px;
+}
+.so-admin-tab-panel input[type="checkbox"] {
+    min-height: auto;
+    width: auto;
+    font-size: inherit !important;
 }
 .so-admin-grid {
     display: grid;
@@ -11182,14 +11473,20 @@ body.seo-indexing-off #seo-primary-nav {
     color: #ff6b7a;
 }
 .so-btn-sm {
-    padding: 6px 10px;
+    padding: 8px 12px;
     border-radius: 8px;
     border: 1px solid #444;
     background: #222;
     color: #eee;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    min-height: 40px;
+}
+.so-btn-preset {
+    font-size: 10px;
+    padding: 8px 10px;
+    min-height: 36px;
 }
 .so-btn-sm--danger {
     border-color: rgba(255, 71, 87, 0.5);
@@ -11276,21 +11573,34 @@ body.seo-indexing-off #seo-primary-nav {
 .so-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(0, 0, 0, 0.85);
     z-index: 10000;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    padding: 16px;
+    padding: 0;
+}
+@media (min-width: 640px) {
+    .so-modal-overlay {
+        align-items: center;
+        padding: 16px;
+    }
 }
 .so-modal-panel {
     background: #111;
     border: 1px solid #333;
-    border-radius: 16px;
+    border-radius: 16px 16px 0 0;
     padding: 18px;
     width: 100%;
     max-width: 420px;
-    max-height: 90vh;
+    max-height: 92vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+@media (min-width: 640px) {
+    .so-modal-panel {
+        border-radius: 16px;
+        max-height: 90vh;
+    }
 }
 

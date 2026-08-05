@@ -2036,137 +2036,253 @@
             </div>
             <div id="shipping-optimizer-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:14px;">
-                <p class="so-admin-muted" style="margin:0; font-size:11px; line-height:1.5;">
-                    Customer taps plan in extension → WhatsApp → after payment create license here → send key → customer activates (multi-device per plan tier; credits plans use pay-as-you-go balance).
+                <p class="so-admin-muted so-admin-workflow-hint">
+                    Workflow: customer picks plan in extension → WhatsApp → create license or top-up credits here → customer activates on device.
                 </p>
-                <div class="so-admin-tabs">
+
+                <!-- Mobile-friendly tab picker + desktop tabs -->
+                <label class="so-tab-select-wrap">
+                    <span class="admin-settings-field-label">Section</span>
+                    <select id="so-tab-select" class="so-tab-select" onchange="switchShippingOptimizerTab(this.value)">
+                        <option value="config">Config &amp; Pricing</option>
+                        <option value="credits">Credits &amp; Packs</option>
+                        <option value="demo">Demo / Promo Keys</option>
+                        <option value="licenses">Paid Licenses</option>
+                    </select>
+                </label>
+                <div class="so-admin-tabs so-admin-tabs--desktop">
                     <button type="button" class="so-admin-tab-btn so-admin-tab-btn--active" data-so-tab="config" onclick="switchShippingOptimizerTab('config')">Config &amp; Pricing</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="credits" onclick="switchShippingOptimizerTab('credits')">Credits &amp; Packs</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
                 </div>
+                <div id="so-unsaved-banner" class="so-unsaved-banner" hidden>
+                    <span>Unsaved changes on this tab</span>
+                    <button type="button" class="so-btn-sm" onclick="soSaveCurrentTab()">Save now</button>
+                </div>
 
                 <!-- Tab 1: Config & Pricing -->
                 <div id="so-tab-config" class="so-admin-tab-panel">
-                    <div class="so-admin-grid">
-                        <label><span class="admin-settings-field-label">WhatsApp number (digits only)</span>
-                            <input id="so-whatsapp-number" type="text" inputmode="numeric" placeholder="919654414891"></label>
-                        <label><span class="admin-settings-field-label">WhatsApp message</span>
-                            <input id="so-whatsapp-message" type="text" placeholder="Hi! I want to purchase Shipping Optimizer license."></label>
-                        <label><span class="admin-settings-field-label">Min extension version</span>
-                            <input id="so-min-version" type="text" placeholder="1.2.0"></label>
-                        <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked> Extension enabled (blocks new paid activations when off)</label>
-                        <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Announcement banner (extension popup)</span>
-                            <textarea id="so-announcement" rows="2" placeholder="Optional banner text"></textarea></label>
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="config-general">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('config-general')">
+                            <span><i class="fa fa-gear"></i> General settings</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <div class="so-admin-grid">
+                                <label><span class="admin-settings-field-label">WhatsApp number (digits only)</span>
+                                    <input id="so-whatsapp-number" type="text" inputmode="numeric" placeholder="919654414891" oninput="soMarkTabDirty('config')"></label>
+                                <label><span class="admin-settings-field-label">WhatsApp message</span>
+                                    <input id="so-whatsapp-message" type="text" placeholder="Hi! I want to purchase Shipping Optimizer license." oninput="soMarkTabDirty('config')"></label>
+                                <label><span class="admin-settings-field-label">Min extension version</span>
+                                    <input id="so-min-version" type="text" placeholder="1.2.0" oninput="soMarkTabDirty('config')"></label>
+                                <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
+                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Announcement banner</span>
+                                    <textarea id="so-announcement" rows="2" placeholder="Optional banner text" oninput="soMarkTabDirty('config')"></textarea></label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="so-admin-subhead">Pricing plans (fully dynamic — extension reads from Firebase)</div>
-                    <p class="so-admin-muted" style="margin:0 0 8px; font-size:11px;">Never rename plan id after licenses issued. Hide with Show unchecked (active:false). Days=0 or unlimited_time = no expiry. max_devices=0 or unlimited_devices = no device cap.</p>
-                    <div class="so-plan-presets">
-                        <span class="so-admin-muted" style="font-size:11px;">Quick add:</span>
-                        <button type="button" class="so-btn-sm" onclick="addSoPlanPreset('monthly')">Standard Monthly</button>
-                        <button type="button" class="so-btn-sm" onclick="addSoPlanPreset('family_yearly')">Family Yearly</button>
-                        <button type="button" class="so-btn-sm" onclick="addSoPlanPreset('friends_yearly')">Friends Yearly</button>
-                        <button type="button" class="so-btn-sm" onclick="addSoPlanPreset('lifetime')">Lifetime</button>
-                        <button type="button" class="so-btn-sm" onclick="addSoPlanPreset('unlimited_pro')">Unlimited Pro</button>
-                        <button type="button" class="so-btn-sm" onclick="addSoPlanPreset('credits_starter')">Credits Starter</button>
+
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="config-plans">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('config-plans')">
+                            <span><i class="fa fa-tags"></i> Pricing plans</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Tap a plan row to expand. Never rename plan id after licenses exist — hide instead.</p>
+                            <div class="so-plan-presets">
+                                <span class="so-admin-muted">Quick add:</span>
+                                <button type="button" class="so-btn-sm so-btn-preset" onclick="addSoPlanPreset('monthly')">Monthly</button>
+                                <button type="button" class="so-btn-sm so-btn-preset" onclick="addSoPlanPreset('family_yearly')">Family</button>
+                                <button type="button" class="so-btn-sm so-btn-preset" onclick="addSoPlanPreset('friends_yearly')">Friends</button>
+                                <button type="button" class="so-btn-sm so-btn-preset" onclick="addSoPlanPreset('lifetime')">Lifetime</button>
+                                <button type="button" class="so-btn-sm so-btn-preset" onclick="addSoPlanPreset('unlimited_pro')">Unlimited</button>
+                                <button type="button" class="so-btn-sm so-btn-preset" onclick="addSoPlanPreset('credits_starter')">Credits</button>
+                            </div>
+                            <div id="so-plans-editor"></div>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoPlan()">+ Add Plan</button>
+                        </div>
                     </div>
-                    <div id="so-plans-editor"></div>
-                    <button type="button" class="so-btn-sm" onclick="addSoPlan()">+ Add Plan</button>
-                    <div class="so-admin-subhead" style="margin-top:14px;">Inline demo keys (config demo_keys map)</div>
-                    <div id="so-inline-demo-keys"></div>
-                    <div class="so-admin-inline-form">
-                        <input id="so-inline-demo-key-input" type="text" placeholder="MEESHO-DEMOFREE" style="text-transform:uppercase;">
-                        <input id="so-inline-demo-days-input" type="number" min="1" value="30" placeholder="Days">
-                        <input id="so-inline-demo-label-input" type="text" placeholder="Label">
-                        <button type="button" class="so-btn-sm" onclick="addSoInlineDemoKey()">Add inline key</button>
+
+                    <div class="so-section-accordion" data-so-section="config-demo-inline">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('config-demo-inline')">
+                            <span><i class="fa fa-key"></i> Inline demo keys</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <div id="so-inline-demo-keys"></div>
+                            <div class="so-admin-inline-form so-admin-inline-form--stack">
+                                <input id="so-inline-demo-key-input" type="text" placeholder="MEESHO-DEMOFREE" style="text-transform:uppercase;">
+                                <input id="so-inline-demo-days-input" type="number" min="1" value="30" placeholder="Days">
+                                <input id="so-inline-demo-label-input" type="text" placeholder="Label">
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoInlineDemoKey()">Add inline key</button>
+                            </div>
+                        </div>
                     </div>
-                    <button type="button" class="btn-gold" style="width:100%; margin-top:12px; padding:12px; font-size:12px; font-weight:700;" onclick="saveShippingOptimizerConfig()">Save config &amp; plans</button>
+
+                    <div class="so-sticky-save">
+                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerConfig()">Save config &amp; plans</button>
+                    </div>
                 </div>
 
                 <!-- Tab 2: Credits & Packs -->
                 <div id="so-tab-credits" class="so-admin-tab-panel" style="display:none;">
-                    <p class="so-admin-muted" style="margin:0 0 8px; font-size:11px;">Pay-as-you-go credits for billing_mode credits/hybrid. Extension shows active packs for top-ups via WhatsApp.</p>
-                    <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-credits-enabled" type="checkbox" checked> Credits enabled in extension</label>
-                    <div class="so-admin-grid">
-                        <label><span class="admin-settings-field-label">Price per credit (₹)</span>
-                            <input id="so-credits-price-per" type="number" min="0" step="1" value="2" oninput="soUpdateCustomCreditCalc()"></label>
-                        <label><span class="admin-settings-field-label">Min purchase (credits)</span>
-                            <input id="so-credits-min-purchase" type="number" min="1" step="1" value="10" oninput="soUpdateCustomCreditCalc()"></label>
-                        <label><span class="admin-settings-field-label">Cost per operation</span>
-                            <input id="so-credits-cost-op" type="number" min="1" step="1" value="1"></label>
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="credits-settings">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-settings')">
+                            <span><i class="fa fa-coins"></i> Credit settings</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-credits-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits')"> Credits enabled in extension</label>
+                            <div class="so-admin-grid">
+                                <label><span class="admin-settings-field-label">Price per credit (₹)</span>
+                                    <input id="so-credits-price-per" type="number" min="0" step="1" value="2" oninput="soUpdateCustomCreditCalc(); soMarkTabDirty('credits')"></label>
+                                <label><span class="admin-settings-field-label">Min purchase (credits)</span>
+                                    <input id="so-credits-min-purchase" type="number" min="1" step="1" value="10" oninput="soUpdateCustomCreditCalc(); soMarkTabDirty('credits')"></label>
+                                <label><span class="admin-settings-field-label">Cost per operation</span>
+                                    <input id="so-credits-cost-op" type="number" min="1" step="1" value="1" oninput="soMarkTabDirty('credits')"></label>
+                            </div>
+                            <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
+                            <div class="so-admin-inline-form so-admin-inline-form--stack">
+                                <input id="so-credits-custom-amount" type="number" min="1" step="1" value="10" placeholder="Credits" oninput="soUpdateCustomCreditCalc()">
+                                <span id="so-credits-custom-price" class="so-admin-muted">10 credits × ₹2 = ₹20 (min 10)</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
-                    <div class="so-admin-inline-form">
-                        <input id="so-credits-custom-amount" type="number" min="1" step="1" value="10" placeholder="Credits" oninput="soUpdateCustomCreditCalc()">
-                        <span id="so-credits-custom-price" class="so-admin-muted" style="font-size:11px;">10 credits × ₹2 = ₹20 (min 10)</span>
+
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="credits-packs">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-packs')">
+                            <span><i class="fa fa-box"></i> Credit packs</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Tap a pack to edit. Add any credits count + price.</p>
+                            <div id="so-credit-packs-editor"></div>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoCreditPack()">+ Add Pack</button>
+                        </div>
                     </div>
-                    <div class="so-admin-subhead" style="margin-top:10px;">Credit packs (any credits + price)</div>
-                    <div id="so-credit-packs-editor"></div>
-                    <button type="button" class="so-btn-sm" onclick="addSoCreditPack()">+ Add Pack</button>
-                    <button type="button" class="btn-gold" style="width:100%; margin-top:12px; padding:12px; font-size:12px; font-weight:700;" onclick="saveShippingOptimizerCredits()">Save credits &amp; packs</button>
+
+                    <div class="so-sticky-save">
+                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerCredits()">Save credits &amp; packs</button>
+                    </div>
                 </div>
 
                 <!-- Tab 3: Demo / Promo Keys -->
                 <div id="so-tab-demo" class="so-admin-tab-panel" style="display:none;">
-                    <div class="so-admin-inline-form">
-                        <input id="so-demo-key-input" type="text" placeholder="MEESHO-PROMO30" style="text-transform:uppercase;">
-                        <input id="so-demo-days-input" type="number" min="1" value="30" placeholder="Days">
-                        <input id="so-demo-label-input" type="text" placeholder="Label">
-                        <button type="button" class="so-btn-sm" onclick="addSoDemoKey()">Add demo key</button>
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="demo-add">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('demo-add')">
+                            <span><i class="fa fa-plus"></i> Add demo key</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <div class="so-admin-inline-form so-admin-inline-form--stack">
+                                <input id="so-demo-key-input" type="text" placeholder="MEESHO-PROMO30" style="text-transform:uppercase;">
+                                <input id="so-demo-days-input" type="number" min="1" value="30" placeholder="Days">
+                                <input id="so-demo-label-input" type="text" placeholder="Label">
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoDemoKey()">Add demo key</button>
+                            </div>
+                        </div>
                     </div>
-                    <input id="so-demo-search" type="search" placeholder="Search demo keys…" oninput="filterSoDemoKeys()" style="margin-top:10px;">
-                    <div id="so-demo-keys-list" class="so-admin-list"></div>
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="demo-list">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('demo-list')">
+                            <span><i class="fa fa-list"></i> All demo keys</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <input id="so-demo-search" type="search" placeholder="Search demo keys…" oninput="filterSoDemoKeys()">
+                            <div id="so-demo-keys-list" class="so-admin-list"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tab 4: Paid Licenses -->
                 <div id="so-tab-licenses" class="so-admin-tab-panel" style="display:none;">
-                    <div class="so-admin-subhead">Create license (after payment)</div>
-                    <div class="so-admin-grid">
-                        <label style="grid-column:1/-1;">
-                            <span class="admin-settings-field-label">License key</span>
-                            <div style="display:flex; gap:8px;">
-                                <input id="so-license-key-input" type="text" placeholder="MEESHO-XXXX-XXXX-XXXX" style="flex:1; text-transform:uppercase;">
-                                <button type="button" class="so-btn-sm" onclick="generateSoLicenseKey()" title="Generate unique key">🎲 Generate</button>
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="license-create">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('license-create')">
+                            <span><i class="fa fa-file-circle-plus"></i> <span id="so-license-form-title">Create license</span></span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <div class="so-admin-grid">
+                                <label style="grid-column:1/-1;">
+                                    <span class="admin-settings-field-label">License key</span>
+                                    <div class="so-input-with-btn">
+                                        <input id="so-license-key-input" type="text" placeholder="MEESHO-XXXX-XXXX-XXXX" style="text-transform:uppercase;">
+                                        <button type="button" class="so-btn-sm so-btn-touch" onclick="generateSoLicenseKey()" title="Generate">🎲 Generate</button>
+                                    </div>
+                                </label>
+                                <label><span class="admin-settings-field-label">Plan</span>
+                                    <select id="so-license-plan" onchange="soUpdateLicensePlanHint()"></select></label>
+                                <label><span class="admin-settings-field-label">Billing mode</span>
+                                    <select id="so-license-billing-mode">
+                                        <option value="subscription">subscription</option>
+                                        <option value="credits">credits</option>
+                                        <option value="hybrid">hybrid</option>
+                                    </select></label>
+                                <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
+                                    <input id="so-license-max-devices" type="number" min="0" step="1" placeholder="From plan"></label>
+                                <label><span class="admin-settings-field-label">Credits balance</span>
+                                    <input id="so-license-credits-balance" type="number" min="0" step="1" value="0"></label>
+                                <label><span class="admin-settings-field-label">Credits used</span>
+                                    <input id="so-license-credits-used" type="number" min="0" step="1" value="0"></label>
                             </div>
-                        </label>
-                        <label><span class="admin-settings-field-label">Plan (all plans incl. inactive)</span>
-                            <select id="so-license-plan" onchange="soUpdateLicensePlanHint()"></select></label>
-                        <label><span class="admin-settings-field-label">Billing mode</span>
-                            <select id="so-license-billing-mode">
-                                <option value="subscription">subscription</option>
-                                <option value="credits">credits</option>
-                                <option value="hybrid">hybrid</option>
-                            </select></label>
-                        <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
-                            <input id="so-license-max-devices" type="number" min="0" step="1" placeholder="From plan"></label>
-                        <label><span class="admin-settings-field-label">Credits balance (on create)</span>
-                            <input id="so-license-credits-balance" type="number" min="0" step="1" value="0" placeholder="e.g. 50 for pay-as-you-go"></label>
-                        <label><span class="admin-settings-field-label">Credits used</span>
-                            <input id="so-license-credits-used" type="number" min="0" step="1" value="0"></label>
-                        <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox"> Unlimited time (no expiry)</label>
-                        <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox"> Unlimited devices</label>
-                        <label class="so-plan-check"><input id="so-license-unlimited-credits" type="checkbox"> Unlimited credits (never deduct)</label>
-                        <p id="so-license-plan-hint" class="so-admin-muted" style="margin:0; grid-column:1/-1; font-size:11px;"></p>
-                        <label><span class="admin-settings-field-label">Customer name</span>
-                            <input id="so-license-customer-name" type="text" placeholder="Optional"></label>
-                        <label><span class="admin-settings-field-label">Customer phone</span>
-                            <input id="so-license-customer-phone" type="text" inputmode="tel" placeholder="Optional"></label>
-                        <label><span class="admin-settings-field-label">Customer email</span>
-                            <input id="so-license-customer-email" type="email" placeholder="Optional"></label>
-                        <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Support notes</span>
-                            <textarea id="so-license-support-notes" rows="2" placeholder="Paid UPI 4 Aug — yearly"></textarea></label>
+                            <div class="so-checkbox-group">
+                                <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox"> Unlimited time</label>
+                                <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox"> Unlimited devices</label>
+                                <label class="so-plan-check"><input id="so-license-unlimited-credits" type="checkbox"> Unlimited credits</label>
+                            </div>
+                            <p id="so-license-plan-hint" class="so-admin-muted so-admin-tip"></p>
+                            <details class="so-details-block">
+                                <summary>Customer details (optional)</summary>
+                                <div class="so-admin-grid" style="margin-top:10px;">
+                                    <label><span class="admin-settings-field-label">Customer name</span>
+                                        <input id="so-license-customer-name" type="text" placeholder="Optional"></label>
+                                    <label><span class="admin-settings-field-label">Customer phone</span>
+                                        <input id="so-license-customer-phone" type="text" inputmode="tel" placeholder="Optional"></label>
+                                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Customer email</span>
+                                        <input id="so-license-customer-email" type="email" placeholder="Optional"></label>
+                                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Support notes</span>
+                                        <textarea id="so-license-support-notes" rows="2" placeholder="Paid UPI — yearly"></textarea></label>
+                                </div>
+                            </details>
+                            <button type="button" class="btn-gold so-btn-save" style="margin-top:10px;" onclick="createSoLicense()">Create license</button>
+                            <button type="button" id="so-license-cancel-edit" class="so-btn-sm so-btn-touch" style="width:100%; margin-top:6px; display:none;" onclick="cancelSoLicenseEdit()">Cancel edit</button>
+                        </div>
                     </div>
-                    <button type="button" class="btn-gold" style="width:100%; margin-top:8px; padding:12px; font-size:12px; font-weight:700;" onclick="createSoLicense()">Create license</button>
-                    <button type="button" id="so-license-cancel-edit" class="so-btn-sm" style="width:100%; margin-top:6px; display:none;" onclick="cancelSoLicenseEdit()">Cancel edit</button>
-                    <input id="so-license-search" type="search" placeholder="Search by key, phone, planId, device…" oninput="filterSoLicenses()" style="margin-top:16px;">
-                    <div id="so-licenses-list" class="so-admin-list" style="margin-top:10px;"></div>
+
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="license-list">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('license-list')">
+                            <span><i class="fa fa-id-card"></i> Manage licenses</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <input id="so-license-search" type="search" placeholder="Search key, phone, plan, device…" oninput="filterSoLicenses()">
+                            <div id="so-licenses-list" class="so-admin-list so-admin-list--tall"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add credits modal (mobile-safe, no prompt) -->
+                <div id="so-add-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
+                    <div class="so-modal-panel">
+                        <h4 class="so-modal-title">Add credits</h4>
+                        <p id="so-add-credits-key-label" class="so-admin-muted"></p>
+                        <p id="so-add-credits-balance-label" class="so-admin-muted"></p>
+                        <div id="so-add-credits-packs" class="so-pack-quick-btns"></div>
+                        <label style="margin-top:12px;"><span class="admin-settings-field-label">Custom amount</span>
+                            <input id="so-add-credits-amount" type="number" min="1" step="1" placeholder="Credits to add"></label>
+                        <div class="so-modal-actions">
+                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoAddCredits()">Add credits</button>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoAddCreditsModal()">Cancel</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- License overrides modal -->
                 <div id="so-license-overrides-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoLicenseOverrides()">
                     <div class="so-modal-panel">
-                        <h4 style="margin:0 0 12px; color:#fff; font-size:14px;">Edit license overrides</h4>
-                        <p id="so-overrides-key-label" class="so-admin-muted" style="margin:0 0 10px; font-size:11px;"></p>
+                        <h4 class="so-modal-title">Edit license overrides</h4>
+                        <p id="so-overrides-key-label" class="so-admin-muted"></p>
                         <div class="so-admin-grid">
                             <label><span class="admin-settings-field-label">Billing mode</span>
                                 <select id="so-overrides-billing-mode">
@@ -2180,9 +2296,9 @@
                             <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-devices" type="checkbox"> Unlimited devices</label>
                             <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-credits" type="checkbox"> Unlimited credits</label>
                         </div>
-                        <div style="display:flex; gap:8px; margin-top:14px;">
-                            <button type="button" class="btn-gold" style="flex:1; padding:10px; font-size:12px;" onclick="saveSoLicenseOverrides()">Save overrides</button>
-                            <button type="button" class="so-btn-sm" onclick="closeSoLicenseOverrides()">Cancel</button>
+                        <div class="so-modal-actions">
+                            <button type="button" class="btn-gold so-btn-save" onclick="saveSoLicenseOverrides()">Save overrides</button>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoLicenseOverrides()">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -3977,7 +4093,7 @@
     <script src="js/admin.js?v=17.0"></script>
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=1.3"></script>
+    <script src="js/shipping-optimizer-admin.js?v=1.4"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
