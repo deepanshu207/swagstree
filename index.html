@@ -2130,7 +2130,7 @@
                 </div>
 
                 <div class="so-admin-toolbar">
-                    <button type="button" class="so-btn-sm so-btn-touch" onclick="renderSoExtensionPreview(); soToast('Preview refreshed.');" title="Refresh extension preview"><i class="fa fa-rotate"></i> Refresh preview</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshExtensionPreview()" title="Refresh extension preview"><i class="fa fa-rotate"></i> Refresh preview</button>
                     <button type="button" class="so-btn-sm so-btn-touch" onclick="collapseAllSoSections()" title="Collapse all accordion sections"><i class="fa fa-compress"></i> Collapse all</button>
                     <button type="button" class="so-btn-sm so-btn-touch" onclick="copySoDeployChecklist()" title="Copy deploy steps"><i class="fa fa-copy"></i> Copy checklist</button>
                 </div>
@@ -2205,7 +2205,7 @@
                         <div class="so-section-accordion-body">
                             <div class="so-preview-toolbar">
                                 <p class="so-admin-muted so-admin-tip">Mirrors <code>firebaseLicense.js</code> plan/credit/demo rendering — active plans only, same labels as the popup.</p>
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="renderSoExtensionPreview(); soToast('Preview refreshed.');"><i class="fa fa-rotate"></i> Refresh</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshExtensionPreview()"><i class="fa fa-rotate"></i> Refresh</button>
                             </div>
                             <div id="so-extension-preview" class="so-ext-preview-root"></div>
                             <div id="so-extension-warnings" class="so-ext-warnings-wrap"></div>
@@ -4267,7 +4267,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.1"></script>
-    <script src="js/shipping-optimizer-admin.js?v=2.2"></script>
+    <script src="js/shipping-optimizer-admin.js?v=2.3"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

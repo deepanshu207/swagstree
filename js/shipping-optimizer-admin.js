@@ -272,6 +272,12 @@
     function soToast(msg) {
         if (typeof showToast === 'function') showToast(msg);
     }
+    window.soToast = soToast;
+
+    window.soRefreshExtensionPreview = function() {
+        renderSoExtensionPreview();
+        soToast('Preview refreshed.');
+    };
 
     function soRequireSuperAdmin() {
         if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) return true;
@@ -983,12 +989,19 @@
         const age = typeof adminDraftFormatAge === 'function'
             ? adminDraftFormatAge(draft.savedAt)
             : 'recently';
+        const differsFromFirebase = soTabSnapshots.config && (
+            JSON.stringify(draft.config) !== soTabSnapshots.config ||
+            JSON.stringify(draft.credits) !== soTabSnapshots.credits
+        );
+        const hint = differsFromFirebase
+            ? 'Local draft differs from last saved Firebase data. Restore to continue editing, or discard.'
+            : 'Local draft differs from current form. Restore to apply it, or discard.';
         banner.hidden = false;
         banner.innerHTML = `
             <div class="admin-draft-banner admin-draft-banner--inline so-draft-banner">
                 <div class="admin-draft-banner__text">
                     <strong>Unpublished draft</strong> saved ${soEsc(age)}
-                    <div class="admin-draft-recovery-hint">Local draft differs from what is on screen. Restore to continue editing, or discard.</div>
+                    <div class="admin-draft-recovery-hint">${hint}</div>
                 </div>
                 <div class="admin-draft-banner__actions">
                     <button type="button" class="btn-gold so-btn-sm" onclick="soRestoreDraft()">Restore draft</button>
