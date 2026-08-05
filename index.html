@@ -2117,7 +2117,7 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Stored in config <code>demo_keys</code> — extension reads on load. Add multiple keys below, then tap <strong>Save config &amp; plans</strong>.</p>
+                            <p class="so-admin-muted so-admin-tip">Stored in config <code>demo_keys</code> — extension reads on load (~5 min cache). Add multiple keys below, then tap <strong>Save config &amp; plans</strong>. Removed keys are deleted from Firebase on save.</p>
                             <div class="so-inline-demo-toolbar">
                                 <span id="so-inline-demo-count" class="so-plans-count">0 keys</span>
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoInlineDemoKeyRow()">+ Add demo key</button>
@@ -2175,28 +2175,35 @@
 
                 <!-- Tab 3: Demo / Promo Keys -->
                 <div id="so-tab-demo" class="so-admin-tab-panel" style="display:none;">
+                    <p class="so-admin-muted so-admin-tip">Collection <code>shipping_optimizer_demo_keys</code> — merged with inline config keys in the extension. Extension caches ~5 min; reload extension after changes. Built-in keys in the extension bundle cannot be removed from admin.</p>
                     <div class="so-section-accordion so-section-accordion--open" data-so-section="demo-add">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('demo-add')">
-                            <span><i class="fa fa-plus"></i> Add demo key</span>
+                            <span><i class="fa fa-plus"></i> Add demo keys (batch)</span>
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <div class="so-admin-inline-form so-admin-inline-form--stack">
-                                <input id="so-demo-key-input" type="text" placeholder="MEESHO-PROMO30" style="text-transform:uppercase;">
-                                <input id="so-demo-days-input" type="number" min="1" value="30" placeholder="Days">
-                                <input id="so-demo-label-input" type="text" placeholder="Label">
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoDemoKey()">Add demo key</button>
+                            <div class="so-inline-demo-toolbar">
+                                <span id="so-demo-pending-count" class="so-plans-count">0 new keys</span>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoDemoKeyPendingRow()">+ Add demo key</button>
                             </div>
+                            <div id="so-demo-pending-keys" class="so-inline-demo-list"></div>
+                            <button type="button" class="btn-gold so-btn-save" style="margin-top:10px;" onclick="saveSoDemoKeysBatch()">Save new keys to Firebase</button>
                         </div>
                     </div>
                     <div class="so-section-accordion so-section-accordion--open" data-so-section="demo-list">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('demo-list')">
-                            <span><i class="fa fa-list"></i> All demo keys</span>
+                            <span><i class="fa fa-list"></i> Manage demo keys</span>
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
+                            <div class="so-inline-demo-toolbar">
+                                <span id="so-demo-edit-count" class="so-plans-count">0 keys</span>
+                                <label class="so-plan-check"><input id="so-demo-select-all" type="checkbox" onchange="toggleSoDemoSelectAll()"> Select all</label>
+                                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="deleteSelectedSoDemoKeys()">Delete selected</button>
+                            </div>
                             <input id="so-demo-search" type="search" placeholder="Search demo keys…" oninput="filterSoDemoKeys()">
-                            <div id="so-demo-keys-list" class="so-admin-list"></div>
+                            <div id="so-demo-edit-keys" class="so-inline-demo-list"></div>
+                            <button type="button" class="btn-gold so-btn-save" style="margin-top:10px;" onclick="saveSoDemoKeysChanges()">Save all changes</button>
                         </div>
                     </div>
                 </div>
@@ -4099,7 +4106,7 @@
     <script src="js/admin.js?v=17.0"></script>
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=1.6"></script>
+    <script src="js/shipping-optimizer-admin.js?v=1.7"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

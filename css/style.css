@@ -11444,9 +11444,30 @@ body.seo-indexing-off #seo-primary-nav {
 }
 @media (min-width: 640px) {
     .so-inline-demo-row {
-        grid-template-columns: 1.2fr 0.5fr 1fr auto;
+        grid-template-columns: auto 1.2fr 0.45fr 1fr auto auto auto;
         align-items: end;
     }
+    .so-inline-demo-row:not(:has(.so-demo-select-check)) {
+        grid-template-columns: 1.2fr 0.45fr 1fr auto auto auto;
+    }
+}
+.so-demo-unlimited-check,
+.so-demo-active-check,
+.so-demo-select-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #ccc;
+    min-height: 44px;
+}
+.so-demo-unlimited-check input,
+.so-demo-active-check input,
+.so-demo-select-check input {
+    min-height: auto;
+    width: auto;
+}
+@media (min-width: 640px) {
     .so-inline-demo-row .so-btn-sm {
         margin-bottom: 0;
     }

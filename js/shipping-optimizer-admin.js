@@ -76,6 +76,9 @@
     let soInlineDemoKeys = {};
     let soInlineDemoKeyRows = [];
     let soDemoKeys = [];
+    let soDemoKeyPendingRows = [];
+    let soDemoKeyEditRows = [];
+    let soDemoSelectedKeys = new Set();
     let soLicenses = [];
     let soActiveTab = 'config';
     let soLoaded = false;
@@ -496,7 +499,10 @@
             soBindCreditsForm();
             soUpdateCustomCreditCalc();
         }
-        if (soActiveTab === 'demo') renderSoDemoKeysList();
+        if (soActiveTab === 'demo') {
+            renderSoDemoPendingKeysEditor();
+            renderSoDemoKeysList();
+        }
         if (soActiveTab === 'licenses') renderSoLicensesList();
     };
 
@@ -519,7 +525,11 @@
             : DEFAULT_CREDIT_PACKS.slice();
         soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
         soCreditPacks.forEach((p, i) => { p.order = i; });
-        soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS, soConfig.demo_keys || {});
+        if (soConfig.demo_keys && typeof soConfig.demo_keys === 'object') {
+            soInlineDemoKeys = Object.assign({}, soConfig.demo_keys);
+        } else {
+            soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS);
+        }
         soSyncInlineDemoRowsFromObject();
         soBindConfigForm();
         soBindCreditsForm();
@@ -539,7 +549,105 @@
             const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
             return tb - ta;
         });
+        soSyncDemoEditRowsFromCollection();
+        soDemoSelectedKeys = new Set();
     }
+
+    function soNormalizeDemoKeyEntry(raw) {
+        const unlimited = !!(raw && (raw.unlimited_time || raw.unlimitedTime));
+        let days = parseInt(raw && raw.days, 10);
+        if (!Number.isFinite(days)) days = 30;
+        if (unlimited) days = 0;
+        else days = Math.max(1, days);
+        const label = String((raw && raw.label) || '').trim();
+        return {
+            days,
+            label,
+            unlimited_time: unlimited,
+            active: raw && raw.active !== false
+        };
+    }
+
+    function soDemoKeyEntryToFirestore(entry) {
+        const n = soNormalizeDemoKeyEntry(entry);
+        const out = {
+            days: n.days,
+            label: n.label || (n.unlimited_time ? 'Unlimited demo' : `${n.days}-day promo`),
+            active: n.active !== false
+        };
+        if (n.unlimited_time) out.unlimited_time = true;
+        return out;
+    }
+
+    function soDemoKeyEntryToInlineMap(entry) {
+        const n = soNormalizeDemoKeyEntry(entry);
+        const out = {
+            days: n.days,
+            label: n.label || (n.unlimited_time ? 'Unlimited demo' : `${n.days}-day promo`)
+        };
+        if (n.unlimited_time) out.unlimited_time = true;
+        return out;
+    }
+
+    function soFormatDemoKeyDuration(entry) {
+        const n = soNormalizeDemoKeyEntry(entry);
+        return n.unlimited_time ? 'Unlimited' : `${n.days} days`;
+    }
+
+    function soReadDemoKeyRowFromEl(row) {
+        const unlimited = !!row.querySelector('[data-field="unlimited"]')?.checked;
+        let days = parseInt(row.querySelector('[data-field="days"]')?.value, 10);
+        if (!Number.isFinite(days)) days = 30;
+        if (unlimited) days = 0;
+        else days = Math.max(1, days);
+        return {
+            key: String(row.querySelector('[data-field="key"]')?.value || '').trim().toUpperCase(),
+            days,
+            label: String(row.querySelector('[data-field="label"]')?.value || '').trim(),
+            unlimited_time: unlimited,
+            active: row.querySelector('[data-field="active"]') ? !!row.querySelector('[data-field="active"]').checked : true
+        };
+    }
+
+    function soRenderDemoKeyRowHtml(row, idx, opts) {
+        opts = opts || {};
+        const keyField = opts.keyReadonly
+            ? `<input type="text" data-field="key" value="${soAttr(row.key)}" readonly style="text-transform:uppercase; opacity:0.85;">`
+            : `<input type="text" data-field="key" value="${soAttr(row.key)}" placeholder="MEESHO-PROMO30" style="text-transform:uppercase;" oninput="${soAttr(opts.dirtyFn || "soMarkTabDirty('config')")}">`;
+        const unlimited = !!row.unlimited_time;
+        const daysDisabled = unlimited ? 'disabled' : '';
+        const daysVal = unlimited ? 0 : (row.days || 30);
+        const activeHtml = opts.showActive
+            ? `<label class="so-plan-check so-demo-active-check"><input type="checkbox" data-field="active" ${row.active !== false ? 'checked' : ''} onchange="${soAttr(opts.dirtyFn || '')}"> Active</label>`
+            : '';
+        const unlimitedDirty = opts.dirtyFn || "soMarkTabDirty('config')";
+        return `
+            <div class="${opts.rowClass || 'so-inline-demo-row'}" data-inline-idx="${idx}" ${row.key ? `data-demo-key="${soAttr(row.key)}"` : ''}>
+                ${opts.showSelect ? `<label class="so-plan-check so-demo-select-check"><input type="checkbox" data-field="select" ${soDemoSelectedKeys.has(row.key) ? 'checked' : ''} onchange="toggleSoDemoKeySelect('${soAttr(row.key)}', this.checked)"></label>` : ''}
+                <label><span>Key (uppercase)</span>${keyField}</label>
+                <label><span>Days</span>
+                    <input type="number" data-field="days" min="0" step="1" value="${daysVal}" ${daysDisabled} oninput="${soAttr(unlimitedDirty)}"></label>
+                <label><span>Label</span>
+                    <input type="text" data-field="label" value="${soAttr(row.label || '')}" placeholder="Promo label" oninput="${soAttr(unlimitedDirty)}"></label>
+                <label class="so-plan-check so-demo-unlimited-check"><input type="checkbox" data-field="unlimited" ${unlimited ? 'checked' : ''} onchange="soToggleDemoKeyUnlimited(this); ${soAttr(unlimitedDirty)}"> Unlimited</label>
+                ${activeHtml}
+                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="${opts.removeFn || `removeSoInlineDemoKeyRow(${idx})`}">${opts.removeLabel || 'Remove'}</button>
+            </div>`;
+    }
+
+    window.soToggleDemoKeyUnlimited = function(checkbox) {
+        const row = checkbox.closest('.so-inline-demo-row, .so-demo-edit-row');
+        if (!row) return;
+        const daysInput = row.querySelector('[data-field="days"]');
+        if (!daysInput) return;
+        if (checkbox.checked) {
+            daysInput.value = '0';
+            daysInput.disabled = true;
+        } else {
+            daysInput.disabled = false;
+            if (!parseInt(daysInput.value, 10)) daysInput.value = '30';
+        }
+    };
 
     async function soLoadLicenses() {
         let snap;
@@ -934,11 +1042,10 @@
     };
 
     function soSyncInlineDemoRowsFromObject() {
-        soInlineDemoKeyRows = Object.keys(soInlineDemoKeys || {}).map(key => ({
-            key,
-            days: soInlineDemoKeys[key].days || 30,
-            label: soInlineDemoKeys[key].label || ''
-        }));
+        soInlineDemoKeyRows = Object.keys(soInlineDemoKeys || {}).map(key => {
+            const entry = soNormalizeDemoKeyEntry(soInlineDemoKeys[key] || {});
+            return Object.assign({ key }, entry);
+        });
     }
 
     function soReadInlineDemoRowsFromDom() {
@@ -946,11 +1053,7 @@
         if (!container) return soInlineDemoKeyRows.slice();
         const rows = container.querySelectorAll('.so-inline-demo-row');
         if (!rows.length) return soInlineDemoKeyRows.slice();
-        return Array.from(rows).map(row => ({
-            key: String(row.querySelector('[data-field="key"]')?.value || '').trim().toUpperCase(),
-            days: Math.max(1, parseInt(row.querySelector('[data-field="days"]')?.value, 10) || 30),
-            label: String(row.querySelector('[data-field="label"]')?.value || '').trim()
-        }));
+        return Array.from(rows).map(soReadDemoKeyRowFromEl);
     }
 
     function soPreserveInlineDemoRowsFromDom() {
@@ -975,10 +1078,7 @@
                 throw new Error(`Duplicate demo key "${key}".`);
             }
             seen.add(key);
-            out[key] = {
-                days: row.days,
-                label: row.label || `${row.days}-day promo`
-            };
+            out[key] = soDemoKeyEntryToInlineMap(row);
         }
         return out;
     }
@@ -995,17 +1095,9 @@
             container.innerHTML = '<p class="so-admin-muted">No inline demo keys yet. Tap + Add demo key below.</p>';
             return;
         }
-        container.innerHTML = soInlineDemoKeyRows.map((row, idx) => `
-            <div class="so-inline-demo-row" data-inline-idx="${idx}">
-                <label><span>Key (uppercase)</span>
-                    <input type="text" data-field="key" value="${soAttr(row.key)}" placeholder="MEESHO-DEMOFREE" style="text-transform:uppercase;" oninput="soMarkTabDirty('config')"></label>
-                <label><span>Days</span>
-                    <input type="number" data-field="days" min="1" step="1" value="${row.days || 30}" oninput="soMarkTabDirty('config')"></label>
-                <label><span>Label</span>
-                    <input type="text" data-field="label" value="${soAttr(row.label || '')}" placeholder="Free 30-day trial" oninput="soMarkTabDirty('config')"></label>
-                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoInlineDemoKeyRow(${idx})">Remove</button>
-            </div>
-        `).join('');
+        container.innerHTML = soInlineDemoKeyRows.map((row, idx) =>
+            soRenderDemoKeyRowHtml(row, idx, { dirtyFn: "soMarkTabDirty('config')" })
+        ).join('');
     }
 
     window.addSoInlineDemoKeyRow = function() {
@@ -1070,6 +1162,7 @@
 
         try {
             await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(payload, { merge: true });
+            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update({ demo_keys: demoKeysPayload });
             soConfig = Object.assign({}, soConfig, payload);
             soInlineDemoKeys = demoKeysPayload;
             soSyncInlineDemoRowsFromObject();
@@ -1118,57 +1211,201 @@
         }
     };
 
-    function renderSoDemoKeysList() {
-        const container = document.getElementById('so-demo-keys-list');
-        if (!container) return;
-        const q = String(document.getElementById('so-demo-search')?.value || '').trim().toLowerCase();
-        const filtered = soDemoKeys.filter(d => {
-            if (!q) return true;
-            return d.key.toLowerCase().includes(q) || String(d.label || '').toLowerCase().includes(q);
+    function soSyncDemoEditRowsFromCollection() {
+        soDemoKeyEditRows = soDemoKeys.map(d => {
+            const entry = soNormalizeDemoKeyEntry(d);
+            return Object.assign({ key: d.key }, entry);
         });
-        if (!filtered.length) {
-            container.innerHTML = '<p class="so-admin-muted">No demo keys found.</p>';
+    }
+
+    function soPreserveDemoPendingRowsFromDom() {
+        const container = document.getElementById('so-demo-pending-keys');
+        if (container && container.querySelector('.so-inline-demo-row')) {
+            soDemoKeyPendingRows = Array.from(container.querySelectorAll('.so-inline-demo-row')).map(soReadDemoKeyRowFromEl);
+        }
+    }
+
+    function soPreserveDemoEditRowsFromDom() {
+        const container = document.getElementById('so-demo-edit-keys');
+        if (container && container.querySelector('.so-demo-edit-row')) {
+            soDemoKeyEditRows = Array.from(container.querySelectorAll('.so-demo-edit-row')).map(soReadDemoKeyRowFromEl);
+        }
+    }
+
+    function renderSoDemoPendingKeysEditor() {
+        const container = document.getElementById('so-demo-pending-keys');
+        const countEl = document.getElementById('so-demo-pending-count');
+        if (!container) return;
+        if (countEl) {
+            const n = soDemoKeyPendingRows.length;
+            countEl.textContent = n === 1 ? '1 new key' : `${n} new keys`;
+        }
+        if (!soDemoKeyPendingRows.length) {
+            container.innerHTML = '<p class="so-admin-muted">No pending keys. Tap + Add demo key to create rows, then Save new keys.</p>';
             return;
         }
-        container.innerHTML = filtered.map(d => {
-            const active = d.active !== false;
-            return `<div class="so-list-row">
-                <div class="so-list-main">
-                    <code>${soEsc(d.key)}</code>
-                    <span class="so-admin-muted">${d.days || 0} days · ${soEsc(d.label || '')}</span>
-                    <span class="so-badge ${active ? 'so-badge--on' : 'so-badge--off'}">${active ? 'Active' : 'Disabled'}</span>
-                </div>
-                <div class="so-list-actions">
-                    <button type="button" class="so-btn-sm" onclick="toggleSoDemoKey('${soAttr(d.key)}', ${active})">${active ? 'Disable' : 'Enable'}</button>
-                    <button type="button" class="so-btn-sm so-btn-sm--danger" onclick="deleteSoDemoKey('${soAttr(d.key)}')">Delete</button>
-                </div>
-            </div>`;
+        container.innerHTML = soDemoKeyPendingRows.map((row, idx) =>
+            soRenderDemoKeyRowHtml(row, idx, {
+                rowClass: 'so-inline-demo-row',
+                removeFn: `removeSoDemoKeyPendingRow(${idx})`,
+                removeLabel: 'Remove row'
+            })
+        ).join('');
+    }
+
+    function renderSoDemoEditKeysEditor() {
+        const container = document.getElementById('so-demo-edit-keys');
+        const countEl = document.getElementById('so-demo-edit-count');
+        if (!container) return;
+        if (countEl) {
+            const n = soDemoKeyEditRows.length;
+            countEl.textContent = n === 1 ? '1 key' : `${n} keys`;
+        }
+        const q = String(document.getElementById('so-demo-search')?.value || '').trim().toLowerCase();
+        const filtered = soDemoKeyEditRows.filter(row => {
+            if (!q) return true;
+            return row.key.toLowerCase().includes(q) || String(row.label || '').toLowerCase().includes(q);
+        });
+        if (!filtered.length) {
+            container.innerHTML = '<p class="so-admin-muted">No demo keys in collection yet.</p>';
+            return;
+        }
+        container.innerHTML = filtered.map((row, idx) => {
+            const realIdx = soDemoKeyEditRows.findIndex(r => r.key === row.key);
+            return soRenderDemoKeyRowHtml(row, realIdx >= 0 ? realIdx : idx, {
+                rowClass: 'so-inline-demo-row so-demo-edit-row',
+                keyReadonly: true,
+                showActive: true,
+                showSelect: true,
+                removeFn: `deleteSoDemoKey('${soAttr(row.key)}')`,
+                removeLabel: 'Delete'
+            });
         }).join('');
+    }
+
+    function renderSoDemoKeysList() {
+        renderSoDemoEditKeysEditor();
     }
 
     window.filterSoDemoKeys = function() {
         renderSoDemoKeysList();
     };
 
-    window.addSoDemoKey = async function() {
+    window.addSoDemoKeyPendingRow = function() {
+        soPreserveDemoPendingRowsFromDom();
+        soDemoKeyPendingRows.push({ key: '', days: 30, label: '', unlimited_time: false, active: true });
+        renderSoDemoPendingKeysEditor();
+        const section = document.querySelector('.so-section-accordion[data-so-section="demo-add"]');
+        if (section) {
+            section.classList.add('so-section-accordion--open');
+            soOpenSections.add('demo-add');
+        }
+        soToast('New row added — fill key, days/unlimited, label, then Save new keys.');
+    };
+
+    window.removeSoDemoKeyPendingRow = function(idx) {
+        soPreserveDemoPendingRowsFromDom();
+        soDemoKeyPendingRows.splice(idx, 1);
+        renderSoDemoPendingKeysEditor();
+    };
+
+    window.addSoDemoKey = function() {
+        addSoDemoKeyPendingRow();
+    };
+
+    window.toggleSoDemoKeySelect = function(key, checked) {
+        if (checked) soDemoSelectedKeys.add(key);
+        else soDemoSelectedKeys.delete(key);
+        const selectAll = document.getElementById('so-demo-select-all');
+        if (selectAll && soDemoKeyEditRows.length) {
+            selectAll.checked = soDemoSelectedKeys.size === soDemoKeyEditRows.length;
+        }
+    };
+
+    window.toggleSoDemoSelectAll = function() {
+        const checked = !!document.getElementById('so-demo-select-all')?.checked;
+        soDemoSelectedKeys = new Set();
+        if (checked) {
+            soDemoKeyEditRows.forEach(r => { if (r.key) soDemoSelectedKeys.add(r.key); });
+        }
+        renderSoDemoEditKeysEditor();
+    };
+
+    window.saveSoDemoKeysBatch = async function() {
         if (!soRequireSuperAdmin()) return;
-        const key = String(document.getElementById('so-demo-key-input')?.value || '').trim().toUpperCase();
-        const days = Math.max(1, parseInt(document.getElementById('so-demo-days-input')?.value, 10) || 30);
-        const label = String(document.getElementById('so-demo-label-input')?.value || '').trim();
-        if (!key) return soToast('Enter a demo key.');
-        if (key.length < 6) return soToast('Demo key must be at least 6 characters.');
-        if (await soKeyExists(key)) return soToast('Key already exists.');
+        soPreserveDemoPendingRowsFromDom();
+        if (!soDemoKeyPendingRows.length) return soToast('Add at least one demo key row first.');
+
+        const toWrite = [];
+        const seen = new Set();
+        for (let i = 0; i < soDemoKeyPendingRows.length; i++) {
+            const row = soDemoKeyPendingRows[i];
+            const key = row.key;
+            if (!key) return soToast(`Row #${i + 1}: enter a demo key.`);
+            if (key.length < 6) return soToast(`Row #${i + 1}: key must be at least 6 characters.`);
+            if (seen.has(key)) return soToast(`Duplicate key "${key}" in pending rows.`);
+            seen.add(key);
+            if (await soKeyExists(key)) return soToast(`Key "${key}" already exists (inline or collection).`);
+            toWrite.push({ key, payload: soDemoKeyEntryToFirestore(row) });
+        }
+
         try {
-            await db.collection(SO_DEMO_COL).doc(key).set({
-                days,
-                label: label || `${days}-day promo`,
-                active: true,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            const batch = db.batch();
+            toWrite.forEach(item => {
+                const ref = db.collection(SO_DEMO_COL).doc(item.key);
+                batch.set(ref, Object.assign({}, item.payload, {
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }));
             });
-            document.getElementById('so-demo-key-input').value = '';
+            await batch.commit();
+            soDemoKeyPendingRows = [];
+            renderSoDemoPendingKeysEditor();
             await soLoadDemoKeys();
             renderSoDemoKeysList();
-            soToast('Demo key added.');
+            soToast(`${toWrite.length} demo key(s) added to Firebase.`);
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveSoDemoKeysChanges = async function() {
+        if (!soRequireSuperAdmin()) return;
+        soPreserveDemoEditRowsFromDom();
+        if (!soDemoKeyEditRows.length) return soToast('No demo keys to save.');
+
+        try {
+            const batch = db.batch();
+            soDemoKeyEditRows.forEach(row => {
+                if (!row.key) return;
+                const ref = db.collection(SO_DEMO_COL).doc(row.key);
+                batch.set(ref, Object.assign({}, soDemoKeyEntryToFirestore(row), {
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: soAuthEmail()
+                }), { merge: true });
+            });
+            await batch.commit();
+            await soLoadDemoKeys();
+            renderSoDemoKeysList();
+            soToast('Demo key changes saved.');
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.deleteSelectedSoDemoKeys = async function() {
+        if (!soRequireSuperAdmin()) return;
+        if (!soDemoSelectedKeys.size) return soToast('Select keys to delete.');
+        if (!confirm(`Delete ${soDemoSelectedKeys.size} selected demo key(s)?`)) return;
+        try {
+            const batch = db.batch();
+            soDemoSelectedKeys.forEach(key => {
+                batch.delete(db.collection(SO_DEMO_COL).doc(key));
+            });
+            await batch.commit();
+            soDemoSelectedKeys = new Set();
+            await soLoadDemoKeys();
+            renderSoDemoKeysList();
+            soToast('Selected demo keys deleted.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
         }
@@ -1191,6 +1428,7 @@
         if (!confirm(`Delete demo key ${key}?`)) return;
         try {
             await db.collection(SO_DEMO_COL).doc(key).delete();
+            soDemoSelectedKeys.delete(key);
             await soLoadDemoKeys();
             renderSoDemoKeysList();
             soToast('Demo key deleted.');
@@ -1713,6 +1951,7 @@
             soUpdateUnsavedBanner();
             soUpdateCustomCreditCalc();
             soRestoreSectionAccordions();
+            renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
             renderSoLicensesList();
             switchShippingOptimizerTab(soActiveTab);
