@@ -66,7 +66,13 @@
         },
         credits_starter: {
             id: 'credits_starter', name: 'Credits Starter', price: 99, days: 0,
-            billing_mode: 'credits', included_credits: 50, plan_kind: 'custom', max_devices: 1, active: true
+            billing_mode: 'credits', included_credits: 50, plan_kind: 'custom', max_devices: 1, active: true,
+            allow_credit_addons: true,
+            max_addon_selections: 0,
+            credit_addons: [
+                { id: 'starter_plus_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0, default_selected: false },
+                { id: 'starter_plus_100', credits: 100, price: 140, label: '+100 credits', active: true, order: 1, default_selected: false }
+            ]
         }
     };
 
@@ -192,7 +198,92 @@
         }
         p.billing_mode = SO_BILLING_MODES.includes(p.billing_mode) ? p.billing_mode : 'subscription';
         p.included_credits = Math.max(0, parseInt(p.included_credits, 10) || 0);
+        p.allow_credit_addons = p.allow_credit_addons === true;
+        p.max_addon_selections = Math.max(0, parseInt(p.max_addon_selections, 10) || 0);
+        const rawAddons = Array.isArray(p.credit_addons) ? p.credit_addons : [];
+        p.credit_addons = soSortCreditAddons(rawAddons.map(soNormalizeCreditAddon));
+        p.credit_addons.forEach((a, i) => { a.order = i; });
         return p;
+    }
+
+    function soNormalizeCreditAddon(addon, index) {
+        const a = Object.assign({}, addon);
+        a.id = soSlugifyId(a.id || `addon_${a.credits || index + 1}`);
+        a.credits = Math.max(1, parseInt(a.credits, 10) || 1);
+        a.price = Math.max(0, parseInt(a.price, 10) || 0);
+        a.label = String(a.label || `+${a.credits} credits`).trim();
+        a.active = a.active !== false;
+        a.default_selected = a.default_selected === true;
+        a.order = Number.isFinite(Number(a.order)) ? Number(a.order) : index;
+        return a;
+    }
+
+    function soSortCreditAddons(addons) {
+        return addons.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
+
+    function soGetActivePlanCreditAddons(plan) {
+        if (!plan || !plan.allow_credit_addons) return [];
+        return soSortCreditAddons((plan.credit_addons || []).filter(a => a.active !== false));
+    }
+
+    function soCalculatePlanCredits(plan, selectedAddonIds) {
+        const included = plan && !soIsUnlimitedCredits(plan)
+            ? Math.max(0, parseInt(plan.included_credits, 10) || 0)
+            : 0;
+        let addonTotal = 0;
+        const ids = Array.isArray(selectedAddonIds) ? selectedAddonIds : [];
+        const addons = soGetActivePlanCreditAddons(plan);
+        ids.forEach(id => {
+            const addon = addons.find(a => a.id === id);
+            if (addon) addonTotal += addon.credits;
+        });
+        return { included, addon: addonTotal, total: included + addonTotal, addonPrice: soSumAddonPrices(plan, ids) };
+    }
+
+    function soSumAddonPrices(plan, selectedAddonIds) {
+        const addons = soGetActivePlanCreditAddons(plan);
+        let sum = 0;
+        (selectedAddonIds || []).forEach(id => {
+            const addon = addons.find(a => a.id === id);
+            if (addon) sum += addon.price || 0;
+        });
+        return sum;
+    }
+
+    function soReadPlanCreditAddonsFromRow(row) {
+        if (!row) return [];
+        const addonRows = row.querySelectorAll('.so-plan-addon-row');
+        return Array.from(addonRows).map((addonRow, idx) => {
+            const get = (field) => {
+                const el = addonRow.querySelector(`[data-addon-field="${field}"]`);
+                if (!el) return '';
+                if (el.type === 'checkbox') return el.checked;
+                return el.value;
+            };
+            return soNormalizeCreditAddon({
+                id: get('id'),
+                credits: get('credits'),
+                price: get('price'),
+                label: get('label'),
+                active: get('active'),
+                default_selected: get('default_selected'),
+                order: idx
+            }, idx);
+        });
+    }
+
+    function soRenderPlanCreditAddonRowHtml(addon, planIdx, addonIdx) {
+        return `
+            <div class="so-plan-addon-row" data-addon-idx="${addonIdx}">
+                <label><span>Addon id</span><input type="text" data-addon-field="id" value="${soAttr(addon.id)}" oninput="soMarkTabDirty('config')"></label>
+                <label><span>Credits</span><input type="number" min="1" step="1" data-addon-field="credits" value="${addon.credits || 10}" oninput="soMarkTabDirty('config')"></label>
+                <label><span>Price ₹</span><input type="number" min="0" step="1" data-addon-field="price" value="${addon.price || 0}" oninput="soMarkTabDirty('config')"></label>
+                <label><span>Label</span><input type="text" data-addon-field="label" value="${soAttr(addon.label || '')}" placeholder="+50 credits" oninput="soMarkTabDirty('config')"></label>
+                <label class="so-plan-check"><input type="checkbox" data-addon-field="active" ${addon.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Active</label>
+                <label class="so-plan-check"><input type="checkbox" data-addon-field="default_selected" ${addon.default_selected ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Default on license</label>
+                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoPlanCreditAddon(${planIdx}, ${addonIdx})">Remove</button>
+            </div>`;
     }
 
     function soPlanToFirestore(p, order) {
@@ -213,6 +304,19 @@
         if (p.plan_kind) out.plan_kind = p.plan_kind;
         if (p.description) out.description = p.description;
         if (p.included_credits > 0) out.included_credits = p.included_credits;
+        if (p.allow_credit_addons) out.allow_credit_addons = true;
+        if (p.max_addon_selections > 0) out.max_addon_selections = p.max_addon_selections;
+        if (Array.isArray(p.credit_addons) && p.credit_addons.length) {
+            out.credit_addons = p.credit_addons.map((a, i) => ({
+                id: a.id,
+                credits: a.credits,
+                price: a.price,
+                label: a.label,
+                active: a.active !== false,
+                default_selected: a.default_selected === true,
+                order: i
+            }));
+        }
         if (p.unlimited_time) out.unlimited_time = true;
         if (p.unlimited_devices) out.unlimited_devices = true;
         if (p.unlimited_credits) out.unlimited_credits = true;
@@ -298,8 +402,86 @@
         if (soIsUnlimitedCredits(lic)) return 'Unlimited';
         const bal = parseInt(lic.credits_balance, 10) || 0;
         const used = parseInt(lic.credits_used, 10) || 0;
-        return `${bal} balance · ${used} used`;
+        const included = parseInt(lic.included_credits, 10);
+        const addon = parseInt(lic.addon_credits, 10);
+        let extra = '';
+        if (Number.isFinite(included) && included > 0) extra += ` · ${included} base`;
+        if (Number.isFinite(addon) && addon > 0) extra += ` · +${addon} addon`;
+        return `${bal} balance · ${used} used${extra}`;
     }
+
+    function soReadSelectedLicenseAddonIds() {
+        const container = document.getElementById('so-license-addon-picks');
+        if (!container) return [];
+        return Array.from(container.querySelectorAll('[data-license-addon]:checked')).map(el => el.value);
+    }
+
+    function soRenderLicenseAddonPicks(plan, preselectedIds) {
+        const section = document.getElementById('so-license-addon-section');
+        const container = document.getElementById('so-license-addon-picks');
+        const summary = document.getElementById('so-license-credits-summary');
+        if (!section || !container) return;
+        const addons = soGetActivePlanCreditAddons(plan);
+        if (!plan || !addons.length || soIsUnlimitedCredits(plan)) {
+            section.style.display = 'none';
+            container.innerHTML = '';
+            if (summary) summary.textContent = '';
+            return;
+        }
+        section.style.display = 'block';
+        const selected = new Set(Array.isArray(preselectedIds) ? preselectedIds : []);
+        if (!selected.size) {
+            addons.filter(a => a.default_selected).forEach(a => selected.add(a.id));
+        }
+        const maxSel = parseInt(plan.max_addon_selections, 10) || 0;
+        container.innerHTML = addons.map(a => `
+            <label class="so-plan-check so-license-addon-pick">
+                <input type="checkbox" data-license-addon value="${soAttr(a.id)}" ${selected.has(a.id) ? 'checked' : ''} onchange="soOnLicenseAddonChange()">
+                ${soEsc(a.label || a.id)} — +${a.credits} credits · ₹${a.price}
+            </label>
+        `).join('');
+        if (summary) {
+            summary.textContent = maxSel === 1
+                ? 'Pick at most one add-on (plan limit).'
+                : (maxSel > 1 ? `Pick up to ${maxSel} add-ons.` : 'Select any combination of add-ons.');
+        }
+        soOnLicenseAddonChange();
+    }
+
+    window.soOnLicenseAddonChange = function() {
+        const planId = document.getElementById('so-license-plan')?.value;
+        const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+        if (!plan) return;
+        const maxSel = parseInt(plan.max_addon_selections, 10) || 0;
+        const container = document.getElementById('so-license-addon-picks');
+        if (container && maxSel === 1) {
+            const checked = container.querySelectorAll('[data-license-addon]:checked');
+            if (checked.length > 1) {
+                const last = checked[checked.length - 1];
+                container.querySelectorAll('[data-license-addon]:checked').forEach(el => {
+                    if (el !== last) el.checked = false;
+                });
+            }
+        } else if (container && maxSel > 1) {
+            const checked = container.querySelectorAll('[data-license-addon]:checked');
+            if (checked.length > maxSel) {
+                checked[checked.length - 1].checked = false;
+                soToast(`This plan allows at most ${maxSel} add-on(s).`);
+            }
+        }
+        const selectedIds = soReadSelectedLicenseAddonIds();
+        const calc = soCalculatePlanCredits(plan, selectedIds);
+        const balEl = document.getElementById('so-license-credits-balance');
+        if (balEl && !soEditingLicenseKey) {
+            balEl.value = calc.total;
+        }
+        const summary = document.getElementById('so-license-credits-summary');
+        if (summary && plan.allow_credit_addons) {
+            const priceExtra = calc.addonPrice;
+            summary.textContent = `Credits: ${calc.included} base + ${calc.addon} addon = ${calc.total} total` +
+                (priceExtra > 0 ? ` · Add-on price +₹${priceExtra} on top of plan` : '');
+        }
+    };
 
     function soValidatePlans(plans) {
         const ids = new Set();
@@ -311,6 +493,17 @@
             ids.add(p.id);
             if (p.price < 0) return `Plan "${p.id}": price must be ≥ 0.`;
             if (p.days < 0) return `Plan "${p.id}": days must be ≥ 0 (0 = unlimited).`;
+            if (p.allow_credit_addons && Array.isArray(p.credit_addons)) {
+                const addonIds = new Set();
+                for (let j = 0; j < p.credit_addons.length; j++) {
+                    const a = p.credit_addons[j];
+                    if (!a.id) return `Plan "${p.id}" addon #${j + 1}: id is required.`;
+                    if (addonIds.has(a.id)) return `Plan "${p.id}": duplicate addon id "${a.id}".`;
+                    addonIds.add(a.id);
+                    if (a.credits < 1) return `Plan "${p.id}" addon "${a.id}": credits must be ≥ 1.`;
+                    if (a.price < 0) return `Plan "${p.id}" addon "${a.id}": price must be ≥ 0.`;
+                }
+            }
         }
         const bestCount = plans.filter(p => p.best).length;
         if (bestCount > 1) return 'Only one plan can have BEST VALUE (best: true).';
@@ -913,8 +1106,8 @@
             if (p.max_devices === 0 && !p.unlimited_devices) {
                 warnings.push(`Plan "${p.name}" (${p.id}): max_devices=0 — extension treats this as unlimited devices.`);
             }
-            if (p.billing_mode === 'credits' && !p.included_credits && !p.unlimited_credits) {
-                warnings.push(`Plan "${p.name}" (${p.id}): credits billing with 0 included credits — customer gets no credits on activation.`);
+            if (p.billing_mode === 'credits' && !p.included_credits && !p.unlimited_credits && !p.allow_credit_addons) {
+                warnings.push(`Plan "${p.name}" (${p.id}): credits billing with 0 included credits and no add-ons — customer gets no credits on activation.`);
             }
         });
         const inlineRows = soReadInlineDemoRowsFromDom();
@@ -957,12 +1150,19 @@
                 const durationLabel = soFormatPlanDurationLabel(p);
                 const devicesLabel = soFormatPlanDevicesLabel(p);
                 const note = p.save || `${durationLabel} · ${devicesLabel}`;
+                const addons = soGetActivePlanCreditAddons(p);
+                const addonsHtml = addons.length
+                    ? `<div class="so-ext-plan-addons">${addons.map(a =>
+                        `<span class="so-ext-addon-chip">+${a.credits} cr · ₹${a.price}</span>`
+                    ).join('')}</div>`
+                    : '';
                 return `<div class="so-ext-plan${bestClass}">
                     ${p.best ? '<span class="so-ext-plan-tag">BEST VALUE</span>' : ''}
                     <div class="so-ext-plan-name">${soEsc(p.name)}</div>
                     <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
                     <div class="so-ext-plan-note">${soEsc(note)}</div>
-                    <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}</div>
+                    <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}${p.included_credits > 0 ? ` · ${p.included_credits} base cr` : ''}</div>
+                    ${addonsHtml}
                 </div>`;
             }).join('')}</div>`
             : '<p class="so-admin-muted">No active plans — extension shows default built-in plans.</p>';
@@ -1162,7 +1362,11 @@
         else if (plan.days > 0) chips.push(`${plan.days} days`);
         if (soIsUnlimitedDevices(plan)) chips.push('Unlimited devices');
         else chips.push(`${plan.max_devices != null ? plan.max_devices : 1} device${(plan.max_devices || 1) !== 1 ? 's' : ''}`);
-        if (plan.included_credits > 0) chips.push(`${plan.included_credits} credits`);
+        if (plan.included_credits > 0) chips.push(`${plan.included_credits} base cr`);
+        if (plan.allow_credit_addons && (plan.credit_addons || []).length) {
+            const activeAddons = (plan.credit_addons || []).filter(a => a.active !== false).length;
+            chips.push(`${activeAddons} addon${activeAddons === 1 ? '' : 's'}`);
+        }
         if (plan.plan_kind) chips.push(plan.plan_kind);
         return chips.map(c => `<span class="so-meta-chip">${soEsc(c)}</span>`).join('');
     }
@@ -1263,6 +1467,19 @@
                         </div>
                     </div>
                     <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-coins"></i> Credit add-ons (per plan)</div>
+                        <p class="so-field-group-hint">Optional extra credit bundles customers can buy with this plan. Extension shows these under the plan card.</p>
+                        <div class="so-plan-flags so-plan-flags--simple">
+                            <label class="so-plan-check"><input type="checkbox" data-field="allow_credit_addons" ${plan.allow_credit_addons ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Allow credit add-ons</label>
+                        </div>
+                        <label><span>Max add-on selections (0 = unlimited)</span>
+                            <input type="number" min="0" step="1" data-field="max_addon_selections" value="${plan.max_addon_selections || 0}" oninput="soMarkTabDirty('config')"></label>
+                        <div class="so-plan-addon-list">
+                            ${(plan.credit_addons || []).map((addon, aidx) => soRenderPlanCreditAddonRowHtml(addon, idx, aidx)).join('')}
+                        </div>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoPlanCreditAddon(${idx})">+ Add credit add-on</button>
+                    </div>
+                    <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-infinity"></i> Unlimited overrides</div>
                         <p class="so-field-group-hint">Optional — only for lifetime / unlimited / enterprise plans.</p>
                         <div class="so-plan-flags so-plan-flags--simple">
@@ -1305,6 +1522,9 @@
                 max_devices: get('max_devices'),
                 billing_mode: get('billing_mode'),
                 included_credits: get('included_credits'),
+                allow_credit_addons: get('allow_credit_addons'),
+                max_addon_selections: get('max_addon_selections'),
+                credit_addons: soReadPlanCreditAddonsFromRow(row),
                 unlimited_time: get('unlimited_time'),
                 unlimited_devices: get('unlimited_devices'),
                 unlimited_credits: get('unlimited_credits'),
@@ -1315,6 +1535,33 @@
         });
         return plans;
     }
+
+    window.addSoPlanCreditAddon = function(planIdx) {
+        soPlans = soReadPlansFromDom();
+        const plan = soPlans[planIdx];
+        if (!plan) return;
+        if (!Array.isArray(plan.credit_addons)) plan.credit_addons = [];
+        plan.credit_addons.push(soNormalizeCreditAddon({
+            id: `addon_${plan.credit_addons.length + 1}`,
+            credits: 25,
+            price: 40,
+            label: '+25 credits',
+            active: true,
+            default_selected: false
+        }, plan.credit_addons.length));
+        plan.allow_credit_addons = true;
+        renderSoPlansEditor();
+        soMarkTabDirty('config');
+    };
+
+    window.removeSoPlanCreditAddon = function(planIdx, addonIdx) {
+        soPlans = soReadPlansFromDom();
+        const plan = soPlans[planIdx];
+        if (!plan || !plan.credit_addons) return;
+        plan.credit_addons.splice(addonIdx, 1);
+        renderSoPlansEditor();
+        soMarkTabDirty('config');
+    };
 
     window.addSoPlanPreset = function(presetKey) {
         const preset = SO_PLAN_PRESETS[presetKey];
@@ -1816,8 +2063,23 @@
             credits_used: Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0),
             unlimited_time: !!document.getElementById('so-license-unlimited-time')?.checked,
             unlimited_devices: !!document.getElementById('so-license-unlimited-devices')?.checked,
-            unlimited_credits: !!document.getElementById('so-license-unlimited-credits')?.checked
+            unlimited_credits: !!document.getElementById('so-license-unlimited-credits')?.checked,
+            addon_credit_ids: soReadSelectedLicenseAddonIds()
         };
+    }
+
+    function soBuildLicenseCreditFields(plan, formFields) {
+        const selectedIds = formFields.addon_credit_ids || [];
+        const calc = plan ? soCalculatePlanCredits(plan, selectedIds) : { included: 0, addon: 0, total: formFields.credits_balance };
+        const out = {
+            included_credits: calc.included,
+            addon_credits: calc.addon,
+            addon_credit_ids: selectedIds
+        };
+        if (!soIsUnlimitedCredits(plan) && !soIsUnlimitedCredits(formFields)) {
+            out.credits_balance = formFields.credits_balance != null ? formFields.credits_balance : calc.total;
+        }
+        return out;
     }
 
     function soSetLicenseUnlimitedCheckboxes(licOrPlan) {
@@ -1848,6 +2110,8 @@
             }
         }
         soSetLicenseUnlimitedCheckboxes(plan);
+        const preselected = (plan.credit_addons || []).filter(a => a.default_selected).map(a => a.id);
+        soRenderLicenseAddonPicks(plan, preselected);
     }
 
     window.soUpdateLicensePlanHint = function() {
@@ -1864,7 +2128,9 @@
         hint.textContent = unlimitedTime
             ? `Unlimited — no expiry · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`
             : `Expiry starts on activation: ${days} days · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`;
-        if (!soEditingLicenseKey) soApplyPlanDefaultsToLicenseForm(plan);
+        if (!soEditingLicenseKey) {
+            soApplyPlanDefaultsToLicenseForm(plan);
+        }
     };
 
     window.cancelSoLicenseEdit = function() {
@@ -1879,6 +2145,7 @@
         document.getElementById('so-license-credits-used').value = '0';
         document.getElementById('so-license-billing-mode').value = 'subscription';
         soSetLicenseUnlimitedCheckboxes({});
+        soRenderLicenseAddonPicks(null, []);
         soUpdateLicensePlanHint();
     };
 
@@ -1894,6 +2161,10 @@
         document.getElementById('so-license-credits-balance').value = lic.credits_balance != null ? lic.credits_balance : 0;
         document.getElementById('so-license-credits-used').value = lic.credits_used != null ? lic.credits_used : 0;
         soSetLicenseUnlimitedCheckboxes(lic);
+        const addonIds = Array.isArray(lic.addon_credit_ids) ? lic.addon_credit_ids
+            : (Array.isArray(lic.addonCreditIds) ? lic.addonCreditIds : []);
+        const plan = soPlans.find(p => p.id === (lic.planId || lic.planType));
+        soRenderLicenseAddonPicks(plan, addonIds);
         document.getElementById('so-license-customer-name').value = lic.customer_name || '';
         document.getElementById('so-license-customer-phone').value = lic.customer_phone || '';
         document.getElementById('so-license-customer-email').value = lic.customer_email || '';
@@ -1934,14 +2205,13 @@
             maxDevices = soIsUnlimitedDevices(plan) ? 0 : (plan.max_devices != null ? plan.max_devices : (SO_DEVICE_TIER_MAX[plan.device_tier] != null ? SO_DEVICE_TIER_MAX[plan.device_tier] : 1));
         }
         if (formFields.unlimited_devices) maxDevices = 0;
-        const payload = {
+        const payload = Object.assign({
             active: true,
             planId: plan.id,
             planType: plan.id,
             planDays: plan.days,
             billing_mode: formFields.billing_mode || plan.billing_mode || 'subscription',
             max_devices: maxDevices,
-            credits_balance: formFields.credits_balance,
             credits_used: formFields.credits_used,
             unlimited_time: formFields.unlimited_time || soIsUnlimitedTime(plan),
             unlimited_devices: formFields.unlimited_devices || soIsUnlimitedDevices(plan),
@@ -1957,7 +2227,7 @@
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: soAuthEmail()
-        };
+        }, soBuildLicenseCreditFields(plan, formFields));
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload);
             cancelSoLicenseEdit();
@@ -1982,13 +2252,12 @@
             maxDevices = soIsUnlimitedDevices(plan) ? 0 : (plan.max_devices != null ? plan.max_devices : 1);
         }
         if (formFields.unlimited_devices) maxDevices = 0;
-        const payload = {
+        const payload = Object.assign({
             planId: plan.id,
             planType: plan.id,
             planDays: plan.days,
             billing_mode: formFields.billing_mode,
             max_devices: maxDevices,
-            credits_balance: formFields.credits_balance,
             credits_used: formFields.credits_used,
             unlimited_time: formFields.unlimited_time,
             unlimited_devices: formFields.unlimited_devices,
@@ -1999,7 +2268,7 @@
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: soAuthEmail()
-        };
+        }, soBuildLicenseCreditFields(plan, formFields));
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
             cancelSoLicenseEdit();

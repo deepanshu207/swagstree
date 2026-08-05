@@ -11371,6 +11371,58 @@ body.seo-indexing-off #seo-primary-nav {
 .so-ext-email-auth input {
     min-height: 44px;
 }
+.so-plan-addon-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0;
+}
+.so-plan-addon-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+}
+@media (min-width: 640px) {
+    .so-plan-addon-row {
+        grid-template-columns: 1fr 0.5fr 0.5fr 1fr auto auto auto;
+        align-items: end;
+    }
+}
+.so-ext-plan-addons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+    margin-top: 6px;
+}
+.so-ext-addon-chip {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: #fbbf24;
+}
+.so-license-addon-section {
+    margin: 10px 0 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+}
+.so-license-addon-picks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+.so-license-addon-pick {
+    font-size: 12px;
+}
 .so-section-chevron {
     color: #888;
     font-size: 11px;
