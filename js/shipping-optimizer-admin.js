@@ -74,7 +74,11 @@
     let soCredits = null;
     let soCreditPacks = [];
     let soInlineDemoKeys = {};
+    let soInlineDemoKeyRows = [];
     let soDemoKeys = [];
+    let soDemoKeyPendingRows = [];
+    let soDemoKeyEditRows = [];
+    let soDemoSelectedKeys = new Set();
     let soLicenses = [];
     let soActiveTab = 'config';
     let soLoaded = false;
@@ -139,7 +143,7 @@
         p.description = String(p.description || '').trim();
         p.active = p.active !== false;
         p.best = !!p.best;
-        p.unlimited_time = !!p.unlimited_time || p.days === 0;
+        p.unlimited_time = !!p.unlimited_time;
         p.unlimited_devices = !!p.unlimited_devices;
         p.unlimited_credits = !!p.unlimited_credits;
         p.order = Number.isFinite(Number(p.order)) ? Number(p.order) : index;
@@ -151,11 +155,15 @@
             else p.duration = `${p.days} days`;
         } else if (p.unlimited_time && !p.duration) {
             p.duration = 'Forever';
+        } else if (p.days === 0 && !p.duration && !p.unlimited_time) {
+            p.duration = '';
         }
         p.device_tier = SO_DEVICE_TIERS.includes(p.device_tier) ? p.device_tier : 'standard';
         const tierDefault = SO_DEVICE_TIER_MAX[p.device_tier];
         const rawMax = parseInt(p.max_devices, 10);
-        if (p.unlimited_devices || p.device_tier === 'unlimited') {
+        if (p.unlimited_devices) {
+            p.max_devices = 0;
+        } else if (p.device_tier === 'unlimited' && !Number.isFinite(rawMax)) {
             p.max_devices = 0;
             p.unlimited_devices = true;
         } else if (Number.isFinite(rawMax) && rawMax >= 0) {
@@ -491,7 +499,10 @@
             soBindCreditsForm();
             soUpdateCustomCreditCalc();
         }
-        if (soActiveTab === 'demo') renderSoDemoKeysList();
+        if (soActiveTab === 'demo') {
+            renderSoDemoPendingKeysEditor();
+            renderSoDemoKeysList();
+        }
         if (soActiveTab === 'licenses') renderSoLicensesList();
     };
 
@@ -514,7 +525,12 @@
             : DEFAULT_CREDIT_PACKS.slice();
         soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
         soCreditPacks.forEach((p, i) => { p.order = i; });
-        soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS, soConfig.demo_keys || {});
+        if (soConfig.demo_keys && typeof soConfig.demo_keys === 'object') {
+            soInlineDemoKeys = Object.assign({}, soConfig.demo_keys);
+        } else {
+            soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS);
+        }
+        soSyncInlineDemoRowsFromObject();
         soBindConfigForm();
         soBindCreditsForm();
         renderSoCreditPacksEditor();
@@ -533,7 +549,105 @@
             const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
             return tb - ta;
         });
+        soSyncDemoEditRowsFromCollection();
+        soDemoSelectedKeys = new Set();
     }
+
+    function soNormalizeDemoKeyEntry(raw) {
+        const unlimited = !!(raw && (raw.unlimited_time || raw.unlimitedTime));
+        let days = parseInt(raw && raw.days, 10);
+        if (!Number.isFinite(days)) days = 30;
+        if (unlimited) days = 0;
+        else days = Math.max(1, days);
+        const label = String((raw && raw.label) || '').trim();
+        return {
+            days,
+            label,
+            unlimited_time: unlimited,
+            active: raw && raw.active !== false
+        };
+    }
+
+    function soDemoKeyEntryToFirestore(entry) {
+        const n = soNormalizeDemoKeyEntry(entry);
+        const out = {
+            days: n.days,
+            label: n.label || (n.unlimited_time ? 'Unlimited demo' : `${n.days}-day promo`),
+            active: n.active !== false
+        };
+        if (n.unlimited_time) out.unlimited_time = true;
+        return out;
+    }
+
+    function soDemoKeyEntryToInlineMap(entry) {
+        const n = soNormalizeDemoKeyEntry(entry);
+        const out = {
+            days: n.days,
+            label: n.label || (n.unlimited_time ? 'Unlimited demo' : `${n.days}-day promo`)
+        };
+        if (n.unlimited_time) out.unlimited_time = true;
+        return out;
+    }
+
+    function soFormatDemoKeyDuration(entry) {
+        const n = soNormalizeDemoKeyEntry(entry);
+        return n.unlimited_time ? 'Unlimited' : `${n.days} days`;
+    }
+
+    function soReadDemoKeyRowFromEl(row) {
+        const unlimited = !!row.querySelector('[data-field="unlimited"]')?.checked;
+        let days = parseInt(row.querySelector('[data-field="days"]')?.value, 10);
+        if (!Number.isFinite(days)) days = 30;
+        if (unlimited) days = 0;
+        else days = Math.max(1, days);
+        return {
+            key: String(row.querySelector('[data-field="key"]')?.value || '').trim().toUpperCase(),
+            days,
+            label: String(row.querySelector('[data-field="label"]')?.value || '').trim(),
+            unlimited_time: unlimited,
+            active: row.querySelector('[data-field="active"]') ? !!row.querySelector('[data-field="active"]').checked : true
+        };
+    }
+
+    function soRenderDemoKeyRowHtml(row, idx, opts) {
+        opts = opts || {};
+        const keyField = opts.keyReadonly
+            ? `<input type="text" data-field="key" value="${soAttr(row.key)}" readonly style="text-transform:uppercase; opacity:0.85;">`
+            : `<input type="text" data-field="key" value="${soAttr(row.key)}" placeholder="MEESHO-PROMO30" style="text-transform:uppercase;" oninput="${soAttr(opts.dirtyFn || "soMarkTabDirty('config')")}">`;
+        const unlimited = !!row.unlimited_time;
+        const daysDisabled = unlimited ? 'disabled' : '';
+        const daysVal = unlimited ? 0 : (row.days || 30);
+        const activeHtml = opts.showActive
+            ? `<label class="so-plan-check so-demo-active-check"><input type="checkbox" data-field="active" ${row.active !== false ? 'checked' : ''} onchange="${soAttr(opts.dirtyFn || '')}"> Active</label>`
+            : '';
+        const unlimitedDirty = opts.dirtyFn || "soMarkTabDirty('config')";
+        return `
+            <div class="${opts.rowClass || 'so-inline-demo-row'}" data-inline-idx="${idx}" ${row.key ? `data-demo-key="${soAttr(row.key)}"` : ''}>
+                ${opts.showSelect ? `<label class="so-plan-check so-demo-select-check"><input type="checkbox" data-field="select" ${soDemoSelectedKeys.has(row.key) ? 'checked' : ''} onchange="toggleSoDemoKeySelect('${soAttr(row.key)}', this.checked)"></label>` : ''}
+                <label><span>Key (uppercase)</span>${keyField}</label>
+                <label><span>Days</span>
+                    <input type="number" data-field="days" min="0" step="1" value="${daysVal}" ${daysDisabled} oninput="${soAttr(unlimitedDirty)}"></label>
+                <label><span>Label</span>
+                    <input type="text" data-field="label" value="${soAttr(row.label || '')}" placeholder="Promo label" oninput="${soAttr(unlimitedDirty)}"></label>
+                <label class="so-plan-check so-demo-unlimited-check"><input type="checkbox" data-field="unlimited" ${unlimited ? 'checked' : ''} onchange="soToggleDemoKeyUnlimited(this); ${soAttr(unlimitedDirty)}"> Unlimited</label>
+                ${activeHtml}
+                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="${opts.removeFn || `removeSoInlineDemoKeyRow(${idx})`}">${opts.removeLabel || 'Remove'}</button>
+            </div>`;
+    }
+
+    window.soToggleDemoKeyUnlimited = function(checkbox) {
+        const row = checkbox.closest('.so-inline-demo-row, .so-demo-edit-row');
+        if (!row) return;
+        const daysInput = row.querySelector('[data-field="days"]');
+        if (!daysInput) return;
+        if (checkbox.checked) {
+            daysInput.value = '0';
+            daysInput.disabled = true;
+        } else {
+            daysInput.disabled = false;
+            if (!parseInt(daysInput.value, 10)) daysInput.value = '30';
+        }
+    };
 
     async function soLoadLicenses() {
         let snap;
@@ -740,25 +854,31 @@
             const priceLabel = '₹' + (plan.price || 0).toLocaleString('en-IN');
             return `
             <div class="so-plan-card so-pricing-plan-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-plan-idx="${idx}">
-                <button type="button" class="so-plan-card-head" onclick="toggleSoPlanRow(${idx})" aria-expanded="${open ? 'true' : 'false'}">
-                    <span class="so-plan-order" aria-hidden="true">${idx + 1}</span>
-                    <div class="so-plan-card-summary">
-                        <div class="so-plan-card-title-row">
-                            <strong class="so-plan-card-name">${soEsc(plan.name)}</strong>
-                            <span class="so-plan-card-price">${soEsc(priceLabel)}</span>
+                <div class="so-plan-card-head-wrap">
+                    <button type="button" class="so-plan-card-head" onclick="toggleSoPlanRow(${idx})" aria-expanded="${open ? 'true' : 'false'}">
+                        <span class="so-plan-order" aria-hidden="true">${idx + 1}</span>
+                        <div class="so-plan-card-summary">
+                            <div class="so-plan-card-title-row">
+                                <strong class="so-plan-card-name">${soEsc(plan.name)}</strong>
+                                <span class="so-plan-card-price">${soEsc(priceLabel)}</span>
+                            </div>
+                            <div class="so-plan-card-meta">
+                                <code class="so-plan-id-tag">${soEsc(plan.id)}</code>
+                                <div class="so-plan-chips">${soPlanMetaChips(plan)}</div>
+                            </div>
+                            <div class="so-plan-card-badges">
+                                ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
+                                ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                                ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
+                            </div>
                         </div>
-                        <div class="so-plan-card-meta">
-                            <code class="so-plan-id-tag">${soEsc(plan.id)}</code>
-                            <div class="so-plan-chips">${soPlanMetaChips(plan)}</div>
-                        </div>
-                        <div class="so-plan-card-badges">
-                            ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
-                            ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
-                            ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
-                        </div>
+                        <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="so-plan-reorder" onclick="event.stopPropagation()">
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, -1)" title="Move up in list" aria-label="Move plan up">▲</button>
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, 1)" title="Move down in list" aria-label="Move plan down">▼</button>
                     </div>
-                    <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
-                </button>
+                </div>
                 <div class="so-plan-card-body" onclick="event.stopPropagation()">
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-circle-info"></i> Basic info</div>
@@ -791,19 +911,24 @@
                         </div>
                     </div>
                     <div class="so-field-group">
-                        <div class="so-field-group-title"><i class="fa fa-infinity"></i> Limits &amp; visibility</div>
-                        <div class="so-plan-flags">
-                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited time</label>
-                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited devices</label>
-                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited credits</label>
+                        <div class="so-field-group-title"><i class="fa fa-eye"></i> Visibility &amp; badges</div>
+                        <p class="so-field-group-hint">Controls what customers see in the extension popup.</p>
+                        <div class="so-plan-flags so-plan-flags--simple">
                             <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show in extension</label>
                             <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Best value badge</label>
                         </div>
                     </div>
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-infinity"></i> Unlimited overrides</div>
+                        <p class="so-field-group-hint">Optional — only for lifetime / unlimited / enterprise plans.</p>
+                        <div class="so-plan-flags so-plan-flags--simple">
+                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_time" ${plan.unlimited_time ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Never expires</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_devices" ${plan.unlimited_devices ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited devices</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="unlimited_credits" ${plan.unlimited_credits ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Unlimited credits</label>
+                        </div>
+                    </div>
                     <div class="so-plan-actions-bar">
-                        <button type="button" class="so-btn-sm" onclick="moveSoPlan(${idx}, -1)" title="Move up"><i class="fa fa-arrow-up"></i> Up</button>
-                        <button type="button" class="so-btn-sm" onclick="moveSoPlan(${idx}, 1)" title="Move down"><i class="fa fa-arrow-down"></i> Down</button>
-                        <button type="button" class="so-btn-sm so-btn-sm--danger" onclick="removeSoPlan(${idx})"><i class="fa fa-trash"></i> Remove</button>
+                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoPlan(${idx})"><i class="fa fa-trash"></i> Remove plan</button>
                     </div>
                 </div>
             </div>`;
@@ -916,54 +1041,112 @@
         soMarkTabDirty('config');
     };
 
-    function renderSoInlineDemoKeysEditor() {
-        const container = document.getElementById('so-inline-demo-keys');
-        if (!container) return;
-        const keys = Object.keys(soInlineDemoKeys || {});
-        if (!keys.length) {
-            container.innerHTML = '<p class="so-admin-muted">No inline demo keys in config. Add below or use Demo Keys tab.</p>';
-            return;
-        }
-        container.innerHTML = keys.map(key => {
-            const entry = soInlineDemoKeys[key] || {};
-            return `<div class="so-inline-key-row">
-                <code>${soEsc(key)}</code>
-                <span>${entry.days || 0} days · ${soEsc(entry.label || '')}</span>
-                <button type="button" class="so-btn-icon so-btn-icon--danger" onclick="removeSoInlineDemoKey('${soAttr(key)}')">✕</button>
-            </div>`;
-        }).join('');
+    function soSyncInlineDemoRowsFromObject() {
+        soInlineDemoKeyRows = Object.keys(soInlineDemoKeys || {}).map(key => {
+            const entry = soNormalizeDemoKeyEntry(soInlineDemoKeys[key] || {});
+            return Object.assign({ key }, entry);
+        });
     }
 
-    window.addSoInlineDemoKey = function() {
-        const keyEl = document.getElementById('so-inline-demo-key-input');
-        const daysEl = document.getElementById('so-inline-demo-days-input');
-        const labelEl = document.getElementById('so-inline-demo-label-input');
-        const key = String(keyEl && keyEl.value || '').trim().toUpperCase();
-        const days = Math.max(1, parseInt(daysEl && daysEl.value, 10) || 30);
-        const label = String(labelEl && labelEl.value || '').trim();
-        if (!key || key.length < 6) return soToast('Demo key must be at least 6 characters.');
-        soInlineDemoKeys[key] = { days, label: label || `${days}-day promo` };
-        if (keyEl) keyEl.value = '';
-        if (labelEl) labelEl.value = '';
+    function soReadInlineDemoRowsFromDom() {
+        const container = document.getElementById('so-inline-demo-keys');
+        if (!container) return soInlineDemoKeyRows.slice();
+        const rows = container.querySelectorAll('.so-inline-demo-row');
+        if (!rows.length) return soInlineDemoKeyRows.slice();
+        return Array.from(rows).map(soReadDemoKeyRowFromEl);
+    }
+
+    function soPreserveInlineDemoRowsFromDom() {
+        const container = document.getElementById('so-inline-demo-keys');
+        if (container && container.querySelector('.so-inline-demo-row')) {
+            soInlineDemoKeyRows = soReadInlineDemoRowsFromDom();
+        }
+    }
+
+    function soReadInlineDemoKeysFromDom() {
+        const rows = soReadInlineDemoRowsFromDom();
+        const out = {};
+        const seen = new Set();
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const key = row.key;
+            if (!key) continue;
+            if (key.length < 6) {
+                throw new Error(`Demo key row #${i + 1}: key must be at least 6 characters.`);
+            }
+            if (seen.has(key)) {
+                throw new Error(`Duplicate demo key "${key}".`);
+            }
+            seen.add(key);
+            out[key] = soDemoKeyEntryToInlineMap(row);
+        }
+        return out;
+    }
+
+    function renderSoInlineDemoKeysEditor() {
+        const container = document.getElementById('so-inline-demo-keys');
+        const countEl = document.getElementById('so-inline-demo-count');
+        if (!container) return;
+        if (countEl) {
+            const n = soInlineDemoKeyRows.length;
+            countEl.textContent = n === 1 ? '1 key' : `${n} keys`;
+        }
+        if (!soInlineDemoKeyRows.length) {
+            container.innerHTML = '<p class="so-admin-muted">No inline demo keys yet. Tap + Add demo key below.</p>';
+            return;
+        }
+        container.innerHTML = soInlineDemoKeyRows.map((row, idx) =>
+            soRenderDemoKeyRowHtml(row, idx, { dirtyFn: "soMarkTabDirty('config')" })
+        ).join('');
+    }
+
+    window.addSoInlineDemoKeyRow = function() {
+        soPreserveInlineDemoRowsFromDom();
+        soInlineDemoKeyRows.push({ key: '', days: 30, label: '' });
+        renderSoInlineDemoKeysEditor();
+        soMarkTabDirty('config');
+        const section = document.querySelector('.so-section-accordion[data-so-section="config-demo-inline"]');
+        if (section) {
+            section.classList.add('so-section-accordion--open');
+            soOpenSections.add('config-demo-inline');
+        }
+        soToast('New row added — fill key, days, label, then Save.');
+    };
+
+    window.removeSoInlineDemoKeyRow = function(idx) {
+        if (!confirm('Remove this demo key row?')) return;
+        soPreserveInlineDemoRowsFromDom();
+        soInlineDemoKeyRows.splice(idx, 1);
         renderSoInlineDemoKeysEditor();
         soMarkTabDirty('config');
     };
 
+    window.addSoInlineDemoKey = function() {
+        addSoInlineDemoKeyRow();
+    };
+
     window.removeSoInlineDemoKey = function(key) {
-        if (!confirm(`Remove inline demo key ${key}?`)) return;
-        delete soInlineDemoKeys[key];
+        soInlineDemoKeyRows = soInlineDemoKeyRows.filter(r => r.key !== key);
         renderSoInlineDemoKeysEditor();
         soMarkTabDirty('config');
     };
 
     window.saveShippingOptimizerConfig = async function() {
         if (!soRequireSuperAdmin()) return;
+        soPreserveInlineDemoRowsFromDom();
         soPlans = soReadPlansFromDom();
         const err = soValidatePlans(soPlans);
         if (err) return soToast(err);
 
         const whatsappRaw = String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, '');
         if (whatsappRaw.length < 10) return soToast('WhatsApp number must be at least 10 digits.');
+
+        let demoKeysPayload;
+        try {
+            demoKeysPayload = soReadInlineDemoKeysFromDom();
+        } catch (e) {
+            return soToast(e.message || 'Invalid demo keys.');
+        }
 
         const payload = {
             whatsapp_number: whatsappRaw,
@@ -972,17 +1155,21 @@
             min_extension_version: String(document.getElementById('so-min-version')?.value || '1.2.0').trim(),
             announcement: String(document.getElementById('so-announcement')?.value || '').trim(),
             plans: soPlans.map((p, i) => soPlanToFirestore(p, i)),
-            demo_keys: soInlineDemoKeys,
+            demo_keys: demoKeysPayload,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: soAuthEmail()
         };
 
         try {
             await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(payload, { merge: true });
+            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update({ demo_keys: demoKeysPayload });
             soConfig = Object.assign({}, soConfig, payload);
+            soInlineDemoKeys = demoKeysPayload;
+            soSyncInlineDemoRowsFromObject();
+            renderSoInlineDemoKeysEditor();
             soPopulateLicensePlanSelect();
             soClearTabDirty('config');
-            soToast('Config & plans saved.');
+            soToast('Config, plans & demo keys saved to Firebase.');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
@@ -1024,57 +1211,201 @@
         }
     };
 
-    function renderSoDemoKeysList() {
-        const container = document.getElementById('so-demo-keys-list');
-        if (!container) return;
-        const q = String(document.getElementById('so-demo-search')?.value || '').trim().toLowerCase();
-        const filtered = soDemoKeys.filter(d => {
-            if (!q) return true;
-            return d.key.toLowerCase().includes(q) || String(d.label || '').toLowerCase().includes(q);
+    function soSyncDemoEditRowsFromCollection() {
+        soDemoKeyEditRows = soDemoKeys.map(d => {
+            const entry = soNormalizeDemoKeyEntry(d);
+            return Object.assign({ key: d.key }, entry);
         });
-        if (!filtered.length) {
-            container.innerHTML = '<p class="so-admin-muted">No demo keys found.</p>';
+    }
+
+    function soPreserveDemoPendingRowsFromDom() {
+        const container = document.getElementById('so-demo-pending-keys');
+        if (container && container.querySelector('.so-inline-demo-row')) {
+            soDemoKeyPendingRows = Array.from(container.querySelectorAll('.so-inline-demo-row')).map(soReadDemoKeyRowFromEl);
+        }
+    }
+
+    function soPreserveDemoEditRowsFromDom() {
+        const container = document.getElementById('so-demo-edit-keys');
+        if (container && container.querySelector('.so-demo-edit-row')) {
+            soDemoKeyEditRows = Array.from(container.querySelectorAll('.so-demo-edit-row')).map(soReadDemoKeyRowFromEl);
+        }
+    }
+
+    function renderSoDemoPendingKeysEditor() {
+        const container = document.getElementById('so-demo-pending-keys');
+        const countEl = document.getElementById('so-demo-pending-count');
+        if (!container) return;
+        if (countEl) {
+            const n = soDemoKeyPendingRows.length;
+            countEl.textContent = n === 1 ? '1 new key' : `${n} new keys`;
+        }
+        if (!soDemoKeyPendingRows.length) {
+            container.innerHTML = '<p class="so-admin-muted">No pending keys. Tap + Add demo key to create rows, then Save new keys.</p>';
             return;
         }
-        container.innerHTML = filtered.map(d => {
-            const active = d.active !== false;
-            return `<div class="so-list-row">
-                <div class="so-list-main">
-                    <code>${soEsc(d.key)}</code>
-                    <span class="so-admin-muted">${d.days || 0} days · ${soEsc(d.label || '')}</span>
-                    <span class="so-badge ${active ? 'so-badge--on' : 'so-badge--off'}">${active ? 'Active' : 'Disabled'}</span>
-                </div>
-                <div class="so-list-actions">
-                    <button type="button" class="so-btn-sm" onclick="toggleSoDemoKey('${soAttr(d.key)}', ${active})">${active ? 'Disable' : 'Enable'}</button>
-                    <button type="button" class="so-btn-sm so-btn-sm--danger" onclick="deleteSoDemoKey('${soAttr(d.key)}')">Delete</button>
-                </div>
-            </div>`;
+        container.innerHTML = soDemoKeyPendingRows.map((row, idx) =>
+            soRenderDemoKeyRowHtml(row, idx, {
+                rowClass: 'so-inline-demo-row',
+                removeFn: `removeSoDemoKeyPendingRow(${idx})`,
+                removeLabel: 'Remove row'
+            })
+        ).join('');
+    }
+
+    function renderSoDemoEditKeysEditor() {
+        const container = document.getElementById('so-demo-edit-keys');
+        const countEl = document.getElementById('so-demo-edit-count');
+        if (!container) return;
+        if (countEl) {
+            const n = soDemoKeyEditRows.length;
+            countEl.textContent = n === 1 ? '1 key' : `${n} keys`;
+        }
+        const q = String(document.getElementById('so-demo-search')?.value || '').trim().toLowerCase();
+        const filtered = soDemoKeyEditRows.filter(row => {
+            if (!q) return true;
+            return row.key.toLowerCase().includes(q) || String(row.label || '').toLowerCase().includes(q);
+        });
+        if (!filtered.length) {
+            container.innerHTML = '<p class="so-admin-muted">No demo keys in collection yet.</p>';
+            return;
+        }
+        container.innerHTML = filtered.map((row, idx) => {
+            const realIdx = soDemoKeyEditRows.findIndex(r => r.key === row.key);
+            return soRenderDemoKeyRowHtml(row, realIdx >= 0 ? realIdx : idx, {
+                rowClass: 'so-inline-demo-row so-demo-edit-row',
+                keyReadonly: true,
+                showActive: true,
+                showSelect: true,
+                removeFn: `deleteSoDemoKey('${soAttr(row.key)}')`,
+                removeLabel: 'Delete'
+            });
         }).join('');
+    }
+
+    function renderSoDemoKeysList() {
+        renderSoDemoEditKeysEditor();
     }
 
     window.filterSoDemoKeys = function() {
         renderSoDemoKeysList();
     };
 
-    window.addSoDemoKey = async function() {
+    window.addSoDemoKeyPendingRow = function() {
+        soPreserveDemoPendingRowsFromDom();
+        soDemoKeyPendingRows.push({ key: '', days: 30, label: '', unlimited_time: false, active: true });
+        renderSoDemoPendingKeysEditor();
+        const section = document.querySelector('.so-section-accordion[data-so-section="demo-add"]');
+        if (section) {
+            section.classList.add('so-section-accordion--open');
+            soOpenSections.add('demo-add');
+        }
+        soToast('New row added — fill key, days/unlimited, label, then Save new keys.');
+    };
+
+    window.removeSoDemoKeyPendingRow = function(idx) {
+        soPreserveDemoPendingRowsFromDom();
+        soDemoKeyPendingRows.splice(idx, 1);
+        renderSoDemoPendingKeysEditor();
+    };
+
+    window.addSoDemoKey = function() {
+        addSoDemoKeyPendingRow();
+    };
+
+    window.toggleSoDemoKeySelect = function(key, checked) {
+        if (checked) soDemoSelectedKeys.add(key);
+        else soDemoSelectedKeys.delete(key);
+        const selectAll = document.getElementById('so-demo-select-all');
+        if (selectAll && soDemoKeyEditRows.length) {
+            selectAll.checked = soDemoSelectedKeys.size === soDemoKeyEditRows.length;
+        }
+    };
+
+    window.toggleSoDemoSelectAll = function() {
+        const checked = !!document.getElementById('so-demo-select-all')?.checked;
+        soDemoSelectedKeys = new Set();
+        if (checked) {
+            soDemoKeyEditRows.forEach(r => { if (r.key) soDemoSelectedKeys.add(r.key); });
+        }
+        renderSoDemoEditKeysEditor();
+    };
+
+    window.saveSoDemoKeysBatch = async function() {
         if (!soRequireSuperAdmin()) return;
-        const key = String(document.getElementById('so-demo-key-input')?.value || '').trim().toUpperCase();
-        const days = Math.max(1, parseInt(document.getElementById('so-demo-days-input')?.value, 10) || 30);
-        const label = String(document.getElementById('so-demo-label-input')?.value || '').trim();
-        if (!key) return soToast('Enter a demo key.');
-        if (key.length < 6) return soToast('Demo key must be at least 6 characters.');
-        if (await soKeyExists(key)) return soToast('Key already exists.');
+        soPreserveDemoPendingRowsFromDom();
+        if (!soDemoKeyPendingRows.length) return soToast('Add at least one demo key row first.');
+
+        const toWrite = [];
+        const seen = new Set();
+        for (let i = 0; i < soDemoKeyPendingRows.length; i++) {
+            const row = soDemoKeyPendingRows[i];
+            const key = row.key;
+            if (!key) return soToast(`Row #${i + 1}: enter a demo key.`);
+            if (key.length < 6) return soToast(`Row #${i + 1}: key must be at least 6 characters.`);
+            if (seen.has(key)) return soToast(`Duplicate key "${key}" in pending rows.`);
+            seen.add(key);
+            if (await soKeyExists(key)) return soToast(`Key "${key}" already exists (inline or collection).`);
+            toWrite.push({ key, payload: soDemoKeyEntryToFirestore(row) });
+        }
+
         try {
-            await db.collection(SO_DEMO_COL).doc(key).set({
-                days,
-                label: label || `${days}-day promo`,
-                active: true,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            const batch = db.batch();
+            toWrite.forEach(item => {
+                const ref = db.collection(SO_DEMO_COL).doc(item.key);
+                batch.set(ref, Object.assign({}, item.payload, {
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }));
             });
-            document.getElementById('so-demo-key-input').value = '';
+            await batch.commit();
+            soDemoKeyPendingRows = [];
+            renderSoDemoPendingKeysEditor();
             await soLoadDemoKeys();
             renderSoDemoKeysList();
-            soToast('Demo key added.');
+            soToast(`${toWrite.length} demo key(s) added to Firebase.`);
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveSoDemoKeysChanges = async function() {
+        if (!soRequireSuperAdmin()) return;
+        soPreserveDemoEditRowsFromDom();
+        if (!soDemoKeyEditRows.length) return soToast('No demo keys to save.');
+
+        try {
+            const batch = db.batch();
+            soDemoKeyEditRows.forEach(row => {
+                if (!row.key) return;
+                const ref = db.collection(SO_DEMO_COL).doc(row.key);
+                batch.set(ref, Object.assign({}, soDemoKeyEntryToFirestore(row), {
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: soAuthEmail()
+                }), { merge: true });
+            });
+            await batch.commit();
+            await soLoadDemoKeys();
+            renderSoDemoKeysList();
+            soToast('Demo key changes saved.');
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.deleteSelectedSoDemoKeys = async function() {
+        if (!soRequireSuperAdmin()) return;
+        if (!soDemoSelectedKeys.size) return soToast('Select keys to delete.');
+        if (!confirm(`Delete ${soDemoSelectedKeys.size} selected demo key(s)?`)) return;
+        try {
+            const batch = db.batch();
+            soDemoSelectedKeys.forEach(key => {
+                batch.delete(db.collection(SO_DEMO_COL).doc(key));
+            });
+            await batch.commit();
+            soDemoSelectedKeys = new Set();
+            await soLoadDemoKeys();
+            renderSoDemoKeysList();
+            soToast('Selected demo keys deleted.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
         }
@@ -1097,6 +1428,7 @@
         if (!confirm(`Delete demo key ${key}?`)) return;
         try {
             await db.collection(SO_DEMO_COL).doc(key).delete();
+            soDemoSelectedKeys.delete(key);
             await soLoadDemoKeys();
             renderSoDemoKeysList();
             soToast('Demo key deleted.');
@@ -1619,6 +1951,7 @@
             soUpdateUnsavedBanner();
             soUpdateCustomCreditCalc();
             soRestoreSectionAccordions();
+            renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
             renderSoLicensesList();
             switchShippingOptimizerTab(soActiveTab);

@@ -11074,6 +11074,27 @@ body.seo-indexing-off #seo-primary-nav {
 #shipping-optimizer-admin-section {
     margin: 0 12px 20px !important;
     padding: 12px 14px !important;
+    color: #eee;
+}
+#shipping-optimizer-admin-section button {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+}
+#shipping-optimizer-admin-section input,
+#shipping-optimizer-admin-section textarea,
+#shipping-optimizer-admin-section select {
+    background: #121212 !important;
+    color: #fff !important;
+    border: 1px solid #333 !important;
+    margin-bottom: 0;
+}
+#shipping-optimizer-admin-section input::placeholder,
+#shipping-optimizer-admin-section textarea::placeholder {
+    color: #666;
+}
+#shipping-optimizer-admin-section code {
+    color: #ccc;
 }
 @media (max-width: 640px) {
     #shipping-optimizer-admin-section {
@@ -11334,6 +11355,123 @@ body.seo-indexing-off #seo-primary-nav {
     border-color: rgba(255, 215, 0, 0.35);
     box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.08);
 }
+.so-plan-card-head-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: #1a1a1a;
+    border-bottom: 1px solid transparent;
+}
+.so-collapsible-row--open .so-plan-card-head-wrap {
+    border-bottom-color: #2a2a2a;
+}
+.so-plan-card-head {
+    flex: 1;
+    min-width: 0;
+    background: #1a1a1a !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 0;
+    box-shadow: none !important;
+}
+.so-plan-reorder {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 8px 8px 0;
+    flex-shrink: 0;
+    justify-content: center;
+}
+.so-plan-reorder .so-btn-icon {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #222 !important;
+    color: #ccc !important;
+    border-color: #444 !important;
+}
+.so-field-group-hint {
+    margin: -4px 0 10px;
+    font-size: 10px;
+    color: #777;
+    line-height: 1.4;
+}
+.so-plan-flags--simple {
+    grid-template-columns: 1fr;
+    padding: 8px 10px;
+}
+@media (min-width: 600px) {
+    .so-plan-flags--simple {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.so-inline-demo-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.so-inline-demo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.so-inline-demo-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #1a1a1a !important;
+    border: 1px solid #333 !important;
+}
+.so-inline-demo-row label > span {
+    font-size: 11px;
+    color: #aaa;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: block;
+}
+.so-inline-demo-row input {
+    background: #121212 !important;
+    color: #fff !important;
+    min-height: 44px;
+}
+@media (min-width: 640px) {
+    .so-inline-demo-row {
+        grid-template-columns: auto 1.2fr 0.45fr 1fr auto auto auto;
+        align-items: end;
+    }
+    .so-inline-demo-row:not(:has(.so-demo-select-check)) {
+        grid-template-columns: 1.2fr 0.45fr 1fr auto auto auto;
+    }
+}
+.so-demo-unlimited-check,
+.so-demo-active-check,
+.so-demo-select-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #ccc;
+    min-height: 44px;
+}
+.so-demo-unlimited-check input,
+.so-demo-active-check input,
+.so-demo-select-check input {
+    min-height: auto;
+    width: auto;
+}
+@media (min-width: 640px) {
+    .so-inline-demo-row .so-btn-sm {
+        margin-bottom: 0;
+    }
+}
 .so-plan-card-head {
     width: 100%;
     display: flex;
@@ -11517,17 +11655,8 @@ body.seo-indexing-off #seo-primary-nav {
     border-top: 1px solid #2a2a2a;
 }
 .so-plan-actions-bar .so-btn-sm {
-    flex: 1;
-    min-width: 90px;
+    width: 100%;
     justify-content: center;
-}
-.so-plan-actions-bar .so-btn-sm--danger {
-    flex: 1 1 100%;
-}
-@media (min-width: 600px) {
-    .so-plan-actions-bar .so-btn-sm--danger {
-        flex: 1;
-    }
 }
 .so-btn-add-plan {
     width: 100%;
@@ -11819,6 +11948,25 @@ body.seo-indexing-off #seo-primary-nav {
     padding: 6px 0;
     border-bottom: 1px solid #222;
     font-size: 11px;
+}
+
+/* End Shipping Optimizer admin scoped dark theme fixes */
+#shipping-optimizer-admin-section .so-section-accordion-head {
+    background: #1a1a1a !important;
+    color: #fff !important;
+}
+#shipping-optimizer-admin-section .so-section-accordion-body {
+    background: #151515;
+}
+#shipping-optimizer-admin-section .so-plan-card,
+#shipping-optimizer-admin-section .so-plan-card-body,
+#shipping-optimizer-admin-section .so-field-group,
+#shipping-optimizer-admin-section .so-checkbox-group,
+#shipping-optimizer-admin-section .so-details-block {
+    background: #1a1a1a;
+}
+#shipping-optimizer-admin-section .so-plan-card-body {
+    background: #151515 !important;
 }
 .so-license-meta {
     font-size: 11px;
