@@ -2037,7 +2037,7 @@
             <div id="shipping-optimizer-accordion-content"
                 style="display:none; margin-top:15px; flex-direction:column; gap:14px;">
                 <p class="so-admin-muted so-admin-workflow-hint">
-                    Workflow: customer picks plan in extension → WhatsApp → create license or top-up credits here → customer activates on device.
+                    Open one accordion section at a time, edit, then use that section’s <strong>Save</strong> button. Preview shows how the Meesho extension popup will read Firebase data (~5 min cache).
                 </p>
 
                 <!-- Mobile-friendly tab picker + desktop tabs -->
@@ -2069,6 +2069,7 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">WhatsApp, extension toggle, announcement banner — saved separately from plans.</p>
                             <div class="so-admin-grid">
                                 <label><span class="admin-settings-field-label">WhatsApp number (digits only)</span>
                                     <input id="so-whatsapp-number" type="text" inputmode="numeric" placeholder="919654414891" oninput="soMarkTabDirty('config')"></label>
@@ -2078,8 +2079,23 @@
                                     <input id="so-min-version" type="text" placeholder="1.2.0" oninput="soMarkTabDirty('config')"></label>
                                 <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Announcement banner</span>
-                                    <textarea id="so-announcement" rows="2" placeholder="Optional banner text" oninput="soMarkTabDirty('config')"></textarea></label>
+                                    <textarea id="so-announcement" rows="2" placeholder="Optional banner text" oninput="soMarkTabDirty('config'); renderSoExtensionPreview()"></textarea></label>
                             </div>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerGeneral()">Save general settings</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="so-section-accordion" data-so-section="config-preview">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('config-preview')">
+                            <span><i class="fa fa-mobile-screen"></i> Extension preview (read-only)</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Mirrors <code>firebaseLicense.js</code> plan/credit/demo rendering — active plans only, same labels as the popup.</p>
+                            <div id="so-extension-preview" class="so-ext-preview-root"></div>
+                            <div id="so-extension-warnings" class="so-ext-warnings-wrap"></div>
                         </div>
                     </div>
 
@@ -2108,6 +2124,9 @@
                             </div>
                             <div id="so-plans-editor" class="so-plans-list"></div>
                             <button type="button" class="so-btn-sm so-btn-touch so-btn-add-plan" onclick="addSoPlan()">+ Add Plan</button>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerPlans()">Save plans only</button>
+                            </div>
                         </div>
                     </div>
 
@@ -2117,29 +2136,34 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Stored in config <code>demo_keys</code> — extension reads on load (~5 min cache). Add multiple keys below, then tap <strong>Save config &amp; plans</strong>. Removed keys are deleted from Firebase on save.</p>
+                            <p class="so-admin-muted so-admin-tip">Stored in config <code>demo_keys</code> — extension reads on load (~5 min cache). Removed keys are deleted from Firebase on save.</p>
                             <div class="so-inline-demo-toolbar">
                                 <span id="so-inline-demo-count" class="so-plans-count">0 keys</span>
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoInlineDemoKeyRow()">+ Add demo key</button>
                             </div>
                             <div id="so-inline-demo-keys" class="so-inline-demo-list"></div>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerInlineDemoKeys()">Save inline demo keys</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="so-sticky-save">
-                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerConfig()">Save config &amp; plans</button>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Save everything on this tab</span>
+                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerConfig()">Save all config</button>
                     </div>
                 </div>
 
                 <!-- Tab 2: Credits & Packs -->
                 <div id="so-tab-credits" class="so-admin-tab-panel" style="display:none;">
-                    <div class="so-section-accordion so-section-accordion--open" data-so-section="credits-settings">
+                    <div class="so-section-accordion" data-so-section="credits-settings">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-settings')">
                             <span><i class="fa fa-coins"></i> Credit settings</span>
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-credits-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits')"> Credits enabled in extension</label>
+                            <p class="so-admin-muted so-admin-tip">Rates and toggles — saved separately from pack list.</p>
+                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-credits-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Credits enabled in extension</label>
                             <div class="so-admin-grid">
                                 <label><span class="admin-settings-field-label">Price per credit (₹)</span>
                                     <input id="so-credits-price-per" type="number" min="0" step="1" value="2" oninput="soUpdateCustomCreditCalc(); soMarkTabDirty('credits')"></label>
@@ -2153,30 +2177,43 @@
                                 <input id="so-credits-custom-amount" type="number" min="1" step="1" value="10" placeholder="Credits" oninput="soUpdateCustomCreditCalc()">
                                 <span id="so-credits-custom-price" class="so-admin-muted">10 credits × ₹2 = ₹20 (min 10)</span>
                             </div>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerCreditSettings()">Save credit settings</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="so-section-accordion so-section-accordion--open" data-so-section="credits-packs">
+                    <div class="so-section-accordion" data-so-section="credits-packs">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-packs')">
                             <span><i class="fa fa-box"></i> Credit packs</span>
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Tap a pack to edit. Add any credits count + price.</p>
+                            <p class="so-admin-muted so-admin-tip">Tap a pack row to expand. Hidden packs are not shown in the extension.</p>
+                            <div class="so-plans-toolbar">
+                                <span class="so-plans-count">Credit packs</span>
+                                <div class="so-plans-toolbar-actions">
+                                    <button type="button" class="so-btn-sm" onclick="expandAllSoCreditPacks()">Expand all</button>
+                                    <button type="button" class="so-btn-sm" onclick="collapseAllSoCreditPacks()">Collapse all</button>
+                                </div>
+                            </div>
                             <div id="so-credit-packs-editor"></div>
                             <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoCreditPack()">+ Add Pack</button>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerCreditPacks()">Save credit packs</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="so-sticky-save">
-                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerCredits()">Save credits &amp; packs</button>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Save everything on this tab</span>
+                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerCredits()">Save all credits</button>
                     </div>
                 </div>
 
                 <!-- Tab 3: Demo / Promo Keys -->
                 <div id="so-tab-demo" class="so-admin-tab-panel" style="display:none;">
-                    <p class="so-admin-muted so-admin-tip">Collection <code>shipping_optimizer_demo_keys</code> — merged with inline config keys in the extension. Extension caches ~5 min; reload extension after changes. Built-in keys in the extension bundle cannot be removed from admin.</p>
-                    <div class="so-section-accordion so-section-accordion--open" data-so-section="demo-add">
+                    <div class="so-section-accordion" data-so-section="demo-add">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('demo-add')">
                             <span><i class="fa fa-plus"></i> Add demo keys (batch)</span>
                             <i class="fa fa-chevron-down so-section-chevron"></i>
@@ -2190,7 +2227,7 @@
                             <button type="button" class="btn-gold so-btn-save" style="margin-top:10px;" onclick="saveSoDemoKeysBatch()">Save new keys to Firebase</button>
                         </div>
                     </div>
-                    <div class="so-section-accordion so-section-accordion--open" data-so-section="demo-list">
+                    <div class="so-section-accordion" data-so-section="demo-list">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('demo-list')">
                             <span><i class="fa fa-list"></i> Manage demo keys</span>
                             <i class="fa fa-chevron-down so-section-chevron"></i>
@@ -2210,7 +2247,7 @@
 
                 <!-- Tab 4: Paid Licenses -->
                 <div id="so-tab-licenses" class="so-admin-tab-panel" style="display:none;">
-                    <div class="so-section-accordion so-section-accordion--open" data-so-section="license-create">
+                    <div class="so-section-accordion" data-so-section="license-create">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('license-create')">
                             <span><i class="fa fa-file-circle-plus"></i> <span id="so-license-form-title">Create license</span></span>
                             <i class="fa fa-chevron-down so-section-chevron"></i>
@@ -4106,7 +4143,7 @@
     <script src="js/admin.js?v=17.0"></script>
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=1.7"></script>
+    <script src="js/shipping-optimizer-admin.js?v=1.8"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

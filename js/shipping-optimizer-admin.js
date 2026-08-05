@@ -89,7 +89,7 @@
     let soExpandedPlanIds = new Set();
     let soExpandedPackIds = new Set();
     let soExpandedLicenseKeys = new Set();
-    let soOpenSections = new Set(['config-general', 'credits-settings', 'credits-packs', 'demo-add', 'demo-list', 'license-create', 'license-list']);
+    let soOpenSections = new Set(['config-general']);
 
     function soEsc(str) {
         if (str === null || str === undefined) return '';
@@ -387,6 +387,9 @@
         el.classList.toggle('so-section-accordion--open');
         if (el.classList.contains('so-section-accordion--open')) {
             soOpenSections.add(sectionId);
+            if (sectionId === 'config-preview' || sectionId === 'config-plans') {
+                renderSoExtensionPreview();
+            }
         } else {
             soOpenSections.delete(sectionId);
         }
@@ -456,8 +459,14 @@
         soCreditPacks = soReadCreditPacksFromDom();
         const pack = soCreditPacks[idx];
         if (!pack) return;
+        const opening = !soExpandedPackIds.has(pack.id);
         if (soExpandedPackIds.has(pack.id)) soExpandedPackIds.delete(pack.id);
         else soExpandedPackIds.add(pack.id);
+        if (opening) {
+            soOpenSections.add('credits-packs');
+            const section = document.querySelector('.so-section-accordion[data-so-section="credits-packs"]');
+            if (section) section.classList.add('so-section-accordion--open');
+        }
         renderSoCreditPacksEditor();
     };
 
@@ -502,6 +511,9 @@
         if (soActiveTab === 'demo') {
             renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
+        }
+        if (soActiveTab === 'config' || soActiveTab === 'credits') {
+            renderSoExtensionPreview();
         }
         if (soActiveTab === 'licenses') renderSoLicensesList();
     };
@@ -715,6 +727,17 @@
         }
     };
 
+    window.expandAllSoCreditPacks = function() {
+        soCreditPacks = soReadCreditPacksFromDom();
+        soCreditPacks.forEach(p => soExpandedPackIds.add(p.id));
+        renderSoCreditPacksEditor();
+    };
+
+    window.collapseAllSoCreditPacks = function() {
+        soExpandedPackIds.clear();
+        renderSoCreditPacksEditor();
+    };
+
     function renderSoCreditPacksEditor() {
         const container = document.getElementById('so-credit-packs-editor');
         if (!container) return;
@@ -724,28 +747,52 @@
         }
         container.innerHTML = soCreditPacks.map((pack, idx) => {
             const open = soExpandedPackIds.has(pack.id);
+            const priceLabel = '₹' + (pack.price || 0).toLocaleString('en-IN');
             return `
-            <div class="so-plan-row so-credit-pack-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-pack-idx="${idx}">
-                <div class="so-plan-row-head" onclick="toggleSoPackRow(${idx})">
-                    <strong>${soEsc(pack.label || pack.id)}</strong>
-                    <span class="so-admin-muted">${pack.credits} cr · ₹${pack.price}</span>
-                    ${pack.active ? '' : '<span class="so-badge so-badge--off">Hidden</span>'}
-                    <span class="so-collapsible-toggle"></span>
+            <div class="so-plan-card so-credit-pack-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-pack-idx="${idx}">
+                <div class="so-plan-card-head-wrap">
+                    <button type="button" class="so-plan-card-head" onclick="toggleSoPackRow(${idx})" aria-expanded="${open ? 'true' : 'false'}">
+                        <span class="so-plan-order" aria-hidden="true">${idx + 1}</span>
+                        <div class="so-plan-card-summary">
+                            <div class="so-plan-card-title-row">
+                                <strong class="so-plan-card-name">${soEsc(pack.label || pack.id)}</strong>
+                                <span class="so-plan-card-price">${soEsc(priceLabel)}</span>
+                            </div>
+                            <div class="so-plan-card-meta">
+                                <code class="so-plan-id-tag">${soEsc(pack.id)}</code>
+                                <span class="so-meta-chip">${pack.credits} credits</span>
+                            </div>
+                            <div class="so-plan-card-badges">
+                                ${pack.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                            </div>
+                        </div>
+                        <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="so-plan-reorder" onclick="event.stopPropagation()">
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoCreditPack(${idx}, -1)" title="Move up" aria-label="Move pack up">▲</button>
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoCreditPack(${idx}, 1)" title="Move down" aria-label="Move pack down">▼</button>
+                    </div>
                 </div>
-                <div class="so-plan-fields" onclick="event.stopPropagation()">
-                    <label><span>Id (slug)</span><input type="text" data-field="id" value="${soAttr(pack.id)}" oninput="soMarkTabDirty('credits')"></label>
-                    <label><span>Credits</span><input type="number" min="1" step="1" data-field="credits" value="${pack.credits}" oninput="soMarkTabDirty('credits')"></label>
-                    <label><span>Price ₹</span><input type="number" min="0" step="1" data-field="price" value="${pack.price}" oninput="soMarkTabDirty('credits')"></label>
-                    <label><span>Label</span><input type="text" data-field="label" value="${soAttr(pack.label || '')}" oninput="soMarkTabDirty('credits')"></label>
-                    <label class="so-plan-check"><input type="checkbox" data-field="active" ${pack.active ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show in extension</label>
-                </div>
-                <div class="so-plan-actions" onclick="event.stopPropagation()">
-                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoCreditPack(${idx}, -1)" title="Move up">▲</button>
-                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoCreditPack(${idx}, 1)" title="Move down">▼</button>
-                    <button type="button" class="so-btn-icon so-btn-icon--danger so-btn-touch" onclick="removeSoCreditPack(${idx})" title="Remove">✕</button>
+                <div class="so-plan-card-body" onclick="event.stopPropagation()">
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-box"></i> Pack details</div>
+                        <div class="so-plan-fields so-plan-fields--basic">
+                            <label><span>Id (slug)</span><input type="text" data-field="id" value="${soAttr(pack.id)}" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Credits</span><input type="number" min="1" step="1" data-field="credits" value="${pack.credits}" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Price (INR)</span><input type="number" min="0" step="1" data-field="price" value="${pack.price}" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Label (shown in extension)</span><input type="text" data-field="label" value="${soAttr(pack.label || '')}" oninput="soMarkTabDirty('credits')"></label>
+                        </div>
+                        <div class="so-plan-flags so-plan-flags--simple">
+                            <label class="so-plan-check"><input type="checkbox" data-field="active" ${pack.active ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show in extension</label>
+                        </div>
+                    </div>
+                    <div class="so-plan-actions-bar">
+                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoCreditPack(${idx})"><i class="fa fa-trash"></i> Remove pack</button>
+                    </div>
                 </div>
             </div>`;
         }).join('');
+        renderSoExtensionPreview();
     }
 
     function soReadCreditPacksFromDom() {
@@ -809,6 +856,283 @@
         renderSoCreditPacksEditor();
         soMarkTabDirty('credits');
     };
+
+    function soFormatPlanDurationLabel(plan) {
+        if (soIsUnlimitedTime(plan)) return 'Unlimited';
+        if (plan.duration) return plan.duration;
+        return `${plan.days || 0} days`;
+    }
+
+    function soFormatPlanDevicesLabel(plan) {
+        if (soIsUnlimitedDevices(plan)) return 'Unlimited devices';
+        const n = plan.max_devices != null ? plan.max_devices : 1;
+        return `${n} device${n === 1 ? '' : 's'}`;
+    }
+
+    function soEnsureSingleBestPlan(plans) {
+        let found = false;
+        return plans.map(p => {
+            if (!p.best) return p;
+            if (found) return Object.assign({}, p, { best: false });
+            found = true;
+            return p;
+        });
+    }
+
+    function soGetExtensionActivePlans() {
+        const plans = soPlans.length ? soReadPlansFromDom() : soPlans.slice();
+        return soEnsureSingleBestPlan(soSortPlans(plans.filter(p => p.active !== false)));
+    }
+
+    function soCollectExtensionWarnings() {
+        const warnings = [];
+        const plans = soReadPlansFromDom();
+        plans.forEach(p => {
+            if (p.days === 0 && !p.unlimited_time && !p.plan_kind) {
+                warnings.push(`Plan "${p.name}" (${p.id}): days=0 — extension treats this as unlimited time even without the checkbox.`);
+            }
+            if (p.max_devices === 0 && !p.unlimited_devices) {
+                warnings.push(`Plan "${p.name}" (${p.id}): max_devices=0 — extension treats this as unlimited devices.`);
+            }
+            if (p.billing_mode === 'credits' && !p.included_credits && !p.unlimited_credits) {
+                warnings.push(`Plan "${p.name}" (${p.id}): credits billing with 0 included credits — customer gets no credits on activation.`);
+            }
+        });
+        const inlineRows = soReadInlineDemoRowsFromDom();
+        inlineRows.forEach(r => {
+            if (r.unlimited_time) {
+                warnings.push(`Inline demo key "${r.key}": unlimited_time needs extension patch in license.js (days-only works today).`);
+            }
+        });
+        soDemoKeyEditRows.forEach(r => {
+            if (r.unlimited_time) {
+                warnings.push(`Collection demo key "${r.key}": unlimited_time needs extension patch in license.js.`);
+            }
+        });
+        return warnings;
+    }
+
+    function renderSoExtensionPreview() {
+        const container = document.getElementById('so-extension-preview');
+        const warnEl = document.getElementById('so-extension-warnings');
+        if (!container) return;
+
+        const activePlans = soGetExtensionActivePlans();
+        const credits = soCredits || DEFAULT_CREDITS;
+        const packs = (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).filter(p => p.active !== false);
+        let inlineDemo = {};
+        try {
+            inlineDemo = soReadInlineDemoKeysFromDom();
+        } catch (_) {
+            inlineDemo = soInlineDemoKeys || {};
+        }
+        const collectionDemo = soDemoKeys.filter(d => d.active !== false);
+        const announcement = String(document.getElementById('so-announcement')?.value || soConfig?.announcement || '').trim();
+        const extEnabled = document.getElementById('so-extension-enabled')
+            ? document.getElementById('so-extension-enabled').checked
+            : soConfig?.extension_enabled !== false;
+
+        const plansHtml = activePlans.length
+            ? `<div class="so-ext-preview-grid">${activePlans.map(p => {
+                const bestClass = p.best ? ' so-ext-plan--best' : '';
+                const durationLabel = soFormatPlanDurationLabel(p);
+                const devicesLabel = soFormatPlanDevicesLabel(p);
+                const note = p.save || `${durationLabel} · ${devicesLabel}`;
+                return `<div class="so-ext-plan${bestClass}">
+                    ${p.best ? '<span class="so-ext-plan-tag">BEST VALUE</span>' : ''}
+                    <div class="so-ext-plan-name">${soEsc(p.name)}</div>
+                    <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
+                    <div class="so-ext-plan-note">${soEsc(note)}</div>
+                    <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}</div>
+                </div>`;
+            }).join('')}</div>`
+            : '<p class="so-admin-muted">No active plans — extension shows default built-in plans.</p>';
+
+        const creditsHtml = credits.enabled !== false
+            ? `<div class="so-ext-preview-block">
+                <div class="so-ext-preview-label">Credits top-up</div>
+                <p class="so-admin-muted">₹${credits.price_per_credit}/credit · min ${credits.min_purchase} · ${credits.cost_per_operation} per operation</p>
+                ${packs.length ? `<div class="so-ext-preview-grid so-ext-preview-grid--packs">${packs.map(p =>
+                    `<div class="so-ext-plan so-ext-plan--pack">
+                        <div class="so-ext-plan-name">${soEsc(p.label || `${p.credits} credits`)}</div>
+                        <div class="so-ext-plan-price">₹${p.price}</div>
+                        <div class="so-ext-plan-note">${p.credits} credits</div>
+                    </div>`
+                ).join('')}</div>` : '<p class="so-admin-muted">No active credit packs.</p>'}
+            </div>`
+            : '<p class="so-admin-muted">Credits disabled — extension hides credit packs section.</p>';
+
+        const demoKeys = Object.assign({}, inlineDemo);
+        collectionDemo.forEach(d => {
+            demoKeys[d.key] = {
+                days: d.days,
+                label: d.label,
+                unlimited_time: d.unlimited_time
+            };
+        });
+        const demoList = Object.keys(demoKeys);
+        const demoHtml = demoList.length
+            ? `<ul class="so-ext-demo-list">${demoList.map(k => {
+                const d = soNormalizeDemoKeyEntry(demoKeys[k]);
+                return `<li><code>${soEsc(k)}</code> — ${soEsc(soFormatDemoKeyDuration(d))}${d.label ? ` · ${soEsc(d.label)}` : ''}</li>`;
+            }).join('')}</ul><p class="so-admin-muted so-admin-tip">Extension also merges built-in keys from config.js (not removable here).</p>`
+            : '<p class="so-admin-muted">No Firebase demo keys — extension uses built-in keys only.</p>';
+
+        container.innerHTML = `
+            <div class="so-ext-preview-status ${extEnabled ? 'so-ext-preview-status--on' : 'so-ext-preview-status--off'}">
+                Extension licensing: <strong>${extEnabled ? 'Enabled' : 'Disabled'}</strong>
+            </div>
+            ${announcement ? `<div class="so-ext-announce">${soEsc(announcement)}</div>` : ''}
+            <div class="so-ext-preview-block">
+                <div class="so-ext-preview-label">Pricing plans (active only, as in popup)</div>
+                ${plansHtml}
+            </div>
+            ${creditsHtml}
+            <div class="so-ext-preview-block">
+                <div class="so-ext-preview-label">Demo / promo keys (Firebase merged)</div>
+                ${demoHtml}
+            </div>`;
+
+        if (warnEl) {
+            const warnings = soCollectExtensionWarnings();
+            warnEl.innerHTML = warnings.length
+                ? `<div class="so-ext-warnings"><strong>Compatibility notes</strong><ul>${warnings.map(w => `<li>${soEsc(w)}</li>`).join('')}</ul></div>`
+                : '<p class="so-admin-muted">No field mapping issues detected for current form values.</p>';
+        }
+    }
+
+    function soReadGeneralConfigFromDom() {
+        const whatsappRaw = String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, '');
+        if (whatsappRaw.length < 10) throw new Error('WhatsApp number must be at least 10 digits.');
+        return {
+            whatsapp_number: whatsappRaw,
+            whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
+            extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
+            min_extension_version: String(document.getElementById('so-min-version')?.value || '1.2.0').trim(),
+            announcement: String(document.getElementById('so-announcement')?.value || '').trim()
+        };
+    }
+
+    async function soPersistConfigPatch(patch, successMsg, options) {
+        options = options || {};
+        await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, patch, {
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: soAuthEmail()
+        }), { merge: true });
+        soConfig = Object.assign({}, soConfig, patch);
+        if (patch.demo_keys) {
+            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update({ demo_keys: patch.demo_keys });
+            soInlineDemoKeys = patch.demo_keys;
+            soSyncInlineDemoRowsFromObject();
+            renderSoInlineDemoKeysEditor();
+        }
+        if (patch.plans) {
+            soPlans = soSortPlans(patch.plans.map(soNormalizePlan));
+            soPlans.forEach((p, i) => { p.order = i; });
+            renderSoPlansEditor();
+            soPopulateLicensePlanSelect();
+        }
+        renderSoExtensionPreview();
+        if (options.clearDirty) soClearTabDirty('config');
+        soToast(successMsg);
+    }
+
+    window.saveShippingOptimizerGeneral = async function() {
+        if (!soRequireSuperAdmin()) return;
+        let general;
+        try {
+            general = soReadGeneralConfigFromDom();
+        } catch (e) {
+            return soToast(e.message || 'Invalid general settings.');
+        }
+        try {
+            await soPersistConfigPatch(general, 'General settings saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveShippingOptimizerPlans = async function() {
+        if (!soRequireSuperAdmin()) return;
+        soPlans = soReadPlansFromDom();
+        const err = soValidatePlans(soPlans);
+        if (err) return soToast(err);
+        try {
+            const plansPayload = soPlans.map((p, i) => soPlanToFirestore(p, i));
+            await soPersistConfigPatch({ plans: plansPayload }, 'Pricing plans saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveShippingOptimizerInlineDemoKeys = async function() {
+        if (!soRequireSuperAdmin()) return;
+        soPreserveInlineDemoRowsFromDom();
+        let demoKeysPayload;
+        try {
+            demoKeysPayload = soReadInlineDemoKeysFromDom();
+        } catch (e) {
+            return soToast(e.message || 'Invalid demo keys.');
+        }
+        try {
+            await soPersistConfigPatch({ demo_keys: demoKeysPayload }, 'Inline demo keys saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveShippingOptimizerCreditSettings = async function() {
+        if (!soRequireSuperAdmin()) return;
+        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
+            enabled: !!document.getElementById('so-credits-enabled')?.checked,
+            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
+            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
+            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => ({
+                id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
+            }))
+        });
+        try {
+            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                credits: creditsPayload,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }, { merge: true });
+            soCredits = creditsPayload;
+            soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            renderSoExtensionPreview();
+            soToast('Credit settings saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveShippingOptimizerCreditPacks = async function() {
+        if (!soRequireSuperAdmin()) return;
+        soCreditPacks = soReadCreditPacksFromDom();
+        const packErr = soValidateCreditPacks(soCreditPacks);
+        if (packErr) return soToast(packErr);
+        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
+            packs: soCreditPacks.map((p, i) => ({
+                id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
+            }))
+        });
+        try {
+            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                credits: creditsPayload,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }, { merge: true });
+            soCredits = creditsPayload;
+            soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            renderSoExtensionPreview();
+            soToast('Credit packs saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.renderSoExtensionPreview = renderSoExtensionPreview;
 
     function soPlanMetaChips(plan) {
         const chips = [];
@@ -933,6 +1257,7 @@
                 </div>
             </div>`;
         }).join('');
+        renderSoExtensionPreview();
     }
 
     function soReadPlansFromDom() {
@@ -1138,38 +1463,22 @@
         const err = soValidatePlans(soPlans);
         if (err) return soToast(err);
 
-        const whatsappRaw = String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, '');
-        if (whatsappRaw.length < 10) return soToast('WhatsApp number must be at least 10 digits.');
-
+        let general;
         let demoKeysPayload;
         try {
+            general = soReadGeneralConfigFromDom();
             demoKeysPayload = soReadInlineDemoKeysFromDom();
         } catch (e) {
-            return soToast(e.message || 'Invalid demo keys.');
+            return soToast(e.message || 'Invalid config.');
         }
 
-        const payload = {
-            whatsapp_number: whatsappRaw,
-            whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
-            extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
-            min_extension_version: String(document.getElementById('so-min-version')?.value || '1.2.0').trim(),
-            announcement: String(document.getElementById('so-announcement')?.value || '').trim(),
+        const payload = Object.assign({}, general, {
             plans: soPlans.map((p, i) => soPlanToFirestore(p, i)),
-            demo_keys: demoKeysPayload,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedBy: soAuthEmail()
-        };
+            demo_keys: demoKeysPayload
+        });
 
         try {
-            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(payload, { merge: true });
-            await db.collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update({ demo_keys: demoKeysPayload });
-            soConfig = Object.assign({}, soConfig, payload);
-            soInlineDemoKeys = demoKeysPayload;
-            soSyncInlineDemoRowsFromObject();
-            renderSoInlineDemoKeysEditor();
-            soPopulateLicensePlanSelect();
-            soClearTabDirty('config');
-            soToast('Config, plans & demo keys saved to Firebase.');
+            await soPersistConfigPatch(payload, 'Config, plans & demo keys saved to Firebase.', { clearDirty: true });
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
@@ -1953,6 +2262,7 @@
             soRestoreSectionAccordions();
             renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
+            renderSoExtensionPreview();
             renderSoLicensesList();
             switchShippingOptimizerTab(soActiveTab);
             soLoaded = true;
