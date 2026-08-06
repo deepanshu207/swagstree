@@ -1663,6 +1663,21 @@
         }
     };
 
+    function openShippingOptimizerPanel() {
+        const content = document.getElementById('shipping-optimizer-accordion-content');
+        const icon = document.getElementById('shipping-optimizer-accordion-icon');
+        if (!content) return Promise.resolve();
+        const closed = content.style.display === 'none' || !content.style.display;
+        if (closed) {
+            content.style.display = 'flex';
+            if (icon) icon.style.transform = 'rotate(0deg)';
+        }
+        if (!soLoaded && typeof loadShippingOptimizerAdmin === 'function') {
+            return loadShippingOptimizerAdmin();
+        }
+        return Promise.resolve();
+    }
+
     window.switchShippingOptimizerTab = function(tab) {
         const next = tab || 'config';
         if (next !== soActiveTab && !soConfirmLeaveTab(next)) {
@@ -1694,6 +1709,7 @@
             renderSoExtensionPreview();
         }
         if (soActiveTab === 'licenses') renderSoLicensesList();
+        if (soActiveTab === 'customers') renderSoCustomerRegistry();
     };
 
     async function soLoadConfig() {
@@ -3095,16 +3111,105 @@
         return soGetAllPlansForSelect().filter(p => p.active !== false);
     }
 
+    function soPlanSelectBadges(plan) {
+        const badges = [];
+        if (soIsUnlimitedTime(plan) || plan.plan_kind === 'lifetime') badges.push('Lifetime');
+        if (plan.unlimited_credits || soIsUnlimitedCredits(plan)) badges.push('∞ credits');
+        if (plan.billing_mode === 'hybrid') badges.push('Hybrid');
+        else if (plan.billing_mode === 'credits') badges.push('Credits');
+        if (plan.best) badges.push('Best');
+        return badges.length ? ` [${badges.join(' · ')}]` : '';
+    }
+
     function soPopulateLicensePlanSelect() {
         const sel = document.getElementById('so-license-plan');
         if (!sel) return;
         const plans = soGetAllPlansForSelect();
         sel.innerHTML = plans.map(p => {
-            const inactive = p.active === false ? ' [hidden]' : '';
-            const daysLabel = p.unlimited_time ? '∞' : `${p.days}d`;
-            return `<option value="${soAttr(p.id)}" data-days="${p.days}">${soEsc(p.name)} — ₹${p.price} (${daysLabel})${inactive}</option>`;
+            const inactive = p.active === false ? ' (hidden)' : '';
+            const daysLabel = soIsUnlimitedTime(p) ? '∞' : `${p.days}d`;
+            const badges = soPlanSelectBadges(p);
+            return `<option value="${soAttr(p.id)}" data-days="${p.days}">${soEsc(p.name)} — ₹${p.price} (${daysLabel})${soEsc(badges)}${inactive}</option>`;
         }).join('');
         soUpdateLicensePlanHint();
+    }
+
+    function soGetLicenseExpiryMode() {
+        const checked = document.querySelector('input[name="so-license-expiry-mode"]:checked');
+        return checked ? checked.value : 'activation';
+    }
+
+    function soSetLicenseExpiryMode(mode) {
+        const el = document.querySelector(`input[name="so-license-expiry-mode"][value="${mode}"]`);
+        if (el) el.checked = true;
+        soOnLicenseExpiryModeChange();
+    }
+
+    window.soOnLicenseExpiryModeChange = function() {
+        const mode = soGetLicenseExpiryMode();
+        const dateWrap = document.getElementById('so-license-expires-at-wrap');
+        const unlimitedEl = document.getElementById('so-license-unlimited-time');
+        if (dateWrap) dateWrap.style.display = mode === 'fixed' ? 'block' : 'none';
+        if (unlimitedEl) {
+            unlimitedEl.checked = mode === 'never';
+            unlimitedEl.disabled = mode === 'never';
+        }
+    };
+
+    window.soOnLicenseUnlimitedTimeToggle = function() {
+        const unlimitedEl = document.getElementById('so-license-unlimited-time');
+        if (unlimitedEl && unlimitedEl.checked) soSetLicenseExpiryMode('never');
+        else if (soGetLicenseExpiryMode() === 'never') soSetLicenseExpiryMode('activation');
+    };
+
+    function soReadLicenseExpiryFields() {
+        const mode = soGetLicenseExpiryMode();
+        const unlimitedEl = document.getElementById('so-license-unlimited-time');
+        const unlimitedTime = !!(unlimitedEl && unlimitedEl.checked) || mode === 'never';
+        let expiresAt = '';
+        let expiryStartsOnActivation = true;
+        if (mode === 'fixed') {
+            const raw = String(document.getElementById('so-license-expires-at')?.value || '').trim();
+            if (!raw) throw new Error('Pick a fixed expiry date or choose another expiry mode.');
+            expiresAt = raw;
+            expiryStartsOnActivation = false;
+        } else if (mode === 'open') {
+            expiresAt = '';
+            expiryStartsOnActivation = false;
+        } else if (mode === 'never') {
+            expiresAt = '';
+            expiryStartsOnActivation = true;
+        }
+        return { unlimited_time: unlimitedTime, expiresAt, expiry_starts_on_activation: expiryStartsOnActivation };
+    }
+
+    function soApplyLicenseExpiryFromDoc(lic) {
+        if (!lic) {
+            soSetLicenseExpiryMode('activation');
+            return;
+        }
+        if (lic.unlimited_time || soIsUnlimitedTime(lic)) {
+            soSetLicenseExpiryMode('never');
+            return;
+        }
+        const expRaw = lic.expiresAt;
+        let expStr = '';
+        if (expRaw && typeof expRaw === 'string') expStr = expRaw.trim();
+        else if (expRaw && expRaw.toDate) {
+            const d = expRaw.toDate();
+            expStr = d.toISOString().slice(0, 10);
+        }
+        if (expStr) {
+            soSetLicenseExpiryMode('fixed');
+            const dateEl = document.getElementById('so-license-expires-at');
+            if (dateEl) dateEl.value = expStr.slice(0, 10);
+            return;
+        }
+        if (lic.expiry_starts_on_activation === false) {
+            soSetLicenseExpiryMode('open');
+            return;
+        }
+        soSetLicenseExpiryMode('activation');
     }
 
     function soSetLicenseFormMode(editingKey) {
@@ -3184,6 +3289,10 @@
             }
         }
         soSetLicenseUnlimitedCheckboxes(plan);
+        if (!soEditingLicenseKey) {
+            if (soIsUnlimitedTime(plan)) soSetLicenseExpiryMode('never');
+            else soSetLicenseExpiryMode('activation');
+        }
         const preselected = (plan.credit_addons || []).filter(a => a.default_selected).map(a => a.id);
         soRenderLicenseAddonPicks(plan, preselected);
     }
@@ -3219,11 +3328,15 @@
         document.getElementById('so-license-credits-used').value = '0';
         document.getElementById('so-license-billing-mode').value = 'subscription';
         soSetLicenseUnlimitedCheckboxes({});
+        soSetLicenseExpiryMode('activation');
+        const dateEl = document.getElementById('so-license-expires-at');
+        if (dateEl) dateEl.value = '';
         soRenderLicenseAddonPicks(null, []);
         soUpdateLicensePlanHint();
     };
 
-    window.editSoLicense = function(key) {
+    window.editSoLicense = async function(key) {
+        await openShippingOptimizerPanel();
         const lic = soLicenses.find(l => l.key === key);
         if (!lic) return soToast('License not found.');
         soSetLicenseFormMode(key);
@@ -3243,6 +3356,7 @@
         document.getElementById('so-license-customer-phone').value = lic.customer_phone || '';
         document.getElementById('so-license-customer-email').value = lic.customer_email || '';
         document.getElementById('so-license-support-notes').value = lic.support_notes || '';
+        soApplyLicenseExpiryFromDoc(lic);
         soUpdateLicensePlanHint();
         switchShippingOptimizerTab('licenses');
         toggleSoSectionAccordion('license-create');
@@ -3279,6 +3393,12 @@
             maxDevices = soIsUnlimitedDevices(plan) ? 0 : (plan.max_devices != null ? plan.max_devices : (SO_DEVICE_TIER_MAX[plan.device_tier] != null ? SO_DEVICE_TIER_MAX[plan.device_tier] : 1));
         }
         if (formFields.unlimited_devices) maxDevices = 0;
+        let expiryFields;
+        try {
+            expiryFields = soReadLicenseExpiryFields();
+        } catch (e) {
+            return soToast(e.message || 'Invalid expiry settings.');
+        }
         const payload = Object.assign({
             active: true,
             planId: plan.id,
@@ -3287,12 +3407,12 @@
             billing_mode: formFields.billing_mode || plan.billing_mode || 'subscription',
             max_devices: maxDevices,
             credits_used: formFields.credits_used,
-            unlimited_time: formFields.unlimited_time || soIsUnlimitedTime(plan),
+            unlimited_time: expiryFields.unlimited_time || formFields.unlimited_time || soIsUnlimitedTime(plan),
             unlimited_devices: formFields.unlimited_devices || soIsUnlimitedDevices(plan),
             unlimited_credits: formFields.unlimited_credits || soIsUnlimitedCredits(plan),
             device_ids: [],
-            expiry_starts_on_activation: true,
-            expiresAt: '',
+            expiry_starts_on_activation: expiryFields.expiry_starts_on_activation,
+            expiresAt: expiryFields.expiresAt,
             machineId: '',
             activatedAt: '',
             images_generated_total: 0,
@@ -3334,6 +3454,12 @@
             maxDevices = soIsUnlimitedDevices(plan) ? 0 : (plan.max_devices != null ? plan.max_devices : 1);
         }
         if (formFields.unlimited_devices) maxDevices = 0;
+        let expiryFields;
+        try {
+            expiryFields = soReadLicenseExpiryFields();
+        } catch (e) {
+            return soToast(e.message || 'Invalid expiry settings.');
+        }
         const payload = Object.assign({
             planId: plan.id,
             planType: plan.id,
@@ -3341,9 +3467,11 @@
             billing_mode: formFields.billing_mode,
             max_devices: maxDevices,
             credits_used: formFields.credits_used,
-            unlimited_time: formFields.unlimited_time,
+            unlimited_time: expiryFields.unlimited_time,
             unlimited_devices: formFields.unlimited_devices,
             unlimited_credits: formFields.unlimited_credits,
+            expiresAt: expiryFields.expiresAt,
+            expiry_starts_on_activation: expiryFields.expiry_starts_on_activation,
             customer_name: String(document.getElementById('so-license-customer-name')?.value || '').trim(),
             customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
             customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
@@ -3464,6 +3592,8 @@
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoLicenseCredits('${soAttr(lic.key)}')">Add credits</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="toggleSoLicenseActive('${soAttr(lic.key)}', ${active})">${active ? 'Revoke' : 'Activate'}</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseAllDevices('${soAttr(lic.key)}')" ${deviceIds.length ? '' : 'disabled'}>Reset devices</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="grantSoLicenseLifetime('${soAttr(lic.key)}')">Grant lifetime</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="clearSoLicenseExpiry('${soAttr(lic.key)}')">Clear expiry</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseTodayRuns('${soAttr(lic.key)}')">Reset today's runs</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseImageCounts('${soAttr(lic.key)}')">Reset all run counts</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="markSoLicenseShared('${soAttr(lic.key)}')" ${soIsLicenseShared(lic) ? 'disabled' : ''}>Mark shared</button>
@@ -3693,6 +3823,41 @@
         }
     };
 
+    window.grantSoLicenseLifetime = async function(key) {
+        if (!soRequireExtensionWrite()) return;
+        if (!confirm(`Grant lifetime (never expires) for ${key}?`)) return;
+        try {
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
+                unlimited_time: true,
+                expiresAt: ''
+            }, { merge: true });
+            await soLoadLicenses();
+            renderSoLicensesList();
+            renderSoCustomerRegistry();
+            soToast(`${key} is now lifetime / never expires.`);
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.clearSoLicenseExpiry = async function(key) {
+        if (!soRequireExtensionWrite()) return;
+        if (!confirm(`Clear expiry for ${key}? License stays open-ended until you set a date.`)) return;
+        try {
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
+                expiresAt: '',
+                expiry_starts_on_activation: false,
+                unlimited_time: false
+            }, { merge: true });
+            await soLoadLicenses();
+            renderSoLicensesList();
+            renderSoCustomerRegistry();
+            soToast(`Expiry cleared for ${key}.`);
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
     window.markSoLicenseShared = async function(key) {
         if (!soRequireExtensionWrite()) return;
         try {
@@ -3772,7 +3937,7 @@
                 <div class="so-list-actions so-list-actions--grid">
                     <button type="button" class="so-btn-sm so-btn-touch" onclick="editSoLicense('${soAttr(lic.key)}')">Edit license</button>
                     <button type="button" class="so-btn-sm so-btn-touch" onclick="markSoLicenseShared('${soAttr(lic.key)}')" ${shared ? 'disabled' : ''}>Mark shared</button>
-                    <button type="button" class="so-btn-sm so-btn-touch" onclick="switchShippingOptimizerTab('licenses'); editSoLicense('${soAttr(lic.key)}')">Open in Licenses</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="switchShippingOptimizerTab('licenses'); editSoLicense('${soAttr(lic.key)}')">Open license</button>
                 </div>
             </div>`;
         }).join('');
@@ -3793,19 +3958,7 @@
     };
 
     window.toggleSoCustomerRegistryAccordion = function() {
-        const content = document.getElementById('so-customer-registry-content');
-        const icon = document.getElementById('so-customer-registry-icon');
-        if (!content) return;
-        const open = content.style.display === 'none' || !content.style.display;
-        content.style.display = open ? 'flex' : 'none';
-        if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
-        if (open) {
-            if (typeof loadShippingOptimizerAdmin === 'function' && !soLoaded) {
-                loadShippingOptimizerAdmin();
-            } else {
-                renderSoCustomerRegistry();
-            }
-        }
+        openShippingOptimizerPanel().then(() => switchShippingOptimizerTab('customers'));
     };
 
     window.soRefreshShippingOptimizerAdmin = function() {
@@ -3839,8 +3992,9 @@
             await soLoadLicenses();
             soHydrating = true;
             soPopulateLicensePlanSelect();
-            soSetLicenseFormMode(null);
-            soUpdateCustomCreditCalc();
+        soSetLicenseFormMode(null);
+        soSetLicenseExpiryMode('activation');
+        soUpdateCustomCreditCalc();
             soRestoreSectionAccordions();
             renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
