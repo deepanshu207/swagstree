@@ -530,7 +530,8 @@ window.onload = () => {
     // Never leave storefront/admin stuck on infinite loader if Firestore never responds
     setTimeout(() => {
         if (window.productsLoaded) return;
-        settleCatalogLoad();
+        if (typeof settleCatalogLoad === 'function') settleCatalogLoad();
+        else console.error('settleCatalogLoad is not available');
     }, 22000);
 
     // Real-time Sync of App Features Configuration

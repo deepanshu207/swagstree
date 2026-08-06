@@ -311,6 +311,10 @@
 
     function soRequireSuperAdmin() {
         if (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) return true;
+        const email = (typeof auth !== 'undefined' && auth.currentUser && auth.currentUser.email)
+            ? String(auth.currentUser.email).toLowerCase()
+            : '';
+        if (email === 'superadmin@swagstree.com') return true;
         soToast('Superadmin access required.');
         return false;
     }

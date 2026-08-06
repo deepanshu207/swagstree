@@ -51,17 +51,21 @@
             && String(soAuth.currentUser.email || '').toLowerCase() === SO_SUPERADMIN_EMAIL);
     };
 
+    function soSafeLoadShippingOptimizerAdmin() {
+        if (typeof loadShippingOptimizerAdmin !== 'function') return;
+        const panel = document.getElementById('shipping-optimizer-accordion-content');
+        if (!panel || panel.style.display === 'none') return;
+        Promise.resolve(loadShippingOptimizerAdmin()).catch((e) => {
+            console.warn('Shipping Optimizer admin load:', e && e.message ? e.message : e);
+        });
+    }
+
     async function soFinishExtensionAuthSuccess(silent) {
         window.renderSoExtensionAuthBanner();
         if (!silent && typeof showToast === 'function') {
             showToast('Extension Firebase connected (same superadmin session).');
         }
-        if (typeof loadShippingOptimizerAdmin === 'function') {
-            const panel = document.getElementById('shipping-optimizer-accordion-content');
-            if (panel && panel.style.display !== 'none') {
-                loadShippingOptimizerAdmin();
-            }
-        }
+        soSafeLoadShippingOptimizerAdmin();
     }
 
     /** Auto sign-in to extension-e6e32 with same email/password as Swagstree login */
@@ -170,12 +174,7 @@
             }
             window.renderSoExtensionAuthBanner();
             if (typeof showToast === 'function') showToast('Extension Firebase connected.');
-            if (typeof loadShippingOptimizerAdmin === 'function') {
-                const panel = document.getElementById('shipping-optimizer-accordion-content');
-                if (panel && panel.style.display !== 'none') {
-                    loadShippingOptimizerAdmin();
-                }
-            }
+            soSafeLoadShippingOptimizerAdmin();
         } catch (e) {
             if (typeof showToast === 'function') showToast('Extension sign-in failed: ' + (e.message || 'Unknown error'));
         }

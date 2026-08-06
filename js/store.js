@@ -420,22 +420,26 @@ function settleStuckGridLoader(gridId, fallbackHtml) {
 }
 
 function settleCatalogLoad(options = {}) {
-    const message = options.message || 'Products are taking longer than usual. Check your connection and refresh.';
-    window.productsLoaded = true;
-    const overlay = document.getElementById('deep-link-overlay');
-    if (overlay) overlay.style.display = 'none';
-    const stuckMsg = `<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">${message}</p>`;
-    settleStuckGridLoader('product-grid', stuckMsg);
-    settleStuckGridLoader('wish-grid', '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load wishlist. Check your connection and refresh.</p>');
-    if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) {
+    try {
+        const message = options.message || 'Products are taking longer than usual. Check your connection and refresh.';
+        window.productsLoaded = true;
+        const overlay = document.getElementById('deep-link-overlay');
+        if (overlay) overlay.style.display = 'none';
+        const stuckMsg = `<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">${message}</p>`;
+        settleStuckGridLoader('product-grid', stuckMsg);
+        settleStuckGridLoader('wish-grid', '<p style="text-align:center; grid-column:1/-1; color:#888; padding:24px;">Could not load wishlist. Check your connection and refresh.</p>');
+        if (typeof isDetailViewOpen === 'function' && isDetailViewOpen()) {
+            if (typeof renderAdmin === 'function') renderAdmin();
+            return;
+        }
+        if (typeof ensureHomeGridHydrated === 'function') ensureHomeGridHydrated();
+        else if (typeof applySortAndFilter === 'function') applySortAndFilter();
+        else if (typeof renderProducts === 'function') renderProducts(products, 'product-grid');
+        if (typeof renderWishlistCatalog === 'function') renderWishlistCatalog();
         if (typeof renderAdmin === 'function') renderAdmin();
-        return;
+    } catch (e) {
+        console.error('settleCatalogLoad error:', e);
     }
-    if (typeof ensureHomeGridHydrated === 'function') ensureHomeGridHydrated();
-    else if (typeof applySortAndFilter === 'function') applySortAndFilter();
-    else if (typeof renderProducts === 'function') renderProducts(products, 'product-grid');
-    if (typeof renderWishlistCatalog === 'function') renderWishlistCatalog();
-    if (typeof renderAdmin === 'function') renderAdmin();
 }
 window.settleCatalogLoad = settleCatalogLoad;
 
@@ -445,49 +449,68 @@ function handleProductsSnapshot(snap) {
         return;
     }
 
-    products = snap.docs.map(doc => {
-        const p = { ...doc.data(), id: doc.id };
-        p.normalizedVariants = normalizeVariants(p);
-        return p;
-    });
-    window.products = products;
-    window.productsLoaded = true;
+    try {
+        products = snap.docs.map(doc => {
+            const p = { ...doc.data(), id: doc.id };
+            try {
+                p.normalizedVariants = normalizeVariants(p);
+            } catch (variantErr) {
+                console.warn('normalizeVariants failed for product', doc.id, variantErr);
+                p.normalizedVariants = [];
+            }
+            return p;
+        });
+        window.products = products;
+        window.productsLoaded = true;
 
-    const deepOverlay = document.getElementById('deep-link-overlay');
-    if (deepOverlay && deepOverlay.style.display !== 'none' && !paramsHasDetailId()) {
-        deepOverlay.style.display = 'none';
-    }
+        const deepOverlay = document.getElementById('deep-link-overlay');
+        if (deepOverlay && deepOverlay.style.display !== 'none' && !paramsHasDetailId()) {
+            deepOverlay.style.display = 'none';
+        }
 
-    renderStore();
-    ensureHomeGridHydrated();
-    renderFilters();
-    if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
-    if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
-    if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
-    if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
-    if (typeof applySearchDeepLink === 'function') applySearchDeepLink();
-    if (typeof refreshSeoProductIndex === 'function') refreshSeoProductIndex(products);
-    if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
-    if (typeof renderAdmin === 'function') renderAdmin();
-    checkDeepLink();
-    if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
+        renderStore();
+        ensureHomeGridHydrated();
+        renderFilters();
+        if (typeof renderHomeCategoryBar === 'function') renderHomeCategoryBar();
+        if (typeof renderWishCategoryBar === 'function') renderWishCategoryBar();
+        if (typeof renderCategoryFilterChips === 'function') renderCategoryFilterChips();
+        if (typeof applyCategoryDeepLink === 'function') applyCategoryDeepLink();
+        if (typeof applySearchDeepLink === 'function') applySearchDeepLink();
+        if (typeof refreshSeoProductIndex === 'function') refreshSeoProductIndex(products);
+        if (typeof refreshAiChatProductCards === 'function') refreshAiChatProductCards();
+        if (typeof renderAdmin === 'function') renderAdmin();
+        checkDeepLink();
+        if (typeof syncSeoFromUrl === 'function') syncSeoFromUrl();
 
-    if (typeof refreshCartStockCounts === 'function') refreshCartStockCounts();
-    if (typeof updateCartUI === 'function') updateCartUI();
-    if (activeProductId && isDetailViewOpen() && typeof updateVariantUI === 'function') {
-        const openP = products.find(x => x.id === activeProductId);
-        if (openP) updateVariantUI(openP, false);
-    }
-    if (typeof openCart === 'function') {
-        const cartModal = document.getElementById('cart-modal');
-        if (cartModal && cartModal.style.display === 'flex') {
-            openCart();
+        if (typeof refreshCartStockCounts === 'function') refreshCartStockCounts();
+        if (typeof updateCartUI === 'function') updateCartUI();
+        if (activeProductId && isDetailViewOpen() && typeof updateVariantUI === 'function') {
+            const openP = products.find(x => x.id === activeProductId);
+            if (openP) updateVariantUI(openP, false);
+        }
+        if (typeof openCart === 'function') {
+            const cartModal = document.getElementById('cart-modal');
+            if (cartModal && cartModal.style.display === 'flex') {
+                openCart();
+            }
+        }
+    } catch (e) {
+        console.error('handleProductsSnapshot error:', e);
+        if (!window.productsLoaded) {
+            settleCatalogLoad({ message: 'Could not load products. Please refresh the page.' });
         }
     }
 }
 
 function loadData() {
     if (window._storeListenersAttached) return;
+    if (typeof db === 'undefined' || !db) {
+        console.error('loadData: Firestore (db) is not initialized.');
+        if (typeof settleCatalogLoad === 'function') {
+            settleCatalogLoad({ message: 'Store could not connect. Please refresh the page.' });
+        }
+        return;
+    }
     window._storeListenersAttached = true;
 
     if (typeof startFeaturesConfigListener === 'function') startFeaturesConfigListener();
