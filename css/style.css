@@ -12438,9 +12438,13 @@ body.seo-indexing-off #seo-primary-nav {
     gap: 10px;
     margin-bottom: 6px;
 }
-.so-license-filters {
+.so-license-expiry-modes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     margin-bottom: 8px;
 }
+
 .so-badge--meta {
     background: #1a2433;
     color: #9ecbff;

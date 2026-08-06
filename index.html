@@ -2178,6 +2178,7 @@
                     <button type="button" class="so-tab-chip" data-so-tab-chip="credits" onclick="switchShippingOptimizerTab('credits')">Credits</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="demo" onclick="switchShippingOptimizerTab('demo')">Demo keys</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="licenses" onclick="switchShippingOptimizerTab('licenses')">Licenses</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="customers" onclick="switchShippingOptimizerTab('customers')">Users</button>
                 </div>
 
                 <!-- Mobile-friendly tab picker + desktop tabs -->
@@ -2188,6 +2189,7 @@
                         <option value="credits">Credits &amp; Packs</option>
                         <option value="demo">Demo / Promo Keys</option>
                         <option value="licenses">Paid Licenses</option>
+                        <option value="customers">License Customers</option>
                     </select>
                 </label>
                 <div class="so-admin-tabs so-admin-tabs--desktop">
@@ -2195,6 +2197,7 @@
                     <button type="button" class="so-admin-tab-btn" data-so-tab="credits" onclick="switchShippingOptimizerTab('credits')">Credits &amp; Packs</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
+                    <button type="button" class="so-admin-tab-btn" data-so-tab="customers" onclick="switchShippingOptimizerTab('customers')">License Customers</button>
                 </div>
                 <div id="so-draft-recovery-banner" class="so-draft-recovery-banner" hidden></div>
                 <div id="so-unsaved-banner" class="so-unsaved-banner" hidden>
@@ -2474,10 +2477,19 @@
                                     <input id="so-license-credits-used" type="number" min="0" step="1" value="0"></label>
                             </div>
                             <div class="so-checkbox-group">
-                                <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox"> Unlimited time</label>
+                                <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox" onchange="soOnLicenseUnlimitedTimeToggle()"> Never expires (unlimited time)</label>
                                 <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox"> Unlimited devices</label>
                                 <label class="so-plan-check"><input id="so-license-unlimited-credits" type="checkbox"> Unlimited credits</label>
                             </div>
+                            <div class="so-admin-subhead" style="margin-top:10px;">Expiry mode</div>
+                            <div class="so-license-expiry-modes so-plan-flags so-plan-flags--simple">
+                                <label class="so-plan-check"><input type="radio" name="so-license-expiry-mode" value="activation" checked onchange="soOnLicenseExpiryModeChange()"> Starts on activation</label>
+                                <label class="so-plan-check"><input type="radio" name="so-license-expiry-mode" value="fixed" onchange="soOnLicenseExpiryModeChange()"> Fixed expiry date</label>
+                                <label class="so-plan-check"><input type="radio" name="so-license-expiry-mode" value="never" onchange="soOnLicenseExpiryModeChange()"> Never expires</label>
+                                <label class="so-plan-check"><input type="radio" name="so-license-expiry-mode" value="open" onchange="soOnLicenseExpiryModeChange()"> No expiry (open-ended grant)</label>
+                            </div>
+                            <label id="so-license-expires-at-wrap" style="display:none; margin-top:8px;"><span class="admin-settings-field-label">Fixed expires at</span>
+                                <input id="so-license-expires-at" type="date"></label>
                             <p id="so-license-plan-hint" class="so-admin-muted so-admin-tip"></p>
                             <div id="so-license-addon-section" class="so-license-addon-section" style="display:none;">
                                 <div class="so-admin-subhead">Credit add-ons for this plan</div>
@@ -2536,6 +2548,34 @@
                     </div>
                 </div>
 
+                <!-- Tab 5: License Customers (one record per paid license) -->
+                <div id="so-tab-customers" class="so-admin-tab-panel" style="display:none;">
+                    <p class="so-admin-muted so-admin-tip">One row per paid license from Firebase <code>shipping_optimizer_licenses</code>. Track keys you generated but have not shared yet, shared-but-unused, active, expired, and lifetime.</p>
+                    <div id="so-customer-registry-stats" class="so-customer-stats"></div>
+                    <div class="so-tab-chips" aria-label="Customer filters">
+                        <button type="button" class="so-tab-chip so-tab-chip--active" data-so-customer-filter="all" onclick="setSoCustomerFilter('all')">All</button>
+                        <button type="button" class="so-tab-chip" data-so-customer-filter="not_shared" onclick="setSoCustomerFilter('not_shared')">Not shared</button>
+                        <button type="button" class="so-tab-chip" data-so-customer-filter="unused" onclick="setSoCustomerFilter('unused')">Unused</button>
+                        <button type="button" class="so-tab-chip" data-so-customer-filter="active" onclick="setSoCustomerFilter('active')">Active</button>
+                        <button type="button" class="so-tab-chip" data-so-customer-filter="expired" onclick="setSoCustomerFilter('expired')">Expired</button>
+                        <button type="button" class="so-tab-chip" data-so-customer-filter="lifetime" onclick="setSoCustomerFilter('lifetime')">Lifetime</button>
+                    </div>
+                    <label class="so-tab-select-wrap">
+                        <span class="admin-settings-field-label">Filter</span>
+                        <select id="so-customer-filter" class="so-tab-select" onchange="setSoCustomerFilter(this.value)">
+                            <option value="all">All customers</option>
+                            <option value="not_shared">Not shared yet</option>
+                            <option value="unused">Unused keys</option>
+                            <option value="active">Active</option>
+                            <option value="expired">Expired</option>
+                            <option value="lifetime">Lifetime</option>
+                            <option value="revoked">Revoked</option>
+                        </select>
+                    </label>
+                    <input id="so-customer-search" type="search" placeholder="Search name, phone, email, license key…" oninput="filterSoCustomers()">
+                    <div id="so-customer-registry-list" class="so-admin-list so-admin-list--tall"></div>
+                </div>
+
                 <!-- Add credits modal (mobile-safe, no prompt) -->
                 <div id="so-add-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
                     <div class="so-modal-panel">
@@ -2576,50 +2616,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Shipping Optimizer — Customer / license registry -->
-        <div id="so-customer-registry-section"
-            style="margin: 0 20px 20px 20px; background:#111; border:1px solid #2a2a2a; border-radius:18px; padding:15px 20px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
-                onclick="toggleSoCustomerRegistryAccordion()">
-                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <i class="fa fa-users" style="color:var(--gold); font-size:15px;"></i>
-                    <div style="min-width:0;">
-                        <h4 style="margin:0; font-size:13px; color:#fff; font-weight:700;">License Customers Registry</h4>
-                        <p style="margin:2px 0 0; font-size:11px; color:#666;">One record per paid license — track unused, shared, activated, expired</p>
-                    </div>
-                </div>
-                <i id="so-customer-registry-icon" class="fa fa-chevron-down"
-                    style="color:var(--gold); font-size:12px; transition:transform 0.3s; transform: rotate(-90deg); flex-shrink:0;"></i>
-            </div>
-            <div id="so-customer-registry-content"
-                style="display:none; margin-top:15px; flex-direction:column; gap:14px;">
-                <p class="so-admin-muted so-admin-tip">Generate a license in <strong>Paid Licenses</strong> first. Mark <strong>shared</strong> when you send the key on WhatsApp — even if the customer has not activated yet.</p>
-                <div id="so-customer-registry-stats" class="so-customer-stats"></div>
-                <div class="so-tab-chips" aria-label="Customer filters">
-                    <button type="button" class="so-tab-chip so-tab-chip--active" data-so-customer-filter="all" onclick="setSoCustomerFilter('all')">All</button>
-                    <button type="button" class="so-tab-chip" data-so-customer-filter="not_shared" onclick="setSoCustomerFilter('not_shared')">Not shared</button>
-                    <button type="button" class="so-tab-chip" data-so-customer-filter="unused" onclick="setSoCustomerFilter('unused')">Unused</button>
-                    <button type="button" class="so-tab-chip" data-so-customer-filter="active" onclick="setSoCustomerFilter('active')">Active</button>
-                    <button type="button" class="so-tab-chip" data-so-customer-filter="expired" onclick="setSoCustomerFilter('expired')">Expired</button>
-                    <button type="button" class="so-tab-chip" data-so-customer-filter="lifetime" onclick="setSoCustomerFilter('lifetime')">Lifetime</button>
-                </div>
-                <label class="so-tab-select-wrap">
-                    <span class="admin-settings-field-label">Filter</span>
-                    <select id="so-customer-filter" class="so-tab-select" onchange="setSoCustomerFilter(this.value)">
-                        <option value="all">All customers</option>
-                        <option value="not_shared">Not shared yet</option>
-                        <option value="unused">Unused keys</option>
-                        <option value="active">Active</option>
-                        <option value="expired">Expired</option>
-                        <option value="lifetime">Lifetime</option>
-                        <option value="revoked">Revoked</option>
-                    </select>
-                </label>
-                <input id="so-customer-search" type="search" placeholder="Search name, phone, email, license key…" oninput="filterSoCustomers()">
-                <div id="so-customer-registry-list" class="so-admin-list so-admin-list--tall"></div>
             </div>
         </div>
 
@@ -4412,7 +4408,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.1"></script>
-    <script src="js/shipping-optimizer-admin.js?v=2.6"></script>
+    <script src="js/shipping-optimizer-admin.js?v=2.7"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
