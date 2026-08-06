@@ -11308,6 +11308,28 @@ body.seo-indexing-off #seo-primary-nav {
     color: #10b981;
     line-height: 1.3;
 }
+.so-ext-plan-hint {
+    font-size: 8px;
+    color: #888;
+    margin-top: 4px;
+    line-height: 1.3;
+}
+.so-ext-wa-icon {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #25d366;
+    color: #fff;
+    font-size: 7px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
 .so-ext-plan-meta {
     margin-top: 6px;
     font-size: 9px;

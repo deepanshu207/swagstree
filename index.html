@@ -2357,7 +2357,7 @@
                             <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-img-gen-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Image generation enabled</label>
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Credits per run</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-credits', event)" aria-expanded="false" aria-controls="so-hint-img-gen-credits" title="More info">ⓘ</button></span>
-                                    <div id="so-hint-img-gen-credits" class="so-field-info-panel" hidden role="note">Charged once per upload/generation flow. Field key stays <code>credits_per_image</code> for extension compatibility. Use <code>0</code> for free runs on credits/hybrid plans.</div>
+                                    <div id="so-hint-img-gen-credits" class="so-field-info-panel" hidden role="note">Charged once per upload/generation flow. Field key stays <code>credits_per_image</code> for extension compatibility. Use <code>0</code> to fall back to legacy <code>cost_per_operation</code> for credits/hybrid licenses.</div>
                                     <input id="so-img-gen-credits" type="number" min="0" step="1" value="2" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Daily run limit (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-daily', event)" aria-expanded="false" aria-controls="so-hint-img-gen-daily" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-daily" class="so-field-info-panel" hidden role="note">Max generation runs per license per calendar day. Resets at midnight (extension local time).</div>
@@ -4420,7 +4420,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=2.9"></script>
+    <script src="js/shipping-optimizer-admin.js?v=3.0"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

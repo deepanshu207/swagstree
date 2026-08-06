@@ -630,7 +630,64 @@
         p.label = String(p.label || `${p.credits} credits — ₹${p.price}`).trim();
         p.active = p.active !== false;
         p.order = Number.isFinite(Number(p.order)) ? Number(p.order) : index;
+        p.description = String(p.description || '').trim();
+        p.detail_subtitle = String(p.detail_subtitle || '').trim();
+        p.detail_footer = String(p.detail_footer || '').trim();
+        p.cta_text = String(p.cta_text || '').trim();
+        p.card_subtitle = String(p.card_subtitle || '').trim();
+        p.card_hint = String(p.card_hint || '').trim();
+        if (p.show_whatsapp_icon === false) p.show_whatsapp_icon = false;
+        else p.show_whatsapp_icon = p.show_whatsapp_icon !== false;
+        p.highlights = Array.isArray(p.highlights)
+            ? p.highlights.map(h => String(h || '').trim()).filter(Boolean)
+            : [];
+        p.features = Array.isArray(p.features) ? p.features : [];
+        p.detail_sections = Array.isArray(p.detail_sections) ? p.detail_sections.map(s => ({
+            title: String(s && s.title || '').trim(),
+            body: String(s && s.body || '').trim(),
+            items: Array.isArray(s && s.items) ? s.items.map(i => String(i || '').trim()).filter(Boolean) : []
+        })) : [];
         return p;
+    }
+
+    function soCreditPackToFirestore(p, order) {
+        const out = {
+            id: p.id,
+            credits: p.credits,
+            price: p.price,
+            label: p.label,
+            active: p.active !== false,
+            order: order
+        };
+        if (p.description) out.description = p.description;
+        if (p.detail_subtitle) out.detail_subtitle = p.detail_subtitle;
+        if (p.detail_footer) out.detail_footer = p.detail_footer;
+        if (p.cta_text) out.cta_text = p.cta_text;
+        if (p.card_subtitle) out.card_subtitle = p.card_subtitle;
+        if (p.card_hint) out.card_hint = p.card_hint;
+        if (p.show_whatsapp_icon === false) out.show_whatsapp_icon = false;
+        if (p.highlights && p.highlights.length) out.highlights = p.highlights.slice();
+        if (p.features && p.features.length) {
+            out.features = p.features.map(f => {
+                if (typeof f === 'string') return f;
+                const item = {
+                    icon: String(f.icon || '').trim(),
+                    title: String(f.title || '').trim(),
+                    text: String(f.text || '').trim()
+                };
+                if (!item.icon && !item.title && !item.text) return null;
+                return item;
+            }).filter(Boolean);
+        }
+        if (p.detail_sections && p.detail_sections.length) {
+            out.detail_sections = p.detail_sections.map(s => {
+                const sec = { title: s.title || '' };
+                if (s.body) sec.body = s.body;
+                if (s.items && s.items.length) sec.items = s.items.slice();
+                return sec;
+            }).filter(s => s.title || s.body || (s.items && s.items.length));
+        }
+        return out;
     }
 
     function soSortCreditPacks(packs) {
@@ -1237,6 +1294,18 @@
         return sections;
     }
 
+    function soRenderPackDetailSectionRow(section, packIdx, secIdx) {
+        const sec = section || {};
+        const itemsText = Array.isArray(sec.items) ? sec.items.join('\n') : '';
+        return `
+            <div class="so-plan-detail-section-row" data-detail-idx="${secIdx}">
+                <label><span>Section title</span><input type="text" data-detail-field="title" value="${soAttr(sec.title || '')}" oninput="soMarkTabDirty('credits')"></label>
+                <label><span>Body (optional)</span><textarea rows="2" data-detail-field="body" oninput="soMarkTabDirty('credits')">${soEsc(sec.body || '')}</textarea></label>
+                <label><span>Items (one per line)</span><textarea rows="3" data-detail-field="items" oninput="soMarkTabDirty('credits')">${soEsc(itemsText)}</textarea></label>
+                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoPackDetailSection(${packIdx}, ${secIdx})">Remove section</button>
+            </div>`;
+    }
+
     function soRenderPlanDetailSectionRow(section, planIdx, secIdx) {
         const sec = section || {};
         const itemsText = Array.isArray(sec.items) ? sec.items.join('\n') : '';
@@ -1549,14 +1618,7 @@
                 : Math.max(1, parseInt(c.cost_per_operation, 10) || DEFAULT_CREDITS.cost_per_operation),
             image_generation: fromDom ? soReadImageGenerationFromDom() : soNormalizeImageGeneration(c.image_generation),
             smart_mode: fromDom ? soReadSmartModeFromDom() : soSmartModeToFirestore(soSmartMode || soConfig?.smart_mode || DEFAULT_SMART_MODE),
-            packs: packs.map((p, i) => ({
-                id: p.id,
-                credits: p.credits,
-                price: p.price,
-                label: p.label,
-                active: p.active !== false,
-                order: i
-            }))
+            packs: packs.map((p, i) => soCreditPackToFirestore(p, i))
         };
     }
 
@@ -2213,6 +2275,31 @@
                             <label class="so-plan-check"><input type="checkbox" data-field="active" ${pack.active ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show in extension</label>
                         </div>
                     </div>
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-mobile-screen"></i> Pack detail screen (extension)</div>
+                        <p class="so-field-group-hint">Shown when customer taps a credit pack card — same pattern as subscription plans.</p>
+                        <label class="so-field-full"><span>Short description</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('credits')">${soEsc(pack.description || '')}</textarea></label>
+                        <label><span>Detail subtitle</span><input type="text" data-field="detail_subtitle" value="${soAttr(pack.detail_subtitle || '')}" placeholder="Under pack name on detail screen" oninput="soMarkTabDirty('credits')"></label>
+                        <label class="so-field-full"><span>Highlights (one per line — pills)</span>
+                            <textarea rows="3" data-field="highlights_text" oninput="soMarkTabDirty('credits')">${soEsc((pack.highlights || []).join('\n'))}</textarea></label>
+                        <label class="so-field-full"><span>Features (one per line — plain text or <code>icon|title|text</code>)</span>
+                            <textarea rows="4" data-field="features_text" oninput="soMarkTabDirty('credits')">${soEsc(soFormatPlanFeaturesForEditor(pack.features))}</textarea></label>
+                        <div class="so-admin-subhead">Detail sections</div>
+                        <div class="so-pack-detail-sections">
+                            ${(pack.detail_sections || []).map((sec, sidx) => soRenderPackDetailSectionRow(sec, idx, sidx)).join('')}
+                        </div>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoPackDetailSection(${idx})">+ Add detail section</button>
+                    </div>
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-id-card"></i> Pack card &amp; CTA</div>
+                        <div class="so-plan-fields so-plan-fields--basic">
+                            <label><span>Card subtitle</span><input type="text" data-field="card_subtitle" value="${soAttr(pack.card_subtitle || '')}" placeholder="${pack.credits} credits · ₹${pack.price}" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Card hint</span><input type="text" data-field="card_hint" value="${soAttr(pack.card_hint || '')}" placeholder="Tap for details · WhatsApp to buy" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>WhatsApp button label</span><input type="text" data-field="cta_text" value="${soAttr(pack.cta_text || '')}" placeholder="Buy via WhatsApp" oninput="soMarkTabDirty('credits')"></label>
+                            <label class="so-field-full"><span>Detail footer</span><input type="text" data-field="detail_footer" value="${soAttr(pack.detail_footer || '')}" oninput="soMarkTabDirty('credits')"></label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="show_whatsapp_icon" ${pack.show_whatsapp_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show green WhatsApp icon on pack card</label>
+                        </div>
+                    </div>
                     <div class="so-plan-actions-bar">
                         <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoCreditPack(${idx})"><i class="fa fa-trash"></i> Remove pack</button>
                     </div>
@@ -2240,6 +2327,16 @@
                 price: get('price'),
                 label: get('label'),
                 active: get('active'),
+                description: get('description'),
+                detail_subtitle: get('detail_subtitle'),
+                detail_footer: get('detail_footer'),
+                cta_text: get('cta_text'),
+                card_subtitle: get('card_subtitle'),
+                card_hint: get('card_hint'),
+                show_whatsapp_icon: get('show_whatsapp_icon'),
+                highlights: soParsePlanFeaturesText(get('highlights_text')),
+                features: soParsePlanFeaturesFromText(get('features_text')),
+                detail_sections: soParsePlanDetailSectionsFromDom(row),
                 order: idx
             }, idx));
         });
@@ -2280,6 +2377,27 @@
         if (!confirm('Remove this credit pack from config?')) return;
         soCreditPacks.splice(idx, 1);
         soCreditPacks.forEach((p, i) => { p.order = i; });
+        renderSoCreditPacksEditor();
+        soMarkTabDirty('credits');
+    };
+
+    window.addSoPackDetailSection = function(packIdx) {
+        soCreditPacks = soReadCreditPacksFromDom();
+        const pack = soCreditPacks[packIdx];
+        if (!pack) return;
+        if (!Array.isArray(pack.detail_sections)) pack.detail_sections = [];
+        pack.detail_sections.push({ title: 'New section', items: [] });
+        soExpandedPackIds.add(pack.id);
+        renderSoCreditPacksEditor();
+        soMarkTabDirty('credits');
+    };
+
+    window.removeSoPackDetailSection = function(packIdx, secIdx) {
+        soCreditPacks = soReadCreditPacksFromDom();
+        const pack = soCreditPacks[packIdx];
+        if (!pack || !pack.detail_sections) return;
+        pack.detail_sections.splice(secIdx, 1);
+        soExpandedPackIds.add(pack.id);
         renderSoCreditPacksEditor();
         soMarkTabDirty('credits');
     };
@@ -2369,7 +2487,6 @@
                 const bestClass = p.best ? ' so-ext-plan--best' : '';
                 const durationLabel = soFormatPlanDurationLabel(p);
                 const devicesLabel = soFormatPlanDevicesLabel(p);
-                const note = p.save || `${durationLabel} · ${devicesLabel}`;
                 const addons = soGetActivePlanCreditAddons(p);
                 const addonsHtml = addons.length
                     ? `<div class="so-ext-plan-addons">${addons.map(a =>
@@ -2378,9 +2495,11 @@
                     : '';
                 return `<div class="so-ext-plan${bestClass}">
                     ${p.best ? '<span class="so-ext-plan-tag">BEST VALUE</span>' : ''}
+                    ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
                     <div class="so-ext-plan-name">${soEsc(p.name)}</div>
                     <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
-                    <div class="so-ext-plan-note">${soEsc(note)}</div>
+                    <div class="so-ext-plan-note">${soEsc(p.card_subtitle || p.save || `${durationLabel} · ${devicesLabel}`)}</div>
+                    ${p.card_hint ? `<div class="so-ext-plan-hint">${soEsc(p.card_hint)}</div>` : ''}
                     <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}${p.included_credits > 0 ? ` · ${p.included_credits} base cr` : ''}</div>
                     ${addonsHtml}
                 </div>`;
@@ -2393,9 +2512,11 @@
                 <p class="so-admin-muted">₹${credits.price_per_credit}/credit · min ${credits.min_purchase} · ${credits.cost_per_operation} per operation</p>
                 ${packs.length ? `<div class="so-ext-preview-grid so-ext-preview-grid--packs">${packs.map(p =>
                     `<div class="so-ext-plan so-ext-plan--pack">
+                        ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
                         <div class="so-ext-plan-name">${soEsc(p.label || `${p.credits} credits`)}</div>
                         <div class="so-ext-plan-price">₹${p.price}</div>
-                        <div class="so-ext-plan-note">${p.credits} credits</div>
+                        <div class="so-ext-plan-note">${soEsc(p.card_subtitle || `${p.credits} credits`)}</div>
+                        ${p.card_hint ? `<div class="so-ext-plan-hint">${soEsc(p.card_hint)}</div>` : ''}
                     </div>`
                 ).join('')}</div>` : '<p class="so-admin-muted">No active credit packs.</p>'}
             </div>`
@@ -2573,9 +2694,7 @@
             min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
             cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
             image_generation: soReadImageGenerationFromDom(),
-            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => ({
-                id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
-            }))
+            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => soCreditPackToFirestore(p, i))
         });
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         try {
@@ -2603,9 +2722,7 @@
         if (packErr) return soToast(packErr);
         const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
             image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => ({
-                id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
-            }))
+            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
         });
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         try {
@@ -3103,14 +3220,7 @@
             min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
             cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
             image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => ({
-                id: p.id,
-                credits: p.credits,
-                price: p.price,
-                label: p.label,
-                active: p.active !== false,
-                order: i
-            }))
+            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
         };
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
 
