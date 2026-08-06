@@ -39,6 +39,19 @@
         max_batch_size: 0
     };
 
+    const DEFAULT_SMART_MODE = {
+        variant_options: [
+            { value: 20, label: '20 variants', active: true, order: 0 },
+            { value: 50, label: '50 variants', active: true, order: 1 },
+            { value: 100, label: '100 variants', active: true, order: 2 },
+            { value: 200, label: '200 variants', active: true, order: 3 }
+        ],
+        default_variant: 20,
+        max_variants_cap: 200,
+        label: 'Max Variants',
+        hint: 'Live Meesho shipping checks — finds the lowest ₹ from generated variants'
+    };
+
     const DEFAULT_SUPPORT = {
         enabled: true,
         title: 'Support team',
@@ -125,6 +138,7 @@
     let soLoadInProgress = false;
     let soDirtyCheckTimer = null;
     let soSupport = null;
+    let soSmartMode = null;
     let soLicenseFilter = 'all';
     let soDraftSaveTimer = null;
     const SO_DRAFT_STORAGE_KEY = 'swagstree_so_admin_draft_v1';
@@ -345,6 +359,13 @@
         p.save = String(p.save || '').trim();
         p.plan_kind = String(p.plan_kind || '').trim();
         p.description = String(p.description || '').trim();
+        p.detail_subtitle = String(p.detail_subtitle || '').trim();
+        p.detail_footer = String(p.detail_footer || '').trim();
+        p.cta_text = String(p.cta_text || '').trim();
+        p.card_subtitle = String(p.card_subtitle || '').trim();
+        p.card_hint = String(p.card_hint || '').trim();
+        if (p.show_whatsapp_icon === false) p.show_whatsapp_icon = false;
+        else p.show_whatsapp_icon = p.show_whatsapp_icon !== false;
         p.active = p.active !== false;
         p.best = !!p.best;
         p.unlimited_time = !!p.unlimited_time;
@@ -491,6 +512,12 @@
         if (p.best) out.best = true;
         if (p.plan_kind) out.plan_kind = p.plan_kind;
         if (p.description) out.description = p.description;
+        if (p.detail_subtitle) out.detail_subtitle = p.detail_subtitle;
+        if (p.detail_footer) out.detail_footer = p.detail_footer;
+        if (p.cta_text) out.cta_text = p.cta_text;
+        if (p.card_subtitle) out.card_subtitle = p.card_subtitle;
+        if (p.card_hint) out.card_hint = p.card_hint;
+        if (p.show_whatsapp_icon === false) out.show_whatsapp_icon = false;
         if (p.included_credits > 0) out.included_credits = p.included_credits;
         if (p.allow_credit_addons) out.allow_credit_addons = true;
         if (p.max_addon_selections > 0) out.max_addon_selections = p.max_addon_selections;
@@ -1267,6 +1294,196 @@
         card.innerHTML = `Example: customer uploads 1 image, selects 50 variants → counts as <strong>1 run</strong>, costs <strong>${creditsLabel}</strong> credits (if credits plan), uses <strong>1</strong> from daily limit.`;
     };
 
+    function soNormalizeSmartModeVariantOption(opt, index) {
+        const o = Object.assign({}, opt);
+        o.value = Math.max(1, parseInt(o.value, 10) || 20);
+        o.label = String(o.label || `${o.value} variants`).trim();
+        o.active = o.active !== false;
+        o.order = Number.isFinite(Number(o.order)) ? Number(o.order) : index;
+        return o;
+    }
+
+    function soNormalizeSmartMode(raw) {
+        const src = raw && typeof raw === 'object' ? raw : {};
+        let options = [];
+        if (Array.isArray(src.variant_options) && src.variant_options.length) {
+            options = src.variant_options.map((opt, i) => {
+                if (typeof opt === 'number' || (typeof opt === 'string' && /^\d+$/.test(opt))) {
+                    const val = parseInt(opt, 10);
+                    return soNormalizeSmartModeVariantOption({ value: val, label: `${val} variants`, active: true }, i);
+                }
+                return soNormalizeSmartModeVariantOption(opt, i);
+            });
+        } else {
+            options = DEFAULT_SMART_MODE.variant_options.map(soNormalizeSmartModeVariantOption);
+        }
+        options.sort((a, b) => (a.order || 0) - (b.order || 0));
+        options.forEach((o, i) => { o.order = i; });
+        const activeValues = options.filter(o => o.active !== false).map(o => o.value);
+        let defaultVariant = parseInt(src.default_variant, 10);
+        if (!Number.isFinite(defaultVariant) || !activeValues.includes(defaultVariant)) {
+            defaultVariant = activeValues[0] || options[0]?.value || DEFAULT_SMART_MODE.default_variant;
+        }
+        return {
+            variant_options: options,
+            default_variant: defaultVariant,
+            max_variants_cap: Math.max(0, parseInt(src.max_variants_cap, 10) || DEFAULT_SMART_MODE.max_variants_cap),
+            label: String(src.label || DEFAULT_SMART_MODE.label).trim(),
+            hint: String(src.hint || DEFAULT_SMART_MODE.hint).trim()
+        };
+    }
+
+    function soSmartModeToFirestore(mode) {
+        const m = soNormalizeSmartMode(mode);
+        return {
+            variant_options: m.variant_options.map((o, i) => ({
+                value: o.value,
+                label: o.label,
+                active: o.active !== false,
+                order: i
+            })),
+            default_variant: m.default_variant,
+            max_variants_cap: m.max_variants_cap,
+            label: m.label,
+            hint: m.hint
+        };
+    }
+
+    function soReadSmartModeVariantOptionsFromDom() {
+        const container = document.getElementById('so-smart-mode-options');
+        if (!container) return (soSmartMode || DEFAULT_SMART_MODE).variant_options.slice();
+        return Array.from(container.querySelectorAll('.so-smart-mode-option-row')).map((row, idx) => {
+            const get = (field) => {
+                const el = row.querySelector(`[data-smart-field="${field}"]`);
+                if (!el) return '';
+                if (el.type === 'checkbox') return el.checked;
+                return el.value;
+            };
+            return soNormalizeSmartModeVariantOption({
+                value: get('value'),
+                label: get('label'),
+                active: get('active'),
+                order: idx
+            }, idx);
+        });
+    }
+
+    function soReadSmartModeFromDom() {
+        const options = soReadSmartModeVariantOptionsFromDom();
+        const activeValues = options.filter(o => o.active !== false).map(o => o.value);
+        let defaultVariant = parseInt(document.getElementById('so-smart-default-variant')?.value, 10);
+        if (!Number.isFinite(defaultVariant) || !activeValues.includes(defaultVariant)) {
+            defaultVariant = activeValues[0] || options[0]?.value || DEFAULT_SMART_MODE.default_variant;
+        }
+        return soNormalizeSmartMode({
+            variant_options: options,
+            default_variant: defaultVariant,
+            max_variants_cap: document.getElementById('so-smart-max-cap')?.value,
+            label: document.getElementById('so-smart-label')?.value,
+            hint: document.getElementById('so-smart-hint')?.value
+        });
+    }
+
+    function soRenderSmartModeVariantRow(opt, idx) {
+        const o = soNormalizeSmartModeVariantOption(opt, idx);
+        return `
+            <div class="so-smart-mode-option-row so-plan-card so-collapsible-row" data-smart-idx="${idx}">
+                <div class="so-plan-card-head">
+                    <span class="so-plan-card-title">${soEsc(o.label)} <span class="so-admin-muted">(${o.value})</span></span>
+                    <div class="so-plan-reorder" onclick="event.stopPropagation()">
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSmartModeOption(${idx}, -1)" title="Move up">▲</button>
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSmartModeOption(${idx}, 1)" title="Move down">▼</button>
+                    </div>
+                </div>
+                <div class="so-plan-card-body">
+                    <div class="so-plan-fields so-plan-fields--basic">
+                        <label><span>Variant count</span><input type="number" min="1" step="1" data-smart-field="value" value="${o.value}" oninput="soMarkTabDirty('credits'); soUpdateSmartModeDefaultSelect()"></label>
+                        <label><span>Dropdown label</span><input type="text" data-smart-field="label" value="${soAttr(o.label)}" oninput="soMarkTabDirty('credits')"></label>
+                        <label class="so-plan-check"><input type="checkbox" data-smart-field="active" ${o.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits'); soUpdateSmartModeDefaultSelect()"> Show in extension</label>
+                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoSmartModeOption(${idx})">Remove</button>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function soRenderSmartModeEditor() {
+        const container = document.getElementById('so-smart-mode-options');
+        if (!container) return;
+        const mode = soSmartMode || soNormalizeSmartMode(soConfig?.smart_mode);
+        container.innerHTML = (mode.variant_options || []).map((opt, idx) => soRenderSmartModeVariantRow(opt, idx)).join('')
+            || '<p class="so-admin-muted">No variant options. Add at least one.</p>';
+        soUpdateSmartModeDefaultSelect();
+    }
+
+    function soBindSmartModeForm() {
+        const mode = soNormalizeSmartMode(soSmartMode || soConfig?.smart_mode);
+        soSmartMode = mode;
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        setVal('so-smart-max-cap', mode.max_variants_cap);
+        setVal('so-smart-label', mode.label);
+        setVal('so-smart-hint', mode.hint);
+        soRenderSmartModeEditor();
+    }
+
+    window.soUpdateSmartModeDefaultSelect = function() {
+        const select = document.getElementById('so-smart-default-variant');
+        if (!select) return;
+        const options = soReadSmartModeVariantOptionsFromDom().filter(o => o.active !== false);
+        const current = parseInt(select.value, 10);
+        select.innerHTML = options.map(o =>
+            `<option value="${o.value}" ${o.value === current ? 'selected' : ''}>${soEsc(o.label)} (${o.value})</option>`
+        ).join('');
+        if (!options.some(o => o.value === current) && options.length) {
+            select.value = String(options[0].value);
+        }
+        const batchMax = parseInt(document.getElementById('so-img-gen-batch-max')?.value, 10);
+        const hint = document.getElementById('so-smart-batch-hint');
+        if (hint) {
+            if (Number.isFinite(batchMax) && batchMax > 0) {
+                hint.textContent = `Options above ${batchMax} variants are hidden in the extension when max variants per run is set.`;
+                hint.hidden = false;
+            } else {
+                hint.hidden = true;
+            }
+        }
+    };
+
+    window.addSoSmartModeOption = function() {
+        soSmartMode = soReadSmartModeFromDom();
+        const values = soSmartMode.variant_options.map(o => o.value);
+        let nextVal = 20;
+        while (values.includes(nextVal)) nextVal += 10;
+        soSmartMode.variant_options.push(soNormalizeSmartModeVariantOption({
+            value: nextVal,
+            label: `${nextVal} variants`,
+            active: true
+        }, soSmartMode.variant_options.length));
+        soRenderSmartModeEditor();
+        soMarkTabDirty('credits');
+    };
+
+    window.removeSoSmartModeOption = function(idx) {
+        soSmartMode = soReadSmartModeFromDom();
+        if (!soSmartMode.variant_options[idx]) return;
+        soSmartMode.variant_options.splice(idx, 1);
+        soRenderSmartModeEditor();
+        soMarkTabDirty('credits');
+    };
+
+    window.moveSoSmartModeOption = function(idx, dir) {
+        soSmartMode = soReadSmartModeFromDom();
+        const next = idx + dir;
+        if (next < 0 || next >= soSmartMode.variant_options.length) return;
+        const tmp = soSmartMode.variant_options[idx];
+        soSmartMode.variant_options[idx] = soSmartMode.variant_options[next];
+        soSmartMode.variant_options[next] = tmp;
+        soRenderSmartModeEditor();
+        soMarkTabDirty('credits');
+    };
+
     function soBuildGeneralCanonical(fromDom) {
         if (fromDom) return soReadGeneralConfigLenient();
         return {
@@ -1331,6 +1548,7 @@
                 ? Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation)
                 : Math.max(1, parseInt(c.cost_per_operation, 10) || DEFAULT_CREDITS.cost_per_operation),
             image_generation: fromDom ? soReadImageGenerationFromDom() : soNormalizeImageGeneration(c.image_generation),
+            smart_mode: fromDom ? soReadSmartModeFromDom() : soSmartModeToFirestore(soSmartMode || soConfig?.smart_mode || DEFAULT_SMART_MODE),
             packs: packs.map((p, i) => ({
                 id: p.id,
                 credits: p.credits,
@@ -1499,9 +1717,13 @@
             soCreditPacks = soSortCreditPacks(credits.packs.map(soNormalizeCreditPack));
             soCreditPacks.forEach((p, i) => { p.order = i; });
         }
+        if (credits.smart_mode) {
+            soSmartMode = soNormalizeSmartMode(credits.smart_mode);
+        }
 
         soBindCreditsForm();
         soBindImageGenerationForm();
+        soBindSmartModeForm();
         soBindSupportForm();
         renderSoCreditPacksEditor();
         renderSoPlansEditor();
@@ -1742,11 +1964,13 @@
         }
         soSyncInlineDemoRowsFromObject();
         soSupport = soNormalizeSupport(soConfig.support || DEFAULT_SUPPORT);
+        soSmartMode = soNormalizeSmartMode(soConfig.smart_mode || DEFAULT_SMART_MODE);
         soHydrating = true;
         soBindConfigForm();
         soBindSupportForm();
         soBindCreditsForm();
         soBindImageGenerationForm();
+        soBindSmartModeForm();
         renderSoCreditPacksEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
@@ -2353,14 +2577,17 @@
                 id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
             }))
         });
+        const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
+                smart_mode: smartModePayload,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: soAuthEmail()
             }, { merge: true });
             soCredits = creditsPayload;
-            soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            soSmartMode = smartModePayload;
+            soConfig = Object.assign({}, soConfig, { credits: creditsPayload, smart_mode: smartModePayload });
             soAfterTabSaved('credits');
             renderSoExtensionPreview();
             soToast('Credit settings saved.');
@@ -2380,14 +2607,17 @@
                 id: p.id, credits: p.credits, price: p.price, label: p.label, active: p.active !== false, order: i
             }))
         });
+        const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
+                smart_mode: smartModePayload,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: soAuthEmail()
             }, { merge: true });
             soCredits = creditsPayload;
-            soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            soSmartMode = smartModePayload;
+            soConfig = Object.assign({}, soConfig, { credits: creditsPayload, smart_mode: smartModePayload });
             soAfterTabSaved('credits');
             renderSoExtensionPreview();
             soToast('Credit packs saved.');
@@ -2500,6 +2730,7 @@
                             <label>${soFieldLabelHtml('Included credits', 'plan-included-credits', idx)}<input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-field-full"><span>Short description (plan detail screen)</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('config')">${soEsc(plan.description || '')}</textarea></label>
+                            <label><span>Detail subtitle</span><input type="text" data-field="detail_subtitle" value="${soAttr(plan.detail_subtitle || '')}" placeholder="Under plan name on detail screen" oninput="soMarkTabDirty('config')"></label>
                         </div>
                     </div>
                     <div class="so-field-group">
@@ -2514,6 +2745,17 @@
                             ${(plan.detail_sections || []).map((sec, sidx) => soRenderPlanDetailSectionRow(sec, idx, sidx)).join('')}
                         </div>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoPlanDetailSection(${idx})">+ Add detail section</button>
+                    </div>
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-id-card"></i> Plan card &amp; CTA (extension v1.5.9+)</div>
+                        <p class="so-field-group-hint">Controls plan card subtitles, WhatsApp button text, and quick-buy icon on the extension popup.</p>
+                        <div class="so-plan-fields so-plan-fields--basic">
+                            <label><span>Card subtitle</span><input type="text" data-field="card_subtitle" value="${soAttr(plan.card_subtitle || '')}" placeholder="Else duration · devices" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>Card hint</span><input type="text" data-field="card_hint" value="${soAttr(plan.card_hint || '')}" placeholder="Tap for details · WhatsApp to buy" oninput="soMarkTabDirty('config')"></label>
+                            <label><span>WhatsApp button label</span><input type="text" data-field="cta_text" value="${soAttr(plan.cta_text || '')}" placeholder="Buy via WhatsApp" oninput="soMarkTabDirty('config')"></label>
+                            <label class="so-field-full"><span>Detail footer (small text under WhatsApp button)</span><input type="text" data-field="detail_footer" value="${soAttr(plan.detail_footer || '')}" oninput="soMarkTabDirty('config')"></label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="show_whatsapp_icon" ${plan.show_whatsapp_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show green WhatsApp quick button on plan card</label>
+                        </div>
                     </div>
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-eye"></i> Visibility &amp; badges</div>
@@ -2575,6 +2817,12 @@
                 save: get('save'),
                 plan_kind: get('plan_kind'),
                 description: get('description'),
+                detail_subtitle: get('detail_subtitle'),
+                detail_footer: get('detail_footer'),
+                cta_text: get('cta_text'),
+                card_subtitle: get('card_subtitle'),
+                card_hint: get('card_hint'),
+                show_whatsapp_icon: get('show_whatsapp_icon'),
                 highlights: soParsePlanFeaturesText(get('highlights_text')),
                 features: soParsePlanFeaturesFromText(get('features_text')),
                 detail_sections: soParsePlanDetailSectionsFromDom(row),
@@ -2864,15 +3112,18 @@
                 order: i
             }))
         };
+        const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
 
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
+                smart_mode: smartModePayload,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: soAuthEmail()
             }, { merge: true });
             soCredits = creditsPayload;
-            soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            soSmartMode = smartModePayload;
+            soConfig = Object.assign({}, soConfig, { credits: creditsPayload, smart_mode: smartModePayload });
             soAfterTabSaved('credits');
             renderSoExtensionPreview();
             soToast('Credits & packs saved.');

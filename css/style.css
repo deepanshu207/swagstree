@@ -12407,6 +12407,15 @@ body.seo-indexing-off #seo-primary-nav {
     background: #0d0d0d;
     line-height: 1.45;
 }
+.so-smart-mode-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+.so-smart-mode-option-row .so-plan-card-body {
+    padding-top: 8px;
+}
 .so-support-users-list {
     display: flex;
     flex-direction: column;
