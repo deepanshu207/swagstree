@@ -170,7 +170,12 @@
             }
             window.renderSoExtensionAuthBanner();
             if (typeof showToast === 'function') showToast('Extension Firebase connected.');
-            if (typeof loadShippingOptimizerAdmin === 'function') loadShippingOptimizerAdmin();
+            if (typeof loadShippingOptimizerAdmin === 'function') {
+                const panel = document.getElementById('shipping-optimizer-accordion-content');
+                if (panel && panel.style.display !== 'none') {
+                    loadShippingOptimizerAdmin();
+                }
+            }
         } catch (e) {
             if (typeof showToast === 'function') showToast('Extension sign-in failed: ' + (e.message || 'Unknown error'));
         }
