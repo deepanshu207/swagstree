@@ -38,7 +38,12 @@ service cloud.firestore {
           'lastVerifiedAt',
           'expiresAt',
           'credits_balance',
-          'credits_used'
+          'credits_used',
+          'images_generated_total',
+          'images_generated_today',
+          'images_generated_today_date',
+          'images_generated_month',
+          'images_generated_month_key'
         ]);
     }
   }

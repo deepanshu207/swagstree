@@ -36,7 +36,25 @@
         credits_per_image: 2,
         daily_limit: 20,
         monthly_limit: 0,
-        max_batch_size: 4
+        max_batch_size: 0
+    };
+
+    const DEFAULT_SUPPORT = {
+        enabled: true,
+        title: 'Support team',
+        page_size: 5,
+        users: [
+            {
+                id: 'sales',
+                name: 'Deepanshu',
+                role: 'Sales & licenses',
+                label: 'New plans, upgrades, payments',
+                whatsapp_number: '919654414891',
+                whatsapp_message: 'Hi! I need help with Shipping Optimizer.',
+                active: true,
+                order: 0
+            }
+        ]
     };
 
     const DEFAULT_CREDIT_PACKS = [
@@ -104,7 +122,10 @@
     let soTabSnapshots = { config: null, credits: null };
     let soHydrating = false;
     let soUserEditsEnabled = false;
+    let soSnapshotsReady = false;
     let soDirtyCheckTimer = null;
+    let soSupport = null;
+    let soLicenseFilter = 'all';
     let soDraftSaveTimer = null;
     const SO_DRAFT_STORAGE_KEY = 'swagstree_so_admin_draft_v1';
     const SO_DRAFT_SAVE_MS = 800;
@@ -357,6 +378,15 @@
         const rawAddons = Array.isArray(p.credit_addons) ? p.credit_addons : [];
         p.credit_addons = soSortCreditAddons(rawAddons.map(soNormalizeCreditAddon));
         p.credit_addons.forEach((a, i) => { a.order = i; });
+        p.highlights = Array.isArray(p.highlights)
+            ? p.highlights.map(h => String(h || '').trim()).filter(Boolean)
+            : [];
+        p.features = Array.isArray(p.features) ? p.features : [];
+        p.detail_sections = Array.isArray(p.detail_sections) ? p.detail_sections.map(s => ({
+            title: String(s && s.title || '').trim(),
+            body: String(s && s.body || '').trim(),
+            items: Array.isArray(s && s.items) ? s.items.map(i => String(i || '').trim()).filter(Boolean) : []
+        })) : [];
         return p;
     }
 
@@ -474,7 +504,76 @@
         if (p.unlimited_time) out.unlimited_time = true;
         if (p.unlimited_devices) out.unlimited_devices = true;
         if (p.unlimited_credits) out.unlimited_credits = true;
+        if (p.highlights && p.highlights.length) out.highlights = p.highlights.slice();
+        if (p.features && p.features.length) {
+            out.features = p.features.map(f => {
+                if (typeof f === 'string') return f;
+                const item = {
+                    icon: String(f.icon || '').trim(),
+                    title: String(f.title || '').trim(),
+                    text: String(f.text || '').trim()
+                };
+                if (!item.icon && !item.title && !item.text) return null;
+                return item;
+            }).filter(Boolean);
+        }
+        if (p.detail_sections && p.detail_sections.length) {
+            out.detail_sections = p.detail_sections.map(s => {
+                const sec = { title: s.title || '' };
+                if (s.body) sec.body = s.body;
+                if (s.items && s.items.length) sec.items = s.items.slice();
+                return sec;
+            }).filter(s => s.title || s.body || (s.items && s.items.length));
+        }
         return out;
+    }
+
+    function soNormalizeSupportUser(user, index) {
+        const u = Object.assign({}, user);
+        u.id = soSlugifyId(u.id || u.name || `contact_${index}`);
+        u.name = String(u.name || u.id || 'Contact').trim();
+        u.role = String(u.role || '').trim();
+        u.label = String(u.label || '').trim();
+        u.whatsapp_number = String(u.whatsapp_number || '').replace(/\D/g, '');
+        u.whatsapp_message = String(u.whatsapp_message || '').trim();
+        u.active = u.active !== false;
+        u.order = Number.isFinite(Number(u.order)) ? Number(u.order) : index;
+        return u;
+    }
+
+    function soNormalizeSupport(raw) {
+        const src = raw && typeof raw === 'object' ? raw : {};
+        const users = Array.isArray(src.users) ? src.users.map(soNormalizeSupportUser) : DEFAULT_SUPPORT.users.slice();
+        users.sort((a, b) => (a.order || 0) - (b.order || 0));
+        users.forEach((u, i) => { u.order = i; });
+        return {
+            enabled: src.enabled !== false,
+            title: String(src.title || DEFAULT_SUPPORT.title).trim(),
+            page_size: Math.max(1, parseInt(src.page_size, 10) || DEFAULT_SUPPORT.page_size),
+            users
+        };
+    }
+
+    function soSupportToFirestore(support) {
+        const s = soNormalizeSupport(support);
+        return {
+            enabled: s.enabled,
+            title: s.title,
+            page_size: s.page_size,
+            users: s.users.map((u, i) => {
+                const out = {
+                    id: u.id,
+                    name: u.name,
+                    role: u.role,
+                    label: u.label,
+                    whatsapp_number: u.whatsapp_number,
+                    active: u.active !== false,
+                    order: i
+                };
+                if (u.whatsapp_message) out.whatsapp_message = u.whatsapp_message;
+                return out;
+            })
+        };
     }
 
     function soIsUnlimitedTime(obj) {
@@ -556,7 +655,77 @@
         const total = parseInt(lic.images_generated_total, 10) || 0;
         const today = parseInt(lic.images_generated_today, 10) || 0;
         const month = parseInt(lic.images_generated_month, 10) || 0;
-        return `${total} total · ${today} today · ${month} this month`;
+        return `${total} total runs · ${today} today · ${month} this month`;
+    }
+
+    function soLicenseNeverExpires(lic) {
+        if (!lic) return false;
+        if (soIsUnlimitedTime(lic)) return true;
+        const planId = lic.planId || lic.planType;
+        const plan = planId ? soPlans.find(p => p.id === planId) : null;
+        if (plan && soIsUnlimitedTime(plan)) return true;
+        if (lic.plan_kind === 'lifetime' || lic.plan_kind === 'unlimited') return true;
+        if (plan && (plan.plan_kind === 'lifetime' || plan.plan_kind === 'unlimited')) return true;
+        const planDays = lic.planDays != null ? parseInt(lic.planDays, 10) : (plan ? parseInt(plan.days, 10) : NaN);
+        if (planDays === 0) return true;
+        return false;
+    }
+
+    function soFormatValidity(lic) {
+        if (soLicenseNeverExpires(lic)) return 'Never expires';
+        const exp = soLicenseExpiryDate(lic);
+        if (exp) {
+            return exp.getTime() < Date.now()
+                ? 'Expired'
+                : `Expires ${soFormatTs(lic.expiresAt)}`;
+        }
+        const expStr = lic.expiresAt && typeof lic.expiresAt === 'string' ? lic.expiresAt.trim() : '';
+        if (expStr) return `Expires ${expStr}`;
+        if (!lic.activatedAt && lic.expiry_starts_on_activation !== false) {
+            const days = lic.planDays != null ? lic.planDays : '?';
+            if (parseInt(days, 10) === 0) return 'Never expires';
+            return `Starts on activation (${days} days)`;
+        }
+        return 'No expiry';
+    }
+
+    function soIsLicenseActivated(lic) {
+        const deviceIds = soGetLicenseDeviceIds(lic);
+        return deviceIds.length > 0
+            || !!(lic.activatedAt && String(lic.activatedAt).trim())
+            || !!(lic.machineId && String(lic.machineId).trim());
+    }
+
+    function soIsLicenseShared(lic) {
+        return !!(lic.shared_at || (lic.sharedAt && String(lic.sharedAt).trim()));
+    }
+
+    function soGetLicenseRegistryStatus(lic) {
+        if (lic.active === false) return 'revoked';
+        if (soLicenseNeverExpires(lic)) return 'lifetime';
+        if (soIsLicenseExpired(lic)) return 'expired';
+        if (!soIsLicenseActivated(lic)) {
+            return soIsLicenseShared(lic) ? 'unused_shared' : 'unused';
+        }
+        const bal = parseInt(lic.credits_balance, 10) || 0;
+        const billing = lic.billing_mode || 'subscription';
+        if ((billing === 'credits' || billing === 'hybrid') && !soIsUnlimitedCredits(lic) && bal <= 5) {
+            return 'credits_low';
+        }
+        return 'active';
+    }
+
+    function soRegistryStatusLabel(status) {
+        const map = {
+            revoked: 'Revoked',
+            expired: 'Expired',
+            lifetime: 'Lifetime',
+            unused: 'Unused · not shared',
+            unused_shared: 'Unused · shared',
+            credits_low: 'Credits low',
+            active: 'Active'
+        };
+        return map[status] || status;
     }
 
     function soFormatCreditsLabel(lic) {
@@ -732,7 +901,7 @@
     }
 
     function soIsLicenseExpired(lic) {
-        if (soIsUnlimitedTime(lic)) return false;
+        if (soLicenseNeverExpires(lic)) return false;
         const exp = soLicenseExpiryDate(lic);
         return !!(exp && exp.getTime() < Date.now());
     }
@@ -777,7 +946,7 @@
     }
 
     window.soMarkTabDirty = function(tab) {
-        if (soHydrating || !soUserEditsEnabled) return;
+        if (soHydrating || !soSnapshotsReady || !soUserEditsEnabled) return;
         if (tab === 'config' || tab === 'credits') {
             soScheduleDirtyCheck();
             soScheduleDraftSave();
@@ -796,12 +965,17 @@
         const root = document.getElementById('shipping-optimizer-admin-section');
         if (!root || root.dataset.soEditGateBound) return;
         root.dataset.soEditGateBound = '1';
-        const enable = () => { soUserEditsEnabled = true; };
+        const enable = (e) => {
+            if (soHydrating || !soSnapshotsReady) return;
+            if (e && e.isTrusted === false) return;
+            soUserEditsEnabled = true;
+        };
         root.addEventListener('input', enable, true);
         root.addEventListener('change', enable, true);
     }
 
     window.soHasUnsavedChanges = function() {
+        if (!soSnapshotsReady || !soUserEditsEnabled) return false;
         soRecomputeDirtyState();
         return !!(soDirtyTabs.config || soDirtyTabs.credits);
     };
@@ -846,13 +1020,205 @@
         return sorted;
     }
 
+    function soSerializeSupportState() {
+        const container = document.getElementById('so-support-users-editor');
+        if (container && container.querySelector('.so-support-user-row')) {
+            return soSupportToFirestore(soReadSupportFromDom());
+        }
+        return soSupportToFirestore(soSupport || soConfig?.support || DEFAULT_SUPPORT);
+    }
+
+    function soReadSupportFromDom() {
+        const enabled = !!document.getElementById('so-support-enabled')?.checked;
+        const title = String(document.getElementById('so-support-title')?.value || DEFAULT_SUPPORT.title).trim();
+        const pageSize = Math.max(1, parseInt(document.getElementById('so-support-page-size')?.value, 10) || DEFAULT_SUPPORT.page_size);
+        const container = document.getElementById('so-support-users-editor');
+        const users = [];
+        if (container) {
+            container.querySelectorAll('.so-support-user-row').forEach((row, idx) => {
+                const get = (field) => {
+                    const el = row.querySelector(`[data-support-field="${field}"]`);
+                    if (!el) return '';
+                    if (el.type === 'checkbox') return el.checked;
+                    return el.value;
+                };
+                users.push(soNormalizeSupportUser({
+                    id: get('id'),
+                    name: get('name'),
+                    role: get('role'),
+                    label: get('label'),
+                    whatsapp_number: get('whatsapp_number'),
+                    whatsapp_message: get('whatsapp_message'),
+                    active: get('active'),
+                    order: idx
+                }, idx));
+            });
+        }
+        return { enabled, title, page_size: pageSize, users };
+    }
+
+    function soBindSupportForm() {
+        const support = soNormalizeSupport(soSupport || soConfig?.support || DEFAULT_SUPPORT);
+        soSupport = support;
+        const enabledEl = document.getElementById('so-support-enabled');
+        if (enabledEl) enabledEl.checked = support.enabled !== false;
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        setVal('so-support-title', support.title);
+        setVal('so-support-page-size', support.page_size);
+        soUpdateSupportPaginationPreview();
+        renderSoSupportUsersEditor();
+    }
+
+    function soUpdateSupportPaginationPreview() {
+        const preview = document.getElementById('so-support-page-preview');
+        if (!preview) return;
+        const pageSize = Math.max(1, parseInt(document.getElementById('so-support-page-size')?.value, 10) || DEFAULT_SUPPORT.page_size);
+        const activeCount = (soReadSupportFromDom().users || []).filter(u => u.active !== false).length;
+        const pages = Math.max(1, Math.ceil(activeCount / pageSize));
+        preview.textContent = `Page 1 of ${pages} (${activeCount} active contact${activeCount === 1 ? '' : 's'} · ${pageSize} per page)`;
+    }
+
+    function renderSoSupportUsersEditor() {
+        const container = document.getElementById('so-support-users-editor');
+        if (!container) return;
+        const support = soSupport || soNormalizeSupport(soConfig?.support || DEFAULT_SUPPORT);
+        const users = support.users || [];
+        if (!users.length) {
+            container.innerHTML = '<p class="so-admin-muted">No support contacts yet. Tap + Add contact.</p>';
+            soUpdateSupportPaginationPreview();
+            return;
+        }
+        container.innerHTML = users.map((user, idx) => `
+            <div class="so-support-user-row so-plan-card so-collapsible-row so-collapsible-row--open" data-support-idx="${idx}">
+                <div class="so-plan-fields so-plan-fields--basic">
+                    <label><span>Id</span><input type="text" data-support-field="id" value="${soAttr(user.id)}" oninput="soMarkTabDirty('config'); soUpdateSupportPaginationPreview()"></label>
+                    <label><span>Name</span><input type="text" data-support-field="name" value="${soAttr(user.name)}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Role</span><input type="text" data-support-field="role" value="${soAttr(user.role)}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>Subtitle / label</span><input type="text" data-support-field="label" value="${soAttr(user.label)}" oninput="soMarkTabDirty('config')"></label>
+                    <label><span>WhatsApp number</span><input type="text" data-support-field="whatsapp_number" inputmode="numeric" value="${soAttr(user.whatsapp_number)}" oninput="soMarkTabDirty('config')"></label>
+                    <label style="grid-column:1/-1;"><span>WhatsApp prefill (optional)</span><input type="text" data-support-field="whatsapp_message" value="${soAttr(user.whatsapp_message || '')}" oninput="soMarkTabDirty('config')"></label>
+                </div>
+                <div class="so-plan-flags so-plan-flags--simple">
+                    <label class="so-plan-check"><input type="checkbox" data-support-field="active" ${user.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('config'); soUpdateSupportPaginationPreview()"> Show in extension</label>
+                </div>
+                <div class="so-plan-actions-bar">
+                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSupportUser(${idx}, -1)" title="Move up">▲</button>
+                    <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSupportUser(${idx}, 1)" title="Move down">▼</button>
+                    <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoSupportUser(${idx})">✕ Remove</button>
+                </div>
+            </div>
+        `).join('');
+        soUpdateSupportPaginationPreview();
+    }
+
+    window.addSoSupportUser = function() {
+        soSupport = soReadSupportFromDom();
+        soSupport.users.push(soNormalizeSupportUser({
+            id: `contact_${soSupport.users.length + 1}`,
+            name: 'New contact',
+            role: '',
+            label: '',
+            whatsapp_number: soConfig?.whatsapp_number || '919654414891',
+            whatsapp_message: '',
+            active: true
+        }, soSupport.users.length));
+        renderSoSupportUsersEditor();
+        soMarkTabDirty('config');
+    };
+
+    window.removeSoSupportUser = function(idx) {
+        soSupport = soReadSupportFromDom();
+        soSupport.users.splice(idx, 1);
+        soSupport.users.forEach((u, i) => { u.order = i; });
+        renderSoSupportUsersEditor();
+        soMarkTabDirty('config');
+    };
+
+    window.moveSoSupportUser = function(idx, dir) {
+        soSupport = soReadSupportFromDom();
+        const next = idx + dir;
+        if (next < 0 || next >= soSupport.users.length) return;
+        const tmp = soSupport.users[idx];
+        soSupport.users[idx] = soSupport.users[next];
+        soSupport.users[next] = tmp;
+        soSupport.users.forEach((u, i) => { u.order = i; });
+        renderSoSupportUsersEditor();
+        soMarkTabDirty('config');
+    };
+
+    function soFormatPlanFeaturesForEditor(features) {
+        if (!Array.isArray(features) || !features.length) return '';
+        return features.map(f => {
+            if (typeof f === 'string') return f;
+            const icon = String(f.icon || '').trim();
+            const title = String(f.title || '').trim();
+            const text = String(f.text || '').trim();
+            if (icon || title || text) return [icon, title, text].join('|');
+            return '';
+        }).filter(Boolean).join('\n');
+    }
+
+    function soParsePlanFeaturesFromText(text) {
+        return String(text || '').split('\n').map(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return null;
+            if (trimmed.includes('|')) {
+                const parts = trimmed.split('|');
+                const icon = (parts[0] || '').trim();
+                const title = (parts[1] || '').trim();
+                const detail = (parts[2] || '').trim();
+                if (!icon && !title && !detail) return null;
+                return { icon, title, text: detail };
+            }
+            return trimmed;
+        }).filter(Boolean);
+    }
+
+    function soParsePlanFeaturesText(text) {
+        return String(text || '').split('\n').map(line => line.trim()).filter(Boolean);
+    }
+
+    function soParsePlanDetailSectionsFromDom(row) {
+        const sections = [];
+        row.querySelectorAll('.so-plan-detail-section-row').forEach((secRow, idx) => {
+            const title = String(secRow.querySelector('[data-detail-field="title"]')?.value || '').trim();
+            const body = String(secRow.querySelector('[data-detail-field="body"]')?.value || '').trim();
+            const itemsText = String(secRow.querySelector('[data-detail-field="items"]')?.value || '');
+            const items = itemsText.split('\n').map(s => s.trim()).filter(Boolean);
+            if (title || body || items.length) {
+                const sec = { title };
+                if (body) sec.body = body;
+                if (items.length) sec.items = items;
+                sections.push(sec);
+            }
+        });
+        return sections;
+    }
+
+    function soRenderPlanDetailSectionRow(section, planIdx, secIdx) {
+        const sec = section || {};
+        const itemsText = Array.isArray(sec.items) ? sec.items.join('\n') : '';
+        return `
+            <div class="so-plan-detail-section-row" data-detail-idx="${secIdx}">
+                <label><span>Section title</span><input type="text" data-detail-field="title" value="${soAttr(sec.title || '')}" oninput="soMarkTabDirty('config')"></label>
+                <label><span>Body (optional)</span><textarea rows="2" data-detail-field="body" oninput="soMarkTabDirty('config')">${soEsc(sec.body || '')}</textarea></label>
+                <label><span>Items (one per line)</span><textarea rows="3" data-detail-field="items" oninput="soMarkTabDirty('config')">${soEsc(itemsText)}</textarea></label>
+                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoPlanDetailSection(${planIdx}, ${secIdx})">Remove section</button>
+            </div>`;
+    }
+
     function soNormalizeImageGeneration(raw) {
         const g = Object.assign({}, DEFAULT_IMAGE_GENERATION, raw && typeof raw === 'object' ? raw : {});
         g.enabled = g.enabled !== false;
-        g.credits_per_image = Math.max(1, parseInt(g.credits_per_image, 10) || DEFAULT_IMAGE_GENERATION.credits_per_image);
+        g.credits_per_image = Math.max(0, parseInt(g.credits_per_image, 10));
+        if (!Number.isFinite(g.credits_per_image)) g.credits_per_image = DEFAULT_IMAGE_GENERATION.credits_per_image;
         g.daily_limit = Math.max(0, parseInt(g.daily_limit, 10) || 0);
         g.monthly_limit = Math.max(0, parseInt(g.monthly_limit, 10) || 0);
-        g.max_batch_size = Math.max(1, parseInt(g.max_batch_size, 10) || DEFAULT_IMAGE_GENERATION.max_batch_size);
+        g.max_batch_size = Math.max(0, parseInt(g.max_batch_size, 10));
+        if (!Number.isFinite(g.max_batch_size)) g.max_batch_size = DEFAULT_IMAGE_GENERATION.max_batch_size;
         return g;
     }
 
@@ -878,7 +1244,16 @@
         setVal('so-img-gen-daily-limit', img.daily_limit);
         setVal('so-img-gen-monthly-limit', img.monthly_limit);
         setVal('so-img-gen-batch-max', img.max_batch_size);
+        soUpdateImageGenPreviewCard();
     }
+
+    window.soUpdateImageGenPreviewCard = function() {
+        const card = document.getElementById('so-img-gen-preview-card');
+        if (!card) return;
+        const img = soReadImageGenerationFromDom();
+        const creditsLabel = img.credits_per_image === 0 ? '0 (free)' : String(img.credits_per_image);
+        card.innerHTML = `Example: customer uploads 1 image, selects 50 variants → counts as <strong>1 run</strong>, costs <strong>${creditsLabel}</strong> credits (if credits plan), uses <strong>1</strong> from daily limit.`;
+    };
 
     function soBuildGeneralCanonical(fromDom) {
         if (fromDom) return soReadGeneralConfigLenient();
@@ -910,11 +1285,17 @@
         return soPlans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i));
     }
 
+    function soBuildSupportCanonical(fromDom) {
+        if (fromDom) return soSerializeSupportState();
+        return soSupportToFirestore(soSupport || soConfig?.support || DEFAULT_SUPPORT);
+    }
+
     function soBuildConfigCanonicalObject(fromDom) {
         return {
             general: soBuildGeneralCanonical(fromDom),
             plans: soBuildPlansCanonical(fromDom),
-            inlineDemo: soBuildInlineDemoCanonical(fromDom)
+            inlineDemo: soBuildInlineDemoCanonical(fromDom),
+            support: soBuildSupportCanonical(fromDom)
         };
     }
 
@@ -958,7 +1339,7 @@
     }
 
     function soRecomputeDirtyState() {
-        if (soHydrating || !soUserEditsEnabled) {
+        if (soHydrating || !soSnapshotsReady || !soUserEditsEnabled) {
             soDirtyTabs.config = false;
             soDirtyTabs.credits = false;
             soUpdateUnsavedBanner();
@@ -981,6 +1362,7 @@
     }
 
     function soFinalizeAdminLoadState() {
+        soSnapshotsReady = false;
         soHydrating = true;
         switchShippingOptimizerTab(soActiveTab);
         soHydrating = false;
@@ -988,6 +1370,8 @@
             requestAnimationFrame(() => {
                 soCaptureSnapshots(true);
                 soResetUserEditGate();
+                soSnapshotsReady = true;
+                soRecomputeDirtyState();
                 soPruneStaleDraft();
                 soRenderDraftBanner();
             });
@@ -1015,7 +1399,7 @@
     function soUpdateUnsavedBanner() {
         const banner = document.getElementById('so-unsaved-banner');
         if (!banner) return;
-        const dirty = soDirtyTabs[soActiveTab];
+        const dirty = soSnapshotsReady && soUserEditsEnabled && soDirtyTabs[soActiveTab];
         banner.hidden = !dirty;
         const label = banner.querySelector('span');
         if (label && dirty) {
@@ -1106,6 +1490,9 @@
             soInlineDemoKeys = Object.assign({}, draft.config.inlineDemo);
             soSyncInlineDemoRowsFromObject();
         }
+        if (draft.config?.support) {
+            soSupport = soNormalizeSupport(draft.config.support);
+        }
 
         const credits = draft.credits || {};
         soCredits = Object.assign({}, DEFAULT_CREDITS, {
@@ -1122,12 +1509,14 @@
 
         soBindCreditsForm();
         soBindImageGenerationForm();
+        soBindSupportForm();
         renderSoCreditPacksEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
         soPopulateLicensePlanSelect();
         soUpdateCustomCreditCalc();
         soHydrating = false;
+        soEnableUserEditGate();
         soRecomputeDirtyState();
     }
 
@@ -1194,7 +1583,9 @@
                 soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS);
             }
             soSyncInlineDemoRowsFromObject();
+            soSupport = soNormalizeSupport(soConfig?.support || DEFAULT_SUPPORT);
             soBindConfigForm();
+            soBindSupportForm();
             renderSoPlansEditor();
             renderSoInlineDemoKeysEditor();
         } else if (soActiveTab === 'credits') {
@@ -1340,8 +1731,10 @@
             soInlineDemoKeys = Object.assign({}, DEFAULT_INLINE_DEMO_KEYS);
         }
         soSyncInlineDemoRowsFromObject();
+        soSupport = soNormalizeSupport(soConfig.support || DEFAULT_SUPPORT);
         soHydrating = true;
         soBindConfigForm();
+        soBindSupportForm();
         soBindCreditsForm();
         soBindImageGenerationForm();
         renderSoCreditPacksEditor();
@@ -1778,7 +2171,7 @@
         const imgGenHtml = imgGen.enabled !== false
             ? `<div class="so-ext-preview-block">
                 <div class="so-ext-preview-label">AI image generation</div>
-                <p class="so-admin-muted">${imgGen.credits_per_image} credits/image · daily limit ${imgGen.daily_limit || '∞'} · monthly ${imgGen.monthly_limit || '∞'} · max ${imgGen.max_batch_size}/batch</p>
+                <p class="so-admin-muted">${imgGen.credits_per_image} credits/run · daily run limit ${imgGen.daily_limit || '∞'} · monthly ${imgGen.monthly_limit || '∞'} · max ${imgGen.max_batch_size || '∞'} variants/run</p>
             </div>`
             : '<p class="so-admin-muted">Image generation disabled in extension.</p>';
 
@@ -2095,8 +2488,21 @@
                             <label><span>Max devices (0 = unlimited)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}" oninput="soMarkTabDirty('config')"></label>
                             <label>${soFieldLabelHtml('Included credits', 'plan-included-credits', idx)}<input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
-                            <label class="so-field-full"><span>Admin note</span><input type="text" data-field="description" value="${soAttr(plan.description || '')}" oninput="soMarkTabDirty('config')"></label>
+                            <label class="so-field-full"><span>Short description (plan detail screen)</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('config')">${soEsc(plan.description || '')}</textarea></label>
                         </div>
+                    </div>
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-mobile-screen"></i> Plan detail screen (extension)</div>
+                        <p class="so-field-group-hint">Shown when customer taps a plan in the extension popup — no extension update needed when you edit here.</p>
+                        <label class="so-field-full"><span>Highlights (one per line — pills on detail screen)</span>
+                            <textarea rows="3" data-field="highlights_text" oninput="soMarkTabDirty('config')">${soEsc((plan.highlights || []).join('\n'))}</textarea></label>
+                        <label class="so-field-full"><span>Features (one per line — plain text or <code>icon|title|text</code>)</span>
+                            <textarea rows="4" data-field="features_text" oninput="soMarkTabDirty('config')">${soEsc(soFormatPlanFeaturesForEditor(plan.features))}</textarea></label>
+                        <div class="so-admin-subhead">Detail sections</div>
+                        <div class="so-plan-detail-sections" data-plan-detail-sections="${idx}">
+                            ${(plan.detail_sections || []).map((sec, sidx) => soRenderPlanDetailSectionRow(sec, idx, sidx)).join('')}
+                        </div>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoPlanDetailSection(${idx})">+ Add detail section</button>
                     </div>
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-eye"></i> Visibility &amp; badges</div>
@@ -2158,6 +2564,9 @@
                 save: get('save'),
                 plan_kind: get('plan_kind'),
                 description: get('description'),
+                highlights: soParsePlanFeaturesText(get('highlights_text')),
+                features: soParsePlanFeaturesFromText(get('features_text')),
+                detail_sections: soParsePlanDetailSectionsFromDom(row),
                 device_tier: get('device_tier'),
                 max_devices: get('max_devices'),
                 billing_mode: get('billing_mode'),
@@ -2199,6 +2608,26 @@
         const plan = soPlans[planIdx];
         if (!plan || !plan.credit_addons) return;
         plan.credit_addons.splice(addonIdx, 1);
+        renderSoPlansEditor();
+        soMarkTabDirty('config');
+    };
+
+    window.addSoPlanDetailSection = function(planIdx) {
+        soPlans = soReadPlansFromDom();
+        const plan = soPlans[planIdx];
+        if (!plan) return;
+        if (!Array.isArray(plan.detail_sections)) plan.detail_sections = [];
+        plan.detail_sections.push({ title: 'New section', items: [] });
+        renderSoPlansEditor();
+        soExpandedPlanIds.add(plan.id);
+        soMarkTabDirty('config');
+    };
+
+    window.removeSoPlanDetailSection = function(planIdx, secIdx) {
+        soPlans = soReadPlansFromDom();
+        const plan = soPlans[planIdx];
+        if (!plan || !plan.detail_sections) return;
+        plan.detail_sections.splice(secIdx, 1);
         renderSoPlansEditor();
         soMarkTabDirty('config');
     };
@@ -2363,6 +2792,17 @@
         soMarkTabDirty('config');
     };
 
+    window.saveShippingOptimizerSupport = async function() {
+        if (!soRequireExtensionWrite()) return;
+        try {
+            const supportPayload = soSupportToFirestore(soReadSupportFromDom());
+            await soPersistConfigPatch({ support: supportPayload }, 'Support team saved.');
+            soSupport = soNormalizeSupport(supportPayload);
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
     window.saveShippingOptimizerConfig = async function() {
         if (!soRequireExtensionWrite()) return;
         soPreserveInlineDemoRowsFromDom();
@@ -2381,7 +2821,8 @@
 
         const payload = Object.assign({}, general, {
             plans: soPlans.map((p, i) => soPlanToFirestore(p, i)),
-            demo_keys: demoKeysPayload
+            demo_keys: demoKeysPayload,
+            support: soSupportToFirestore(soReadSupportFromDom())
         });
 
         try {
@@ -2874,6 +3315,8 @@
             customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
             customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
+            issued_at: firebase.firestore.FieldValue.serverTimestamp(),
+            shared_at: '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: soAuthEmail()
         }, soBuildLicenseCreditFields(plan, formFields));
@@ -2882,6 +3325,7 @@
             cancelSoLicenseEdit();
             await soLoadLicenses();
             renderSoLicensesList();
+            renderSoCustomerRegistry();
             soToast(`License ${key} created. Send to customer on WhatsApp.`);
         } catch (e) {
             soToast('Create failed: ' + (e.message || 'Unknown error'));
@@ -2929,16 +3373,41 @@
         }
     };
 
+    function soLicenseMatchesFilter(lic, filter) {
+        const status = soGetLicenseRegistryStatus(lic);
+        switch (filter) {
+            case 'active': return status === 'active' || status === 'credits_low';
+            case 'expired': return status === 'expired';
+            case 'lifetime': return status === 'lifetime';
+            case 'credits_low': return status === 'credits_low';
+            case 'unused': return status === 'unused' || status === 'unused_shared';
+            case 'not_shared': return !soIsLicenseShared(lic) && !soIsLicenseActivated(lic);
+            case 'revoked': return status === 'revoked';
+            default: return true;
+        }
+    }
+
+    window.setSoLicenseFilter = function(filter) {
+        soLicenseFilter = filter || 'all';
+        document.querySelectorAll('[data-so-license-filter]').forEach(btn => {
+            btn.classList.toggle('so-tab-chip--active', btn.getAttribute('data-so-license-filter') === soLicenseFilter);
+        });
+        const sel = document.getElementById('so-license-filter');
+        if (sel) sel.value = soLicenseFilter;
+        renderSoLicensesList();
+    };
+
     function renderSoLicensesList() {
         const container = document.getElementById('so-licenses-list');
         if (!container) return;
         const q = String(document.getElementById('so-license-search')?.value || '').trim().toLowerCase();
         const filtered = soLicenses.filter(lic => {
+            if (!soLicenseMatchesFilter(lic, soLicenseFilter)) return false;
             if (!q) return true;
             const deviceIds = soGetLicenseDeviceIds(lic).join(' ');
             const hay = [lic.key, lic.machineId, deviceIds, lic.planId, lic.planType, lic.billing_mode,
                 lic.customer_name, lic.customer_phone, lic.customer_email,
-                lic.credits_balance, lic.credits_used]
+                lic.credits_balance, lic.credits_used, soFormatValidity(lic)]
                 .filter(v => v != null && v !== '').join(' ').toLowerCase();
             return hay.includes(q);
         });
@@ -2950,17 +3419,21 @@
             const active = lic.active !== false;
             const deviceIds = soGetLicenseDeviceIds(lic);
             const devicesLabel = soFormatDevicesLabel(lic);
-            const activated = deviceIds.length > 0
-                || !!(lic.activatedAt && String(lic.activatedAt).trim())
-                || !!(lic.machineId && String(lic.machineId).trim());
+            const activated = soIsLicenseActivated(lic);
             const expired = soIsLicenseExpired(lic);
             const billingMode = lic.billing_mode || 'subscription';
             const creditsLabel = soFormatCreditsLabel(lic);
-            const imageGenLabel = soFormatImageGenLabel(lic);
-            const expiryLabel = soFormatExpiry(lic);
+            const runsToday = parseInt(lic.images_generated_today, 10) || 0;
+            const runsMonth = parseInt(lic.images_generated_month, 10) || 0;
+            const runsTotal = parseInt(lic.images_generated_total, 10) || 0;
+            const validityLabel = soFormatValidity(lic);
+            const registryStatus = soGetLicenseRegistryStatus(lic);
             const activatedLabel = activated
                 ? `Activated: ${soEsc(soFormatTs(lic.activatedAt))}`
                 : 'Not activated yet';
+            const sharedLabel = soIsLicenseShared(lic)
+                ? `Shared: ${soEsc(soFormatTs(lic.shared_at || lic.sharedAt))}`
+                : 'Not shared with customer yet';
             const deviceListHtml = deviceIds.length
                 ? `<div class="so-device-list">${deviceIds.map(id =>
                     `<div class="so-device-chip"><code>${soEsc(id)}</code>
@@ -2975,7 +3448,9 @@
                 <div class="so-license-head" onclick="toggleSoLicenseRow('${soAttr(lic.key)}')" style="cursor:pointer;">
                     <code>${soEsc(lic.key)}</code>
                     <span class="so-badge ${active ? 'so-badge--on' : 'so-badge--off'}">${active ? 'Active' : 'Revoked'}</span>
+                    <span class="so-badge so-badge--meta">${soEsc(soRegistryStatusLabel(registryStatus))}</span>
                     ${expired ? '<span class="so-badge so-badge--off">Expired</span>' : ''}
+                    ${soLicenseNeverExpires(lic) ? '<span class="so-badge so-badge--best">Lifetime</span>' : ''}
                     <span class="so-collapsible-toggle"></span>
                 </div>
                 <div class="so-license-body" onclick="event.stopPropagation()">
@@ -2984,10 +3459,13 @@
                         · Plan: ${soEsc(lic.planId || lic.planType || '—')}
                         · Devices: ${soEsc(devicesLabel)}
                         · Credits: ${soEsc(creditsLabel)}
-                        · Images: ${soEsc(imageGenLabel)}
                     </div>
                     <div class="so-license-meta so-admin-muted">
-                        ${activatedLabel} · Expires: ${soEsc(expiryLabel)} · ${soEsc(billingMode)}
+                        Validity: <strong>${soEsc(validityLabel)}</strong>
+                        · Runs today: ${runsToday} · this month: ${runsMonth} · total: ${runsTotal}
+                    </div>
+                    <div class="so-license-meta so-admin-muted">
+                        ${activatedLabel} · ${sharedLabel} · ${soEsc(billingMode)}
                     </div>
                     <div class="so-license-meta">${deviceListHtml}</div>
                     ${lic.support_notes ? `<div class="so-license-notes">${soEsc(lic.support_notes)}</div>` : ''}
@@ -2997,7 +3475,9 @@
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoLicenseCredits('${soAttr(lic.key)}')">Add credits</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="toggleSoLicenseActive('${soAttr(lic.key)}', ${active})">${active ? 'Revoke' : 'Activate'}</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseAllDevices('${soAttr(lic.key)}')" ${deviceIds.length ? '' : 'disabled'}>Reset devices</button>
-                        <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseImageCounts('${soAttr(lic.key)}')">Reset image counts</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseTodayRuns('${soAttr(lic.key)}')">Reset today's runs</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="resetSoLicenseImageCounts('${soAttr(lic.key)}')">Reset all run counts</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="markSoLicenseShared('${soAttr(lic.key)}')" ${soIsLicenseShared(lic) ? 'disabled' : ''}>Mark shared</button>
                         <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="deleteSoLicense('${soAttr(lic.key)}')">Delete</button>
                     </div>
                 </div>
@@ -3045,9 +3525,27 @@
         }
     };
 
+    window.resetSoLicenseTodayRuns = async function(key) {
+        if (!soRequireExtensionWrite()) return;
+        if (!confirm(`Reset today's generation runs for ${key}? Monthly/total counters stay unchanged.`)) return;
+        const today = new Date().toISOString().slice(0, 10);
+        try {
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
+                images_generated_today: 0,
+                images_generated_today_date: today
+            }, { merge: true });
+            await soLoadLicenses();
+            renderSoLicensesList();
+            renderSoCustomerRegistry();
+            soToast("Today's run count reset.");
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
     window.resetSoLicenseImageCounts = async function(key) {
         if (!soRequireExtensionWrite()) return;
-        if (!confirm(`Reset image generation counters for ${key}? Usage history will be cleared.`)) return;
+        if (!confirm(`Reset all generation run counters for ${key}? Usage history will be cleared.`)) return;
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set({
                 images_generated_total: 0,
@@ -3058,7 +3556,8 @@
             }, { merge: true });
             await soLoadLicenses();
             renderSoLicensesList();
-            soToast('Image generation counts reset.');
+            renderSoCustomerRegistry();
+            soToast('Generation run counts reset.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
         }
@@ -3205,6 +3704,121 @@
         }
     };
 
+    window.markSoLicenseShared = async function(key) {
+        if (!soRequireExtensionWrite()) return;
+        try {
+            await soDb().collection(SO_LICENSE_COL).doc(key).set({
+                shared_at: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            await soLoadLicenses();
+            renderSoLicensesList();
+            renderSoCustomerRegistry();
+            soToast(`Marked ${key} as shared with customer.`);
+        } catch (e) {
+            soToast('Failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    let soCustomerFilter = 'all';
+
+    function soCustomerMatchesFilter(lic, filter) {
+        return soLicenseMatchesFilter(lic, filter === 'all' ? 'all' : filter);
+    }
+
+    function renderSoCustomerRegistry() {
+        const container = document.getElementById('so-customer-registry-list');
+        const statsEl = document.getElementById('so-customer-registry-stats');
+        if (!container) return;
+        const q = String(document.getElementById('so-customer-search')?.value || '').trim().toLowerCase();
+        const filtered = soLicenses.filter(lic => {
+            if (!soCustomerMatchesFilter(lic, soCustomerFilter)) return false;
+            if (!q) return true;
+            const hay = [lic.key, lic.customer_name, lic.customer_phone, lic.customer_email, lic.planId, lic.planType]
+                .filter(v => v != null && v !== '').join(' ').toLowerCase();
+            return hay.includes(q);
+        });
+        const counts = { all: soLicenses.length, unused: 0, unused_shared: 0, active: 0, expired: 0, lifetime: 0, not_shared: 0, revoked: 0 };
+        soLicenses.forEach(lic => {
+            const s = soGetLicenseRegistryStatus(lic);
+            if (counts[s] != null) counts[s]++;
+            if (!soIsLicenseShared(lic) && !soIsLicenseActivated(lic)) counts.not_shared++;
+        });
+        if (statsEl) {
+            statsEl.innerHTML = `
+                <span class="so-meta-chip">${counts.all} total</span>
+                <span class="so-meta-chip">${counts.unused + counts.unused_shared} unused</span>
+                <span class="so-meta-chip">${counts.not_shared} not shared</span>
+                <span class="so-meta-chip">${counts.active} active</span>
+                <span class="so-meta-chip">${counts.expired} expired</span>
+                <span class="so-meta-chip">${counts.lifetime} lifetime</span>`;
+        }
+        if (!filtered.length) {
+            container.innerHTML = '<p class="so-admin-muted">No customer records match this filter.</p>';
+            return;
+        }
+        container.innerHTML = filtered.map(lic => {
+            const status = soGetLicenseRegistryStatus(lic);
+            const name = lic.customer_name ? soEsc(lic.customer_name) : '<span class="so-admin-muted">No name</span>';
+            const phone = lic.customer_phone ? soEsc(lic.customer_phone) : '—';
+            const email = lic.customer_email ? soEsc(lic.customer_email) : '—';
+            const shared = soIsLicenseShared(lic);
+            const activated = soIsLicenseActivated(lic);
+            return `<div class="so-customer-row">
+                <div class="so-customer-row-head">
+                    <div>
+                        <strong>${name}</strong>
+                        <div class="so-admin-muted">${phone}${email !== '—' ? ` · ${email}` : ''}</div>
+                    </div>
+                    <span class="so-badge so-badge--meta">${soEsc(soRegistryStatusLabel(status))}</span>
+                </div>
+                <div class="so-license-meta so-admin-muted">
+                    License <code>${soEsc(lic.key)}</code> · ${soEsc(lic.planId || lic.planType || '—')}
+                    · ${soEsc(soFormatValidity(lic))}
+                </div>
+                <div class="so-license-meta so-admin-muted">
+                    ${shared ? `Shared ${soEsc(soFormatTs(lic.shared_at || lic.sharedAt))}` : 'Not shared yet'}
+                    · ${activated ? `Activated ${soEsc(soFormatTs(lic.activatedAt))}` : 'Awaiting activation'}
+                </div>
+                ${lic.support_notes ? `<div class="so-license-notes">${soEsc(lic.support_notes)}</div>` : ''}
+                <div class="so-list-actions so-list-actions--grid">
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="editSoLicense('${soAttr(lic.key)}')">Edit license</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="markSoLicenseShared('${soAttr(lic.key)}')" ${shared ? 'disabled' : ''}>Mark shared</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="switchShippingOptimizerTab('licenses'); editSoLicense('${soAttr(lic.key)}')">Open in Licenses</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    window.filterSoCustomers = function() {
+        renderSoCustomerRegistry();
+    };
+
+    window.setSoCustomerFilter = function(filter) {
+        soCustomerFilter = filter || 'all';
+        document.querySelectorAll('[data-so-customer-filter]').forEach(btn => {
+            btn.classList.toggle('so-tab-chip--active', btn.getAttribute('data-so-customer-filter') === soCustomerFilter);
+        });
+        const sel = document.getElementById('so-customer-filter');
+        if (sel) sel.value = soCustomerFilter;
+        renderSoCustomerRegistry();
+    };
+
+    window.toggleSoCustomerRegistryAccordion = function() {
+        const content = document.getElementById('so-customer-registry-content');
+        const icon = document.getElementById('so-customer-registry-icon');
+        if (!content) return;
+        const open = content.style.display === 'none' || !content.style.display;
+        content.style.display = open ? 'flex' : 'none';
+        if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+        if (open) {
+            if (typeof loadShippingOptimizerAdmin === 'function' && !soLoaded) {
+                loadShippingOptimizerAdmin();
+            } else {
+                renderSoCustomerRegistry();
+            }
+        }
+    };
+
     window.loadShippingOptimizerAdmin = async function() {
         if (!soRequireSuperAdmin()) return;
         if (typeof soGetExtensionDb !== 'function' || !soGetExtensionDb()) {
@@ -3214,6 +3828,12 @@
         if (typeof soEnsureExtensionFirebaseReady === 'function') {
             await soEnsureExtensionFirebaseReady();
         }
+        soSnapshotsReady = false;
+        soResetUserEditGate();
+        soDirtyTabs = { config: false, credits: false };
+        clearTimeout(soDirtyCheckTimer);
+        clearTimeout(soDraftSaveTimer);
+        soUpdateUnsavedBanner();
         try {
             await soLoadConfig();
             await soLoadDemoKeys();
@@ -3227,6 +3847,7 @@
             renderSoDemoKeysList();
             renderSoExtensionPreview();
             renderSoLicensesList();
+            renderSoCustomerRegistry();
             soHydrating = false;
             soBindUserEditGate();
             soBindFieldInfoDismiss();
