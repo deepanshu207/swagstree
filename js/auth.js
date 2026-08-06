@@ -386,7 +386,7 @@ function toggleAuthMode() {
     if (nameField) nameField.style.display = isRegMode ? 'block' : 'none';
     if (phoneField) phoneField.style.display = isRegMode ? 'block' : 'none';
     if (toggleText) toggleText.innerText = isRegMode ? "Already have an account? Login" : "New here? Register";
-    if (btn) btn.innerText = isRegMode ? "Create Account" : "Login";
+    if (btn) btn.innerText = isRegMode ? "Create Account" : "Continue";
     if (forgotLink) forgotLink.style.display = isRegMode ? 'none' : 'block';
 }
 
@@ -444,10 +444,12 @@ async function handleGoogleLogin() {
         try {
             const result = await auth.signInWithPopup(provider);
             if (result && result.user) {
-                if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
-                    await soSyncExtensionAuthWithGoogleResult(result, true);
-                }
                 showToast("✅ Google Login Successful!");
+                if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
+                    Promise.resolve(soSyncExtensionAuthWithGoogleResult(result, true)).catch((err) => {
+                        console.warn('Extension Firebase Google sync:', err && (err.code || err.message) ? (err.code || err.message) : err);
+                    });
+                }
             }
         } catch (popupError) {
             // Popup was blocked or not supported — fall back to redirect
@@ -488,10 +490,12 @@ async function handleGoogleLogin() {
 // Handle redirect result (fallback for popup-blocked browsers)
 auth.getRedirectResult().then(async result => {
     if (result && result.user) {
-        if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
-            await soSyncExtensionAuthWithGoogleResult(result, true);
-        }
         showToast("✅ Google Login Successful!");
+        if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
+            Promise.resolve(soSyncExtensionAuthWithGoogleResult(result, true)).catch((err) => {
+                console.warn('Extension Firebase Google sync:', err && (err.code || err.message) ? (err.code || err.message) : err);
+            });
+        }
     }
 }).catch(async error => {
     // Ignore the common 'no redirect pending' case — it fires on every page load
@@ -617,14 +621,39 @@ window.unlinkEmailPassword = async function() {
     }
 };
 
+function authPrimaryButtonLabel() {
+    return isRegMode ? "Create Account" : "Continue";
+}
+
+/** Extension Firebase sync must never block or fail Swagstree login. */
+function scheduleSoExtensionAuthSync(email, password) {
+    if (!email || !password) return;
+    if (String(email).trim().toLowerCase() !== SUPER_ADMIN_EMAIL) return;
+    if (typeof soSyncExtensionAuthWithCredentials !== 'function') return;
+    const run = () => {
+        Promise.resolve(soSyncExtensionAuthWithCredentials(email, password, true)).catch((err) => {
+            const detail = err && (err.code || err.message) ? (err.code || err.message) : err;
+            console.warn('Extension Firebase sync after login:', detail);
+        });
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+    else setTimeout(run, 0);
+}
+
 // ── Email / Password Auth ───────────────────────────────────────────────────
 async function handleMainAuth() {
-    const id = document.getElementById('au-id').value.trim();
-    const pass = document.getElementById('au-pass').value;
+    const idInput = document.getElementById('au-id');
+    const passInput = document.getElementById('au-pass');
     const btn = document.getElementById('au-btn');
+    const id = idInput ? idInput.value.trim() : '';
+    const pass = passInput ? passInput.value : '';
 
     if (!id) return showToast("Please enter your email.");
     if (!pass) return showToast("Please enter your password.");
+    if (!btn) {
+        console.error("Auth Error: login button (#au-btn) not found.");
+        return;
+    }
 
     btn.disabled = true;
     btn.innerText = "Please wait...";
@@ -652,12 +681,10 @@ async function handleMainAuth() {
 
             showToast("✅ Account Created! Welcome!");
         } else {
-            // LOGIN
+            // LOGIN — Swagstree auth only; extension sync is best-effort and async
             await auth.signInWithEmailAndPassword(id, pass);
-            if (id.toLowerCase() === SUPER_ADMIN_EMAIL && typeof soSyncExtensionAuthWithCredentials === 'function') {
-                await soSyncExtensionAuthWithCredentials(id, pass, true);
-            }
             showToast("✅ Login Successful!");
+            scheduleSoExtensionAuthSync(id, pass);
         }
     } catch (e) {
         console.error("Auth Error:", e);
@@ -683,14 +710,12 @@ async function handleMainAuth() {
             };
             showToast(msgs[e.code] || "Authentication failed. Check your details.");
         }
-        btn.innerText = isRegMode ? "Create Account" : "Login";
     } finally {
         btn.disabled = false;
-        if (!btn.innerText.includes("wait")) {
-            btn.innerText = isRegMode ? "Create Account" : "Login";
-        }
+        btn.innerText = authPrimaryButtonLabel();
     }
 }
+window.handleMainAuth = handleMainAuth;
 
 // ── Forgot Password ─────────────────────────────────────────────────────────
 async function forgotPassword() {
