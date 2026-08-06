@@ -121,8 +121,8 @@
     let soDirtyTabs = { config: false, credits: false };
     let soTabSnapshots = { config: null, credits: null };
     let soHydrating = false;
-    let soUserEditsEnabled = false;
     let soSnapshotsReady = false;
+    let soLoadInProgress = false;
     let soDirtyCheckTimer = null;
     let soSupport = null;
     let soLicenseFilter = 'all';
@@ -946,44 +946,52 @@
     }
 
     window.soMarkTabDirty = function(tab) {
-        if (soHydrating || !soSnapshotsReady || !soUserEditsEnabled) return;
+        if (soHydrating || !soSnapshotsReady) return;
         if (tab === 'config' || tab === 'credits') {
-            soScheduleDirtyCheck();
+            soDirtyTabs[tab] = true;
+            soUpdateUnsavedBanner();
             soScheduleDraftSave();
         }
     };
 
-    function soResetUserEditGate() {
-        soUserEditsEnabled = false;
+    function soClearAllDirty() {
+        soDirtyTabs.config = false;
+        soDirtyTabs.credits = false;
+        soUpdateUnsavedBanner();
     }
 
-    function soEnableUserEditGate() {
-        soUserEditsEnabled = true;
+    function soClearDirtyTab(tab) {
+        if (tab === 'config' || tab === 'credits') soDirtyTabs[tab] = false;
+        soUpdateUnsavedBanner();
     }
 
-    function soBindUserEditGate() {
-        const root = document.getElementById('shipping-optimizer-admin-section');
-        if (!root || root.dataset.soEditGateBound) return;
-        root.dataset.soEditGateBound = '1';
-        const enable = (e) => {
-            if (soHydrating || !soSnapshotsReady) return;
-            if (e && e.isTrusted === false) return;
-            soUserEditsEnabled = true;
-        };
-        root.addEventListener('input', enable, true);
-        root.addEventListener('change', enable, true);
+    /** After partial save — clear dirty only if DOM now matches snapshot baseline */
+    function soSyncDirtyFromSnapshots() {
+        if (!soSnapshotsReady || soHydrating) return;
+        if (soTabSnapshots.config != null) {
+            soDirtyTabs.config = soSerializeConfigTabState() !== soTabSnapshots.config;
+        }
+        if (soTabSnapshots.credits != null) {
+            soDirtyTabs.credits = soSerializeCreditsTabState() !== soTabSnapshots.credits;
+        }
+        soUpdateUnsavedBanner();
+        if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
+    }
+
+    function soAfterTabSaved(tab) {
+        if (tab === 'config' || tab === 'credits') {
+            if (tab === 'config') soTabSnapshots.config = soSerializeConfigTabState();
+            if (tab === 'credits') soTabSnapshots.credits = soSerializeCreditsTabState();
+        }
+        soClearDirtyTab(tab);
+        if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
+        soUpdateUnsavedBanner();
     }
 
     window.soHasUnsavedChanges = function() {
-        if (!soSnapshotsReady || !soUserEditsEnabled) return false;
-        soRecomputeDirtyState();
+        if (!soSnapshotsReady) return false;
         return !!(soDirtyTabs.config || soDirtyTabs.credits);
     };
-
-    function soScheduleDirtyCheck() {
-        clearTimeout(soDirtyCheckTimer);
-        soDirtyCheckTimer = setTimeout(soRecomputeDirtyState, 0);
-    }
 
     function soDraftsEnabled() {
         return typeof adminCrudDraftsEnabled === 'function' ? adminCrudDraftsEnabled() : true;
@@ -1338,27 +1346,11 @@
         return JSON.stringify(soBuildCreditsCanonicalObject(true));
     }
 
-    function soRecomputeDirtyState() {
-        if (soHydrating || !soSnapshotsReady || !soUserEditsEnabled) {
-            soDirtyTabs.config = false;
-            soDirtyTabs.credits = false;
-            soUpdateUnsavedBanner();
-            return;
-        }
-        const configDirty = soTabSnapshots.config != null && soSerializeConfigTabState() !== soTabSnapshots.config;
-        const creditsDirty = soTabSnapshots.credits != null && soSerializeCreditsTabState() !== soTabSnapshots.credits;
-        soDirtyTabs.config = configDirty;
-        soDirtyTabs.credits = creditsDirty;
-        soUpdateUnsavedBanner();
-    }
-
     function soCaptureSnapshots(fromDom) {
         const useDom = fromDom !== false;
         soTabSnapshots.config = JSON.stringify(soBuildConfigCanonicalObject(useDom));
         soTabSnapshots.credits = JSON.stringify(soBuildCreditsCanonicalObject(useDom));
-        soDirtyTabs.config = false;
-        soDirtyTabs.credits = false;
-        soUpdateUnsavedBanner();
+        soClearAllDirty();
     }
 
     function soFinalizeAdminLoadState() {
@@ -1369,9 +1361,7 @@
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 soCaptureSnapshots(true);
-                soResetUserEditGate();
                 soSnapshotsReady = true;
-                soRecomputeDirtyState();
                 soPruneStaleDraft();
                 soRenderDraftBanner();
             });
@@ -1391,16 +1381,15 @@
     }
 
     function soClearTabDirty(tab) {
-        if (tab === 'config') soTabSnapshots.config = soSerializeConfigTabState();
-        if (tab === 'credits') soTabSnapshots.credits = soSerializeCreditsTabState();
-        soRecomputeDirtyState();
+        soAfterTabSaved(tab);
     }
 
     function soUpdateUnsavedBanner() {
         const banner = document.getElementById('so-unsaved-banner');
         if (!banner) return;
-        const dirty = soSnapshotsReady && soUserEditsEnabled && soDirtyTabs[soActiveTab];
+        const dirty = soSnapshotsReady && !!soDirtyTabs[soActiveTab];
         banner.hidden = !dirty;
+        banner.style.display = dirty ? '' : 'none';
         const label = banner.querySelector('span');
         if (label && dirty) {
             const tabName = soActiveTab === 'credits' ? 'Credits & Packs' : 'Config & Pricing';
@@ -1442,10 +1431,10 @@
     }
 
     function soScheduleDraftSave() {
-        if (!soDraftsEnabled() || !soUserEditsEnabled) return;
+        if (!soDraftsEnabled()) return;
+        if (!soDirtyTabs.config && !soDirtyTabs.credits) return;
         clearTimeout(soDraftSaveTimer);
         soDraftSaveTimer = setTimeout(() => {
-            soRecomputeDirtyState();
             soWriteDraftToStorage();
         }, SO_DRAFT_SAVE_MS);
     }
@@ -1516,9 +1505,12 @@
         soPopulateLicensePlanSelect();
         soUpdateCustomCreditCalc();
         soHydrating = false;
-        soEnableUserEditGate();
-        soRecomputeDirtyState();
+        soDirtyTabs.config = true;
+        soDirtyTabs.credits = true;
+        soUpdateUnsavedBanner();
     }
+
+    function soEnableUserEditGate() { /* no-op — dirty tracked explicitly via soMarkTabDirty */ }
 
     function soRenderDraftBanner() {
         const banner = document.getElementById('so-draft-recovery-banner');
@@ -1557,7 +1549,6 @@
         const draft = soReadDraftFromStorage();
         if (!draft) return soToast('No draft found.');
         soApplyDraftToForms(draft);
-        soEnableUserEditGate();
         soToast('Draft restored. Save to Firebase when ready.');
         soRenderDraftBanner();
     };
@@ -1602,21 +1593,18 @@
             soUpdateCustomCreditCalc();
         }
         soHydrating = false;
-        if (soActiveTab === 'config') soClearTabDirty('config');
-        else if (soActiveTab === 'credits') soClearTabDirty('credits');
-        soResetUserEditGate();
-        soWriteDraftToStorage();
+        soCaptureSnapshots(true);
+        soClearDraftStorage();
         renderSoExtensionPreview();
         soToast('Reverted to last saved values.');
     };
 
-    window.soSaveCurrentTab = function() {
-        if (soActiveTab === 'config') saveShippingOptimizerConfig();
-        else if (soActiveTab === 'credits') saveShippingOptimizerCredits();
+    window.soSaveCurrentTab = async function() {
+        if (soActiveTab === 'config') await saveShippingOptimizerConfig();
+        else if (soActiveTab === 'credits') await saveShippingOptimizerCredits();
     };
 
     function soConfirmLeaveTab(nextTab) {
-        soRecomputeDirtyState();
         if (!soDirtyTabs[soActiveTab]) return true;
         return confirm('You have unsaved changes on this tab. Leave without saving?');
     }
@@ -1670,7 +1658,9 @@
         const open = content.style.display === 'none' || !content.style.display;
         content.style.display = open ? 'flex' : 'none';
         if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
-        if (open && typeof loadShippingOptimizerAdmin === 'function') loadShippingOptimizerAdmin();
+        if (open && typeof loadShippingOptimizerAdmin === 'function' && !soLoaded) {
+            loadShippingOptimizerAdmin();
+        }
     };
 
     window.switchShippingOptimizerTab = function(tab) {
@@ -2263,14 +2253,17 @@
                 Object.keys(snap.inlineDemo).sort().forEach(k => { sorted[k] = snap.inlineDemo[k]; });
                 snap.inlineDemo = sorted;
             }
+            if (patch.support) {
+                snap.support = soSupportToFirestore(patch.support);
+            }
             if (soPatchTouchesGeneral(patch)) {
                 snap.general = soReadGeneralConfigLenient();
             }
             soTabSnapshots.config = JSON.stringify(snap);
-            soRecomputeDirtyState();
+            soSyncDirtyFromSnapshots();
         }
         if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
-        else soWriteDraftToStorage();
+        else if (soDirtyTabs.config || soDirtyTabs.credits) soWriteDraftToStorage();
         soToast(successMsg);
     }
 
@@ -2348,10 +2341,7 @@
             }, { merge: true });
             soCredits = creditsPayload;
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
-            soTabSnapshots.credits = soSerializeCreditsTabState();
-            soRecomputeDirtyState();
-            if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
-            else soWriteDraftToStorage();
+            soAfterTabSaved('credits');
             renderSoExtensionPreview();
             soToast('Credit settings saved.');
         } catch (e) {
@@ -2378,6 +2368,7 @@
             }, { merge: true });
             soCredits = creditsPayload;
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
+            soAfterTabSaved('credits');
             renderSoExtensionPreview();
             soToast('Credit packs saved.');
         } catch (e) {
@@ -2862,10 +2853,8 @@
             }, { merge: true });
             soCredits = creditsPayload;
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload });
-            soTabSnapshots.credits = soSerializeCreditsTabState();
-            soRecomputeDirtyState();
-            if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
-            else soWriteDraftToStorage();
+            soAfterTabSaved('credits');
+            renderSoExtensionPreview();
             soToast('Credits & packs saved.');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
@@ -3819,8 +3808,18 @@
         }
     };
 
-    window.loadShippingOptimizerAdmin = async function() {
+    window.soRefreshShippingOptimizerAdmin = function() {
+        soLoaded = false;
+        return loadShippingOptimizerAdmin(true);
+    };
+
+    window.loadShippingOptimizerAdmin = async function(forceReload) {
         if (!soRequireSuperAdmin()) return;
+        if (soLoadInProgress) return;
+        if (soLoaded && !forceReload) {
+            soUpdateUnsavedBanner();
+            return;
+        }
         if (typeof soGetExtensionDb !== 'function' || !soGetExtensionDb()) {
             soToast('Extension Firebase (extension-e6e32) not ready.');
             return;
@@ -3828,9 +3827,9 @@
         if (typeof soEnsureExtensionFirebaseReady === 'function') {
             await soEnsureExtensionFirebaseReady();
         }
+        soLoadInProgress = true;
         soSnapshotsReady = false;
-        soResetUserEditGate();
-        soDirtyTabs = { config: false, credits: false };
+        soClearAllDirty();
         clearTimeout(soDirtyCheckTimer);
         clearTimeout(soDraftSaveTimer);
         soUpdateUnsavedBanner();
@@ -3849,12 +3848,13 @@
             renderSoLicensesList();
             renderSoCustomerRegistry();
             soHydrating = false;
-            soBindUserEditGate();
             soBindFieldInfoDismiss();
             soFinalizeAdminLoadState();
             soLoaded = true;
         } catch (e) {
             soToast('Load failed: ' + (e.message || 'Unknown error'));
+        } finally {
+            soLoadInProgress = false;
         }
     };
 
