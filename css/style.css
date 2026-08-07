@@ -12429,6 +12429,22 @@ body.seo-indexing-off #seo-primary-nav {
     background: #0d0d0d;
     line-height: 1.45;
 }
+.so-ext-smart-label {
+    display: block;
+    font-size: 10px;
+    color: #aaa;
+    margin-bottom: 4px;
+}
+.so-ext-smart-select {
+    width: 100%;
+    max-width: 280px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #111;
+    color: #eee;
+    font-size: 12px;
+}
 .so-smart-mode-options {
     display: flex;
     flex-direction: column;

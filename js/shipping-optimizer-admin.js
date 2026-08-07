@@ -1559,7 +1559,7 @@
             whatsapp_number: String(soConfig?.whatsapp_number || '919654414891').replace(/\D/g, ''),
             whatsapp_message: String(soConfig?.whatsapp_message || 'Hi! I want to purchase Shipping Optimizer license.').trim(),
             extension_enabled: soConfig?.extension_enabled !== false,
-            min_extension_version: String(soConfig?.min_extension_version || '1.0.0').trim(),
+            min_extension_version: String(soConfig?.min_extension_version || '1.2.0').trim(),
             announcement: String(soConfig?.announcement || '').trim()
         };
     }
@@ -1637,19 +1637,30 @@
         soClearAllDirty();
     }
 
+    function soRebindAllFormsFromState() {
+        soBindConfigForm();
+        soBindSupportForm();
+        soBindCreditsForm();
+        soBindImageGenerationForm();
+        soBindSmartModeForm();
+        soUpdateCustomCreditCalc();
+        soUpdateImageGenPreviewCard();
+    }
+
     function soFinalizeAdminLoadState() {
         soSnapshotsReady = false;
+        soClearAllDirty();
         soHydrating = true;
         switchShippingOptimizerTab(soActiveTab);
+        soRebindAllFormsFromState();
         soHydrating = false;
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                soCaptureSnapshots(true);
-                soSnapshotsReady = true;
-                soPruneStaleDraft();
-                soRenderDraftBanner();
-            });
-        });
+        // Baseline = Firebase-loaded memory state (not DOM) to avoid false dirty on refresh
+        soCaptureSnapshots(false);
+        soSnapshotsReady = true;
+        soClearAllDirty();
+        soClearDraftStorage();
+        soUpdateUnsavedBanner();
+        soRenderDraftBanner();
     }
 
     function soPruneStaleDraft() {
@@ -1875,13 +1886,19 @@
                 : DEFAULT_CREDIT_PACKS.slice();
             soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
             soCreditPacks.forEach((p, i) => { p.order = i; });
+            soSmartMode = soNormalizeSmartMode(
+                soConfig.smart_mode
+                || rawCredits.smart_mode
+                || DEFAULT_SMART_MODE
+            );
             soBindCreditsForm();
             soBindImageGenerationForm();
+            soBindSmartModeForm();
             renderSoCreditPacksEditor();
             soUpdateCustomCreditCalc();
         }
         soHydrating = false;
-        soCaptureSnapshots(true);
+        soCaptureSnapshots(false);
         soClearDraftStorage();
         renderSoExtensionPreview();
         soToast('Reverted to last saved values.');
@@ -1987,6 +2004,8 @@
         soRestoreSectionAccordions();
         if (soActiveTab === 'credits') {
             soBindCreditsForm();
+            soBindImageGenerationForm();
+            soBindSmartModeForm();
             soUpdateCustomCreditCalc();
         }
         if (soActiveTab === 'demo') {
@@ -2026,7 +2045,11 @@
         }
         soSyncInlineDemoRowsFromObject();
         soSupport = soNormalizeSupport(soConfig.support || DEFAULT_SUPPORT);
-        soSmartMode = soNormalizeSmartMode(soConfig.smart_mode || DEFAULT_SMART_MODE);
+        const smartModeRaw = soConfig.smart_mode
+            || (soConfig.credits && soConfig.credits.smart_mode)
+            || (soConfig.credits && soConfig.credits.smartMode)
+            || DEFAULT_SMART_MODE;
+        soSmartMode = soNormalizeSmartMode(smartModeRaw);
         soHydrating = true;
         soBindConfigForm();
         soBindSupportForm();
@@ -2184,7 +2207,7 @@
         };
         setVal('so-whatsapp-number', soConfig.whatsapp_number || '919654414891');
         setVal('so-whatsapp-message', soConfig.whatsapp_message || 'Hi! I want to purchase Shipping Optimizer license.');
-        setVal('so-min-version', soConfig.min_extension_version || '1.0.0');
+        setVal('so-min-version', soConfig.min_extension_version || '1.2.0');
         setVal('so-announcement', soConfig.announcement || '');
         const enabledEl = document.getElementById('so-extension-enabled');
         if (enabledEl) enabledEl.checked = soConfig.extension_enabled !== false;
@@ -2523,6 +2546,26 @@
             : '<p class="so-admin-muted">Credits disabled — extension hides credit packs section.</p>';
 
         const imgGen = soReadImageGenerationFromDom();
+        const smartMode = soReadSmartModeFromDom();
+        const batchMax = Number(imgGen.max_batch_size) || 0;
+        let variantOptions = (smartMode.variant_options || []).filter(o => o.active !== false);
+        if (batchMax > 0) {
+            variantOptions = variantOptions.filter(o => o.value <= batchMax);
+        }
+        const smartModeHtml = variantOptions.length
+            ? `<div class="so-ext-preview-block">
+                <div class="so-ext-preview-label">Smart Mode variant dropdown (extension)</div>
+                <label class="so-ext-smart-label">${soEsc(smartMode.label || 'Max Variants')}</label>
+                <select class="so-ext-smart-select" disabled aria-label="Smart mode variants preview">
+                    ${variantOptions.map(o =>
+                        `<option value="${o.value}"${o.value === smartMode.default_variant ? ' selected' : ''}>${soEsc(o.label)} (${o.value})</option>`
+                    ).join('')}
+                </select>
+                ${smartMode.hint ? `<p class="so-admin-muted so-admin-tip">${soEsc(smartMode.hint)}</p>` : ''}
+                ${batchMax > 0 ? `<p class="so-admin-muted so-admin-tip">Options above ${batchMax} variants hidden (max variants per run).</p>` : ''}
+            </div>`
+            : '';
+
         const imgGenHtml = imgGen.enabled !== false
             ? `<div class="so-ext-preview-block">
                 <div class="so-ext-preview-label">AI image generation</div>
@@ -2557,6 +2600,7 @@
             </div>
             ${creditsHtml}
             ${imgGenHtml}
+            ${smartModeHtml}
             <div class="so-ext-preview-block">
                 <div class="so-ext-preview-label">Demo / promo keys (Firebase merged)</div>
                 ${demoHtml}
