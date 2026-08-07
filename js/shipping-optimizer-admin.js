@@ -136,6 +136,7 @@
     let soHydrating = false;
     let soSnapshotsReady = false;
     let soAllowDirtyMark = false;
+    let soUserEditedSinceLoad = false;
     let soLoadInProgress = false;
     let soLoadGeneration = 0;
     let soDirtyCheckTimer = null;
@@ -148,7 +149,7 @@
     let soExpandedPlanIds = new Set();
     let soExpandedPackIds = new Set();
     let soExpandedLicenseKeys = new Set();
-    let soOpenSections = new Set(['config-general', 'license-list']);
+    let soOpenSections = new Set(['config-general', 'license-list', 'credits-smart-mode']);
 
     function soDb() {
         if (typeof soGetExtensionDb === 'function') {
@@ -871,36 +872,86 @@
     window.soOnLicenseAddonChange = function() {
         const planId = document.getElementById('so-license-plan')?.value;
         const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
-        if (!plan) return;
-        const maxSel = parseInt(plan.max_addon_selections, 10) || 0;
         const container = document.getElementById('so-license-addon-picks');
-        if (container && maxSel === 1) {
-            const checked = container.querySelectorAll('[data-license-addon]:checked');
-            if (checked.length > 1) {
-                const last = checked[checked.length - 1];
-                container.querySelectorAll('[data-license-addon]:checked').forEach(el => {
-                    if (el !== last) el.checked = false;
-                });
-            }
-        } else if (container && maxSel > 1) {
-            const checked = container.querySelectorAll('[data-license-addon]:checked');
-            if (checked.length > maxSel) {
-                checked[checked.length - 1].checked = false;
-                soToast(`This plan allows at most ${maxSel} add-on(s).`);
+        if (plan && container) {
+            const maxSel = parseInt(plan.max_addon_selections, 10) || 0;
+            if (maxSel === 1) {
+                const checked = container.querySelectorAll('[data-license-addon]:checked');
+                if (checked.length > 1) {
+                    const last = checked[checked.length - 1];
+                    container.querySelectorAll('[data-license-addon]:checked').forEach(el => {
+                        if (el !== last) el.checked = false;
+                    });
+                }
+            } else if (maxSel > 1) {
+                const checked = container.querySelectorAll('[data-license-addon]:checked');
+                if (checked.length > maxSel) {
+                    checked[checked.length - 1].checked = false;
+                    soToast(`This plan allows at most ${maxSel} add-on(s).`);
+                }
             }
         }
-        const selectedIds = soReadSelectedLicenseAddonIds();
-        const calc = soCalculatePlanCredits(plan, selectedIds);
         const balEl = document.getElementById('so-license-credits-balance');
         if (balEl && !soEditingLicenseKey) {
-            balEl.value = calc.total;
+            balEl.value = 0;
         }
-        const summary = document.getElementById('so-license-credits-summary');
-        if (summary && plan.allow_credit_addons) {
-            const priceExtra = calc.addonPrice;
-            summary.textContent = `Credits: ${calc.included} base + ${calc.addon} addon = ${calc.total} total` +
-                (priceExtra > 0 ? ` · Add-on price +₹${priceExtra} on top of plan` : '');
+        soUpdateLicenseCreditsBreakdown();
+    };
+
+    function soResolveLicenseCreditBreakdown(plan, selectedIds, lic) {
+        const calc = plan ? soCalculatePlanCredits(plan, selectedIds || []) : { included: 0, addon: 0, total: 0, addonPrice: 0 };
+        let included = calc.included;
+        let addon = calc.addon;
+        if (lic) {
+            const licIncluded = parseInt(lic.included_credits, 10);
+            const licAddon = parseInt(lic.addon_credits, 10);
+            if (Number.isFinite(licIncluded) && licIncluded >= 0) included = licIncluded;
+            if (Number.isFinite(licAddon) && licAddon >= 0) addon = licAddon;
         }
+        const total = included + addon;
+        return { included, addon, total, addonPrice: calc.addonPrice };
+    }
+
+    window.soUpdateLicenseCreditsBreakdown = function() {
+        const panel = document.getElementById('so-license-credits-breakdown');
+        if (!panel) return;
+        const planId = document.getElementById('so-license-plan')?.value;
+        const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+        const selectedIds = soReadSelectedLicenseAddonIds();
+        const lic = soEditingLicenseKey ? soLicenses.find(l => l.key === soEditingLicenseKey) : null;
+        const unlimited = !!document.getElementById('so-license-unlimited-credits')?.checked
+            || soIsUnlimitedCredits(plan) || (lic && soIsUnlimitedCredits(lic));
+        if (unlimited) {
+            panel.innerHTML = '<strong>Credits:</strong> Unlimited — no balance tracking.';
+            return;
+        }
+        const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
+        const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
+        const grantTotal = breakdown.total > 0 ? breakdown.total : (bal + used);
+        if (!plan) {
+            panel.textContent = '';
+            return;
+        }
+        const billing = plan.billing_mode || 'subscription';
+        const grantLine = breakdown.total > 0
+            ? `<strong>Plan grant:</strong> ${breakdown.included} included + ${breakdown.addon} addon = <strong>${breakdown.total} total</strong>`
+            : `<strong>Plan grant:</strong> none configured on this plan`;
+        const balanceLine = `<strong>Remaining:</strong> ${bal} · <strong>Used:</strong> ${used}` +
+            (grantTotal > 0 ? ` · <strong>Allocated total:</strong> ${grantTotal}` : '');
+        const activationHint = !soEditingLicenseKey && breakdown.total > 0
+            ? '<br><span class="so-admin-muted">New licenses: leave balance at 0 — extension grants included + addon credits on first activation.</span>'
+            : '';
+        const planHint = breakdown.total === 0 && (billing === 'hybrid' || billing === 'credits')
+            ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing so customers get credits on activation.</span>'
+            : '';
+        panel.innerHTML = `${grantLine}<br>${balanceLine}${activationHint}${planHint}`;
+        const includedEl = document.getElementById('so-license-included-credits');
+        const addonEl = document.getElementById('so-license-addon-credits');
+        const totalEl = document.getElementById('so-license-total-credits');
+        if (includedEl) includedEl.value = breakdown.included;
+        if (addonEl) addonEl.value = breakdown.addon;
+        if (totalEl) totalEl.value = breakdown.total;
     };
 
     function soValidatePlans(plans) {
@@ -1038,6 +1089,7 @@
     window.soMarkTabDirty = function(tab) {
         if (soHydrating || !soSnapshotsReady || !soAllowDirtyMark) return;
         if (tab === 'config' || tab === 'credits') {
+            soUserEditedSinceLoad = true;
             soDirtyTabs[tab] = true;
             soUpdateUnsavedBanner();
             soScheduleDraftSave();
@@ -1085,7 +1137,7 @@
     }
 
     window.soHasUnsavedChanges = function() {
-        if (!soSnapshotsReady || !soAllowDirtyMark) return false;
+        if (!soSnapshotsReady || !soAllowDirtyMark || !soUserEditedSinceLoad) return false;
         const dirty = soComputeDirtyFromSnapshots();
         return !!(dirty.config || dirty.credits);
     };
@@ -1659,14 +1711,21 @@
         soUpdateImageGenPreviewCard();
     }
 
+    function soEstablishCleanBaseline() {
+        soHydrating = true;
+        soRebindAllFormsFromState();
+        soTabSnapshots.config = soSerializeConfigTabState();
+        soTabSnapshots.credits = soSerializeCreditsTabState();
+        soClearAllDirty();
+        soUserEditedSinceLoad = false;
+        soHydrating = false;
+    }
+
     function soEnableDirtyTrackingAfterSettle(loadGen) {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 if (loadGen !== soLoadGeneration || soLoadInProgress) return;
-                soHydrating = true;
-                soCaptureSnapshots(true);
-                soClearAllDirty();
-                soHydrating = false;
+                soEstablishCleanBaseline();
                 soSnapshotsReady = true;
                 soAllowDirtyMark = true;
                 soClearDraftStorage();
@@ -1681,17 +1740,31 @@
         const loadGen = soLoadGeneration;
         soSnapshotsReady = false;
         soAllowDirtyMark = false;
+        soUserEditedSinceLoad = false;
         soClearAllDirty();
         soHydrating = true;
         switchShippingOptimizerTab(soActiveTab);
-        soRebindAllFormsFromState();
-        soCaptureSnapshots(true);
-        soClearAllDirty();
-        soHydrating = false;
+        soEstablishCleanBaseline();
         soClearDraftStorage();
         soApplyUnsavedBannerVisibility();
         soEnableDirtyTrackingAfterSettle(loadGen);
     }
+
+    /** Called when Super tab is shown — reset unsaved UI and reload SO admin if panel is open */
+    window.soOnSuperViewShown = function() {
+        soAllowDirtyMark = false;
+        soUserEditedSinceLoad = false;
+        soClearAllDirty();
+        soApplyUnsavedBannerVisibility();
+        soClearDraftStorage();
+        const content = document.getElementById('shipping-optimizer-accordion-content');
+        const panelOpen = content && content.style.display !== 'none' && content.style.display !== '';
+        if (panelOpen && typeof window.loadShippingOptimizerAdmin === 'function') {
+            window.loadShippingOptimizerAdmin(true);
+        } else {
+            soLoaded = false;
+        }
+    };
 
     function soPruneStaleDraft() {
         const draft = soReadDraftFromStorage();
@@ -1713,7 +1786,7 @@
         const banner = document.getElementById('so-unsaved-banner');
         if (!banner) return;
         const dirtyState = soComputeDirtyFromSnapshots();
-        const dirty = soSnapshotsReady && soAllowDirtyMark && !!dirtyState[soActiveTab];
+        const dirty = soSnapshotsReady && soAllowDirtyMark && soUserEditedSinceLoad && !!dirtyState[soActiveTab];
         banner.hidden = !dirty;
         banner.style.display = dirty ? '' : 'none';
         const label = banner.querySelector('span');
@@ -1846,6 +1919,9 @@
         soPopulateLicensePlanSelect();
         soUpdateCustomCreditCalc();
         soHydrating = false;
+        soEstablishCleanBaseline();
+        soClearDraftStorage();
+        soUserEditedSinceLoad = true;
         soSyncDirtyFromSnapshots();
         soScheduleDraftSave();
     }
@@ -1939,10 +2015,9 @@
             soUpdateCustomCreditCalc();
         }
         soHydrating = false;
-        soCaptureSnapshots(true);
+        soEstablishCleanBaseline();
         soClearDraftStorage();
         renderSoExtensionPreview();
-        soUpdateUnsavedBanner();
         soToast('Reverted to last saved values.');
     };
 
@@ -1952,6 +2027,7 @@
     };
 
     function soConfirmLeaveTab(nextTab) {
+        if (!soUserEditedSinceLoad) return true;
         const dirty = soComputeDirtyFromSnapshots();
         if (!dirty[soActiveTab]) return true;
         return confirm('You have unsaved changes on this tab. Leave without saving?');
@@ -2006,8 +2082,8 @@
         const open = content.style.display === 'none' || !content.style.display;
         content.style.display = open ? 'flex' : 'none';
         if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
-        if (open && typeof loadShippingOptimizerAdmin === 'function' && !soLoaded) {
-            loadShippingOptimizerAdmin();
+        if (open && typeof loadShippingOptimizerAdmin === 'function') {
+            loadShippingOptimizerAdmin(true);
         }
     };
 
@@ -2020,8 +2096,8 @@
             content.style.display = 'flex';
             if (icon) icon.style.transform = 'rotate(0deg)';
         }
-        if (!soLoaded && typeof loadShippingOptimizerAdmin === 'function') {
-            return loadShippingOptimizerAdmin();
+        if (typeof loadShippingOptimizerAdmin === 'function') {
+            return loadShippingOptimizerAdmin(true);
         }
         return Promise.resolve();
     }
@@ -3731,14 +3807,8 @@
         const maxEl = document.getElementById('so-license-max-devices');
         if (maxEl) maxEl.value = plan.max_devices != null ? plan.max_devices : '';
         const balEl = document.getElementById('so-license-credits-balance');
-        if (balEl) {
-            if (plan.billing_mode === 'credits') {
-                balEl.value = plan.included_credits > 0 ? plan.included_credits : 50;
-            } else if (plan.billing_mode === 'hybrid' && plan.included_credits > 0) {
-                balEl.value = plan.included_credits;
-            } else if (plan.included_credits > 0) {
-                balEl.value = plan.included_credits;
-            }
+        if (balEl && !soEditingLicenseKey) {
+            balEl.value = 0;
         }
         soSetLicenseUnlimitedCheckboxes(plan);
         if (!soEditingLicenseKey) {
@@ -3763,9 +3833,13 @@
         hint.textContent = unlimitedTime
             ? `Unlimited — no expiry · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`
             : `Expiry starts on activation: ${days} days · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`;
+        if (plan && plan.included_credits > 0) {
+            hint.textContent += ` · ${plan.included_credits} credits included in plan.`;
+        }
         if (!soEditingLicenseKey) {
             soApplyPlanDefaultsToLicenseForm(plan);
         }
+        soUpdateLicenseCreditsBreakdown();
     };
 
     window.cancelSoLicenseEdit = function() {
@@ -3785,6 +3859,7 @@
         if (dateEl) dateEl.value = '';
         soRenderLicenseAddonPicks(null, []);
         soUpdateLicensePlanHint();
+        soUpdateLicenseCreditsBreakdown();
     };
 
     window.editSoLicense = async function(key) {
@@ -3810,6 +3885,7 @@
         document.getElementById('so-license-support-notes').value = lic.support_notes || '';
         soApplyLicenseExpiryFromDoc(lic);
         soUpdateLicensePlanHint();
+        soUpdateLicenseCreditsBreakdown();
         switchShippingOptimizerTab('licenses');
         toggleSoSectionAccordion('license-create');
         document.getElementById('so-license-key-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -4436,6 +4512,7 @@
         soLoadGeneration += 1;
         soSnapshotsReady = false;
         soAllowDirtyMark = false;
+        soUserEditedSinceLoad = false;
         soClearAllDirty();
         clearTimeout(soDirtyCheckTimer);
         clearTimeout(soDraftSaveTimer);
