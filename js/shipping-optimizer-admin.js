@@ -14,11 +14,19 @@
     const KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
     const DEFAULT_PLANS = [
-        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', active: true, order: 0 },
-        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', active: true, order: 1 },
-        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', active: true, order: 2 },
-        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, active: true, order: 3 }
+        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', billing_mode: 'hybrid', included_credits: 200, active: true, order: 0 },
+        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', billing_mode: 'hybrid', included_credits: 600, active: true, order: 1 },
+        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', billing_mode: 'hybrid', included_credits: 1200, active: true, order: 2 },
+        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, billing_mode: 'hybrid', included_credits: 2400, active: true, order: 3 }
     ];
+
+    /** Fallback included credits when plan doc omits included_credits (extension reads plan + license). */
+    const PLAN_DEFAULT_INCLUDED_CREDITS = {
+        monthly: 200,
+        quarterly: 600,
+        halfyearly: 1200,
+        yearly: 2400
+    };
 
     const DEFAULT_INLINE_DEMO_KEYS = {
         'MEESHO-DEMOFREE': { days: 30, label: 'Free 30-day trial' }
@@ -84,7 +92,7 @@
     const SO_PLAN_PRESETS = {
         monthly: {
             id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month',
-            max_devices: 1, device_tier: 'standard', billing_mode: 'subscription', active: true
+            max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 200, active: true
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
@@ -439,9 +447,17 @@
         return soSortCreditAddons((plan.credit_addons || []).filter(a => a.active !== false));
     }
 
+    function soGetPlanIncludedCredits(plan) {
+        if (!plan || soIsUnlimitedCredits(plan)) return 0;
+        const raw = parseInt(plan.included_credits, 10);
+        if (Number.isFinite(raw) && raw > 0) return raw;
+        const fallback = PLAN_DEFAULT_INCLUDED_CREDITS[plan.id];
+        return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+    }
+
     function soCalculatePlanCredits(plan, selectedAddonIds) {
         const included = plan && !soIsUnlimitedCredits(plan)
-            ? Math.max(0, parseInt(plan.included_credits, 10) || 0)
+            ? soGetPlanIncludedCredits(plan)
             : 0;
         let addonTotal = 0;
         const ids = Array.isArray(selectedAddonIds) ? selectedAddonIds : [];
@@ -926,6 +942,11 @@
             return;
         }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        const effectiveIncluded = plan ? soGetPlanIncludedCredits(plan) : breakdown.included;
+        if (!lic && effectiveIncluded > breakdown.included) {
+            breakdown.included = effectiveIncluded;
+            breakdown.total = effectiveIncluded + breakdown.addon;
+        }
         const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
         const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
         const grantTotal = breakdown.total > 0 ? breakdown.total : (bal + used);
@@ -3645,6 +3666,8 @@
         if (plan.unlimited_credits || soIsUnlimitedCredits(plan)) badges.push('∞ credits');
         if (plan.billing_mode === 'hybrid') badges.push('Hybrid');
         else if (plan.billing_mode === 'credits') badges.push('Credits');
+        const inc = soGetPlanIncludedCredits(plan);
+        if (inc > 0) badges.push(`${inc} cr`);
         if (plan.best) badges.push('Best');
         return badges.length ? ` [${badges.join(' · ')}]` : '';
     }
@@ -3657,7 +3680,8 @@
             const inactive = p.active === false ? ' (hidden)' : '';
             const daysLabel = soIsUnlimitedTime(p) ? '∞' : `${p.days}d`;
             const badges = soPlanSelectBadges(p);
-            return `<option value="${soAttr(p.id)}" data-days="${p.days}">${soEsc(p.name)} — ₹${p.price} (${daysLabel})${soEsc(badges)}${inactive}</option>`;
+            const inc = soGetPlanIncludedCredits(p);
+            return `<option value="${soAttr(p.id)}" data-days="${p.days}" data-included-credits="${inc}">${soEsc(p.name)} — ₹${p.price} (${daysLabel})${soEsc(badges)}${inactive}</option>`;
         }).join('');
         soUpdateLicensePlanHint();
     }
@@ -3803,7 +3827,10 @@
     function soApplyPlanDefaultsToLicenseForm(plan) {
         if (!plan) return;
         const billingEl = document.getElementById('so-license-billing-mode');
-        if (billingEl && plan.billing_mode) billingEl.value = plan.billing_mode;
+        const included = soGetPlanIncludedCredits(plan);
+        if (billingEl) {
+            billingEl.value = plan.billing_mode || (included > 0 ? 'hybrid' : 'subscription');
+        }
         const maxEl = document.getElementById('so-license-max-devices');
         if (maxEl) maxEl.value = plan.max_devices != null ? plan.max_devices : '';
         const balEl = document.getElementById('so-license-credits-balance');
@@ -3817,6 +3844,7 @@
         }
         const preselected = (plan.credit_addons || []).filter(a => a.default_selected).map(a => a.id);
         soRenderLicenseAddonPicks(plan, preselected);
+        soUpdateLicenseCreditsBreakdown();
     }
 
     window.soUpdateLicensePlanHint = function() {
@@ -3833,8 +3861,8 @@
         hint.textContent = unlimitedTime
             ? `Unlimited — no expiry · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`
             : `Expiry starts on activation: ${days} days · tier ${tier} · max ${maxDev} device(s) · billing ${billing}.`;
-        if (plan && plan.included_credits > 0) {
-            hint.textContent += ` · ${plan.included_credits} credits included in plan.`;
+        if (plan && soGetPlanIncludedCredits(plan) > 0) {
+            hint.textContent += ` · ${soGetPlanIncludedCredits(plan)} credits included in plan.`;
         }
         if (!soEditingLicenseKey) {
             soApplyPlanDefaultsToLicenseForm(plan);
@@ -3899,7 +3927,14 @@
             const key = await soGenerateUniqueLicenseKey();
             const el = document.getElementById('so-license-key-input');
             if (el) el.value = key;
-            soToast('Unique key generated.');
+            const planId = document.getElementById('so-license-plan')?.value;
+            const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+            if (plan && !soEditingLicenseKey) {
+                soApplyPlanDefaultsToLicenseForm(plan);
+            } else {
+                soUpdateLicenseCreditsBreakdown();
+            }
+            soToast('Unique key generated — credits prefilled from plan.');
         } catch (e) {
             soToast(e.message || 'Generation failed.');
         }
