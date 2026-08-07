@@ -11164,6 +11164,31 @@ body.seo-indexing-off #seo-primary-nav {
     border: 1px solid rgba(255, 255, 255, 0.08);
     line-height: 1.5;
 }
+.so-google-trials-table-wrap {
+    overflow-x: auto;
+    margin-top: 8px;
+}
+.so-google-trials-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+.so-google-trials-table th,
+.so-google-trials-table td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    vertical-align: top;
+}
+.so-google-trials-table th {
+    color: var(--gold, #ffd700);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.so-google-trials-table code {
+    font-size: 10px;
+    word-break: break-all;
+}
 .so-draft-recovery-banner {
     margin-bottom: 8px;
 }

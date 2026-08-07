@@ -10,6 +10,7 @@
     const SO_CONFIG_ID = 'app';
     const SO_DEMO_COL = 'shipping_optimizer_demo_keys';
     const SO_LICENSE_COL = 'shipping_optimizer_licenses';
+    const SO_GOOGLE_TRIALS_COL = 'shipping_optimizer_google_trials';
     const SO_LICENSE_MAX = 200;
     const KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -96,6 +97,19 @@
         { id: 'pack_100', credits: 100, price: 170, label: '100 credits — ₹170', active: true, order: 3 }
     ];
 
+    const DEFAULT_GOOGLE_TRIAL = {
+        enabled: true,
+        days: 7,
+        credits: 30,
+        max_devices: 1,
+        label: 'Google free trial',
+        oauth_client_id: '247366802280-cg7ngbq35e1vs5n6rl09uh2d9mk8qkkh.apps.googleusercontent.com',
+        function_url: 'https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial'
+    };
+
+    const SO_EXTENSION_ID = 'kgnmnoaobnpfaaipnjkkidekbajpldlm';
+    const SO_GOOGLE_OAUTH_REDIRECT = `https://${SO_EXTENSION_ID}.chromiumapp.org/`;
+
     const SO_DEVICE_TIER_MAX = { standard: 1, family: 3, friends: 5, unlimited: 0 };
     const SO_BILLING_MODES = ['subscription', 'credits', 'hybrid'];
     const SO_DEVICE_TIERS = ['standard', 'family', 'friends', 'unlimited'];
@@ -146,6 +160,7 @@
     let soDemoKeyEditRows = [];
     let soDemoSelectedKeys = new Set();
     let soLicenses = [];
+    let soGoogleTrials = [];
     let soActiveTab = 'config';
     let soLoaded = false;
     let soEditingLicenseKey = null;
@@ -2169,6 +2184,10 @@
             renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
         }
+        if (soActiveTab === 'google-trial') {
+            soBindGoogleTrialForm();
+            renderSoGoogleTrialsRegistry();
+        }
         if (soActiveTab === 'config' || soActiveTab === 'credits') {
             renderSoExtensionPreview();
         }
@@ -2210,6 +2229,7 @@
         soSmartMode = soNormalizeSmartMode(smartModeRaw);
         soHydrating = true;
         soBindConfigForm();
+        soBindGoogleTrialForm();
         soBindSupportForm();
         soBindCreditsForm();
         soBindImageGenerationForm();
@@ -2219,6 +2239,214 @@
         renderSoInlineDemoKeysEditor();
         soHydrating = false;
     }
+
+    function soNormalizeGoogleTrial(raw) {
+        const src = raw && typeof raw === 'object' ? raw : {};
+        return {
+            enabled: src.enabled !== false,
+            days: Math.max(1, parseInt(src.days, 10) || DEFAULT_GOOGLE_TRIAL.days),
+            credits: Math.max(0, parseInt(src.credits, 10) || DEFAULT_GOOGLE_TRIAL.credits),
+            max_devices: Math.max(1, parseInt(src.max_devices, 10) || DEFAULT_GOOGLE_TRIAL.max_devices),
+            label: String(src.label || DEFAULT_GOOGLE_TRIAL.label).trim(),
+            oauth_client_id: String(src.oauth_client_id || src.oauthClientId || '').trim(),
+            function_url: String(src.function_url || src.functionUrl || DEFAULT_GOOGLE_TRIAL.function_url).trim()
+        };
+    }
+
+    function soGoogleTrialToFirestore(trial) {
+        const t = soNormalizeGoogleTrial(trial);
+        const out = {
+            enabled: t.enabled,
+            days: t.days,
+            credits: t.credits,
+            max_devices: t.max_devices,
+            label: t.label
+        };
+        if (t.oauth_client_id) out.oauth_client_id = t.oauth_client_id;
+        if (t.function_url) out.function_url = t.function_url;
+        return out;
+    }
+
+    function soBindGoogleTrialForm() {
+        const trial = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL);
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        const enabledEl = document.getElementById('so-google-trial-enabled');
+        if (enabledEl) enabledEl.checked = trial.enabled;
+        setVal('so-google-trial-days', trial.days);
+        setVal('so-google-trial-credits', trial.credits);
+        setVal('so-google-trial-max-devices', trial.max_devices);
+        setVal('so-google-trial-label', trial.label);
+        setVal('so-google-trial-oauth-client-id', trial.oauth_client_id || DEFAULT_GOOGLE_TRIAL.oauth_client_id);
+        setVal('so-google-trial-function-url', trial.function_url);
+        const statusEl = document.getElementById('so-google-trial-status');
+        if (statusEl) {
+            const configured = !!(trial.oauth_client_id || DEFAULT_GOOGLE_TRIAL.oauth_client_id);
+            statusEl.innerHTML = configured
+                ? '<span class="so-badge so-badge--on">OAuth client configured</span>'
+                : '<span class="so-badge so-badge--off">oauth_client_id missing — extension will show error</span>';
+        }
+        const redirectEl = document.getElementById('so-google-trial-redirect-hint');
+        if (redirectEl) {
+            redirectEl.textContent = SO_GOOGLE_OAUTH_REDIRECT;
+        }
+    }
+
+    function soReadGoogleTrialFromDom() {
+        return soNormalizeGoogleTrial({
+            enabled: !!document.getElementById('so-google-trial-enabled')?.checked,
+            days: document.getElementById('so-google-trial-days')?.value,
+            credits: document.getElementById('so-google-trial-credits')?.value,
+            max_devices: document.getElementById('so-google-trial-max-devices')?.value,
+            label: document.getElementById('so-google-trial-label')?.value,
+            oauth_client_id: document.getElementById('so-google-trial-oauth-client-id')?.value,
+            function_url: document.getElementById('so-google-trial-function-url')?.value
+        });
+    }
+
+    window.soApplyRecommendedGoogleTrial = function() {
+        const trial = Object.assign({}, DEFAULT_GOOGLE_TRIAL);
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        const enabledEl = document.getElementById('so-google-trial-enabled');
+        if (enabledEl) enabledEl.checked = trial.enabled;
+        setVal('so-google-trial-days', trial.days);
+        setVal('so-google-trial-credits', trial.credits);
+        setVal('so-google-trial-max-devices', trial.max_devices);
+        setVal('so-google-trial-label', trial.label);
+        setVal('so-google-trial-oauth-client-id', trial.oauth_client_id);
+        setVal('so-google-trial-function-url', trial.function_url);
+        soToast('Recommended Google trial values applied — tap Save to write to Firebase.');
+    };
+
+    window.saveShippingOptimizerGoogleTrial = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const payload = soGoogleTrialToFirestore(soReadGoogleTrialFromDom());
+        if (!payload.oauth_client_id) {
+            return soToast('OAuth client ID is required for Google free trial.');
+        }
+        try {
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                google_trial: payload,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }, { merge: true });
+            soConfig = Object.assign({}, soConfig || {}, { google_trial: payload });
+            soBindGoogleTrialForm();
+            soToast('Google trial settings saved to extension Firebase.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    async function soLoadGoogleTrials() {
+        soGoogleTrials = [];
+        try {
+            let snap;
+            try {
+                snap = await soDb().collection(SO_GOOGLE_TRIALS_COL).orderBy('expires_at', 'desc').limit(200).get();
+            } catch (_) {
+                snap = await soDb().collection(SO_GOOGLE_TRIALS_COL).limit(200).get();
+            }
+            snap.forEach(doc => {
+                soGoogleTrials.push(Object.assign({ uid: doc.id }, doc.data()));
+            });
+            soGoogleTrials.sort((a, b) => {
+                const ta = soGoogleTrialExpiryMs(a);
+                const tb = soGoogleTrialExpiryMs(b);
+                return tb - ta;
+            });
+        } catch (e) {
+            console.warn('Google trials load:', e.message || e);
+        }
+    }
+
+    function soGoogleTrialExpiryMs(row) {
+        const raw = row.expires_at || row.expiresAt;
+        if (!raw) return 0;
+        if (raw.toMillis) return raw.toMillis();
+        if (raw.toDate) return raw.toDate().getTime();
+        const d = new Date(raw);
+        return Number.isFinite(d.getTime()) ? d.getTime() : 0;
+    }
+
+    function soFormatGoogleTrialExpiry(row) {
+        const ms = soGoogleTrialExpiryMs(row);
+        if (!ms) return '—';
+        const d = new Date(ms);
+        const expired = ms < Date.now();
+        const label = d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+        return expired ? `${label} (expired)` : label;
+    }
+
+    function renderSoGoogleTrialsRegistry() {
+        const container = document.getElementById('so-google-trials-list');
+        const countEl = document.getElementById('so-google-trials-count');
+        if (!container) return;
+        const rows = soGoogleTrials.slice();
+        if (countEl) {
+            countEl.textContent = rows.length === 1 ? '1 trial record' : `${rows.length} trial records`;
+        }
+        if (!rows.length) {
+            container.innerHTML = '<p class="so-admin-muted">No Google trial claims yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap Continue with Google in the extension.</p>';
+            return;
+        }
+        const q = String(document.getElementById('so-google-trial-search')?.value || '').trim().toLowerCase();
+        const filtered = q
+            ? rows.filter(r => {
+                const email = String(r.email || '').toLowerCase();
+                const key = String(r.license_key || r.licenseKey || '').toLowerCase();
+                const uid = String(r.uid || '').toLowerCase();
+                return email.includes(q) || key.includes(q) || uid.includes(q);
+            })
+            : rows;
+        if (!filtered.length) {
+            container.innerHTML = '<p class="so-admin-muted">No matches for your search.</p>';
+            return;
+        }
+        container.innerHTML = `
+            <div class="so-google-trials-table-wrap">
+                <table class="so-google-trials-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>License key</th>
+                            <th>Expires</th>
+                            <th>UID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filtered.map(r => `
+                            <tr>
+                                <td>${soEsc(r.email || '—')}</td>
+                                <td><code>${soEsc(r.license_key || r.licenseKey || '—')}</code></td>
+                                <td>${soEsc(soFormatGoogleTrialExpiry(r))}</td>
+                                <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    window.filterSoGoogleTrials = function() {
+        renderSoGoogleTrialsRegistry();
+    };
+
+    window.soRefreshGoogleTrials = async function() {
+        if (!soRequireSuperAdmin()) return;
+        try {
+            await soLoadGoogleTrials();
+            renderSoGoogleTrialsRegistry();
+            soToast('Google trial registry refreshed.');
+        } catch (e) {
+            soToast('Refresh failed: ' + (e.message || 'Unknown error'));
+        }
+    };
 
     async function soLoadDemoKeys() {
         const snap = await soDb().collection(SO_DEMO_COL).limit(100).get();
@@ -4607,6 +4835,7 @@
             await soLoadConfig();
             await soLoadDemoKeys();
             await soLoadLicenses();
+            await soLoadGoogleTrials();
             soHydrating = true;
             soPopulateLicensePlanSelect();
         soSetLicenseFormMode(null);
@@ -4617,6 +4846,7 @@
             renderSoDemoKeysList();
             renderSoExtensionPreview();
             renderSoLicensesList();
+            renderSoGoogleTrialsRegistry();
             renderSoCustomerRegistry();
             soHydrating = false;
             soBindFieldInfoDismiss();

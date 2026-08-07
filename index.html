@@ -2177,6 +2177,7 @@
                     <button type="button" class="so-tab-chip so-tab-chip--active" data-so-tab-chip="config" onclick="switchShippingOptimizerTab('config')">Config</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="credits" onclick="switchShippingOptimizerTab('credits')">Credits</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="demo" onclick="switchShippingOptimizerTab('demo')">Demo keys</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google trial</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="licenses" onclick="switchShippingOptimizerTab('licenses')">Licenses</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="customers" onclick="switchShippingOptimizerTab('customers')">Users</button>
                 </div>
@@ -2188,6 +2189,7 @@
                         <option value="config">Config &amp; Pricing</option>
                         <option value="credits">Credits &amp; Packs</option>
                         <option value="demo">Demo / Promo Keys</option>
+                        <option value="google-trial">Google Free Trial</option>
                         <option value="licenses">Paid Licenses</option>
                         <option value="customers">License Customers</option>
                     </select>
@@ -2196,6 +2198,7 @@
                     <button type="button" class="so-admin-tab-btn so-admin-tab-btn--active" data-so-tab="config" onclick="switchShippingOptimizerTab('config')">Config &amp; Pricing</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="credits" onclick="switchShippingOptimizerTab('credits')">Credits &amp; Packs</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
+                    <button type="button" class="so-admin-tab-btn" data-so-tab="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google Free Trial</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="customers" onclick="switchShippingOptimizerTab('customers')">License Customers</button>
                 </div>
@@ -2462,6 +2465,59 @@
                             <input id="so-demo-search" type="search" placeholder="Search demo keys…" oninput="filterSoDemoKeys()">
                             <div id="so-demo-edit-keys" class="so-inline-demo-list"></div>
                             <button type="button" class="btn-gold so-btn-save" style="margin-top:10px;" onclick="saveSoDemoKeysChanges()">Save all changes</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Google Free Trial -->
+                <div id="so-tab-google-trial" class="so-admin-tab-panel" style="display:none;">
+                    <p class="so-admin-muted so-admin-tip">Configures the extension popup <strong>Continue with Google</strong> free trial. Saved to <code>shipping_optimizer_config/app.google_trial</code> (merge only — other app fields are untouched).</p>
+                    <div id="so-google-trial-status" style="margin-bottom:10px;"></div>
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="google-trial-config">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('google-trial-config')">
+                            <span><i class="fa fa-brands fa-google"></i> Google trial settings</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <label class="so-plan-check" style="margin-bottom:12px;"><input id="so-google-trial-enabled" type="checkbox" checked> Enable Google free trial in extension</label>
+                            <div class="so-admin-grid">
+                                <label><span class="admin-settings-field-label">Trial days</span>
+                                    <input id="so-google-trial-days" type="number" min="1" step="1" value="7"></label>
+                                <label><span class="admin-settings-field-label">Trial credits</span>
+                                    <input id="so-google-trial-credits" type="number" min="0" step="1" value="30"></label>
+                                <label><span class="admin-settings-field-label">Max devices</span>
+                                    <input id="so-google-trial-max-devices" type="number" min="1" step="1" value="1"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">Button label</span>
+                                    <input id="so-google-trial-label" type="text" placeholder="Google free trial" value="Google free trial"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">OAuth client ID (Web)</span>
+                                    <input id="so-google-trial-oauth-client-id" type="text" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">Cloud Function URL</span>
+                                    <input id="so-google-trial-function-url" type="url" placeholder="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial"></label>
+                            </div>
+                            <p class="so-admin-muted so-admin-tip" style="margin-top:10px;">
+                                Extension ID: <code>kgnmnoaobnpfaaipnjkkidekbajpldlm</code><br>
+                                OAuth redirect (Google Cloud): <code id="so-google-trial-redirect-hint"></code><br>
+                                Deploy function: <code>firebase deploy --only functions:claimGoogleTrial --project extension-e6e32</code>
+                            </p>
+                            <div class="so-section-save-bar" style="flex-wrap:wrap; gap:8px;">
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyRecommendedGoogleTrial()">Apply recommended values</button>
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerGoogleTrial()">Save Google trial config</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="so-section-accordion" data-so-section="google-trial-registry">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('google-trial-registry')">
+                            <span><i class="fa fa-list"></i> Trial claims registry</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Read-only view of <code>shipping_optimizer_google_trials</code> (written by Cloud Function on claim).</p>
+                            <div class="so-inline-demo-toolbar">
+                                <span id="so-google-trials-count" class="so-plans-count">0 trial records</span>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshGoogleTrials()"><i class="fa fa-rotate"></i> Refresh</button>
+                            </div>
+                            <input id="so-google-trial-search" type="search" placeholder="Search email, license key, uid…" oninput="filterSoGoogleTrials()">
+                            <div id="so-google-trials-list" class="so-admin-list so-admin-list--tall"></div>
                         </div>
                     </div>
                 </div>
@@ -4438,7 +4494,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=3.5"></script>
+    <script src="js/shipping-optimizer-admin.js?v=3.6"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
