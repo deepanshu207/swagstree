@@ -135,7 +135,9 @@
     let soTabSnapshots = { config: null, credits: null };
     let soHydrating = false;
     let soSnapshotsReady = false;
+    let soAllowDirtyMark = false;
     let soLoadInProgress = false;
+    let soLoadGeneration = 0;
     let soDirtyCheckTimer = null;
     let soSupport = null;
     let soSmartMode = null;
@@ -1034,7 +1036,7 @@
     }
 
     window.soMarkTabDirty = function(tab) {
-        if (soHydrating || !soSnapshotsReady) return;
+        if (soHydrating || !soSnapshotsReady || !soAllowDirtyMark) return;
         if (tab === 'config' || tab === 'credits') {
             soDirtyTabs[tab] = true;
             soUpdateUnsavedBanner();
@@ -1053,16 +1055,22 @@
         soUpdateUnsavedBanner();
     }
 
+    function soComputeDirtyFromSnapshots() {
+        if (!soSnapshotsReady || soHydrating || !soAllowDirtyMark) {
+            return { config: false, credits: false };
+        }
+        return {
+            config: soTabSnapshots.config != null && soSerializeConfigTabState() !== soTabSnapshots.config,
+            credits: soTabSnapshots.credits != null && soSerializeCreditsTabState() !== soTabSnapshots.credits
+        };
+    }
+
     /** After partial save — clear dirty only if DOM now matches snapshot baseline */
     function soSyncDirtyFromSnapshots() {
-        if (!soSnapshotsReady || soHydrating) return;
-        if (soTabSnapshots.config != null) {
-            soDirtyTabs.config = soSerializeConfigTabState() !== soTabSnapshots.config;
-        }
-        if (soTabSnapshots.credits != null) {
-            soDirtyTabs.credits = soSerializeCreditsTabState() !== soTabSnapshots.credits;
-        }
-        soUpdateUnsavedBanner();
+        const dirty = soComputeDirtyFromSnapshots();
+        soDirtyTabs.config = dirty.config;
+        soDirtyTabs.credits = dirty.credits;
+        soApplyUnsavedBannerVisibility();
         if (!soDirtyTabs.config && !soDirtyTabs.credits) soClearDraftStorage();
     }
 
@@ -1077,8 +1085,9 @@
     }
 
     window.soHasUnsavedChanges = function() {
-        if (!soSnapshotsReady) return false;
-        return !!(soDirtyTabs.config || soDirtyTabs.credits);
+        if (!soSnapshotsReady || !soAllowDirtyMark) return false;
+        const dirty = soComputeDirtyFromSnapshots();
+        return !!(dirty.config || dirty.credits);
     };
 
     function soDraftsEnabled() {
@@ -1643,24 +1652,45 @@
         soBindCreditsForm();
         soBindImageGenerationForm();
         soBindSmartModeForm();
+        renderSoPlansEditor();
+        renderSoInlineDemoKeysEditor();
+        renderSoCreditPacksEditor();
         soUpdateCustomCreditCalc();
         soUpdateImageGenPreviewCard();
     }
 
+    function soEnableDirtyTrackingAfterSettle(loadGen) {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (loadGen !== soLoadGeneration || soLoadInProgress) return;
+                soHydrating = true;
+                soCaptureSnapshots(true);
+                soClearAllDirty();
+                soHydrating = false;
+                soSnapshotsReady = true;
+                soAllowDirtyMark = true;
+                soClearDraftStorage();
+                soApplyUnsavedBannerVisibility();
+                soRenderDraftBanner();
+                soPruneStaleDraft();
+            });
+        });
+    }
+
     function soFinalizeAdminLoadState() {
+        const loadGen = soLoadGeneration;
         soSnapshotsReady = false;
+        soAllowDirtyMark = false;
         soClearAllDirty();
         soHydrating = true;
         switchShippingOptimizerTab(soActiveTab);
         soRebindAllFormsFromState();
-        soHydrating = false;
-        // Baseline = Firebase-loaded memory state (not DOM) to avoid false dirty on refresh
-        soCaptureSnapshots(false);
-        soSnapshotsReady = true;
+        soCaptureSnapshots(true);
         soClearAllDirty();
+        soHydrating = false;
         soClearDraftStorage();
-        soUpdateUnsavedBanner();
-        soRenderDraftBanner();
+        soApplyUnsavedBannerVisibility();
+        soEnableDirtyTrackingAfterSettle(loadGen);
     }
 
     function soPruneStaleDraft() {
@@ -1679,10 +1709,11 @@
         soAfterTabSaved(tab);
     }
 
-    function soUpdateUnsavedBanner() {
+    function soApplyUnsavedBannerVisibility() {
         const banner = document.getElementById('so-unsaved-banner');
         if (!banner) return;
-        const dirty = soSnapshotsReady && !!soDirtyTabs[soActiveTab];
+        const dirtyState = soComputeDirtyFromSnapshots();
+        const dirty = soSnapshotsReady && soAllowDirtyMark && !!dirtyState[soActiveTab];
         banner.hidden = !dirty;
         banner.style.display = dirty ? '' : 'none';
         const label = banner.querySelector('span');
@@ -1690,6 +1721,15 @@
             const tabName = soActiveTab === 'credits' ? 'Credits & Packs' : 'Config & Pricing';
             label.textContent = `Unsaved changes on ${tabName}`;
         }
+    }
+
+    function soUpdateUnsavedBanner() {
+        if (soSnapshotsReady && soAllowDirtyMark) {
+            const dirty = soComputeDirtyFromSnapshots();
+            soDirtyTabs.config = dirty.config;
+            soDirtyTabs.credits = dirty.credits;
+        }
+        soApplyUnsavedBannerVisibility();
     }
 
     function soReadDraftFromStorage() {
@@ -1792,6 +1832,8 @@
         }
         if (credits.smart_mode) {
             soSmartMode = soNormalizeSmartMode(credits.smart_mode);
+        } else if (soConfig?.smart_mode) {
+            soSmartMode = soNormalizeSmartMode(soConfig.smart_mode);
         }
 
         soBindCreditsForm();
@@ -1804,9 +1846,8 @@
         soPopulateLicensePlanSelect();
         soUpdateCustomCreditCalc();
         soHydrating = false;
-        soDirtyTabs.config = true;
-        soDirtyTabs.credits = true;
-        soUpdateUnsavedBanner();
+        soSyncDirtyFromSnapshots();
+        soScheduleDraftSave();
     }
 
     function soEnableUserEditGate() { /* no-op — dirty tracked explicitly via soMarkTabDirty */ }
@@ -1898,9 +1939,10 @@
             soUpdateCustomCreditCalc();
         }
         soHydrating = false;
-        soCaptureSnapshots(false);
+        soCaptureSnapshots(true);
         soClearDraftStorage();
         renderSoExtensionPreview();
+        soUpdateUnsavedBanner();
         soToast('Reverted to last saved values.');
     };
 
@@ -1910,7 +1952,8 @@
     };
 
     function soConfirmLeaveTab(nextTab) {
-        if (!soDirtyTabs[soActiveTab]) return true;
+        const dirty = soComputeDirtyFromSnapshots();
+        if (!dirty[soActiveTab]) return true;
         return confirm('You have unsaved changes on this tab. Leave without saving?');
     }
 
@@ -4379,7 +4422,7 @@
         if (!soRequireSuperAdmin()) return;
         if (soLoadInProgress) return;
         if (soLoaded && !forceReload) {
-            soUpdateUnsavedBanner();
+            soSyncDirtyFromSnapshots();
             return;
         }
         if (typeof soGetExtensionDb !== 'function' || !soGetExtensionDb()) {
@@ -4390,7 +4433,9 @@
             await soEnsureExtensionFirebaseReady();
         }
         soLoadInProgress = true;
+        soLoadGeneration += 1;
         soSnapshotsReady = false;
+        soAllowDirtyMark = false;
         soClearAllDirty();
         clearTimeout(soDirtyCheckTimer);
         clearTimeout(soDraftSaveTimer);
