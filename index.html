@@ -2370,8 +2370,24 @@
                                     <input id="so-img-gen-batch-max" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateSmartModeDefaultSelect()"></label>
                             </div>
                             <div id="so-img-gen-preview-card" class="so-img-gen-preview-card so-admin-muted so-admin-tip"></div>
-                            <div class="so-admin-subhead" style="margin-top:18px;"><i class="fa fa-wand-magic-sparkles"></i> Smart Mode variant options (extension v1.5.9+)</div>
-                            <p class="so-admin-muted so-admin-tip">Dropdown choices in the extension Smart Mode selector. Options above <strong>Max variants per run</strong> are hidden when that batch limit is set.</p>
+                            <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
+                            <div class="so-admin-inline-form so-admin-inline-form--stack">
+                                <input id="so-credits-custom-amount" type="number" min="1" step="1" value="10" placeholder="Credits" oninput="soUpdateCustomCreditCalc()">
+                                <span id="so-credits-custom-price" class="so-admin-muted">10 credits × ₹2 = ₹20 (min 10)</span>
+                            </div>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerCreditSettings()">Save credit settings</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="credits-smart-mode">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-smart-mode')">
+                            <span><i class="fa fa-wand-magic-sparkles"></i> Smart Mode variant dropdown</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Choices shown in the extension <code>#max-attempts</code> dropdown (Smart Mode). Saved to Firebase <code>smart_mode</code> on the app doc. Options above <strong>Max variants per run</strong> are hidden when that batch limit is set.</p>
                             <div class="so-admin-grid" style="margin-bottom:12px;">
                                 <label><span>Field label</span><input id="so-smart-label" type="text" placeholder="Max Variants" oninput="soMarkTabDirty('credits')"></label>
                                 <label><span>Default variant</span>
@@ -2382,13 +2398,8 @@
                             <p id="so-smart-batch-hint" class="so-admin-muted so-admin-tip" hidden></p>
                             <div id="so-smart-mode-options" class="so-smart-mode-options"></div>
                             <button type="button" class="so-btn-sm so-btn-touch" style="margin-top:8px;" onclick="addSoSmartModeOption()">+ Add variant option</button>
-                            <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
-                            <div class="so-admin-inline-form so-admin-inline-form--stack">
-                                <input id="so-credits-custom-amount" type="number" min="1" step="1" value="10" placeholder="Credits" oninput="soUpdateCustomCreditCalc()">
-                                <span id="so-credits-custom-price" class="so-admin-muted">10 credits × ₹2 = ₹20 (min 10)</span>
-                            </div>
                             <div class="so-section-save-bar">
-                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerCreditSettings()">Save credit settings</button>
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerCreditSettings()">Save variant options</button>
                             </div>
                         </div>
                     </div>
@@ -2483,15 +2494,22 @@
                                     </select></label>
                                 <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
                                     <input id="so-license-max-devices" type="number" min="0" step="1" placeholder="From plan"></label>
-                                <label><span class="admin-settings-field-label">Credits balance</span>
-                                    <input id="so-license-credits-balance" type="number" min="0" step="1" value="0"></label>
+                                <label><span class="admin-settings-field-label">Included credits (from plan)</span>
+                                    <input id="so-license-included-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
+                                <label><span class="admin-settings-field-label">Addon credits</span>
+                                    <input id="so-license-addon-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
+                                <label><span class="admin-settings-field-label">Total credits (plan grant)</span>
+                                    <input id="so-license-total-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
+                                <label><span class="admin-settings-field-label">Credits balance (remaining)</span>
+                                    <input id="so-license-credits-balance" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                                 <label><span class="admin-settings-field-label">Credits used</span>
-                                    <input id="so-license-credits-used" type="number" min="0" step="1" value="0"></label>
+                                    <input id="so-license-credits-used" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                             </div>
+                            <div id="so-license-credits-breakdown" class="so-license-credits-breakdown so-admin-muted so-admin-tip"></div>
                             <div class="so-checkbox-group">
                                 <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox" onchange="soOnLicenseUnlimitedTimeToggle()"> Never expires (unlimited time)</label>
                                 <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox"> Unlimited devices</label>
-                                <label class="so-plan-check"><input id="so-license-unlimited-credits" type="checkbox"> Unlimited credits</label>
+                                <label class="so-plan-check"><input id="so-license-unlimited-credits" type="checkbox" onchange="soUpdateLicenseCreditsBreakdown()"> Unlimited credits</label>
                             </div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Expiry mode</div>
                             <div class="so-license-expiry-modes so-plan-flags so-plan-flags--simple">
@@ -4402,7 +4420,7 @@
     <script src="js/features.js?v=12.9"></script>
     <script src="js/seo.js?v=1.6"></script>
     <script src="js/analytics.js?v=1.4"></script>
-    <script src="js/app.js?v=10.18"></script>
+    <script src="js/app.js?v=10.19"></script>
     <script src="js/footer-templates.js?v=10.0"></script>
     <script src="js/admin-drafts.js?v=3.9"></script>
     <script src="js/admin-draft-compare.js?v=1.7"></script>
@@ -4420,7 +4438,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=3.2"></script>
+    <script src="js/shipping-optimizer-admin.js?v=3.3"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

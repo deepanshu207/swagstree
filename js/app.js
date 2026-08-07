@@ -470,6 +470,7 @@ function navigateToCore(id, el) {
         if (typeof loadSuperCustomers === 'function') loadSuperCustomers();
         if (typeof loadAssignedAdmins === 'function') loadAssignedAdmins();
         if (typeof loadSessionSettings === 'function') loadSessionSettings();
+        if (typeof window.soOnSuperViewShown === 'function') window.soOnSuperViewShown();
     }
     if (id === 'user') {
         if (typeof loadProfileAddresses === 'function') loadProfileAddresses();

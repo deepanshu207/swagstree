@@ -11151,6 +11151,19 @@ body.seo-indexing-off #seo-primary-nav {
     flex-wrap: wrap;
     gap: 6px;
 }
+.so-readonly-input {
+    opacity: 0.85;
+    cursor: default;
+    background: rgba(255, 255, 255, 0.04);
+}
+.so-license-credits-breakdown {
+    margin: 8px 0 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    line-height: 1.5;
+}
 .so-draft-recovery-banner {
     margin-bottom: 8px;
 }
