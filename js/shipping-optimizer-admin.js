@@ -10,6 +10,7 @@
     const SO_CONFIG_ID = 'app';
     const SO_DEMO_COL = 'shipping_optimizer_demo_keys';
     const SO_LICENSE_COL = 'shipping_optimizer_licenses';
+    const SO_GOOGLE_TRIALS_COL = 'shipping_optimizer_google_trials';
     const SO_LICENSE_MAX = 200;
     const KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -25,8 +26,19 @@
         monthly: 200,
         quarterly: 600,
         halfyearly: 1200,
-        yearly: 2400
+        yearly: 2400,
+        family_yearly: 3600,
+        friends_yearly: 4800,
+        lifetime: 5000,
+        credits_starter: 50
     };
+
+    /** ~200 credits per 30-day month — used for custom plans and license prefill. */
+    function soSuggestCreditsForPlanDays(days) {
+        const d = Math.max(0, parseInt(days, 10) || 0);
+        if (d <= 0) return 50;
+        return Math.max(50, Math.round((d / 30) * 200));
+    }
 
     const DEFAULT_INLINE_DEMO_KEYS = {
         'MEESHO-DEMOFREE': { days: 30, label: 'Free 30-day trial' }
@@ -85,6 +97,19 @@
         { id: 'pack_100', credits: 100, price: 170, label: '100 credits — ₹170', active: true, order: 3 }
     ];
 
+    const DEFAULT_GOOGLE_TRIAL = {
+        enabled: true,
+        days: 7,
+        credits: 30,
+        max_devices: 1,
+        label: 'Google free trial',
+        oauth_client_id: '247366802280-cg7ngbq35e1vs5n6rl09uh2d9mk8qkkh.apps.googleusercontent.com',
+        function_url: 'https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial'
+    };
+
+    const SO_EXTENSION_ID = 'kgnmnoaobnpfaaipnjkkidekbajpldlm';
+    const SO_GOOGLE_OAUTH_REDIRECT = `https://${SO_EXTENSION_ID}.chromiumapp.org/`;
+
     const SO_DEVICE_TIER_MAX = { standard: 1, family: 3, friends: 5, unlimited: 0 };
     const SO_BILLING_MODES = ['subscription', 'credits', 'hybrid'];
     const SO_DEVICE_TIERS = ['standard', 'family', 'friends', 'unlimited'];
@@ -96,15 +121,16 @@
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
-            max_devices: 3, device_tier: 'family', billing_mode: 'subscription', active: true
+            max_devices: 3, device_tier: 'family', billing_mode: 'hybrid', included_credits: 3600, active: true
         },
         friends_yearly: {
             id: 'friends_yearly', name: 'Friends Yearly', price: 6999, days: 365, duration: '1 Year',
-            max_devices: 5, device_tier: 'friends', billing_mode: 'subscription', active: true
+            max_devices: 5, device_tier: 'friends', billing_mode: 'hybrid', included_credits: 4800, active: true
         },
         lifetime: {
             id: 'lifetime', name: 'Lifetime', price: 9999, days: 0, duration: 'Forever',
-            unlimited_time: true, plan_kind: 'lifetime', max_devices: 1, billing_mode: 'subscription', active: true
+            unlimited_time: true, plan_kind: 'lifetime', max_devices: 1, billing_mode: 'hybrid',
+            included_credits: 5000, active: true
         },
         unlimited_pro: {
             id: 'unlimited_pro', name: 'Unlimited Pro', price: 19999, days: 0, duration: 'Forever',
@@ -134,6 +160,7 @@
     let soDemoKeyEditRows = [];
     let soDemoSelectedKeys = new Set();
     let soLicenses = [];
+    let soGoogleTrials = [];
     let soActiveTab = 'config';
     let soLoaded = false;
     let soEditingLicenseKey = null;
@@ -409,6 +436,19 @@
         }
         p.billing_mode = SO_BILLING_MODES.includes(p.billing_mode) ? p.billing_mode : 'subscription';
         p.included_credits = Math.max(0, parseInt(p.included_credits, 10) || 0);
+        if (!p.unlimited_credits && p.included_credits === 0) {
+            const byId = PLAN_DEFAULT_INCLUDED_CREDITS[p.id];
+            if (Number.isFinite(byId) && byId > 0) {
+                p.included_credits = byId;
+            } else if (p.days > 0) {
+                p.included_credits = soSuggestCreditsForPlanDays(p.days);
+            } else if (p.billing_mode === 'credits' || p.billing_mode === 'hybrid') {
+                p.included_credits = 50;
+            }
+        }
+        if (p.included_credits > 0 && p.billing_mode === 'subscription' && !p.unlimited_credits) {
+            p.billing_mode = 'hybrid';
+        }
         p.allow_credit_addons = p.allow_credit_addons === true;
         p.max_addon_selections = Math.max(0, parseInt(p.max_addon_selections, 10) || 0);
         const rawAddons = Array.isArray(p.credit_addons) ? p.credit_addons : [];
@@ -449,10 +489,7 @@
 
     function soGetPlanIncludedCredits(plan) {
         if (!plan || soIsUnlimitedCredits(plan)) return 0;
-        const raw = parseInt(plan.included_credits, 10);
-        if (Number.isFinite(raw) && raw > 0) return raw;
-        const fallback = PLAN_DEFAULT_INCLUDED_CREDITS[plan.id];
-        return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+        return Math.max(0, parseInt(plan.included_credits, 10) || 0);
     }
 
     function soCalculatePlanCredits(plan, selectedAddonIds) {
@@ -942,11 +979,6 @@
             return;
         }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
-        const effectiveIncluded = plan ? soGetPlanIncludedCredits(plan) : breakdown.included;
-        if (!lic && effectiveIncluded > breakdown.included) {
-            breakdown.included = effectiveIncluded;
-            breakdown.total = effectiveIncluded + breakdown.addon;
-        }
         const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
         const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
         const grantTotal = breakdown.total > 0 ? breakdown.total : (bal + used);
@@ -2152,6 +2184,10 @@
             renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
         }
+        if (soActiveTab === 'google-trial') {
+            soBindGoogleTrialForm();
+            renderSoGoogleTrialsRegistry();
+        }
         if (soActiveTab === 'config' || soActiveTab === 'credits') {
             renderSoExtensionPreview();
         }
@@ -2171,6 +2207,7 @@
             : DEFAULT_PLANS.slice();
         soPlans = soSortPlans(rawPlans.map(soNormalizePlan));
         soPlans.forEach((p, i) => { p.order = i; });
+        soPopulateLicensePlanSelect();
         const rawCredits = soConfig.credits && typeof soConfig.credits === 'object' ? soConfig.credits : {};
         soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
         const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
@@ -2192,6 +2229,7 @@
         soSmartMode = soNormalizeSmartMode(smartModeRaw);
         soHydrating = true;
         soBindConfigForm();
+        soBindGoogleTrialForm();
         soBindSupportForm();
         soBindCreditsForm();
         soBindImageGenerationForm();
@@ -2201,6 +2239,214 @@
         renderSoInlineDemoKeysEditor();
         soHydrating = false;
     }
+
+    function soNormalizeGoogleTrial(raw) {
+        const src = raw && typeof raw === 'object' ? raw : {};
+        return {
+            enabled: src.enabled !== false,
+            days: Math.max(1, parseInt(src.days, 10) || DEFAULT_GOOGLE_TRIAL.days),
+            credits: Math.max(0, parseInt(src.credits, 10) || DEFAULT_GOOGLE_TRIAL.credits),
+            max_devices: Math.max(1, parseInt(src.max_devices, 10) || DEFAULT_GOOGLE_TRIAL.max_devices),
+            label: String(src.label || DEFAULT_GOOGLE_TRIAL.label).trim(),
+            oauth_client_id: String(src.oauth_client_id || src.oauthClientId || '').trim(),
+            function_url: String(src.function_url || src.functionUrl || DEFAULT_GOOGLE_TRIAL.function_url).trim()
+        };
+    }
+
+    function soGoogleTrialToFirestore(trial) {
+        const t = soNormalizeGoogleTrial(trial);
+        const out = {
+            enabled: t.enabled,
+            days: t.days,
+            credits: t.credits,
+            max_devices: t.max_devices,
+            label: t.label
+        };
+        if (t.oauth_client_id) out.oauth_client_id = t.oauth_client_id;
+        if (t.function_url) out.function_url = t.function_url;
+        return out;
+    }
+
+    function soBindGoogleTrialForm() {
+        const trial = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL);
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        const enabledEl = document.getElementById('so-google-trial-enabled');
+        if (enabledEl) enabledEl.checked = trial.enabled;
+        setVal('so-google-trial-days', trial.days);
+        setVal('so-google-trial-credits', trial.credits);
+        setVal('so-google-trial-max-devices', trial.max_devices);
+        setVal('so-google-trial-label', trial.label);
+        setVal('so-google-trial-oauth-client-id', trial.oauth_client_id || DEFAULT_GOOGLE_TRIAL.oauth_client_id);
+        setVal('so-google-trial-function-url', trial.function_url);
+        const statusEl = document.getElementById('so-google-trial-status');
+        if (statusEl) {
+            const configured = !!(trial.oauth_client_id || DEFAULT_GOOGLE_TRIAL.oauth_client_id);
+            statusEl.innerHTML = configured
+                ? '<span class="so-badge so-badge--on">OAuth client configured</span>'
+                : '<span class="so-badge so-badge--off">oauth_client_id missing — extension will show error</span>';
+        }
+        const redirectEl = document.getElementById('so-google-trial-redirect-hint');
+        if (redirectEl) {
+            redirectEl.textContent = SO_GOOGLE_OAUTH_REDIRECT;
+        }
+    }
+
+    function soReadGoogleTrialFromDom() {
+        return soNormalizeGoogleTrial({
+            enabled: !!document.getElementById('so-google-trial-enabled')?.checked,
+            days: document.getElementById('so-google-trial-days')?.value,
+            credits: document.getElementById('so-google-trial-credits')?.value,
+            max_devices: document.getElementById('so-google-trial-max-devices')?.value,
+            label: document.getElementById('so-google-trial-label')?.value,
+            oauth_client_id: document.getElementById('so-google-trial-oauth-client-id')?.value,
+            function_url: document.getElementById('so-google-trial-function-url')?.value
+        });
+    }
+
+    window.soApplyRecommendedGoogleTrial = function() {
+        const trial = Object.assign({}, DEFAULT_GOOGLE_TRIAL);
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        const enabledEl = document.getElementById('so-google-trial-enabled');
+        if (enabledEl) enabledEl.checked = trial.enabled;
+        setVal('so-google-trial-days', trial.days);
+        setVal('so-google-trial-credits', trial.credits);
+        setVal('so-google-trial-max-devices', trial.max_devices);
+        setVal('so-google-trial-label', trial.label);
+        setVal('so-google-trial-oauth-client-id', trial.oauth_client_id);
+        setVal('so-google-trial-function-url', trial.function_url);
+        soToast('Recommended Google trial values applied — tap Save to write to Firebase.');
+    };
+
+    window.saveShippingOptimizerGoogleTrial = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const payload = soGoogleTrialToFirestore(soReadGoogleTrialFromDom());
+        if (!payload.oauth_client_id) {
+            return soToast('OAuth client ID is required for Google free trial.');
+        }
+        try {
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                google_trial: payload,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }, { merge: true });
+            soConfig = Object.assign({}, soConfig || {}, { google_trial: payload });
+            soBindGoogleTrialForm();
+            soToast('Google trial settings saved to extension Firebase.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    async function soLoadGoogleTrials() {
+        soGoogleTrials = [];
+        try {
+            let snap;
+            try {
+                snap = await soDb().collection(SO_GOOGLE_TRIALS_COL).orderBy('expires_at', 'desc').limit(200).get();
+            } catch (_) {
+                snap = await soDb().collection(SO_GOOGLE_TRIALS_COL).limit(200).get();
+            }
+            snap.forEach(doc => {
+                soGoogleTrials.push(Object.assign({ uid: doc.id }, doc.data()));
+            });
+            soGoogleTrials.sort((a, b) => {
+                const ta = soGoogleTrialExpiryMs(a);
+                const tb = soGoogleTrialExpiryMs(b);
+                return tb - ta;
+            });
+        } catch (e) {
+            console.warn('Google trials load:', e.message || e);
+        }
+    }
+
+    function soGoogleTrialExpiryMs(row) {
+        const raw = row.expires_at || row.expiresAt;
+        if (!raw) return 0;
+        if (raw.toMillis) return raw.toMillis();
+        if (raw.toDate) return raw.toDate().getTime();
+        const d = new Date(raw);
+        return Number.isFinite(d.getTime()) ? d.getTime() : 0;
+    }
+
+    function soFormatGoogleTrialExpiry(row) {
+        const ms = soGoogleTrialExpiryMs(row);
+        if (!ms) return '—';
+        const d = new Date(ms);
+        const expired = ms < Date.now();
+        const label = d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+        return expired ? `${label} (expired)` : label;
+    }
+
+    function renderSoGoogleTrialsRegistry() {
+        const container = document.getElementById('so-google-trials-list');
+        const countEl = document.getElementById('so-google-trials-count');
+        if (!container) return;
+        const rows = soGoogleTrials.slice();
+        if (countEl) {
+            countEl.textContent = rows.length === 1 ? '1 trial record' : `${rows.length} trial records`;
+        }
+        if (!rows.length) {
+            container.innerHTML = '<p class="so-admin-muted">No Google trial claims yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap Continue with Google in the extension.</p>';
+            return;
+        }
+        const q = String(document.getElementById('so-google-trial-search')?.value || '').trim().toLowerCase();
+        const filtered = q
+            ? rows.filter(r => {
+                const email = String(r.email || '').toLowerCase();
+                const key = String(r.license_key || r.licenseKey || '').toLowerCase();
+                const uid = String(r.uid || '').toLowerCase();
+                return email.includes(q) || key.includes(q) || uid.includes(q);
+            })
+            : rows;
+        if (!filtered.length) {
+            container.innerHTML = '<p class="so-admin-muted">No matches for your search.</p>';
+            return;
+        }
+        container.innerHTML = `
+            <div class="so-google-trials-table-wrap">
+                <table class="so-google-trials-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>License key</th>
+                            <th>Expires</th>
+                            <th>UID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filtered.map(r => `
+                            <tr>
+                                <td>${soEsc(r.email || '—')}</td>
+                                <td><code>${soEsc(r.license_key || r.licenseKey || '—')}</code></td>
+                                <td>${soEsc(soFormatGoogleTrialExpiry(r))}</td>
+                                <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    window.filterSoGoogleTrials = function() {
+        renderSoGoogleTrialsRegistry();
+    };
+
+    window.soRefreshGoogleTrials = async function() {
+        if (!soRequireSuperAdmin()) return;
+        try {
+            await soLoadGoogleTrials();
+            renderSoGoogleTrialsRegistry();
+            soToast('Google trial registry refreshed.');
+        } catch (e) {
+            soToast('Refresh failed: ' + (e.message || 'Unknown error'));
+        }
+    };
 
     async function soLoadDemoKeys() {
         const snap = await soDb().collection(SO_DEMO_COL).limit(100).get();
@@ -2663,7 +2909,7 @@
                     <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
                     <div class="so-ext-plan-note">${soEsc(p.card_subtitle || p.save || `${durationLabel} · ${devicesLabel}`)}</div>
                     ${p.card_hint ? `<div class="so-ext-plan-hint">${soEsc(p.card_hint)}</div>` : ''}
-                    <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}${p.included_credits > 0 ? ` · ${p.included_credits} base cr` : ''}</div>
+                    <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}${soGetPlanIncludedCredits(p) > 0 ? ` · ${soGetPlanIncludedCredits(p)} base cr` : ''}</div>
                     ${addonsHtml}
                 </div>`;
             }).join('')}</div>`
@@ -2937,7 +3183,8 @@
         else if (plan.days > 0) chips.push(`${plan.days} days`);
         if (soIsUnlimitedDevices(plan)) chips.push('Unlimited devices');
         else chips.push(`${plan.max_devices != null ? plan.max_devices : 1} device${(plan.max_devices || 1) !== 1 ? 's' : ''}`);
-        if (plan.included_credits > 0) chips.push(`${plan.included_credits} base cr`);
+        const inc = soGetPlanIncludedCredits(plan);
+        if (inc > 0) chips.push(`${inc} base cr`);
         if (plan.allow_credit_addons && (plan.credit_addons || []).length) {
             const activeAddons = (plan.credit_addons || []).filter(a => a.active !== false).length;
             chips.push(`${activeAddons} addon${activeAddons === 1 ? '' : 's'}`);
@@ -2975,6 +3222,10 @@
         container.innerHTML = soPlans.map((plan, idx) => {
             const open = soExpandedPlanIds.has(plan.id);
             const priceLabel = '₹' + (plan.price || 0).toLocaleString('en-IN');
+            const planCredits = soGetPlanIncludedCredits(plan);
+            const creditsBadge = planCredits > 0 && !soIsUnlimitedCredits(plan)
+                ? `<span class="so-badge so-badge--credits">${planCredits} credits</span>`
+                : (soIsUnlimitedCredits(plan) ? '<span class="so-badge so-badge--credits">∞ credits</span>' : '');
             return `
             <div class="so-plan-card so-pricing-plan-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-plan-idx="${idx}">
                 <div class="so-plan-card-head-wrap">
@@ -2990,6 +3241,7 @@
                                 <div class="so-plan-chips">${soPlanMetaChips(plan)}</div>
                             </div>
                             <div class="so-plan-card-badges">
+                                ${creditsBadge}
                                 ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
                                 ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
                                 ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
@@ -3009,7 +3261,8 @@
                             <label>${soFieldLabelHtml('Id (slug) — never rename after use', 'plan-id', idx)}<input type="text" data-field="id" value="${soAttr(plan.id)}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Display name</span><input type="text" data-field="name" value="${soAttr(plan.name)}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Price (INR)</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}" oninput="soMarkTabDirty('config')"></label>
-                            <label><span>Days (0 = unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soMarkTabDirty('config')"></label>
+                            <label>${soFieldLabelHtml('Included credits (granted on license activation)', 'plan-included-credits', idx)}<input type="number" min="0" step="1" data-field="included_credits" value="${soGetPlanIncludedCredits(plan)}" oninput="soOnPlanIncludedCreditsInput(${idx})"></label>
+                            <label><span>Days (0 = unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soOnPlanDaysInput(${idx})"></label>
                             <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}" placeholder="1 Year, Forever" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}" placeholder="Save ₹8000" oninput="soMarkTabDirty('config')"></label>
                         </div>
@@ -3028,7 +3281,6 @@
                                 </select>
                             </label>
                             <label><span>Max devices (0 = unlimited)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}" oninput="soMarkTabDirty('config')"></label>
-                            <label>${soFieldLabelHtml('Included credits', 'plan-included-credits', idx)}<input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-field-full"><span>Short description (plan detail screen)</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('config')">${soEsc(plan.description || '')}</textarea></label>
                             <label><span>Detail subtitle</span><input type="text" data-field="detail_subtitle" value="${soAttr(plan.detail_subtitle || '')}" placeholder="Under plan name on detail screen" oninput="soMarkTabDirty('config')"></label>
@@ -3213,19 +3465,46 @@
         toggleSoSectionAccordion('config-plans');
     };
 
+    window.soOnPlanIncludedCreditsInput = function(idx) {
+        soMarkTabDirty('config');
+        const row = document.querySelector(`.so-pricing-plan-row[data-plan-idx="${idx}"]`);
+        if (!row) return;
+        const credits = parseInt(row.querySelector('[data-field="included_credits"]')?.value, 10) || 0;
+        const billingSel = row.querySelector('[data-field="billing_mode"]');
+        if (billingSel && credits > 0 && billingSel.value === 'subscription') {
+            billingSel.value = 'hybrid';
+        }
+        if (soActiveTab === 'licenses') soUpdateLicenseCreditsBreakdown();
+    };
+
+    window.soOnPlanDaysInput = function(idx) {
+        soMarkTabDirty('config');
+        const row = document.querySelector(`.so-pricing-plan-row[data-plan-idx="${idx}"]`);
+        if (!row) return;
+        const days = parseInt(row.querySelector('[data-field="days"]')?.value, 10) || 0;
+        const creditsEl = row.querySelector('[data-field="included_credits"]');
+        if (!creditsEl) return;
+        const current = parseInt(creditsEl.value, 10) || 0;
+        if (current === 0 && days > 0) {
+            creditsEl.value = soSuggestCreditsForPlanDays(days);
+            soOnPlanIncludedCreditsInput(idx);
+        }
+    };
+
     window.addSoPlan = function() {
         soPlans = soReadPlansFromDom();
         const nextOrder = soPlans.length;
+        const days = 30;
         const newPlan = soNormalizePlan({
             id: `plan_${nextOrder + 1}`,
             name: 'New Plan',
             price: 499,
-            days: 30,
+            days,
             duration: '1 Month',
             device_tier: 'standard',
             max_devices: 1,
-            billing_mode: 'subscription',
-            included_credits: 0,
+            billing_mode: 'hybrid',
+            included_credits: soSuggestCreditsForPlanDays(days),
             active: true,
             order: nextOrder
         }, nextOrder);
@@ -4556,6 +4835,7 @@
             await soLoadConfig();
             await soLoadDemoKeys();
             await soLoadLicenses();
+            await soLoadGoogleTrials();
             soHydrating = true;
             soPopulateLicensePlanSelect();
         soSetLicenseFormMode(null);
@@ -4566,6 +4846,7 @@
             renderSoDemoKeysList();
             renderSoExtensionPreview();
             renderSoLicensesList();
+            renderSoGoogleTrialsRegistry();
             renderSoCustomerRegistry();
             soHydrating = false;
             soBindFieldInfoDismiss();
