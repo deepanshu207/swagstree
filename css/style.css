@@ -12211,6 +12211,11 @@ body.seo-indexing-off #seo-primary-nav {
     background: rgba(255, 71, 87, 0.12);
     color: #ff6b7a;
 }
+.so-badge--credits {
+    background: rgba(52, 152, 219, 0.12);
+    color: #5dade2;
+    border: 1px solid rgba(52, 152, 219, 0.25);
+}
 .so-admin-inline-form {
     display: flex;
     flex-wrap: wrap;

@@ -25,8 +25,19 @@
         monthly: 200,
         quarterly: 600,
         halfyearly: 1200,
-        yearly: 2400
+        yearly: 2400,
+        family_yearly: 3600,
+        friends_yearly: 4800,
+        lifetime: 5000,
+        credits_starter: 50
     };
+
+    /** ~200 credits per 30-day month — used for custom plans and license prefill. */
+    function soSuggestCreditsForPlanDays(days) {
+        const d = Math.max(0, parseInt(days, 10) || 0);
+        if (d <= 0) return 50;
+        return Math.max(50, Math.round((d / 30) * 200));
+    }
 
     const DEFAULT_INLINE_DEMO_KEYS = {
         'MEESHO-DEMOFREE': { days: 30, label: 'Free 30-day trial' }
@@ -96,15 +107,16 @@
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
-            max_devices: 3, device_tier: 'family', billing_mode: 'subscription', active: true
+            max_devices: 3, device_tier: 'family', billing_mode: 'hybrid', included_credits: 3600, active: true
         },
         friends_yearly: {
             id: 'friends_yearly', name: 'Friends Yearly', price: 6999, days: 365, duration: '1 Year',
-            max_devices: 5, device_tier: 'friends', billing_mode: 'subscription', active: true
+            max_devices: 5, device_tier: 'friends', billing_mode: 'hybrid', included_credits: 4800, active: true
         },
         lifetime: {
             id: 'lifetime', name: 'Lifetime', price: 9999, days: 0, duration: 'Forever',
-            unlimited_time: true, plan_kind: 'lifetime', max_devices: 1, billing_mode: 'subscription', active: true
+            unlimited_time: true, plan_kind: 'lifetime', max_devices: 1, billing_mode: 'hybrid',
+            included_credits: 5000, active: true
         },
         unlimited_pro: {
             id: 'unlimited_pro', name: 'Unlimited Pro', price: 19999, days: 0, duration: 'Forever',
@@ -409,6 +421,19 @@
         }
         p.billing_mode = SO_BILLING_MODES.includes(p.billing_mode) ? p.billing_mode : 'subscription';
         p.included_credits = Math.max(0, parseInt(p.included_credits, 10) || 0);
+        if (!p.unlimited_credits && p.included_credits === 0) {
+            const byId = PLAN_DEFAULT_INCLUDED_CREDITS[p.id];
+            if (Number.isFinite(byId) && byId > 0) {
+                p.included_credits = byId;
+            } else if (p.days > 0) {
+                p.included_credits = soSuggestCreditsForPlanDays(p.days);
+            } else if (p.billing_mode === 'credits' || p.billing_mode === 'hybrid') {
+                p.included_credits = 50;
+            }
+        }
+        if (p.included_credits > 0 && p.billing_mode === 'subscription' && !p.unlimited_credits) {
+            p.billing_mode = 'hybrid';
+        }
         p.allow_credit_addons = p.allow_credit_addons === true;
         p.max_addon_selections = Math.max(0, parseInt(p.max_addon_selections, 10) || 0);
         const rawAddons = Array.isArray(p.credit_addons) ? p.credit_addons : [];
@@ -449,10 +474,7 @@
 
     function soGetPlanIncludedCredits(plan) {
         if (!plan || soIsUnlimitedCredits(plan)) return 0;
-        const raw = parseInt(plan.included_credits, 10);
-        if (Number.isFinite(raw) && raw > 0) return raw;
-        const fallback = PLAN_DEFAULT_INCLUDED_CREDITS[plan.id];
-        return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+        return Math.max(0, parseInt(plan.included_credits, 10) || 0);
     }
 
     function soCalculatePlanCredits(plan, selectedAddonIds) {
@@ -942,11 +964,6 @@
             return;
         }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
-        const effectiveIncluded = plan ? soGetPlanIncludedCredits(plan) : breakdown.included;
-        if (!lic && effectiveIncluded > breakdown.included) {
-            breakdown.included = effectiveIncluded;
-            breakdown.total = effectiveIncluded + breakdown.addon;
-        }
         const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
         const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
         const grantTotal = breakdown.total > 0 ? breakdown.total : (bal + used);
@@ -2171,6 +2188,7 @@
             : DEFAULT_PLANS.slice();
         soPlans = soSortPlans(rawPlans.map(soNormalizePlan));
         soPlans.forEach((p, i) => { p.order = i; });
+        soPopulateLicensePlanSelect();
         const rawCredits = soConfig.credits && typeof soConfig.credits === 'object' ? soConfig.credits : {};
         soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
         const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
@@ -2663,7 +2681,7 @@
                     <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
                     <div class="so-ext-plan-note">${soEsc(p.card_subtitle || p.save || `${durationLabel} · ${devicesLabel}`)}</div>
                     ${p.card_hint ? `<div class="so-ext-plan-hint">${soEsc(p.card_hint)}</div>` : ''}
-                    <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}${p.included_credits > 0 ? ` · ${p.included_credits} base cr` : ''}</div>
+                    <div class="so-ext-plan-meta"><code>${soEsc(p.id)}</code> · ${soEsc(p.billing_mode || 'subscription')}${soGetPlanIncludedCredits(p) > 0 ? ` · ${soGetPlanIncludedCredits(p)} base cr` : ''}</div>
                     ${addonsHtml}
                 </div>`;
             }).join('')}</div>`
@@ -2937,7 +2955,8 @@
         else if (plan.days > 0) chips.push(`${plan.days} days`);
         if (soIsUnlimitedDevices(plan)) chips.push('Unlimited devices');
         else chips.push(`${plan.max_devices != null ? plan.max_devices : 1} device${(plan.max_devices || 1) !== 1 ? 's' : ''}`);
-        if (plan.included_credits > 0) chips.push(`${plan.included_credits} base cr`);
+        const inc = soGetPlanIncludedCredits(plan);
+        if (inc > 0) chips.push(`${inc} base cr`);
         if (plan.allow_credit_addons && (plan.credit_addons || []).length) {
             const activeAddons = (plan.credit_addons || []).filter(a => a.active !== false).length;
             chips.push(`${activeAddons} addon${activeAddons === 1 ? '' : 's'}`);
@@ -2975,6 +2994,10 @@
         container.innerHTML = soPlans.map((plan, idx) => {
             const open = soExpandedPlanIds.has(plan.id);
             const priceLabel = '₹' + (plan.price || 0).toLocaleString('en-IN');
+            const planCredits = soGetPlanIncludedCredits(plan);
+            const creditsBadge = planCredits > 0 && !soIsUnlimitedCredits(plan)
+                ? `<span class="so-badge so-badge--credits">${planCredits} credits</span>`
+                : (soIsUnlimitedCredits(plan) ? '<span class="so-badge so-badge--credits">∞ credits</span>' : '');
             return `
             <div class="so-plan-card so-pricing-plan-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-plan-idx="${idx}">
                 <div class="so-plan-card-head-wrap">
@@ -2990,6 +3013,7 @@
                                 <div class="so-plan-chips">${soPlanMetaChips(plan)}</div>
                             </div>
                             <div class="so-plan-card-badges">
+                                ${creditsBadge}
                                 ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
                                 ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
                                 ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
@@ -3009,7 +3033,8 @@
                             <label>${soFieldLabelHtml('Id (slug) — never rename after use', 'plan-id', idx)}<input type="text" data-field="id" value="${soAttr(plan.id)}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Display name</span><input type="text" data-field="name" value="${soAttr(plan.name)}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Price (INR)</span><input type="number" min="0" step="1" data-field="price" value="${plan.price}" oninput="soMarkTabDirty('config')"></label>
-                            <label><span>Days (0 = unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soMarkTabDirty('config')"></label>
+                            <label>${soFieldLabelHtml('Included credits (granted on license activation)', 'plan-included-credits', idx)}<input type="number" min="0" step="1" data-field="included_credits" value="${soGetPlanIncludedCredits(plan)}" oninput="soOnPlanIncludedCreditsInput(${idx})"></label>
+                            <label><span>Days (0 = unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soOnPlanDaysInput(${idx})"></label>
                             <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}" placeholder="1 Year, Forever" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}" placeholder="Save ₹8000" oninput="soMarkTabDirty('config')"></label>
                         </div>
@@ -3028,7 +3053,6 @@
                                 </select>
                             </label>
                             <label><span>Max devices (0 = unlimited)</span><input type="number" min="0" step="1" data-field="max_devices" value="${plan.max_devices != null ? plan.max_devices : 1}" oninput="soMarkTabDirty('config')"></label>
-                            <label>${soFieldLabelHtml('Included credits', 'plan-included-credits', idx)}<input type="number" min="0" step="1" data-field="included_credits" value="${plan.included_credits || 0}" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Plan kind</span><input type="text" data-field="plan_kind" value="${soAttr(plan.plan_kind || '')}" placeholder="lifetime, unlimited" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-field-full"><span>Short description (plan detail screen)</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('config')">${soEsc(plan.description || '')}</textarea></label>
                             <label><span>Detail subtitle</span><input type="text" data-field="detail_subtitle" value="${soAttr(plan.detail_subtitle || '')}" placeholder="Under plan name on detail screen" oninput="soMarkTabDirty('config')"></label>
@@ -3213,19 +3237,46 @@
         toggleSoSectionAccordion('config-plans');
     };
 
+    window.soOnPlanIncludedCreditsInput = function(idx) {
+        soMarkTabDirty('config');
+        const row = document.querySelector(`.so-pricing-plan-row[data-plan-idx="${idx}"]`);
+        if (!row) return;
+        const credits = parseInt(row.querySelector('[data-field="included_credits"]')?.value, 10) || 0;
+        const billingSel = row.querySelector('[data-field="billing_mode"]');
+        if (billingSel && credits > 0 && billingSel.value === 'subscription') {
+            billingSel.value = 'hybrid';
+        }
+        if (soActiveTab === 'licenses') soUpdateLicenseCreditsBreakdown();
+    };
+
+    window.soOnPlanDaysInput = function(idx) {
+        soMarkTabDirty('config');
+        const row = document.querySelector(`.so-pricing-plan-row[data-plan-idx="${idx}"]`);
+        if (!row) return;
+        const days = parseInt(row.querySelector('[data-field="days"]')?.value, 10) || 0;
+        const creditsEl = row.querySelector('[data-field="included_credits"]');
+        if (!creditsEl) return;
+        const current = parseInt(creditsEl.value, 10) || 0;
+        if (current === 0 && days > 0) {
+            creditsEl.value = soSuggestCreditsForPlanDays(days);
+            soOnPlanIncludedCreditsInput(idx);
+        }
+    };
+
     window.addSoPlan = function() {
         soPlans = soReadPlansFromDom();
         const nextOrder = soPlans.length;
+        const days = 30;
         const newPlan = soNormalizePlan({
             id: `plan_${nextOrder + 1}`,
             name: 'New Plan',
             price: 499,
-            days: 30,
+            days,
             duration: '1 Month',
             device_tier: 'standard',
             max_devices: 1,
-            billing_mode: 'subscription',
-            included_credits: 0,
+            billing_mode: 'hybrid',
+            included_credits: soSuggestCreditsForPlanDays(days),
             active: true,
             order: nextOrder
         }, nextOrder);
