@@ -399,6 +399,7 @@
     const SO_DRAFT_SAVE_MS = 800;
     let soExpandedPlanIds = new Set();
     let soExpandedPackIds = new Set();
+    let soExpandedSmartOptionIdxs = new Set();
     let soExpandedLicenseKeys = new Set();
     let soOpenSections = new Set(['config-general', 'license-list', 'credits-smart-mode']);
 
@@ -526,6 +527,7 @@
         });
         soExpandedPlanIds.clear();
         soExpandedPackIds.clear();
+        soExpandedSmartOptionIdxs.clear();
         renderSoPlansEditor();
         renderSoCreditPacksEditor();
         soToast('All sections collapsed.');
@@ -975,6 +977,29 @@
             ids.add(p.id);
             if (p.credits < 1) return `Pack "${p.id}": credits must be ≥ 1.`;
             if (p.price < 0) return `Pack "${p.id}": price must be ≥ 0.`;
+        }
+        return '';
+    }
+
+    function soValidateSmartMode(mode) {
+        const m = soNormalizeSmartMode(mode);
+        const options = m.variant_options || [];
+        if (!options.length) return 'Add at least one Smart Mode variant option.';
+        const values = options.map(o => o.value);
+        const seen = new Set();
+        for (let i = 0; i < values.length; i++) {
+            if (seen.has(values[i])) {
+                return `Duplicate variant value ${values[i]} — each dropdown option needs a unique count.`;
+            }
+            seen.add(values[i]);
+            if (values[i] < 1) return `Variant option #${i + 1}: count must be at least 1.`;
+        }
+        if (!options.some(o => o.active !== false)) {
+            return 'At least one variant option must be active (shown in extension).';
+        }
+        const activeValues = options.filter(o => o.active !== false).map(o => o.value);
+        if (!activeValues.includes(m.default_variant)) {
+            return 'Default variant must be one of the active options.';
         }
         return '';
     }
@@ -1785,32 +1810,66 @@
 
     function soRenderSmartModeVariantRow(opt, idx) {
         const o = soNormalizeSmartModeVariantOption(opt, idx);
+        const open = soExpandedSmartOptionIdxs.has(idx);
+        const statusBadge = o.active !== false
+            ? '<span class="so-badge so-badge--on">Visible</span>'
+            : '<span class="so-badge so-badge--off">Hidden</span>';
         return `
-            <div class="so-smart-mode-option-row so-plan-card so-collapsible-row" data-smart-idx="${idx}">
-                <div class="so-plan-card-head">
-                    <span class="so-plan-card-title">${soEsc(o.label)} <span class="so-admin-muted">(${o.value})</span></span>
+            <div class="so-smart-mode-option-row so-plan-card so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-smart-idx="${idx}">
+                <div class="so-plan-card-head-wrap">
+                    <button type="button" class="so-plan-card-head" onclick="toggleSoSmartModeOptionRow(${idx})" aria-expanded="${open ? 'true' : 'false'}">
+                        <span class="so-plan-order" aria-hidden="true">${idx + 1}</span>
+                        <div class="so-plan-card-summary">
+                            <div class="so-plan-card-title-row">
+                                <strong class="so-plan-card-name so-smart-option-summary-name">${soEsc(o.label)}</strong>
+                                <span class="so-meta-chip">${soEsc(String(o.value))} variants</span>
+                            </div>
+                            <div class="so-plan-card-badges">${statusBadge}</div>
+                        </div>
+                        <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
+                    </button>
                     <div class="so-plan-reorder" onclick="event.stopPropagation()">
-                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSmartModeOption(${idx}, -1)" title="Move up">▲</button>
-                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSmartModeOption(${idx}, 1)" title="Move down">▼</button>
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSmartModeOption(${idx}, -1)" title="Move up" aria-label="Move option up">▲</button>
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoSmartModeOption(${idx}, 1)" title="Move down" aria-label="Move option down">▼</button>
                     </div>
                 </div>
-                <div class="so-plan-card-body">
-                    <div class="so-plan-fields so-plan-fields--basic">
-                        <label><span>Variant count</span><input type="number" min="1" step="1" data-smart-field="value" value="${o.value}" oninput="soMarkTabDirty('credits'); soUpdateSmartModeDefaultSelect()"></label>
-                        <label><span>Dropdown label</span><input type="text" data-smart-field="label" value="${soAttr(o.label)}" oninput="soMarkTabDirty('credits')"></label>
-                        <label class="so-plan-check"><input type="checkbox" data-smart-field="active" ${o.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits'); soUpdateSmartModeDefaultSelect()"> Show in extension</label>
-                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoSmartModeOption(${idx})">Remove</button>
+                <div class="so-plan-card-body" onclick="event.stopPropagation()">
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-list"></i> Dropdown option</div>
+                        <div class="so-plan-fields so-plan-fields--basic">
+                            <label><span>Variant count (value)</span><input type="number" min="1" step="1" data-smart-field="value" value="${o.value}" oninput="soOnSmartModeOptionInput(${idx})"></label>
+                            <label><span>Dropdown label</span><input type="text" data-smart-field="label" value="${soAttr(o.label)}" oninput="soOnSmartModeOptionInput(${idx})"></label>
+                            <label class="so-plan-check"><input type="checkbox" data-smart-field="active" ${o.active !== false ? 'checked' : ''} onchange="soOnSmartModeOptionInput(${idx})"> Show in extension dropdown</label>
+                        </div>
+                    </div>
+                    <div class="so-plan-actions-bar">
+                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoSmartModeOption(${idx})"><i class="fa fa-trash"></i> Remove option</button>
                     </div>
                 </div>
             </div>`;
+    }
+
+    function soUpdateSmartModeOptionsCount() {
+        const el = document.getElementById('so-smart-options-count');
+        if (!el) return;
+        const options = soReadSmartModeVariantOptionsFromDom();
+        const active = options.filter(o => o.active !== false).length;
+        const n = options.length;
+        el.textContent = n === 1
+            ? `1 option (${active} visible)`
+            : `${n} options (${active} visible)`;
     }
 
     function soRenderSmartModeEditor() {
         const container = document.getElementById('so-smart-mode-options');
         if (!container) return;
         const mode = soSmartMode || soNormalizeSmartMode(soConfig?.smart_mode);
-        container.innerHTML = (mode.variant_options || []).map((opt, idx) => soRenderSmartModeVariantRow(opt, idx)).join('')
-            || '<p class="so-admin-muted">No variant options. Add at least one.</p>';
+        if (!mode.variant_options.length) {
+            container.innerHTML = '<div class="so-plans-empty"><i class="fa fa-wand-magic-sparkles"></i><p>No variant options yet</p><span class="so-admin-muted">Tap + Add variant option</span></div>';
+        } else {
+            container.innerHTML = mode.variant_options.map((opt, idx) => soRenderSmartModeVariantRow(opt, idx)).join('');
+        }
+        soUpdateSmartModeOptionsCount();
         soUpdateSmartModeDefaultSelect();
     }
 
@@ -1850,24 +1909,97 @@
         }
     };
 
+    window.soOnSmartModeOptionInput = function(idx) {
+        soMarkTabDirty('credits');
+        const row = document.querySelector(`.so-smart-mode-option-row[data-smart-idx="${idx}"]`);
+        if (row) {
+            const value = row.querySelector('[data-smart-field="value"]')?.value;
+            const label = row.querySelector('[data-smart-field="label"]')?.value;
+            const active = !!row.querySelector('[data-smart-field="active"]')?.checked;
+            const nameEl = row.querySelector('.so-smart-option-summary-name');
+            if (nameEl) nameEl.textContent = String(label || `${value} variants`).trim();
+            const badges = row.querySelector('.so-plan-card-badges');
+            if (badges) {
+                badges.innerHTML = active
+                    ? '<span class="so-badge so-badge--on">Visible</span>'
+                    : '<span class="so-badge so-badge--off">Hidden</span>';
+            }
+        }
+        soUpdateSmartModeOptionsCount();
+        soUpdateSmartModeDefaultSelect();
+    };
+
+    window.toggleSoSmartModeOptionRow = function(idx) {
+        soSmartMode = soReadSmartModeFromDom();
+        const opening = !soExpandedSmartOptionIdxs.has(idx);
+        if (soExpandedSmartOptionIdxs.has(idx)) soExpandedSmartOptionIdxs.delete(idx);
+        else soExpandedSmartOptionIdxs.add(idx);
+        if (opening) {
+            soOpenSections.add('credits-smart-mode');
+            const section = document.querySelector('.so-section-accordion[data-so-section="credits-smart-mode"]');
+            if (section) section.classList.add('so-section-accordion--open');
+        }
+        soRenderSmartModeEditor();
+        if (opening) {
+            requestAnimationFrame(() => {
+                const row = document.querySelector(`.so-smart-mode-option-row[data-smart-idx="${idx}"]`);
+                if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
+    };
+
+    window.expandAllSoSmartModeOptions = function() {
+        soSmartMode = soReadSmartModeFromDom();
+        soSmartMode.variant_options.forEach((_, idx) => soExpandedSmartOptionIdxs.add(idx));
+        soRenderSmartModeEditor();
+    };
+
+    window.collapseAllSoSmartModeOptions = function() {
+        soExpandedSmartOptionIdxs.clear();
+        soRenderSmartModeEditor();
+    };
+
     window.addSoSmartModeOption = function() {
         soSmartMode = soReadSmartModeFromDom();
         const values = soSmartMode.variant_options.map(o => o.value);
         let nextVal = 20;
         while (values.includes(nextVal)) nextVal += 10;
+        const newIdx = soSmartMode.variant_options.length;
         soSmartMode.variant_options.push(soNormalizeSmartModeVariantOption({
             value: nextVal,
             label: `${nextVal} variants`,
             active: true
-        }, soSmartMode.variant_options.length));
+        }, newIdx));
+        soExpandedSmartOptionIdxs.add(newIdx);
+        soOpenSections.add('credits-smart-mode');
+        const section = document.querySelector('.so-section-accordion[data-so-section="credits-smart-mode"]');
+        if (section) section.classList.add('so-section-accordion--open');
         soRenderSmartModeEditor();
         soMarkTabDirty('credits');
+        requestAnimationFrame(() => {
+            const row = document.querySelector(`.so-smart-mode-option-row[data-smart-idx="${newIdx}"]`);
+            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
     };
 
     window.removeSoSmartModeOption = function(idx) {
         soSmartMode = soReadSmartModeFromDom();
-        if (!soSmartMode.variant_options[idx]) return;
+        const option = soSmartMode.variant_options[idx];
+        if (!option) return;
+        if (soSmartMode.variant_options.length <= 1) {
+            return soToast('At least one variant option is required for the Smart Mode dropdown.');
+        }
+        const label = option.label || `${option.value} variants`;
+        if (!confirm(`Remove "${label}" from the dropdown? Save to Firebase to apply in the extension.`)) return;
         soSmartMode.variant_options.splice(idx, 1);
+        soExpandedSmartOptionIdxs.delete(idx);
+        const nextExpanded = new Set();
+        soExpandedSmartOptionIdxs.forEach(i => {
+            if (i < idx) nextExpanded.add(i);
+            else if (i > idx) nextExpanded.add(i - 1);
+        });
+        soExpandedSmartOptionIdxs = nextExpanded;
+        soSmartMode = soNormalizeSmartMode(soSmartMode);
         soRenderSmartModeEditor();
         soMarkTabDirty('credits');
     };
@@ -1879,8 +2011,41 @@
         const tmp = soSmartMode.variant_options[idx];
         soSmartMode.variant_options[idx] = soSmartMode.variant_options[next];
         soSmartMode.variant_options[next] = tmp;
+        const expanded = soExpandedSmartOptionIdxs.has(idx);
+        const nextExpanded = soExpandedSmartOptionIdxs.has(next);
+        if (expanded) soExpandedSmartOptionIdxs.delete(idx);
+        if (nextExpanded) soExpandedSmartOptionIdxs.delete(next);
+        if (expanded) soExpandedSmartOptionIdxs.add(next);
+        if (nextExpanded) soExpandedSmartOptionIdxs.add(idx);
+        soSmartMode.variant_options.forEach((o, i) => { o.order = i; });
         soRenderSmartModeEditor();
         soMarkTabDirty('credits');
+    };
+
+    window.saveShippingOptimizerSmartMode = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
+        const err = soValidateSmartMode(smartModePayload);
+        if (err) return soToast(err);
+        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
+            image_generation: soReadImageGenerationFromDom(),
+            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => soCreditPackToFirestore(p, i))
+        });
+        try {
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                smart_mode: smartModePayload,
+                credits: creditsPayload,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }, { merge: true });
+            soSmartMode = smartModePayload;
+            soConfig = Object.assign({}, soConfig, { smart_mode: smartModePayload, credits: creditsPayload });
+            soAfterTabSaved('credits');
+            renderSoExtensionPreview();
+            soToast('Smart Mode dropdown options saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
     };
 
     function soBuildGeneralCanonical(fromDom) {
@@ -3492,6 +3657,8 @@
             packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => soCreditPackToFirestore(p, i))
         });
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
+        const smartErr = soValidateSmartMode(smartModePayload);
+        if (smartErr) return soToast(smartErr);
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
@@ -3520,6 +3687,8 @@
             packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
         });
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
+        const smartErr = soValidateSmartMode(smartModePayload);
+        if (smartErr) return soToast(smartErr);
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
@@ -4051,6 +4220,8 @@
             packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
         };
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
+        const smartErr = soValidateSmartMode(smartModePayload);
+        if (smartErr) return soToast(smartErr);
 
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
