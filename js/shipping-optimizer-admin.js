@@ -365,6 +365,217 @@
         return soSaveCurrentTab();
     };
 
+    const SO_SAVE_AS_DEFAULTS_CONFIRM = {
+        config:
+            'Save current Config & Pricing to Firebase as the default?\n\n' +
+            'Plans, support, WhatsApp, and inline demo keys will be stored in shipping_optimizer_config/app. ' +
+            'The extension uses these after its next config refresh.',
+        credits:
+            'Save current Credits & Packs (including Smart Mode dropdown options) to Firebase as the default?\n\n' +
+            'Credit rates, packs, and variant dropdown choices will persist for the extension.',
+        demo:
+            'Save current demo/promo keys to Firebase as the default?\n\n' +
+            'Pending and edited keys in this tab will be written to shipping_optimizer_demo_keys.',
+        'google-trial':
+            'Save current Google trial settings to Firebase as the default?\n\n' +
+            'OAuth client IDs, trial limits, and toggles will be stored in google_trial on the app doc. ' +
+            'Required for extension Google sign-in (especially Kiwi).',
+        licenses:
+            'License records are saved individually via Create license — not as app defaults.\n\n' +
+            'Reset the form with Load defaults instead.'
+    };
+
+    function soBuildFullAppPayloadFromForms() {
+        soPreserveInlineDemoRowsFromDom();
+        soPlans = soReadPlansFromDom();
+        soCreditPacks = soReadCreditPacksFromDom();
+        const general = soReadGeneralConfigFromDom();
+        const demoKeysPayload = soReadInlineDemoKeysFromDom();
+        const creditsPayload = {
+            enabled: !!document.getElementById('so-credits-enabled')?.checked,
+            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
+            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
+            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+            image_generation: soReadImageGenerationFromDom(),
+            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
+        };
+        const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
+        const googleTrialPayload = soGoogleTrialToFirestore(soReadGoogleTrialFromDom());
+        return {
+            general,
+            demoKeysPayload,
+            creditsPayload,
+            smartModePayload,
+            googleTrialPayload,
+            payload: Object.assign({}, general, {
+                plans: soPlans.map((p, i) => soPlanToFirestore(p, i)),
+                demo_keys: demoKeysPayload,
+                support: soSupportToFirestore(soReadSupportFromDom()),
+                credits: creditsPayload,
+                smart_mode: smartModePayload,
+                google_trial: googleTrialPayload
+            })
+        };
+    }
+
+    window.soSaveCurrentAsDefaults = async function(tab) {
+        const tabLabels = {
+            config: 'Config & Pricing',
+            credits: 'Credits & Packs',
+            demo: 'Demo / Promo Keys',
+            licenses: 'Paid Licenses',
+            'google-trial': 'Google Free Trial'
+        };
+        const active = tab || soActiveTab;
+        const label = tabLabels[active] || active;
+        const confirmMsg = SO_SAVE_AS_DEFAULTS_CONFIRM[active];
+        if (!confirmMsg) {
+            return soToast(`"${label}" does not support Save as defaults.`);
+        }
+        if (active === 'licenses') {
+            if (!confirm(confirmMsg)) return;
+            return soToast('Use Create license to save license records.');
+        }
+        if (!confirm(confirmMsg)) return;
+        if (!soRequireExtensionWrite()) return;
+
+        if (active === 'config') {
+            soPlans = soReadPlansFromDom();
+            const err = soValidatePlans(soPlans);
+            if (err) return soToast(err);
+            soPreserveInlineDemoRowsFromDom();
+            let general;
+            let demoKeysPayload;
+            try {
+                general = soReadGeneralConfigFromDom();
+                demoKeysPayload = soReadInlineDemoKeysFromDom();
+            } catch (e) {
+                return soToast(e.message || 'Invalid config.');
+            }
+            const payload = Object.assign({}, general, {
+                plans: soPlans.map((p, i) => soPlanToFirestore(p, i)),
+                demo_keys: demoKeysPayload,
+                support: soSupportToFirestore(soReadSupportFromDom())
+            });
+            try {
+                await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, payload, {
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: soAuthEmail()
+                }), { merge: true });
+                soConfig = Object.assign({}, soConfig || {}, payload);
+                soAfterTabSaved('config');
+            } catch (e) {
+                return soToast('Save failed: ' + (e.message || 'Unknown error'));
+            }
+        } else if (active === 'credits') {
+            soCreditPacks = soReadCreditPacksFromDom();
+            const packErr = soValidateCreditPacks(soCreditPacks);
+            if (packErr) return soToast(packErr);
+            const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
+            const smartErr = soValidateSmartMode(smartModePayload);
+            if (smartErr) return soToast(smartErr);
+            const creditsPayload = {
+                enabled: !!document.getElementById('so-credits-enabled')?.checked,
+                price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
+                min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
+                cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+                image_generation: soReadImageGenerationFromDom(),
+                packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
+            };
+            try {
+                await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                    credits: creditsPayload,
+                    smart_mode: smartModePayload,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: soAuthEmail()
+                }, { merge: true });
+                soCredits = creditsPayload;
+                soSmartMode = smartModePayload;
+                soConfig = Object.assign({}, soConfig, { credits: creditsPayload, smart_mode: smartModePayload });
+                soAfterTabSaved('credits');
+                renderSoExtensionPreview();
+            } catch (e) {
+                return soToast('Save failed: ' + (e.message || 'Unknown error'));
+            }
+        } else if (active === 'google-trial') {
+            const payload = soGoogleTrialToFirestore(soReadGoogleTrialFromDom());
+            if (!payload.oauth_client_id) {
+                return soToast('Chrome extension OAuth client ID (oauth_client_id) is required.');
+            }
+            try {
+                await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                    google_trial: payload,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: soAuthEmail()
+                }, { merge: true });
+                soConfig = Object.assign({}, soConfig || {}, { google_trial: payload });
+                soBindGoogleTrialForm();
+                soToast('Google trial settings saved as Firebase default.');
+            } catch (e) {
+                return soToast('Save failed: ' + (e.message || 'Unknown error'));
+            }
+        } else if (active === 'demo') {
+            if (soDemoKeyPendingRows.length) {
+                await saveSoDemoKeysBatch();
+            } else {
+                await saveSoDemoKeysChanges();
+            }
+            soToast('Demo keys saved as Firebase default.');
+            return;
+        }
+
+        soEstablishCleanBaseline();
+        soClearDraftStorage();
+        if (active !== 'google-trial') {
+            soToast(`"${label}" saved as Firebase default — extension will use these on next load.`);
+        }
+    };
+
+    window.soSaveAllCurrentAsDefaults = async function() {
+        if (!confirm(
+            'Save ALL current admin form values to Firebase as the live default?\n\n' +
+            'This writes config, credits, smart mode, and Google trial from the forms now ' +
+            'to shipping_optimizer_config/app (merge). The extension uses this after refresh.\n\n' +
+            'Use "Seed all defaults" instead to reset to built-in recommended values.'
+        )) return;
+        if (!soRequireExtensionWrite()) return;
+
+        let built;
+        try {
+            built = soBuildFullAppPayloadFromForms();
+        } catch (e) {
+            return soToast(e.message || 'Invalid form data.');
+        }
+        const planErr = soValidatePlans(soPlans);
+        if (planErr) return soToast(planErr);
+        const packErr = soValidateCreditPacks(soCreditPacks);
+        if (packErr) return soToast(packErr);
+        const smartErr = soValidateSmartMode(built.smartModePayload);
+        if (smartErr) return soToast(smartErr);
+        if (!built.googleTrialPayload.oauth_client_id) {
+            return soToast('Google trial oauth_client_id is required when saving full app defaults.');
+        }
+
+        try {
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, built.payload, {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }), { merge: true });
+            soConfig = Object.assign({}, soConfig || {}, built.payload);
+            soCredits = built.creditsPayload;
+            soSmartMode = built.smartModePayload;
+            soBindGoogleTrialForm();
+            soAfterTabSaved('config');
+            soAfterTabSaved('credits');
+            soEstablishCleanBaseline();
+            soClearDraftStorage();
+            renderSoExtensionPreview();
+            soToast('Full app config saved as Firebase default.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
     let soConfig = null;
     let soPlans = [];
     let soCredits = null;

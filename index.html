@@ -2331,7 +2331,9 @@
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()">Save all as defaults</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('config')">Save to Firebase</button>
                     </div>
                 </div>
@@ -2442,6 +2444,7 @@
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('credits')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('credits')">Save to Firebase</button>
                     </div>
                 </div>
@@ -2481,6 +2484,7 @@
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Demo keys collection</span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('demo')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('demo')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('demo')">Save to Firebase</button>
                     </div>
                 </div>
@@ -2531,7 +2535,8 @@
                                     <li>Firebase Auth → Google → <strong>Enabled</strong></li>
                                     <li>Google Cloud → <strong>Chrome extension</strong> OAuth client with Item ID <code>dhhlaikkdfkaofbiacpoaadfademdmne</code> → paste Client ID to <code>oauth_client_id</code></li>
                                     <li>Google Cloud → <strong>Web application</strong> OAuth client → redirect <code>https://dhhlaikkdfkaofbiacpoaadfademdmne.chromiumapp.org/</code> → paste to <code>oauth_web_client_id</code></li>
-                                    <li>OAuth consent screen → add <strong>Test users</strong> (your Gmail) if app is in Testing</li>
+                                    <li>OAuth consent screen → add <strong>Test users</strong> (e.g. <code>amazing.deepanshu15@gmail.com</code>) while app is in Testing — otherwise Google blocks sign-in</li>
+                                    <li>Web redirect URI (with trailing slash only): <code>https://dhhlaikkdfkaofbiacpoaadfademdmne.chromiumapp.org/</code></li>
                                     <li>Deploy Firestore rules: <code>firebase deploy --only firestore:rules --project extension-e6e32</code></li>
                                     <li>Set <code>trial_credits</code>, <code>google_login_enabled: true</code>, <code>enabled: true</code> → Save below</li>
                                 </ol>
@@ -2561,6 +2566,7 @@
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Google trial config</span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('google-trial')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('google-trial')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('google-trial')">Save to Firebase</button>
                     </div>
                 </div>
@@ -4542,7 +4548,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=4.1"></script>
+    <script src="js/shipping-optimizer-admin.js?v=4.2"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
