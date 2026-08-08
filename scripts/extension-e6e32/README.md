@@ -19,7 +19,22 @@ node scripts/extension-e6e32/seed-google-trial-config.js
 
 ## 2. Deploy Cloud Function (Task 2)
 
-From extension repo `deepanshu207/meesho-shipping-optimizer-extension`:
+### Option A — Swagstree deploy script (agent or local)
+
+```bash
+# After downloading JSON key from Firebase Console → Service accounts → Generate new private key:
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/extension-e6e32-key.json
+bash scripts/extension-e6e32/deploy-claim-google-trial.sh
+```
+
+Or with Cursor/GitHub secret `FIREBASE_SERVICE_ACCOUNT` (full JSON string):
+
+```bash
+export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
+bash scripts/extension-e6e32/deploy-claim-google-trial.sh
+```
+
+### Option B — Manual from extension repo
 
 ```bash
 git checkout cursor/google-trial-auth-d321   # or main
