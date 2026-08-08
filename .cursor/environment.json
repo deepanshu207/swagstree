@@ -1,0 +1,3 @@
+{
+  "install": "npm install -g firebase-tools@13\nmkdir -p /workspace/.extension-deploy\ngit clone -b cursor/google-trial-auth-d321 https://github.com/deepanshu207/meesho-shipping-optimizer-extension.git /workspace/.extension-deploy/meesho-extension 2>/dev/null || (cd /workspace/.extension-deploy/meesho-extension && git fetch origin cursor/google-trial-auth-d321 && git checkout cursor/google-trial-auth-d321 && git pull origin cursor/google-trial-auth-d321 || true)\ncd /workspace/.extension-deploy/meesho-extension/functions && npm install\nchmod +x /workspace/scripts/extension-e6e32/deploy-claim-google-trial.sh"
+}
