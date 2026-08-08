@@ -2490,9 +2490,9 @@
                                 <label class="so-field-full"><span class="admin-settings-field-label">Button label</span>
                                     <input id="so-google-trial-label" type="text" placeholder="Google free trial" value="Google free trial"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">OAuth client ID (Web)</span>
-                                    <input id="so-google-trial-oauth-client-id" type="text" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
+                                    <input id="so-google-trial-oauth-client-id" type="text" value="247366802280-cg7ngbq35e1vs5n6rl09uh2d9mk8qkkh.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">Cloud Function URL</span>
-                                    <input id="so-google-trial-function-url" type="url" placeholder="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial"></label>
+                                    <input id="so-google-trial-function-url" type="url" value="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial" placeholder="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial"></label>
                             </div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:10px;">
                                 Extension ID: <code>kgnmnoaobnpfaaipnjkkidekbajpldlm</code><br>
@@ -2500,8 +2500,9 @@
                                 Deploy function: <code>firebase deploy --only functions:claimGoogleTrial --project extension-e6e32</code>
                             </p>
                             <div class="so-section-save-bar" style="flex-wrap:wrap; gap:8px;">
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyRecommendedGoogleTrial()">Apply recommended values</button>
-                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerGoogleTrial()">Save Google trial config</button>
+                                <button type="button" class="btn-gold so-btn-sm" onclick="soSaveRecommendedGoogleTrial()">Save recommended defaults to Firebase</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyRecommendedGoogleTrial()">Apply to form only</button>
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerGoogleTrial()">Save current settings</button>
                             </div>
                         </div>
                     </div>
@@ -4494,7 +4495,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=3.6"></script>
+    <script src="js/shipping-optimizer-admin.js?v=3.7"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
