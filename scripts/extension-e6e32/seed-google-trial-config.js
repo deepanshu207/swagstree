@@ -11,15 +11,19 @@ const admin = require('firebase-admin');
 
 const PROJECT_ID = 'extension-e6e32';
 const GOOGLE_TRIAL_DEFAULTS = {
+  google_login_enabled: true,
   enabled: true,
   days: 7,
-  credits: 30,
+  trial_credits: 3,
+  image_run_limit: 3,
+  max_increment_per_run: 10,
   max_devices: 1,
   label: 'Google free trial',
   oauth_client_id:
+    '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
+  oauth_web_client_id:
     '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
-  function_url:
-    'https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial',
+  chrome_extension_id: 'dhhlaikkdfkaofbiacpoaadfademdmne',
 };
 
 async function main() {

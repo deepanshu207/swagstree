@@ -98,17 +98,38 @@
     ];
 
     const DEFAULT_GOOGLE_TRIAL = {
+        google_login_enabled: true,
         enabled: true,
         days: 7,
-        credits: 30,
+        trial_credits: 3,
+        image_run_limit: 3,
+        max_increment_per_run: 10,
         max_devices: 1,
         label: 'Google free trial',
-        oauth_client_id: '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
-        function_url: 'https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial'
+        oauth_client_id: '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
+        oauth_web_client_id: '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
+        chrome_extension_id: 'dhhlaikkdfkaofbiacpoaadfademdmne'
     };
 
-    const SO_EXTENSION_ID = 'kgnmnoaobnpfaaipnjkkidekbajpldlm';
-    const SO_GOOGLE_OAUTH_REDIRECT = `https://${SO_EXTENSION_ID}.chromiumapp.org/`;
+    function soGoogleTrialExtensionId(trial) {
+        const id = String(trial?.chrome_extension_id || trial?.chromeExtensionId || DEFAULT_GOOGLE_TRIAL.chrome_extension_id || '').trim();
+        return id || DEFAULT_GOOGLE_TRIAL.chrome_extension_id;
+    }
+
+    function soGoogleTrialRedirectUri(trial) {
+        return `https://${soGoogleTrialExtensionId(trial)}.chromiumapp.org/`;
+    }
+
+    function soResolveTrialCredits(src) {
+        const raw = src && typeof src === 'object' ? src : {};
+        const trialCredits = parseInt(raw.trial_credits ?? raw.trialCredits, 10);
+        if (Number.isFinite(trialCredits) && trialCredits >= 0) return trialCredits;
+        const imageRun = parseInt(raw.image_run_limit ?? raw.imageRunLimit, 10);
+        if (Number.isFinite(imageRun) && imageRun >= 0) return imageRun;
+        const credits = parseInt(raw.credits, 10);
+        if (Number.isFinite(credits) && credits >= 0) return credits;
+        return DEFAULT_GOOGLE_TRIAL.trial_credits;
+    }
 
     const SO_DEVICE_TIER_MAX = { standard: 1, family: 3, friends: 5, unlimited: 0 };
     const SO_BILLING_MODES = ['subscription', 'credits', 'hybrid'];
@@ -2242,29 +2263,56 @@
 
     function soNormalizeGoogleTrial(raw) {
         const src = raw && typeof raw === 'object' ? raw : {};
+        const trialCredits = soResolveTrialCredits(src);
         return {
+            google_login_enabled: src.google_login_enabled !== false && src.googleLoginEnabled !== false,
             enabled: src.enabled !== false,
             days: Math.max(1, parseInt(src.days, 10) || DEFAULT_GOOGLE_TRIAL.days),
-            credits: Math.max(0, parseInt(src.credits, 10) || DEFAULT_GOOGLE_TRIAL.credits),
-            max_devices: Math.max(1, parseInt(src.max_devices, 10) || DEFAULT_GOOGLE_TRIAL.max_devices),
+            trial_credits: trialCredits,
+            image_run_limit: trialCredits,
+            max_increment_per_run: Math.max(1, parseInt(src.max_increment_per_run ?? src.maxIncrementPerRun, 10) || DEFAULT_GOOGLE_TRIAL.max_increment_per_run),
+            max_devices: Math.max(1, parseInt(src.max_devices ?? src.maxDevices, 10) || DEFAULT_GOOGLE_TRIAL.max_devices),
             label: String(src.label || DEFAULT_GOOGLE_TRIAL.label).trim(),
             oauth_client_id: String(src.oauth_client_id || src.oauthClientId || DEFAULT_GOOGLE_TRIAL.oauth_client_id || '').trim(),
-            function_url: String(src.function_url || src.functionUrl || DEFAULT_GOOGLE_TRIAL.function_url).trim()
+            oauth_web_client_id: String(src.oauth_web_client_id || src.oauthWebClientId || DEFAULT_GOOGLE_TRIAL.oauth_web_client_id || '').trim(),
+            chrome_extension_id: String(src.chrome_extension_id || src.chromeExtensionId || DEFAULT_GOOGLE_TRIAL.chrome_extension_id || '').trim()
         };
     }
 
     function soGoogleTrialToFirestore(trial) {
         const t = soNormalizeGoogleTrial(trial);
         const out = {
+            google_login_enabled: t.google_login_enabled,
             enabled: t.enabled,
             days: t.days,
-            credits: t.credits,
+            trial_credits: t.trial_credits,
+            image_run_limit: t.trial_credits,
+            max_increment_per_run: t.max_increment_per_run,
             max_devices: t.max_devices,
             label: t.label
         };
         if (t.oauth_client_id) out.oauth_client_id = t.oauth_client_id;
-        if (t.function_url) out.function_url = t.function_url;
+        if (t.oauth_web_client_id) out.oauth_web_client_id = t.oauth_web_client_id;
+        if (t.chrome_extension_id) out.chrome_extension_id = t.chrome_extension_id;
         return out;
+    }
+
+    function soGoogleTrialStatusBadges(trial) {
+        const t = soNormalizeGoogleTrial(trial);
+        const parts = [];
+        parts.push(t.google_login_enabled
+            ? '<span class="so-badge so-badge--on">Google login ON</span>'
+            : '<span class="so-badge so-badge--off">Google login OFF</span>');
+        parts.push(t.enabled
+            ? '<span class="so-badge so-badge--on">New trials ON</span>'
+            : '<span class="so-badge so-badge--off">New trials OFF</span>');
+        parts.push(t.oauth_client_id
+            ? '<span class="so-badge so-badge--on">Chrome OAuth configured</span>'
+            : '<span class="so-badge so-badge--off">oauth_client_id missing</span>');
+        parts.push(t.oauth_web_client_id
+            ? '<span class="so-badge so-badge--on">Web OAuth configured</span>'
+            : '<span class="so-badge so-badge--warn">oauth_web_client_id missing (Kiwi fallback)</span>');
+        return parts.join(' ');
     }
 
     function soBindGoogleTrialForm() {
@@ -2273,36 +2321,46 @@
             const el = document.getElementById(id);
             if (el) el.value = val != null ? val : '';
         };
-        const enabledEl = document.getElementById('so-google-trial-enabled');
-        if (enabledEl) enabledEl.checked = trial.enabled;
+        const setChecked = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!val;
+        };
+        setChecked('so-google-login-enabled', trial.google_login_enabled);
+        setChecked('so-google-trial-enabled', trial.enabled);
         setVal('so-google-trial-days', trial.days);
-        setVal('so-google-trial-credits', trial.credits);
+        setVal('so-google-trial-credits', trial.trial_credits);
+        setVal('so-google-trial-max-increment', trial.max_increment_per_run);
         setVal('so-google-trial-max-devices', trial.max_devices);
         setVal('so-google-trial-label', trial.label);
-        setVal('so-google-trial-oauth-client-id', trial.oauth_client_id || DEFAULT_GOOGLE_TRIAL.oauth_client_id);
-        setVal('so-google-trial-function-url', trial.function_url);
+        setVal('so-google-trial-oauth-client-id', trial.oauth_client_id);
+        setVal('so-google-trial-oauth-web-client-id', trial.oauth_web_client_id);
+        setVal('so-google-trial-chrome-extension-id', trial.chrome_extension_id);
         const statusEl = document.getElementById('so-google-trial-status');
         if (statusEl) {
-            const configured = !!(trial.oauth_client_id || DEFAULT_GOOGLE_TRIAL.oauth_client_id);
-            statusEl.innerHTML = configured
-                ? '<span class="so-badge so-badge--on">OAuth client configured</span>'
-                : '<span class="so-badge so-badge--off">oauth_client_id missing — extension will show error</span>';
+            statusEl.innerHTML = soGoogleTrialStatusBadges(trial);
         }
         const redirectEl = document.getElementById('so-google-trial-redirect-hint');
         if (redirectEl) {
-            redirectEl.textContent = SO_GOOGLE_OAUTH_REDIRECT;
+            redirectEl.textContent = soGoogleTrialRedirectUri(trial);
+        }
+        const extIdEl = document.getElementById('so-google-trial-extension-id-hint');
+        if (extIdEl) {
+            extIdEl.textContent = soGoogleTrialExtensionId(trial);
         }
     }
 
     function soReadGoogleTrialFromDom() {
         return soNormalizeGoogleTrial({
+            google_login_enabled: !!document.getElementById('so-google-login-enabled')?.checked,
             enabled: !!document.getElementById('so-google-trial-enabled')?.checked,
             days: document.getElementById('so-google-trial-days')?.value,
-            credits: document.getElementById('so-google-trial-credits')?.value,
+            trial_credits: document.getElementById('so-google-trial-credits')?.value,
+            max_increment_per_run: document.getElementById('so-google-trial-max-increment')?.value,
             max_devices: document.getElementById('so-google-trial-max-devices')?.value,
             label: document.getElementById('so-google-trial-label')?.value,
             oauth_client_id: document.getElementById('so-google-trial-oauth-client-id')?.value,
-            function_url: document.getElementById('so-google-trial-function-url')?.value
+            oauth_web_client_id: document.getElementById('so-google-trial-oauth-web-client-id')?.value,
+            chrome_extension_id: document.getElementById('so-google-trial-chrome-extension-id')?.value
         });
     }
 
@@ -2312,14 +2370,21 @@
             const el = document.getElementById(id);
             if (el) el.value = val != null ? val : '';
         };
-        const enabledEl = document.getElementById('so-google-trial-enabled');
-        if (enabledEl) enabledEl.checked = trial.enabled;
+        const setChecked = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!val;
+        };
+        setChecked('so-google-login-enabled', trial.google_login_enabled);
+        setChecked('so-google-trial-enabled', trial.enabled);
         setVal('so-google-trial-days', trial.days);
-        setVal('so-google-trial-credits', trial.credits);
+        setVal('so-google-trial-credits', trial.trial_credits);
+        setVal('so-google-trial-max-increment', trial.max_increment_per_run);
         setVal('so-google-trial-max-devices', trial.max_devices);
         setVal('so-google-trial-label', trial.label);
         setVal('so-google-trial-oauth-client-id', trial.oauth_client_id);
-        setVal('so-google-trial-function-url', trial.function_url);
+        setVal('so-google-trial-oauth-web-client-id', trial.oauth_web_client_id);
+        setVal('so-google-trial-chrome-extension-id', trial.chrome_extension_id);
+        soBindGoogleTrialForm();
         soToast('Recommended Google trial values applied — tap Save to write to Firebase.');
     };
 
@@ -2345,7 +2410,7 @@
         if (!soRequireExtensionWrite()) return;
         const payload = soGoogleTrialToFirestore(soReadGoogleTrialFromDom());
         if (!payload.oauth_client_id) {
-            return soToast('OAuth client ID is required for Google free trial.');
+            return soToast('Chrome extension OAuth client ID (oauth_client_id) is required.');
         }
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
@@ -2416,25 +2481,34 @@
         return Array.isArray(ids) ? ids.length : 0;
     }
 
+    function soGoogleTrialImagesUsed(row) {
+        return Number(row.images_used ?? row.imagesUsed ?? 0) || 0;
+    }
+
+    function soGoogleTrialImagesLimit(row) {
+        const limit = row.images_limit ?? row.imagesLimit ?? row.trial_credits ?? row.trialCredits;
+        return limit != null ? Number(limit) || 0 : 0;
+    }
+
     function renderSoGoogleTrialsRegistry() {
         const container = document.getElementById('so-google-trials-list');
         const countEl = document.getElementById('so-google-trials-count');
         if (!container) return;
         const rows = soGoogleTrials.slice();
+        const maxDevices = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
         if (countEl) {
             countEl.textContent = rows.length === 1 ? '1 trial record' : `${rows.length} trial records`;
         }
         if (!rows.length) {
-            container.innerHTML = '<p class="so-admin-muted">No Google trial claims yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap Continue with Google in the extension.</p>';
+            container.innerHTML = '<p class="so-admin-muted">No Google trial claims yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap <strong>Continue with Google</strong> in the extension.</p>';
             return;
         }
         const q = String(document.getElementById('so-google-trial-search')?.value || '').trim().toLowerCase();
         const filtered = q
             ? rows.filter(r => {
                 const email = String(r.email || '').toLowerCase();
-                const key = String(r.license_key || r.licenseKey || '').toLowerCase();
                 const uid = String(r.uid || '').toLowerCase();
-                return email.includes(q) || key.includes(q) || uid.includes(q);
+                return email.includes(q) || uid.includes(q);
             })
             : rows;
         if (!filtered.length) {
@@ -2447,34 +2521,38 @@
                     <thead>
                         <tr>
                             <th>Email</th>
-                            <th>License key</th>
+                            <th>Trial credits used</th>
                             <th>Created</th>
                             <th>Expires</th>
-                            <th>Days / credits</th>
+                            <th>Days</th>
                             <th>Devices</th>
+                            <th>Status</th>
                             <th>UID</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${filtered.map(r => {
-                            const licenseKey = r.license_key || r.licenseKey || '';
+                            const used = soGoogleTrialImagesUsed(r);
+                            const limit = soGoogleTrialImagesLimit(r);
+                            const active = r.active !== false;
+                            const devices = soGoogleTrialDeviceCount(r);
                             const days = r.days_granted != null ? r.days_granted : '—';
-                            const credits = r.credits_granted != null ? r.credits_granted : '—';
                             return `
-                            <tr>
+                            <tr class="${active ? '' : 'so-google-trial-row--revoked'}">
                                 <td>${soEsc(r.email || '—')}</td>
-                                <td><code>${soEsc(licenseKey || '—')}</code></td>
+                                <td><strong>${soEsc(String(used))}</strong> / ${soEsc(String(limit || '—'))}</td>
                                 <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
                                 <td>${soEsc(soFormatGoogleTrialExpiry(r))}</td>
-                                <td>${soEsc(String(days))} / ${soEsc(String(credits))}</td>
-                                <td>${soEsc(String(soGoogleTrialDeviceCount(r)))}</td>
+                                <td>${soEsc(String(days))}</td>
+                                <td>${soEsc(`${devices}/${maxDevices}`)}</td>
+                                <td>${active ? '<span class="so-badge so-badge--on">Active</span>' : '<span class="so-badge so-badge--off">Revoked</span>'}</td>
                                 <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
                                 <td class="so-google-trials-actions">
-                                    ${licenseKey
-                                        ? `<button type="button" class="so-btn-sm so-btn-touch" onclick="soOpenGoogleTrialLicense('${soAttr(licenseKey)}')">License</button>
-                                           <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}', '${soAttr(licenseKey)}')">Revoke</button>`
-                                        : '<span class="so-admin-muted">—</span>'}
+                                    ${active
+                                        ? `<button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}')">Revoke</button>`
+                                        : ''}
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevices('${soAttr(r.uid || '')}')">Reset devices</button>
                                 </td>
                             </tr>`;
                         }).join('')}
@@ -2483,32 +2561,37 @@
             </div>`;
     }
 
-    window.soOpenGoogleTrialLicense = function(licenseKey) {
-        if (!licenseKey) return;
-        switchShippingOptimizerTab('licenses');
-        if (typeof editSoLicense === 'function') {
-            editSoLicense(licenseKey);
+    window.soRevokeGoogleTrial = async function(uid) {
+        if (!soRequireExtensionWrite()) return;
+        if (!uid) return soToast('Missing trial uid.');
+        if (!confirm(`Revoke Google trial for uid ${uid}? User will be blocked from using trial credits.`)) return;
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                active: false,
+                revoked_at: firebase.firestore.FieldValue.serverTimestamp(),
+                revoked_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            renderSoGoogleTrialsRegistry();
+            soToast('Google trial revoked.');
+        } catch (e) {
+            soToast('Revoke failed: ' + (e.message || 'Unknown error'));
         }
     };
 
-    window.soRevokeGoogleTrial = async function(uid, licenseKey) {
+    window.soResetGoogleTrialDevices = async function(uid) {
         if (!soRequireExtensionWrite()) return;
-        if (!licenseKey) return soToast('No license key on this trial record.');
-        if (!confirm(`Revoke Google trial license ${licenseKey}? User will be blocked on next sign-in.`)) return;
-        const note = `Google trial revoked via admin (${new Date().toISOString().slice(0, 10)})`;
+        if (!uid) return soToast('Missing trial uid.');
+        if (!confirm(`Reset device bindings for trial ${uid}? User can activate on a new device.`)) return;
         try {
-            await soDb().collection(SO_LICENSE_COL).doc(licenseKey).set({
-                active: false,
-                support_notes: note,
-                revokedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                revokedBy: soAuthEmail()
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                machine_ids: []
             }, { merge: true });
-            await soLoadLicenses();
             await soLoadGoogleTrials();
             renderSoGoogleTrialsRegistry();
-            soToast('Google trial license revoked.');
+            soToast('Trial devices reset.');
         } catch (e) {
-            soToast('Revoke failed: ' + (e.message || 'Unknown error'));
+            soToast('Reset failed: ' + (e.message || 'Unknown error'));
         }
     };
 
