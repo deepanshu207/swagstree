@@ -2248,7 +2248,7 @@
             credits: Math.max(0, parseInt(src.credits, 10) || DEFAULT_GOOGLE_TRIAL.credits),
             max_devices: Math.max(1, parseInt(src.max_devices, 10) || DEFAULT_GOOGLE_TRIAL.max_devices),
             label: String(src.label || DEFAULT_GOOGLE_TRIAL.label).trim(),
-            oauth_client_id: String(src.oauth_client_id || src.oauthClientId || '').trim(),
+            oauth_client_id: String(src.oauth_client_id || src.oauthClientId || DEFAULT_GOOGLE_TRIAL.oauth_client_id || '').trim(),
             function_url: String(src.function_url || src.functionUrl || DEFAULT_GOOGLE_TRIAL.function_url).trim()
         };
     }
@@ -2321,6 +2321,24 @@
         setVal('so-google-trial-oauth-client-id', trial.oauth_client_id);
         setVal('so-google-trial-function-url', trial.function_url);
         soToast('Recommended Google trial values applied — tap Save to write to Firebase.');
+    };
+
+    window.soSaveRecommendedGoogleTrial = async function() {
+        if (!soRequireExtensionWrite()) return;
+        soApplyRecommendedGoogleTrial();
+        const payload = soGoogleTrialToFirestore(DEFAULT_GOOGLE_TRIAL);
+        try {
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
+                google_trial: payload,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }, { merge: true });
+            soConfig = Object.assign({}, soConfig || {}, { google_trial: payload });
+            soBindGoogleTrialForm();
+            soToast('Recommended Google trial config saved to Firebase.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
     };
 
     window.saveShippingOptimizerGoogleTrial = async function() {
