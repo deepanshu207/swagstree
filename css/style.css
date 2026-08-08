@@ -11189,6 +11189,19 @@ body.seo-indexing-off #seo-primary-nav {
     font-size: 10px;
     word-break: break-all;
 }
+.so-google-trials-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    white-space: nowrap;
+}
+.so-btn-danger {
+    border-color: rgba(255, 99, 99, 0.45) !important;
+    color: #ff8a8a !important;
+}
+.so-admin-checklist ol li {
+    margin-bottom: 4px;
+}
 .so-draft-recovery-banner {
     margin-bottom: 8px;
 }

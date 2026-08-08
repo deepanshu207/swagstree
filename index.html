@@ -2490,18 +2490,29 @@
                                 <label class="so-field-full"><span class="admin-settings-field-label">Button label</span>
                                     <input id="so-google-trial-label" type="text" placeholder="Google free trial" value="Google free trial"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">OAuth client ID (Web)</span>
-                                    <input id="so-google-trial-oauth-client-id" type="text" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
+                                    <input id="so-google-trial-oauth-client-id" type="text" value="860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">Cloud Function URL</span>
-                                    <input id="so-google-trial-function-url" type="url" placeholder="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial"></label>
+                                    <input id="so-google-trial-function-url" type="url" value="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial" placeholder="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial"></label>
                             </div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:10px;">
                                 Extension ID: <code>kgnmnoaobnpfaaipnjkkidekbajpldlm</code><br>
                                 OAuth redirect (Google Cloud): <code id="so-google-trial-redirect-hint"></code><br>
                                 Deploy function: <code>firebase deploy --only functions:claimGoogleTrial --project extension-e6e32</code>
                             </p>
+                            <div class="so-admin-checklist so-admin-tip" style="margin-top:12px;">
+                                <strong>Backend setup checklist</strong>
+                                <ol style="margin:8px 0 0 18px; padding:0;">
+                                    <li>Firebase Auth → Google enabled (Web client <code>860976240598-…vr0.apps.googleusercontent.com</code>)</li>
+                                    <li>Google Cloud OAuth → redirect <code>https://kgnmnoaobnpfaaipnjkkidekbajpldlm.chromiumapp.org/</code></li>
+                                    <li>Deploy <code>claimGoogleTrial</code> Cloud Function (Blaze plan)</li>
+                                    <li>Deploy <code>firestore.extension.rules</code> to <code>extension-e6e32</code></li>
+                                    <li>Save recommended defaults below (merges <code>google_trial</code> only)</li>
+                                </ol>
+                            </div>
                             <div class="so-section-save-bar" style="flex-wrap:wrap; gap:8px;">
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyRecommendedGoogleTrial()">Apply recommended values</button>
-                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerGoogleTrial()">Save Google trial config</button>
+                                <button type="button" class="btn-gold so-btn-sm" onclick="soSaveRecommendedGoogleTrial()">Save recommended defaults to Firebase</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyRecommendedGoogleTrial()">Apply to form only</button>
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerGoogleTrial()">Save current settings</button>
                             </div>
                         </div>
                     </div>
@@ -4494,7 +4505,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=3.6"></script>
+    <script src="js/shipping-optimizer-admin.js?v=3.8"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
