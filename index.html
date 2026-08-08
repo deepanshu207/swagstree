@@ -2177,8 +2177,8 @@
                     <button type="button" class="so-tab-chip so-tab-chip--active" data-so-tab-chip="config" onclick="switchShippingOptimizerTab('config')">Config</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="credits" onclick="switchShippingOptimizerTab('credits')">Credits</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="demo" onclick="switchShippingOptimizerTab('demo')">Demo keys</button>
-                    <button type="button" class="so-tab-chip" data-so-tab-chip="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google trial</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="licenses" onclick="switchShippingOptimizerTab('licenses')">Licenses</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google trial</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="customers" onclick="switchShippingOptimizerTab('customers')">Users</button>
                 </div>
 
@@ -2189,8 +2189,8 @@
                         <option value="config">Config &amp; Pricing</option>
                         <option value="credits">Credits &amp; Packs</option>
                         <option value="demo">Demo / Promo Keys</option>
-                        <option value="google-trial">Google Free Trial</option>
                         <option value="licenses">Paid Licenses</option>
+                        <option value="google-trial">Google Free Trial</option>
                         <option value="customers">License Customers</option>
                     </select>
                 </label>
@@ -2198,8 +2198,8 @@
                     <button type="button" class="so-admin-tab-btn so-admin-tab-btn--active" data-so-tab="config" onclick="switchShippingOptimizerTab('config')">Config &amp; Pricing</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="credits" onclick="switchShippingOptimizerTab('credits')">Credits &amp; Packs</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
-                    <button type="button" class="so-admin-tab-btn" data-so-tab="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google Free Trial</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
+                    <button type="button" class="so-admin-tab-btn" data-so-tab="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google Free Trial</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="customers" onclick="switchShippingOptimizerTab('customers')">License Customers</button>
                 </div>
                 <div id="so-draft-recovery-banner" class="so-draft-recovery-banner" hidden></div>
@@ -2521,26 +2521,24 @@
                                     <input id="so-google-trial-oauth-client-id" type="text" value="860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">oauth_web_client_id (Kiwi / launchWebAuthFlow)</span>
                                     <input id="so-google-trial-oauth-web-client-id" type="text" value="860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
-                                <label class="so-field-full"><span class="admin-settings-field-label">chrome_extension_id (must match Kiwi chrome://extensions)</span>
-                                    <input id="so-google-trial-chrome-extension-id" type="text" value="eginioaeefboofiplokodpinnflkhlkl" placeholder="32-char extension ID from chrome://extensions"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">chrome_extension_id (pinned — manifest key)</span>
+                                    <input id="so-google-trial-chrome-extension-id" type="text" value="ibeijdggldhedpioahdjkhpcpmgieoch" placeholder="32-char extension ID from chrome://extensions" readonly class="so-readonly-input"></label>
                             </div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:10px;">
-                                Extension ID: <code id="so-google-trial-extension-id-hint">eginioaeefboofiplokodpinnflkhlkl</code><br>
-                                Add <strong>both</strong> redirect URIs to <strong>Web client 1</strong> (not Chrome Extension client): <span id="so-google-trial-redirect-hint"></span><br>
-                                Extension on Kiwi must be <strong>v1.7.2+</strong> (v1.6.7 uses wrong OAuth client → <code>redirect_uri_mismatch</code>).<br>
-                                <strong>Do not</strong> set <code>function_url</code> — Spark plan uses Firestore rules only.
+                                <strong>Pinned extension ID:</strong> <code id="so-google-trial-extension-id-hint">ibeijdggldhedpioahdjkhpcpmgieoch</code><br>
+                                <strong>Redirect URI (Web client 9djj…):</strong> <span id="so-google-trial-redirect-hint"></span><br>
+                                Kiwi uses <code>oauth_web_client_id</code> + <code>launchWebAuthFlow</code> — <strong>not</strong> the Chrome Extension client for redirect.<br>
+                                Trial credits are consumed <strong>before</strong> paid license credits. Trial state lives in <code>shipping_optimizer_google_trials/{uid}</code> only.
                             </p>
                             <div class="so-admin-checklist so-admin-tip" style="margin-top:12px;">
-                                <strong>Setup checklist (Spark — no Blaze)</strong>
+                                <strong>Setup checklist</strong>
                                 <ol style="margin:8px 0 0 18px; padding:0;">
                                     <li>Firebase Auth → Google → <strong>Enabled</strong></li>
-                                    <li>Kiwi → <code>chrome://extensions</code> → copy Extension ID → paste to <code>chrome_extension_id</code> above</li>
-                                    <li>Google Cloud → <strong>Chrome extension</strong> OAuth client → Item ID = that Extension ID → Client ID → <code>oauth_client_id</code></li>
-                                    <li>Google Cloud → <strong>Web client 1</strong> → add <strong>both</strong> redirect URIs shown above (with and without trailing <code>/</code>)</li>
-                                    <li>Paste Web client 1 Client ID → <code>oauth_web_client_id</code></li>
-                                    <li>OAuth consent screen → <strong>Test users</strong> → add every Gmail that will sign in</li>
-                                    <li>Install extension <strong>v1.7.2+</strong> on Kiwi (not v1.6.7)</li>
-                                    <li>Superadmin → <strong>Save recommended defaults to Firebase</strong> (removes legacy <code>function_url</code>)</li>
+                                    <li>Google Cloud <strong>Web client 1</strong> → add redirect URIs shown above (with and without trailing <code>/</code>)</li>
+                                    <li>Google Cloud <strong>Chrome extension</strong> OAuth client → Item ID <code>ibeijdggldhedpioahdjkhpcpmgieoch</code></li>
+                                    <li>OAuth consent screen → <strong>Test users</strong> for every Gmail that will sign in</li>
+                                    <li>Deploy <code>firestore.rules</code> from extension repo: <code>firebase deploy --only firestore:rules --project extension-e6e32</code></li>
+                                    <li>Extension <strong>v1.7.2+</strong> on Kiwi with manifest <code>key</code> (stable ID)</li>
                                 </ol>
                             </div>
                             <div class="so-section-save-bar" style="flex-wrap:wrap; gap:8px;">
@@ -4550,7 +4548,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=4.5"></script>
+    <script src="js/shipping-optimizer-admin.js?v=4.6"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

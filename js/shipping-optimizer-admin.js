@@ -16,8 +16,8 @@
 
     const DEFAULT_MIN_VERSION = '1.7.2';
 
-    /** Kiwi sideload ID — must match chrome://extensions on the device under test. */
-    const SO_KIWI_EXTENSION_ID = 'eginioaeefboofiplokodpinnflkhlkl';
+    /** Pinned extension ID (manifest key in meesho-shipping-optimizer-extension) — stable across sideload updates. */
+    const SO_PINNED_EXTENSION_ID = 'ibeijdggldhedpioahdjkhpcpmgieoch';
     const SO_OAUTH_CHROME_CLIENT_ID = '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com';
     const SO_OAUTH_WEB_CLIENT_ID = '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com';
 
@@ -137,7 +137,7 @@
         label: 'Google free trial',
         oauth_client_id: SO_OAUTH_CHROME_CLIENT_ID,
         oauth_web_client_id: SO_OAUTH_WEB_CLIENT_ID,
-        chrome_extension_id: SO_KIWI_EXTENSION_ID
+        chrome_extension_id: SO_PINNED_EXTENSION_ID
     };
 
     const SO_GOOGLE_TRIAL_LEGACY_FIELDS = ['function_url', 'credits'];
@@ -3220,9 +3220,10 @@
                             const active = r.active !== false;
                             const devices = soGoogleTrialDeviceCount(r);
                             const days = r.days_granted != null ? r.days_granted : '—';
+                            const linkedKey = r.license_key || r.licenseKey || '';
                             return `
                             <tr class="${active ? '' : 'so-google-trial-row--revoked'}">
-                                <td>${soEsc(r.email || '—')}</td>
+                                <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}</td>
                                 <td><strong>${soEsc(String(used))}</strong> / ${soEsc(String(limit || '—'))}</td>
                                 <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
                                 <td>${soEsc(soFormatGoogleTrialExpiry(r))}</td>
@@ -3235,6 +3236,7 @@
                                         ? `<button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}')">Revoke</button>`
                                         : ''}
                                     <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevices('${soAttr(r.uid || '')}')">Reset devices</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soLinkGoogleTrialToLicense('${soAttr(r.uid || '')}', '${soAttr(r.email || '')}')">Link license</button>
                                 </td>
                             </tr>`;
                         }).join('')}
@@ -3274,6 +3276,31 @@
             soToast('Trial devices reset.');
         } catch (e) {
             soToast('Reset failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soLinkGoogleTrialToLicense = async function(uid, email) {
+        if (!soRequireExtensionWrite()) return;
+        if (!uid) return soToast('Missing trial uid.');
+        const hint = email ? ` for ${email}` : '';
+        const key = String(prompt(`Paid license key to link${hint}:`, '') || '').trim().toUpperCase();
+        if (!key) return;
+        if (!/^MEESHO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(key)) {
+            return soToast('License key must match MEESHO-XXXX-XXXX-XXXX.');
+        }
+        try {
+            const licSnap = await soDb().collection(SO_LICENSE_COL).doc(key).get();
+            if (!licSnap.exists) return soToast(`License ${key} not found.`);
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                license_key: key,
+                linked_license_at: firebase.firestore.FieldValue.serverTimestamp(),
+                linked_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            renderSoGoogleTrialsRegistry();
+            soToast(`Trial linked to license ${key}.`);
+        } catch (e) {
+            soToast('Link failed: ' + (e.message || 'Unknown error'));
         }
     };
 
