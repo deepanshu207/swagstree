@@ -14,7 +14,7 @@ const APP_SEED = {
   whatsapp_number: '919654414891',
   whatsapp_message: 'Hi! I want to purchase Shipping Optimizer license.',
   extension_enabled: true,
-  min_extension_version: '1.7.0',
+  min_extension_version: '1.7.2',
   announcement: '',
   plans: [
     { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 0 },
@@ -75,9 +75,9 @@ const APP_SEED = {
     max_devices: 1,
     max_increment_per_run: 10,
     label: 'Google free trial',
-    oauth_client_id: '860976240598-lfncu478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
+    oauth_client_id: '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
     oauth_web_client_id: '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
-    chrome_extension_id: 'dhhlaikkdfkaofbiacpoaadfademdmne'
+    chrome_extension_id: 'eginioaeefboofiplokodpinnflkhlkl'
   }
 };
 

@@ -57,11 +57,17 @@ firebase deploy --only firestore:rules --project extension-e6e32
 
 (Requires `firebase.json` rules entry in extension or swagstree deploy config.)
 
-## 4. OAuth (Task 3)
+## 4. OAuth (Kiwi + desktop)
 
-- Extension ID: `kgnmnoaobnpfaaipnjkkidekbajpldlm`
-- Redirect URI: `https://kgnmnoaobnpfaaipnjkkidekbajpldlm.chromiumapp.org/`
-- Web client ID: `860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com`
+| Field | Value |
+|-------|--------|
+| Kiwi Extension ID | `eginioaeefboofiplokodpinnflkhlkl` (copy from `chrome://extensions` — changes on reinstall) |
+| Chrome OAuth client (`oauth_client_id`) | `860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com` |
+| Web OAuth client (`oauth_web_client_id`) | `860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com` |
+| Redirect URIs (Web client 1 — add **both**) | `https://eginioaeefboofiplokodpinnflkhlkl.chromiumapp.org/` and without trailing slash |
+| Min extension version | **1.7.2** (v1.6.7 causes `redirect_uri_mismatch` on Kiwi) |
+
+Do **not** set `function_url` on Spark plan.
 
 ## 5. End-to-end test (Task 6)
 

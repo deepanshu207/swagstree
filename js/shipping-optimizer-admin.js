@@ -14,7 +14,12 @@
     const SO_LICENSE_MAX = 200;
     const KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-    const DEFAULT_MIN_VERSION = '1.7.0';
+    const DEFAULT_MIN_VERSION = '1.7.2';
+
+    /** Kiwi sideload ID — must match chrome://extensions on the device under test. */
+    const SO_KIWI_EXTENSION_ID = 'eginioaeefboofiplokodpinnflkhlkl';
+    const SO_OAUTH_CHROME_CLIENT_ID = '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com';
+    const SO_OAUTH_WEB_CLIENT_ID = '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com';
 
     const DEFAULT_PLANS = [
         { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 0 },
@@ -130,10 +135,12 @@
         max_increment_per_run: 10,
         max_devices: 1,
         label: 'Google free trial',
-        oauth_client_id: '860976240598-lfncu478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
-        oauth_web_client_id: '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
-        chrome_extension_id: 'dhhlaikkdfkaofbiacpoaadfademdmne'
+        oauth_client_id: SO_OAUTH_CHROME_CLIENT_ID,
+        oauth_web_client_id: SO_OAUTH_WEB_CLIENT_ID,
+        chrome_extension_id: SO_KIWI_EXTENSION_ID
     };
+
+    const SO_GOOGLE_TRIAL_LEGACY_FIELDS = ['function_url', 'credits'];
 
     function soGoogleTrialExtensionId(trial) {
         const id = String(trial?.chrome_extension_id || trial?.chromeExtensionId || DEFAULT_GOOGLE_TRIAL.chrome_extension_id || '').trim();
@@ -2933,6 +2940,29 @@
         return out;
     }
 
+    async function soPersistGoogleTrial(payload) {
+        const ref = soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID);
+        await ref.set({
+            google_trial: payload,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: soAuthEmail()
+        }, { merge: true });
+        const legacyDeletes = {};
+        SO_GOOGLE_TRIAL_LEGACY_FIELDS.forEach((field) => {
+            legacyDeletes[`google_trial.${field}`] = firebase.firestore.FieldValue.delete();
+        });
+        await ref.update(legacyDeletes);
+        soConfig = Object.assign({}, soConfig || {}, { google_trial: payload });
+        soBindGoogleTrialForm();
+    }
+
+    function soGoogleTrialRedirectUriVariants(trial) {
+        const id = soGoogleTrialExtensionId(trial);
+        if (!id) return [];
+        const base = `https://${id}.chromiumapp.org`;
+        return [`${base}/`, base];
+    }
+
     function soGoogleTrialStatusBadges(trial) {
         const t = soNormalizeGoogleTrial(trial);
         const parts = [];
@@ -2977,11 +3007,30 @@
         }
         const redirectEl = document.getElementById('so-google-trial-redirect-hint');
         if (redirectEl) {
-            redirectEl.textContent = soGoogleTrialRedirectUri(trial);
+            const uris = soGoogleTrialRedirectUriVariants(trial);
+            redirectEl.innerHTML = uris.length
+                ? uris.map(u => `<code>${soEsc(u)}</code>`).join(' and ')
+                : '(set chrome_extension_id)';
         }
         const extIdEl = document.getElementById('so-google-trial-extension-id-hint');
         if (extIdEl) {
             extIdEl.textContent = soGoogleTrialExtensionId(trial);
+        }
+        const extInput = document.getElementById('so-google-trial-chrome-extension-id');
+        if (extInput && !extInput.dataset.soBound) {
+            extInput.dataset.soBound = '1';
+            extInput.addEventListener('input', () => {
+                const t = soReadGoogleTrialFromDom();
+                const hint = document.getElementById('so-google-trial-extension-id-hint');
+                if (hint) hint.textContent = soGoogleTrialExtensionId(t);
+                const redir = document.getElementById('so-google-trial-redirect-hint');
+                if (redir) {
+                    const uris = soGoogleTrialRedirectUriVariants(t);
+                    redir.innerHTML = uris.length
+                        ? uris.map(u => `<code>${soEsc(u)}</code>`).join(' and ')
+                        : '(set chrome_extension_id)';
+                }
+            });
         }
     }
 
@@ -3028,15 +3077,12 @@
         if (!soRequireExtensionWrite()) return;
         soApplyRecommendedGoogleTrial();
         const payload = soGoogleTrialToFirestore(DEFAULT_GOOGLE_TRIAL);
+        if (!payload.oauth_web_client_id) {
+            return soToast('oauth_web_client_id is required for Kiwi sign-in.');
+        }
         try {
-            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
-                google_trial: payload,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedBy: soAuthEmail()
-            }, { merge: true });
-            soConfig = Object.assign({}, soConfig || {}, { google_trial: payload });
-            soBindGoogleTrialForm();
-            soToast('Recommended Google trial config saved to Firebase.');
+            await soPersistGoogleTrial(payload);
+            soToast('Recommended Google trial config saved (legacy function_url removed).');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
@@ -3048,14 +3094,14 @@
         if (!payload.oauth_client_id) {
             return soToast('Chrome extension OAuth client ID (oauth_client_id) is required.');
         }
+        if (!payload.oauth_web_client_id) {
+            return soToast('oauth_web_client_id (Web client 1) is required for Kiwi sign-in.');
+        }
+        if (!payload.chrome_extension_id) {
+            return soToast('chrome_extension_id must match chrome://extensions on Kiwi.');
+        }
         try {
-            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
-                google_trial: payload,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedBy: soAuthEmail()
-            }, { merge: true });
-            soConfig = Object.assign({}, soConfig || {}, { google_trial: payload });
-            soBindGoogleTrialForm();
+            await soPersistGoogleTrial(payload);
             soToast('Google trial settings saved to extension Firebase.');
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
