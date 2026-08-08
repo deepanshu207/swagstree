@@ -2229,7 +2229,7 @@
                                     <input id="so-whatsapp-message" type="text" placeholder="Hi! I want to purchase Shipping Optimizer license." oninput="soMarkTabDirty('config')"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Min extension version</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('min-version', event)" aria-expanded="false" aria-controls="so-hint-min-version" title="More info">ⓘ</button></span>
                                     <div id="so-hint-min-version" class="so-field-info-panel" hidden role="note">Semver like <code>1.2.0</code>. Older extension versions see an “please update” notice instead of plans.</div>
-                                    <input id="so-min-version" type="text" placeholder="1.2.0" oninput="soMarkTabDirty('config')"></label>
+                                    <input id="so-min-version" type="text" placeholder="1.7.0" oninput="soMarkTabDirty('config')"></label>
                                 <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
                                 <label style="grid-column:1/-1;"><span class="so-field-label-row"><span class="admin-settings-field-label">Announcement banner</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('announcement', event)" aria-expanded="false" aria-controls="so-hint-announcement" title="More info">ⓘ</button></span>
                                     <div id="so-hint-announcement" class="so-field-info-panel" hidden role="note">Optional text shown at top of extension popup (e.g. sale, maintenance). Leave empty to hide.</div>
@@ -2330,7 +2330,9 @@
 
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
-                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerConfig()">Save all config</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('config')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -2361,16 +2363,16 @@
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Credits per run</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-credits', event)" aria-expanded="false" aria-controls="so-hint-img-gen-credits" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-credits" class="so-field-info-panel" hidden role="note">Charged once per upload/generation flow. Field key stays <code>credits_per_image</code> for extension compatibility. Use <code>0</code> to fall back to legacy <code>cost_per_operation</code> for credits/hybrid licenses.</div>
-                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="2" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
+                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="1" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Daily run limit (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-daily', event)" aria-expanded="false" aria-controls="so-hint-img-gen-daily" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-daily" class="so-field-info-panel" hidden role="note">Max generation runs per license per calendar day. Resets at midnight (extension local time).</div>
-                                    <input id="so-img-gen-daily-limit" type="number" min="0" step="1" value="20" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
+                                    <input id="so-img-gen-daily-limit" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Monthly run limit (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-monthly', event)" aria-expanded="false" aria-controls="so-hint-img-gen-monthly" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-monthly" class="so-field-info-panel" hidden role="note">Cap generation runs per license per calendar month. Fair-use on unlimited plans.</div>
                                     <input id="so-img-gen-monthly-limit" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Max variants per run (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-batch', event)" aria-expanded="false" aria-controls="so-hint-img-gen-batch" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-batch" class="so-field-info-panel" hidden role="note">Blocks runs that request more variants than this limit. Does not change how runs are counted.</div>
-                                    <input id="so-img-gen-batch-max" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateSmartModeDefaultSelect()"></label>
+                                    <input id="so-img-gen-batch-max" type="number" min="0" step="1" value="200" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateSmartModeDefaultSelect()"></label>
                             </div>
                             <div id="so-img-gen-preview-card" class="so-img-gen-preview-card so-admin-muted so-admin-tip"></div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
@@ -2431,7 +2433,8 @@
 
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
-                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerCredits()">Save all credits</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('credits')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -2467,11 +2470,16 @@
                             <button type="button" class="btn-gold so-btn-save" style="margin-top:10px;" onclick="saveSoDemoKeysChanges()">Save all changes</button>
                         </div>
                     </div>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Demo keys collection</span>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('demo')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('demo')">Save to Firebase</button>
+                    </div>
                 </div>
 
                 <!-- Tab: Google Free Trial -->
                 <div id="so-tab-google-trial" class="so-admin-tab-panel" style="display:none;">
-                    <p class="so-admin-muted so-admin-tip">Configures the extension popup <strong>Continue with Google</strong> free trial. Saved to <code>shipping_optimizer_config/app.google_trial</code> (merge only — other app fields are untouched).</p>
+                    <p class="so-admin-muted so-admin-tip">Spark-plan Google free trial for <strong>extension-e6e32</strong>. Extension writes <code>shipping_optimizer_google_trials/{uid}</code> directly; Firestore rules enforce limits (no Cloud Function).</p>
                     <div id="so-google-trial-status" style="margin-bottom:10px;"></div>
                     <div class="so-section-accordion so-section-accordion--open" data-so-section="google-trial-config">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('google-trial-config')">
@@ -2479,34 +2487,45 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <label class="so-plan-check" style="margin-bottom:12px;"><input id="so-google-trial-enabled" type="checkbox" checked> Enable Google free trial in extension</label>
+                            <div class="so-admin-grid" style="margin-bottom:12px;">
+                                <label class="so-plan-check so-field-full"><input id="so-google-login-enabled" type="checkbox" checked> <strong>google_login_enabled</strong> — show “Continue with Google” in extension</label>
+                                <label class="so-plan-check so-field-full"><input id="so-google-trial-enabled" type="checkbox" checked> <strong>enabled</strong> — allow new trial claims (existing trials still work when off)</label>
+                            </div>
+                            <div class="so-admin-muted so-admin-tip" style="margin-bottom:12px;">
+                                <strong>Toggle matrix:</strong> login ON + enabled ON → new users get trial · login ON + enabled OFF → sign-in only for existing trials · login OFF → button hidden
+                            </div>
                             <div class="so-admin-grid">
                                 <label><span class="admin-settings-field-label">Trial days</span>
                                     <input id="so-google-trial-days" type="number" min="1" step="1" value="7"></label>
-                                <label><span class="admin-settings-field-label">Trial credits</span>
-                                    <input id="so-google-trial-credits" type="number" min="0" step="1" value="30"></label>
-                                <label><span class="admin-settings-field-label">Max devices</span>
+                                <label><span class="admin-settings-field-label">trial_credits (free runs)</span>
+                                    <input id="so-google-trial-credits" type="number" min="0" step="1" value="3"></label>
+                                <label><span class="admin-settings-field-label">max_increment_per_run</span>
+                                    <input id="so-google-trial-max-increment" type="number" min="1" step="1" value="10"></label>
+                                <label><span class="admin-settings-field-label">max_devices</span>
                                     <input id="so-google-trial-max-devices" type="number" min="1" step="1" value="1"></label>
-                                <label class="so-field-full"><span class="admin-settings-field-label">Button label</span>
+                                <label class="so-field-full"><span class="admin-settings-field-label">label</span>
                                     <input id="so-google-trial-label" type="text" placeholder="Google free trial" value="Google free trial"></label>
-                                <label class="so-field-full"><span class="admin-settings-field-label">OAuth client ID (Web)</span>
-                                    <input id="so-google-trial-oauth-client-id" type="text" value="860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
-                                <label class="so-field-full"><span class="admin-settings-field-label">Cloud Function URL</span>
-                                    <input id="so-google-trial-function-url" type="url" value="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial" placeholder="https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">oauth_client_id (Chrome extension OAuth)</span>
+                                    <input id="so-google-trial-oauth-client-id" type="text" value="860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">oauth_web_client_id (Kiwi / launchWebAuthFlow)</span>
+                                    <input id="so-google-trial-oauth-web-client-id" type="text" value="860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">chrome_extension_id (admin reference)</span>
+                                    <input id="so-google-trial-chrome-extension-id" type="text" value="dhhlaikkdfkaofbiacpoaadfademdmne" placeholder="32-char extension ID from chrome://extensions"></label>
                             </div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:10px;">
-                                Extension ID: <code>kgnmnoaobnpfaaipnjkkidekbajpldlm</code><br>
-                                OAuth redirect (Google Cloud): <code id="so-google-trial-redirect-hint"></code><br>
-                                Deploy function: <code>firebase deploy --only functions:claimGoogleTrial --project extension-e6e32</code>
+                                Extension ID: <code id="so-google-trial-extension-id-hint">dhhlaikkdfkaofbiacpoaadfademdmne</code><br>
+                                Redirect URI for Web client (Kiwi <code>launchWebAuthFlow</code>): <code id="so-google-trial-redirect-hint"></code><br>
+                                <strong>Do not</strong> use the Chrome Extension client ID for redirect flow — that causes <code>401 invalid_client</code> on Kiwi.
                             </p>
                             <div class="so-admin-checklist so-admin-tip" style="margin-top:12px;">
-                                <strong>Backend setup checklist</strong>
+                                <strong>Setup checklist (Spark — no Blaze)</strong>
                                 <ol style="margin:8px 0 0 18px; padding:0;">
-                                    <li>Firebase Auth → Google enabled (Web client <code>860976240598-…vr0.apps.googleusercontent.com</code>)</li>
-                                    <li>Google Cloud OAuth → redirect <code>https://kgnmnoaobnpfaaipnjkkidekbajpldlm.chromiumapp.org/</code></li>
-                                    <li>Deploy <code>claimGoogleTrial</code> Cloud Function (Blaze plan)</li>
-                                    <li>Deploy <code>firestore.extension.rules</code> to <code>extension-e6e32</code></li>
-                                    <li>Save recommended defaults below (merges <code>google_trial</code> only)</li>
+                                    <li>Firebase Auth → Google → <strong>Enabled</strong></li>
+                                    <li>Google Cloud → <strong>Chrome extension</strong> OAuth client with Item ID <code>dhhlaikkdfkaofbiacpoaadfademdmne</code> → paste Client ID to <code>oauth_client_id</code></li>
+                                    <li>Google Cloud → <strong>Web application</strong> OAuth client → redirect <code>https://dhhlaikkdfkaofbiacpoaadfademdmne.chromiumapp.org/</code> → paste to <code>oauth_web_client_id</code></li>
+                                    <li>OAuth consent screen → add <strong>Test users</strong> (your Gmail) if app is in Testing</li>
+                                    <li>Deploy Firestore rules: <code>firebase deploy --only firestore:rules --project extension-e6e32</code></li>
+                                    <li>Set <code>trial_credits</code>, <code>google_login_enabled: true</code>, <code>enabled: true</code> → Save below</li>
                                 </ol>
                             </div>
                             <div class="so-section-save-bar" style="flex-wrap:wrap; gap:8px;">
@@ -2522,14 +2541,19 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Read-only view of <code>shipping_optimizer_google_trials</code> (written by Cloud Function on claim).</p>
+                            <p class="so-admin-muted so-admin-tip">Collection <code>shipping_optimizer_google_trials</code> — doc id = Google uid; fields include <code>email</code>, <code>images_used</code>, <code>images_limit</code>, <code>expires_at</code>.</p>
                             <div class="so-inline-demo-toolbar">
                                 <span id="so-google-trials-count" class="so-plans-count">0 trial records</span>
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshGoogleTrials()"><i class="fa fa-rotate"></i> Refresh</button>
                             </div>
-                            <input id="so-google-trial-search" type="search" placeholder="Search email, license key, uid…" oninput="filterSoGoogleTrials()">
+                            <input id="so-google-trial-search" type="search" placeholder="Search email or uid…" oninput="filterSoGoogleTrials()">
                             <div id="so-google-trials-list" class="so-admin-list so-admin-list--tall"></div>
                         </div>
+                    </div>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Google trial config</span>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('google-trial')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('google-trial')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -2642,6 +2666,11 @@
                             <input id="so-license-search" type="search" placeholder="Search key, phone, plan, device…" oninput="filterSoLicenses()">
                             <div id="so-licenses-list" class="so-admin-list so-admin-list--tall"></div>
                         </div>
+                    </div>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Create / edit license</span>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('licenses')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('licenses')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -4505,7 +4534,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=3.8"></script>
+    <script src="js/shipping-optimizer-admin.js?v=4.0"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
