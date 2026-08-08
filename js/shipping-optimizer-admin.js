@@ -128,7 +128,7 @@
         max_increment_per_run: 10,
         max_devices: 1,
         label: 'Google free trial',
-        oauth_client_id: '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
+        oauth_client_id: '860976240598-lfncu478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
         oauth_web_client_id: '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
         chrome_extension_id: 'dhhlaikkdfkaofbiacpoaadfademdmne'
     };
@@ -2430,6 +2430,7 @@
             renderSoPlansEditor();
             renderSoInlineDemoKeysEditor();
         } else if (soActiveTab === 'credits') {
+            soExpandedSmartOptionIdxs.clear();
             const rawCredits = soConfig?.credits && typeof soConfig.credits === 'object' ? soConfig.credits : {};
             soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
             const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
