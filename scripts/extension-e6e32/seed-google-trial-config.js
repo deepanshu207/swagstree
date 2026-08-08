@@ -20,7 +20,7 @@ const GOOGLE_TRIAL_DEFAULTS = {
   max_devices: 1,
   label: 'Google free trial',
   oauth_client_id:
-    '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
+    '860976240598-lfncu478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
   oauth_web_client_id:
     '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
   chrome_extension_id: 'dhhlaikkdfkaofbiacpoaadfademdmne',
