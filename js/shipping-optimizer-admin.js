@@ -14,19 +14,18 @@
     const SO_LICENSE_MAX = 200;
     const KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+    const DEFAULT_MIN_VERSION = '1.7.0';
+
     const DEFAULT_PLANS = [
-        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', billing_mode: 'hybrid', included_credits: 200, active: true, order: 0 },
-        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', billing_mode: 'hybrid', included_credits: 600, active: true, order: 1 },
-        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', billing_mode: 'hybrid', included_credits: 1200, active: true, order: 2 },
-        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, billing_mode: 'hybrid', included_credits: 2400, active: true, order: 3 }
+        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', active: true, order: 0 },
+        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', max_devices: 1, billing_mode: 'subscription', active: true, order: 1 },
+        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', max_devices: 1, billing_mode: 'subscription', active: true, order: 2 },
+        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, max_devices: 1, billing_mode: 'hybrid', included_credits: 100, active: true, order: 3 }
     ];
 
     /** Fallback included credits when plan doc omits included_credits (extension reads plan + license). */
     const PLAN_DEFAULT_INCLUDED_CREDITS = {
-        monthly: 200,
-        quarterly: 600,
-        halfyearly: 1200,
-        yearly: 2400,
+        yearly: 100,
         family_yearly: 3600,
         friends_yearly: 4800,
         lifetime: 5000,
@@ -41,7 +40,7 @@
     }
 
     const DEFAULT_INLINE_DEMO_KEYS = {
-        'MEESHO-DEMOFREE': { days: 30, label: 'Free 30-day trial' }
+        'MEESHO-DEMOFREE': { days: 30, label: 'Free trial' }
     };
 
     const DEFAULT_CREDITS = {
@@ -53,10 +52,10 @@
 
     const DEFAULT_IMAGE_GENERATION = {
         enabled: true,
-        credits_per_image: 2,
-        daily_limit: 20,
+        credits_per_image: 1,
+        daily_limit: 0,
         monthly_limit: 0,
-        max_batch_size: 0
+        max_batch_size: 200
     };
 
     const DEFAULT_SMART_MODE = {
@@ -91,11 +90,34 @@
     };
 
     const DEFAULT_CREDIT_PACKS = [
-        { id: 'pack_10', credits: 10, price: 20, label: '10 credits — ₹20', active: true, order: 0 },
-        { id: 'pack_20', credits: 20, price: 38, label: '20 credits — ₹38', active: true, order: 1 },
-        { id: 'pack_50', credits: 50, price: 90, label: '50 credits — ₹90', active: true, order: 2 },
-        { id: 'pack_100', credits: 100, price: 170, label: '100 credits — ₹170', active: true, order: 3 }
+        { id: 'pack_10', credits: 10, price: 20, label: '10 Credits', active: true, order: 0 },
+        { id: 'pack_20', credits: 20, price: 38, label: '20 Credits', active: true, order: 1 },
+        { id: 'pack_50', credits: 50, price: 90, label: '50 Credits', active: true, order: 2 },
+        { id: 'pack_100', credits: 100, price: 170, label: '100 Credits', active: true, order: 3 }
     ];
+
+    function soDeepClone(obj) {
+        return JSON.parse(JSON.stringify(obj));
+    }
+
+    function soGetDefaultAppSeed() {
+        return {
+            whatsapp_number: '919654414891',
+            whatsapp_message: 'Hi! I want to purchase Shipping Optimizer license.',
+            extension_enabled: true,
+            min_extension_version: DEFAULT_MIN_VERSION,
+            announcement: '',
+            plans: soDeepClone(DEFAULT_PLANS),
+            support: soDeepClone(DEFAULT_SUPPORT),
+            demo_keys: soDeepClone(DEFAULT_INLINE_DEMO_KEYS),
+            credits: Object.assign({}, DEFAULT_CREDITS, {
+                packs: soDeepClone(DEFAULT_CREDIT_PACKS),
+                image_generation: soDeepClone(DEFAULT_IMAGE_GENERATION)
+            }),
+            smart_mode: soDeepClone(DEFAULT_SMART_MODE),
+            google_trial: soDeepClone(DEFAULT_GOOGLE_TRIAL)
+        };
+    }
 
     const DEFAULT_GOOGLE_TRIAL = {
         google_login_enabled: true,
@@ -138,7 +160,7 @@
     const SO_PLAN_PRESETS = {
         monthly: {
             id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month',
-            max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 200, active: true
+            max_devices: 1, device_tier: 'standard', billing_mode: 'subscription', active: true
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
@@ -168,6 +190,179 @@
                 { id: 'starter_plus_100', credits: 100, price: 140, label: '+100 credits', active: true, order: 1, default_selected: false }
             ]
         }
+    };
+
+    function soIsConfigEmpty(cfg) {
+        if (!cfg || typeof cfg !== 'object') return true;
+        const keys = Object.keys(cfg).filter(k => !['updatedAt', 'updatedBy'].includes(k));
+        if (!keys.length) return true;
+        const hasPlans = Array.isArray(cfg.plans) && cfg.plans.length > 0;
+        const hasGeneral = !!(cfg.whatsapp_number || cfg.min_extension_version || cfg.extension_enabled != null);
+        const hasCredits = cfg.credits && typeof cfg.credits === 'object' && Object.keys(cfg.credits).length > 0;
+        const hasGoogleTrial = cfg.google_trial && typeof cfg.google_trial === 'object' && Object.keys(cfg.google_trial).length > 0;
+        return !hasPlans && !hasGeneral && !hasCredits && !hasGoogleTrial;
+    }
+
+    function soApplySeedSectionToState(seed, section) {
+        const s = seed || soGetDefaultAppSeed();
+        if (section === 'config' || section === 'all') {
+            soConfig = Object.assign({}, soConfig || {}, {
+                whatsapp_number: s.whatsapp_number,
+                whatsapp_message: s.whatsapp_message,
+                extension_enabled: s.extension_enabled,
+                min_extension_version: s.min_extension_version,
+                announcement: s.announcement,
+                plans: soDeepClone(s.plans),
+                support: soDeepClone(s.support),
+                demo_keys: soDeepClone(s.demo_keys)
+            });
+            soPlans = soSortPlans(soConfig.plans.map(soNormalizePlan));
+            soPlans.forEach((p, i) => { p.order = i; });
+            soInlineDemoKeys = Object.assign({}, soConfig.demo_keys);
+            soSyncInlineDemoRowsFromObject();
+            soSupport = soNormalizeSupport(soConfig.support);
+        }
+        if (section === 'credits' || section === 'all') {
+            const rawCredits = s.credits && typeof s.credits === 'object' ? s.credits : {};
+            soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
+            const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
+                ? rawCredits.packs
+                : DEFAULT_CREDIT_PACKS.slice();
+            soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
+            soCreditPacks.forEach((p, i) => { p.order = i; });
+            soSmartMode = soNormalizeSmartMode(s.smart_mode || DEFAULT_SMART_MODE);
+            soConfig = Object.assign({}, soConfig || {}, {
+                credits: soCredits,
+                smart_mode: soSmartMode
+            });
+        }
+        if (section === 'google-trial' || section === 'all') {
+            const trial = soGoogleTrialToFirestore(s.google_trial || DEFAULT_GOOGLE_TRIAL);
+            soConfig = Object.assign({}, soConfig || {}, { google_trial: trial });
+        }
+    }
+
+    function soRefreshFormsAfterSeed(section) {
+        soHydrating = true;
+        if (section === 'config' || section === 'all') {
+            soBindConfigForm();
+            soBindSupportForm();
+            renderSoPlansEditor();
+            renderSoInlineDemoKeysEditor();
+            soPopulateLicensePlanSelect();
+        }
+        if (section === 'credits' || section === 'all') {
+            soBindCreditsForm();
+            soBindImageGenerationForm();
+            soBindSmartModeForm();
+            renderSoCreditPacksEditor();
+            soUpdateCustomCreditCalc();
+        }
+        if (section === 'google-trial' || section === 'all') {
+            soBindGoogleTrialForm();
+        }
+        if (section === 'config' || section === 'credits' || section === 'all') {
+            renderSoExtensionPreview();
+        }
+        soHydrating = false;
+        if (section === 'config' || section === 'all') soMarkTabDirty('config');
+        if (section === 'credits' || section === 'all') soMarkTabDirty('credits');
+    }
+
+    window.soLoadDefaultsForTab = function(tab) {
+        const tabLabels = {
+            config: 'Config & Pricing',
+            credits: 'Credits & Packs',
+            demo: 'Demo / Promo Keys',
+            licenses: 'Paid Licenses',
+            'google-trial': 'Google Free Trial'
+        };
+        const label = tabLabels[tab] || tab;
+        if (!confirm(`Load recommended defaults for "${label}"? Unsaved changes on this tab will be replaced.`)) return;
+
+        const seed = soGetDefaultAppSeed();
+        if (tab === 'config') {
+            soApplySeedSectionToState(seed, 'config');
+            soRefreshFormsAfterSeed('config');
+            soToast('Config defaults loaded — tap Save to Firebase when ready.');
+        } else if (tab === 'credits') {
+            soApplySeedSectionToState(seed, 'credits');
+            soRefreshFormsAfterSeed('credits');
+            soToast('Credits defaults loaded — tap Save to Firebase when ready.');
+        } else if (tab === 'demo') {
+            const key = 'MEESHO-DEMOFREE';
+            const entry = seed.demo_keys[key];
+            const exists = soDemoKeys.some(d => d.key === key);
+            if (exists) {
+                soToast(`Demo key ${key} already exists in Firebase.`);
+                return;
+            }
+            const pending = soDemoKeyPendingRows.some(r => String(r.key || '').toUpperCase() === key);
+            if (!pending) {
+                soDemoKeyPendingRows.push({
+                    key,
+                    days: entry.days,
+                    label: entry.label,
+                    max_uses: 0,
+                    active: true
+                });
+                renderSoDemoPendingKeysEditor();
+            }
+            soToast(`Default demo key ${key} added to batch — tap Save to Firebase.`);
+        } else if (tab === 'licenses') {
+            cancelSoLicenseEdit();
+            soToast('License form reset to defaults.');
+        } else if (tab === 'google-trial') {
+            soApplySeedSectionToState(seed, 'google-trial');
+            soRefreshFormsAfterSeed('google-trial');
+            soToast('Google trial defaults loaded — tap Save to Firebase when ready.');
+        }
+    };
+
+    window.soSeedAllDefaults = async function() {
+        if (!confirm('Write the full recommended app config to Firebase (shipping_optimizer_config/app)? Existing fields will be merged/overwritten with seed values.')) return;
+        if (!soRequireExtensionWrite()) return;
+        const seed = soGetDefaultAppSeed();
+        const payload = Object.assign({}, seed, {
+            plans: seed.plans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i)),
+            support: soSupportToFirestore(soNormalizeSupport(seed.support)),
+            credits: Object.assign({}, seed.credits, {
+                packs: seed.credits.packs.map((p, i) => soCreditPackToFirestore(soNormalizeCreditPack(p, i), i)),
+                image_generation: seed.credits.image_generation
+            }),
+            smart_mode: soSmartModeToFirestore(soNormalizeSmartMode(seed.smart_mode)),
+            google_trial: soGoogleTrialToFirestore(seed.google_trial)
+        });
+        try {
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, payload, {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }), { merge: true });
+            soApplySeedSectionToState(seed, 'all');
+            soRefreshFormsAfterSeed('all');
+            soEstablishCleanBaseline();
+            soClearDraftStorage();
+            soToast('Full app config seeded to Firebase.');
+        } catch (e) {
+            soToast('Seed failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soSaveTabToFirebase = async function(tab) {
+        const active = tab || soActiveTab;
+        if (active === 'config') return saveShippingOptimizerConfig();
+        if (active === 'credits') return saveShippingOptimizerCredits();
+        if (active === 'demo') {
+            if (soDemoKeyPendingRows.length) return saveSoDemoKeysBatch();
+            return saveSoDemoKeysChanges();
+        }
+        if (active === 'google-trial') return saveShippingOptimizerGoogleTrial();
+        if (active === 'licenses') {
+            const key = document.getElementById('so-license-key-input')?.value?.trim();
+            if (key) return soEditingLicenseKey ? updateSoLicense() : createSoLicense();
+            return soToast('Fill in the license form or use section save buttons.');
+        }
+        return soSaveCurrentTab();
     };
 
     let soConfig = null;
@@ -461,7 +656,7 @@
             const byId = PLAN_DEFAULT_INCLUDED_CREDITS[p.id];
             if (Number.isFinite(byId) && byId > 0) {
                 p.included_credits = byId;
-            } else if (p.days > 0) {
+            } else if (p.days > 0 && (p.billing_mode === 'hybrid' || p.billing_mode === 'credits')) {
                 p.included_credits = soSuggestCreditsForPlanDays(p.days);
             } else if (p.billing_mode === 'credits' || p.billing_mode === 'hybrid') {
                 p.included_credits = 50;
@@ -1225,7 +1420,7 @@
             whatsapp_number: String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, ''),
             whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
             extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
-            min_extension_version: String(document.getElementById('so-min-version')?.value || '1.2.0').trim(),
+            min_extension_version: String(document.getElementById('so-min-version')?.value || DEFAULT_MIN_VERSION).trim(),
             announcement: String(document.getElementById('so-announcement')?.value || '').trim()
         };
     }
@@ -1694,7 +1889,7 @@
             whatsapp_number: String(soConfig?.whatsapp_number || '919654414891').replace(/\D/g, ''),
             whatsapp_message: String(soConfig?.whatsapp_message || 'Hi! I want to purchase Shipping Optimizer license.').trim(),
             extension_enabled: soConfig?.extension_enabled !== false,
-            min_extension_version: String(soConfig?.min_extension_version || '1.2.0').trim(),
+            min_extension_version: String(soConfig?.min_extension_version || DEFAULT_MIN_VERSION).trim(),
             announcement: String(soConfig?.announcement || '').trim()
         };
     }
@@ -1948,7 +2143,7 @@
         };
         setVal('so-whatsapp-number', general.whatsapp_number || '');
         setVal('so-whatsapp-message', general.whatsapp_message || '');
-        setVal('so-min-version', general.min_extension_version || '1.2.0');
+        setVal('so-min-version', general.min_extension_version || DEFAULT_MIN_VERSION);
         setVal('so-announcement', general.announcement || '');
         const enabledEl = document.getElementById('so-extension-enabled');
         if (enabledEl) enabledEl.checked = general.extension_enabled !== false;
@@ -2223,6 +2418,11 @@
         } else {
             soConfig = {};
         }
+        const configWasEmpty = soIsConfigEmpty(soConfig);
+        if (configWasEmpty) {
+            soApplySeedSectionToState(soGetDefaultAppSeed(), 'all');
+            soConfig = Object.assign({}, soGetDefaultAppSeed(), soConfig);
+        }
         const rawPlans = Array.isArray(soConfig.plans) && soConfig.plans.length
             ? soConfig.plans
             : DEFAULT_PLANS.slice();
@@ -2259,6 +2459,9 @@
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
         soHydrating = false;
+        if (configWasEmpty) {
+            soToast('Config doc empty — forms pre-filled with recommended defaults. Tap Save to Firebase when ready.');
+        }
     }
 
     function soNormalizeGoogleTrial(raw) {
@@ -2755,7 +2958,7 @@
         };
         setVal('so-whatsapp-number', soConfig.whatsapp_number || '919654414891');
         setVal('so-whatsapp-message', soConfig.whatsapp_message || 'Hi! I want to purchase Shipping Optimizer license.');
-        setVal('so-min-version', soConfig.min_extension_version || '1.2.0');
+        setVal('so-min-version', soConfig.min_extension_version || DEFAULT_MIN_VERSION);
         setVal('so-announcement', soConfig.announcement || '');
         const enabledEl = document.getElementById('so-extension-enabled');
         if (enabledEl) enabledEl.checked = soConfig.extension_enabled !== false;
@@ -3169,7 +3372,7 @@
             whatsapp_number: whatsappRaw,
             whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
             extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
-            min_extension_version: String(document.getElementById('so-min-version')?.value || '1.2.0').trim(),
+            min_extension_version: String(document.getElementById('so-min-version')?.value || DEFAULT_MIN_VERSION).trim(),
             announcement: String(document.getElementById('so-announcement')?.value || '').trim()
         };
     }

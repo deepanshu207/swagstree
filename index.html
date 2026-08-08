@@ -2229,7 +2229,7 @@
                                     <input id="so-whatsapp-message" type="text" placeholder="Hi! I want to purchase Shipping Optimizer license." oninput="soMarkTabDirty('config')"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Min extension version</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('min-version', event)" aria-expanded="false" aria-controls="so-hint-min-version" title="More info">ⓘ</button></span>
                                     <div id="so-hint-min-version" class="so-field-info-panel" hidden role="note">Semver like <code>1.2.0</code>. Older extension versions see an “please update” notice instead of plans.</div>
-                                    <input id="so-min-version" type="text" placeholder="1.2.0" oninput="soMarkTabDirty('config')"></label>
+                                    <input id="so-min-version" type="text" placeholder="1.7.0" oninput="soMarkTabDirty('config')"></label>
                                 <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
                                 <label style="grid-column:1/-1;"><span class="so-field-label-row"><span class="admin-settings-field-label">Announcement banner</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('announcement', event)" aria-expanded="false" aria-controls="so-hint-announcement" title="More info">ⓘ</button></span>
                                     <div id="so-hint-announcement" class="so-field-info-panel" hidden role="note">Optional text shown at top of extension popup (e.g. sale, maintenance). Leave empty to hide.</div>
@@ -2330,7 +2330,9 @@
 
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
-                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerConfig()">Save all config</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('config')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -2361,16 +2363,16 @@
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Credits per run</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-credits', event)" aria-expanded="false" aria-controls="so-hint-img-gen-credits" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-credits" class="so-field-info-panel" hidden role="note">Charged once per upload/generation flow. Field key stays <code>credits_per_image</code> for extension compatibility. Use <code>0</code> to fall back to legacy <code>cost_per_operation</code> for credits/hybrid licenses.</div>
-                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="2" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
+                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="1" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Daily run limit (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-daily', event)" aria-expanded="false" aria-controls="so-hint-img-gen-daily" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-daily" class="so-field-info-panel" hidden role="note">Max generation runs per license per calendar day. Resets at midnight (extension local time).</div>
-                                    <input id="so-img-gen-daily-limit" type="number" min="0" step="1" value="20" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
+                                    <input id="so-img-gen-daily-limit" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Monthly run limit (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-monthly', event)" aria-expanded="false" aria-controls="so-hint-img-gen-monthly" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-monthly" class="so-field-info-panel" hidden role="note">Cap generation runs per license per calendar month. Fair-use on unlimited plans.</div>
                                     <input id="so-img-gen-monthly-limit" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Max variants per run (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-batch', event)" aria-expanded="false" aria-controls="so-hint-img-gen-batch" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-batch" class="so-field-info-panel" hidden role="note">Blocks runs that request more variants than this limit. Does not change how runs are counted.</div>
-                                    <input id="so-img-gen-batch-max" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateSmartModeDefaultSelect()"></label>
+                                    <input id="so-img-gen-batch-max" type="number" min="0" step="1" value="200" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateSmartModeDefaultSelect()"></label>
                             </div>
                             <div id="so-img-gen-preview-card" class="so-img-gen-preview-card so-admin-muted so-admin-tip"></div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
@@ -2431,7 +2433,8 @@
 
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
-                        <button type="button" class="btn-gold so-btn-save" onclick="saveShippingOptimizerCredits()">Save all credits</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('credits')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -2466,6 +2469,11 @@
                             <div id="so-demo-edit-keys" class="so-inline-demo-list"></div>
                             <button type="button" class="btn-gold so-btn-save" style="margin-top:10px;" onclick="saveSoDemoKeysChanges()">Save all changes</button>
                         </div>
+                    </div>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Demo keys collection</span>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('demo')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('demo')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -2506,7 +2514,8 @@
                             </div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:10px;">
                                 Extension ID: <code id="so-google-trial-extension-id-hint">dhhlaikkdfkaofbiacpoaadfademdmne</code><br>
-                                Kiwi redirect URI (Web OAuth client): <code id="so-google-trial-redirect-hint"></code>
+                                Redirect URI for Web client (Kiwi <code>launchWebAuthFlow</code>): <code id="so-google-trial-redirect-hint"></code><br>
+                                <strong>Do not</strong> use the Chrome Extension client ID for redirect flow — that causes <code>401 invalid_client</code> on Kiwi.
                             </p>
                             <div class="so-admin-checklist so-admin-tip" style="margin-top:12px;">
                                 <strong>Setup checklist (Spark — no Blaze)</strong>
@@ -2540,6 +2549,11 @@
                             <input id="so-google-trial-search" type="search" placeholder="Search email or uid…" oninput="filterSoGoogleTrials()">
                             <div id="so-google-trials-list" class="so-admin-list so-admin-list--tall"></div>
                         </div>
+                    </div>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Google trial config</span>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('google-trial')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('google-trial')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -2652,6 +2666,11 @@
                             <input id="so-license-search" type="search" placeholder="Search key, phone, plan, device…" oninput="filterSoLicenses()">
                             <div id="so-licenses-list" class="so-admin-list so-admin-list--tall"></div>
                         </div>
+                    </div>
+                    <div class="so-sticky-save so-sticky-save--muted">
+                        <span class="so-admin-muted">Create / edit license</span>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('licenses')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('licenses')">Save to Firebase</button>
                     </div>
                 </div>
 
@@ -4515,7 +4534,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=3.9"></script>
+    <script src="js/shipping-optimizer-admin.js?v=4.0"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
