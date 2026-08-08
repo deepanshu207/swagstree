@@ -103,7 +103,7 @@
         credits: 30,
         max_devices: 1,
         label: 'Google free trial',
-        oauth_client_id: '247366802280-cg7ngbq35e1vs5n6rl09uh2d9mk8qkkh.apps.googleusercontent.com',
+        oauth_client_id: '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
         function_url: 'https://us-central1-extension-e6e32.cloudfunctions.net/claimGoogleTrial'
     };
 
@@ -2401,6 +2401,21 @@
         return expired ? `${label} (expired)` : label;
     }
 
+    function soFormatGoogleTrialCreated(row) {
+        const raw = row.created_at || row.createdAt;
+        if (!raw) return '—';
+        if (raw.toDate) return raw.toDate().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+        const d = new Date(raw);
+        return Number.isFinite(d.getTime())
+            ? d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+            : '—';
+    }
+
+    function soGoogleTrialDeviceCount(row) {
+        const ids = row.machine_ids || row.machineIds;
+        return Array.isArray(ids) ? ids.length : 0;
+    }
+
     function renderSoGoogleTrialsRegistry() {
         const container = document.getElementById('so-google-trials-list');
         const countEl = document.getElementById('so-google-trials-count');
@@ -2433,23 +2448,69 @@
                         <tr>
                             <th>Email</th>
                             <th>License key</th>
+                            <th>Created</th>
                             <th>Expires</th>
+                            <th>Days / credits</th>
+                            <th>Devices</th>
                             <th>UID</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${filtered.map(r => `
+                        ${filtered.map(r => {
+                            const licenseKey = r.license_key || r.licenseKey || '';
+                            const days = r.days_granted != null ? r.days_granted : '—';
+                            const credits = r.credits_granted != null ? r.credits_granted : '—';
+                            return `
                             <tr>
                                 <td>${soEsc(r.email || '—')}</td>
-                                <td><code>${soEsc(r.license_key || r.licenseKey || '—')}</code></td>
+                                <td><code>${soEsc(licenseKey || '—')}</code></td>
+                                <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
                                 <td>${soEsc(soFormatGoogleTrialExpiry(r))}</td>
+                                <td>${soEsc(String(days))} / ${soEsc(String(credits))}</td>
+                                <td>${soEsc(String(soGoogleTrialDeviceCount(r)))}</td>
                                 <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
-                            </tr>
-                        `).join('')}
+                                <td class="so-google-trials-actions">
+                                    ${licenseKey
+                                        ? `<button type="button" class="so-btn-sm so-btn-touch" onclick="soOpenGoogleTrialLicense('${soAttr(licenseKey)}')">License</button>
+                                           <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}', '${soAttr(licenseKey)}')">Revoke</button>`
+                                        : '<span class="so-admin-muted">—</span>'}
+                                </td>
+                            </tr>`;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>`;
     }
+
+    window.soOpenGoogleTrialLicense = function(licenseKey) {
+        if (!licenseKey) return;
+        switchShippingOptimizerTab('licenses');
+        if (typeof editSoLicense === 'function') {
+            editSoLicense(licenseKey);
+        }
+    };
+
+    window.soRevokeGoogleTrial = async function(uid, licenseKey) {
+        if (!soRequireExtensionWrite()) return;
+        if (!licenseKey) return soToast('No license key on this trial record.');
+        if (!confirm(`Revoke Google trial license ${licenseKey}? User will be blocked on next sign-in.`)) return;
+        const note = `Google trial revoked via admin (${new Date().toISOString().slice(0, 10)})`;
+        try {
+            await soDb().collection(SO_LICENSE_COL).doc(licenseKey).set({
+                active: false,
+                support_notes: note,
+                revokedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                revokedBy: soAuthEmail()
+            }, { merge: true });
+            await soLoadLicenses();
+            await soLoadGoogleTrials();
+            renderSoGoogleTrialsRegistry();
+            soToast('Google trial license revoked.');
+        } catch (e) {
+            soToast('Revoke failed: ' + (e.message || 'Unknown error'));
+        }
+    };
 
     window.filterSoGoogleTrials = function() {
         renderSoGoogleTrialsRegistry();
