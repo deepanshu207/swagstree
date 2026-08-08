@@ -2535,8 +2535,9 @@
                                     <li>Firebase Auth → Google → <strong>Enabled</strong></li>
                                     <li>Google Cloud → <strong>Chrome extension</strong> OAuth client with Item ID <code>dhhlaikkdfkaofbiacpoaadfademdmne</code> → paste Client ID to <code>oauth_client_id</code></li>
                                     <li>Google Cloud → <strong>Web application</strong> OAuth client → redirect <code>https://dhhlaikkdfkaofbiacpoaadfademdmne.chromiumapp.org/</code> → paste to <code>oauth_web_client_id</code></li>
-                                    <li>OAuth consent screen → add <strong>Test users</strong> (e.g. <code>amazing.deepanshu15@gmail.com</code>) while app is in Testing — otherwise Google blocks sign-in</li>
-                                    <li>Web redirect URI (with trailing slash only): <code>https://dhhlaikkdfkaofbiacpoaadfademdmne.chromiumapp.org/</code></li>
+                                    <li>OAuth consent screen → add <strong>Test users</strong> for every Gmail that will sign in (e.g. <code>amazing.deepanshu15@gmail.com</code>) — project owner email does not matter, test user list does</li>
+                                    <li>Web redirect URI (trailing slash): <code>https://dhhlaikkdfkaofbiacpoaadfademdmne.chromiumapp.org/</code> — add to <strong>Web application</strong> client only; remove duplicate without slash if Google shows validation error</li>
+                                    <li><code>redirect_uri_mismatch</code> on Kiwi → copy every redirect URI from extension OAuth debug panel into Web client 1</li>
                                     <li>Deploy Firestore rules: <code>firebase deploy --only firestore:rules --project extension-e6e32</code></li>
                                     <li>Set <code>trial_credits</code>, <code>google_login_enabled: true</code>, <code>enabled: true</code> → Save below</li>
                                 </ol>
@@ -4548,7 +4549,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=4.2"></script>
+    <script src="js/shipping-optimizer-admin.js?v=4.4"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

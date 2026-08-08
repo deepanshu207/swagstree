@@ -17,11 +17,13 @@
     const DEFAULT_MIN_VERSION = '1.7.0';
 
     const DEFAULT_PLANS = [
-        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', active: true, order: 0 },
-        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', max_devices: 1, billing_mode: 'subscription', active: true, order: 1 },
-        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', max_devices: 1, billing_mode: 'subscription', active: true, order: 2 },
+        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 0 },
+        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 1 },
+        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 2 },
         { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, max_devices: 1, billing_mode: 'hybrid', included_credits: 100, active: true, order: 3 }
     ];
+
+    const SO_DEFAULT_LICENSE_PLAN_ID = 'monthly';
 
     /** Fallback included credits when plan doc omits included_credits (extension reads plan + license). */
     const PLAN_DEFAULT_INCLUDED_CREDITS = {
@@ -1398,10 +1400,60 @@
         }
         const balEl = document.getElementById('so-license-credits-balance');
         if (balEl && !soEditingLicenseKey) {
-            balEl.value = 0;
+            const planId = document.getElementById('so-license-plan')?.value;
+            const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+            const prefill = soCalculateLicenseCreditPrefill(plan, soReadSelectedLicenseAddonIds());
+            balEl.value = prefill.balance;
+            const usedEl = document.getElementById('so-license-credits-used');
+            if (usedEl) usedEl.value = prefill.used;
         }
         soUpdateLicenseCreditsBreakdown();
     };
+
+    function soCalculateLicenseCreditPrefill(plan, selectedIds) {
+        if (!plan || soIsUnlimitedCredits(plan)) {
+            return { included: 0, addon: 0, total: 0, balance: 0, used: 0 };
+        }
+        const calc = soCalculatePlanCredits(plan, selectedIds || []);
+        const total = calc.total;
+        return {
+            included: calc.included,
+            addon: calc.addon,
+            total,
+            balance: total,
+            used: 0
+        };
+    }
+
+    function soPrefillLicenseCreditsFromPlan(plan, selectedIds) {
+        const prefill = soCalculateLicenseCreditPrefill(plan, selectedIds);
+        const includedEl = document.getElementById('so-license-included-credits');
+        const addonEl = document.getElementById('so-license-addon-credits');
+        const totalEl = document.getElementById('so-license-total-credits');
+        const balEl = document.getElementById('so-license-credits-balance');
+        const usedEl = document.getElementById('so-license-credits-used');
+        if (includedEl) includedEl.value = prefill.included;
+        if (addonEl) addonEl.value = prefill.addon;
+        if (totalEl) totalEl.value = prefill.total;
+        if (!soEditingLicenseKey) {
+            if (balEl) balEl.value = prefill.balance;
+            if (usedEl) usedEl.value = prefill.used;
+        }
+    }
+
+    function soInitLicenseCreateForm() {
+        if (soEditingLicenseKey) return;
+        const sel = document.getElementById('so-license-plan');
+        if (!sel) return;
+        const plans = soGetAllPlansForSelect();
+        const preferred = plans.find(p => p.id === SO_DEFAULT_LICENSE_PLAN_ID)
+            || plans.find(p => p.active !== false)
+            || plans[0];
+        if (preferred) sel.value = preferred.id;
+        const plan = soPlans.find(p => p.id === sel.value) || preferred;
+        if (plan) soApplyPlanDefaultsToLicenseForm(plan);
+        else soUpdateLicenseCreditsBreakdown();
+    }
 
     function soResolveLicenseCreditBreakdown(plan, selectedIds, lic) {
         const calc = plan ? soCalculatePlanCredits(plan, selectedIds || []) : { included: 0, addon: 0, total: 0, addonPrice: 0 };
@@ -1434,6 +1486,7 @@
         const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
         const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
         const grantTotal = breakdown.total > 0 ? breakdown.total : (bal + used);
+        const unused = Math.max(0, bal);
         if (!plan) {
             panel.textContent = '';
             return;
@@ -1441,16 +1494,19 @@
         const billing = plan.billing_mode || 'subscription';
         const grantLine = breakdown.total > 0
             ? `<strong>Plan grant:</strong> ${breakdown.included} included + ${breakdown.addon} addon = <strong>${breakdown.total} total</strong>`
-            : `<strong>Plan grant:</strong> none configured on this plan`;
-        const balanceLine = `<strong>Remaining:</strong> ${bal} · <strong>Used:</strong> ${used}` +
-            (grantTotal > 0 ? ` · <strong>Allocated total:</strong> ${grantTotal}` : '');
+            : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
+        const balanceLine = `<strong>Unused (balance):</strong> ${unused} · <strong>Used:</strong> ${used}` +
+            (grantTotal > 0 ? ` · <strong>Granted total:</strong> ${grantTotal}` : '');
+        const consistencyWarn = grantTotal > 0 && (unused + used) !== grantTotal
+            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${unused + used}) ≠ grant total (${grantTotal}). Adjust balance or used.</span>`
+            : '';
         const activationHint = !soEditingLicenseKey && breakdown.total > 0
-            ? '<br><span class="so-admin-muted">New licenses: leave balance at 0 — extension grants included + addon credits on first activation.</span>'
+            ? '<br><span class="so-admin-muted">New license: balance prefilled with full grant — customer starts with all credits unused.</span>'
             : '';
         const planHint = breakdown.total === 0 && (billing === 'hybrid' || billing === 'credits')
             ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing so customers get credits on activation.</span>'
             : '';
-        panel.innerHTML = `${grantLine}<br>${balanceLine}${activationHint}${planHint}`;
+        panel.innerHTML = `${grantLine}<br>${balanceLine}${consistencyWarn}${activationHint}${planHint}`;
         const includedEl = document.getElementById('so-license-included-credits');
         const addonEl = document.getElementById('so-license-addon-credits');
         const totalEl = document.getElementById('so-license-total-credits');
@@ -4710,6 +4766,15 @@
             const inc = soGetPlanIncludedCredits(p);
             return `<option value="${soAttr(p.id)}" data-days="${p.days}" data-included-credits="${inc}">${soEsc(p.name)} — ₹${p.price} (${daysLabel})${soEsc(badges)}${inactive}</option>`;
         }).join('');
+        if (!soEditingLicenseKey) {
+            const hasCurrent = sel.value && plans.some(p => p.id === sel.value);
+            if (!hasCurrent) {
+                const preferred = plans.find(p => p.id === SO_DEFAULT_LICENSE_PLAN_ID)
+                    || plans.find(p => p.active !== false)
+                    || plans[0];
+                if (preferred) sel.value = preferred.id;
+            }
+        }
         soUpdateLicensePlanHint();
     }
 
@@ -4859,10 +4924,10 @@
             billingEl.value = plan.billing_mode || (included > 0 ? 'hybrid' : 'subscription');
         }
         const maxEl = document.getElementById('so-license-max-devices');
-        if (maxEl) maxEl.value = plan.max_devices != null ? plan.max_devices : '';
-        const balEl = document.getElementById('so-license-credits-balance');
-        if (balEl && !soEditingLicenseKey) {
-            balEl.value = 0;
+        if (maxEl) {
+            maxEl.value = plan.max_devices != null
+                ? plan.max_devices
+                : (SO_DEVICE_TIER_MAX[plan.device_tier] != null ? SO_DEVICE_TIER_MAX[plan.device_tier] : 1);
         }
         soSetLicenseUnlimitedCheckboxes(plan);
         if (!soEditingLicenseKey) {
@@ -4871,6 +4936,9 @@
         }
         const preselected = (plan.credit_addons || []).filter(a => a.default_selected).map(a => a.id);
         soRenderLicenseAddonPicks(plan, preselected);
+        if (!soEditingLicenseKey) {
+            soPrefillLicenseCreditsFromPlan(plan, preselected);
+        }
         soUpdateLicenseCreditsBreakdown();
     }
 
@@ -4929,6 +4997,13 @@
         document.getElementById('so-license-max-devices').value = lic.max_devices != null ? lic.max_devices : '';
         document.getElementById('so-license-credits-balance').value = lic.credits_balance != null ? lic.credits_balance : 0;
         document.getElementById('so-license-credits-used').value = lic.credits_used != null ? lic.credits_used : 0;
+        const includedEl = document.getElementById('so-license-included-credits');
+        const addonEl = document.getElementById('so-license-addon-credits');
+        const totalEl = document.getElementById('so-license-total-credits');
+        if (includedEl) includedEl.value = lic.included_credits != null ? lic.included_credits : 0;
+        if (addonEl) addonEl.value = lic.addon_credits != null ? lic.addon_credits : 0;
+        const grantTotal = (parseInt(lic.included_credits, 10) || 0) + (parseInt(lic.addon_credits, 10) || 0);
+        if (totalEl) totalEl.value = grantTotal > 0 ? grantTotal : ((parseInt(lic.credits_balance, 10) || 0) + (parseInt(lic.credits_used, 10) || 0));
         soSetLicenseUnlimitedCheckboxes(lic);
         const addonIds = Array.isArray(lic.addon_credit_ids) ? lic.addon_credit_ids
             : (Array.isArray(lic.addonCreditIds) ? lic.addonCreditIds : []);
@@ -5588,6 +5663,7 @@
             soPopulateLicensePlanSelect();
         soSetLicenseFormMode(null);
         soSetLicenseExpiryMode('activation');
+        soInitLicenseCreateForm();
         soUpdateCustomCreditCalc();
             soRestoreSectionAccordions();
             renderSoDemoPendingKeysEditor();
