@@ -154,5 +154,10 @@ service cloud.firestore {
 
       allow update, delete: if isShippingOptimizerSuperAdmin();
     }
+
+    // Legacy Google trials collection (extension < v1.8.1) — superadmin read/migrate only.
+    match /google_trials/{uid} {
+      allow read, write: if isShippingOptimizerSuperAdmin();
+    }
   }
 }

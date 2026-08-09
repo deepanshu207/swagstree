@@ -11,6 +11,7 @@
     const SO_DEMO_COL = 'shipping_optimizer_demo_keys';
     const SO_LICENSE_COL = 'shipping_optimizer_licenses';
     const SO_GOOGLE_TRIALS_COL = 'shipping_optimizer_google_trials';
+    const SO_GOOGLE_TRIALS_LEGACY_COL = 'google_trials';
     const SO_LICENSE_MAX = 200;
     const KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -792,7 +793,12 @@
 
             <div class="so-defaults-section">
                 <h5><i class="fa fa-id-card"></i> License ↔ customer mapping</h5>
-                <p class="so-admin-muted">Each paid license in <code>shipping_optimizer_licenses</code> stores <code>customer_name</code>, <code>customer_phone</code>, <code>customer_email</code>, <code>shared_at</code>, and <code>activatedAt</code>. The <strong>License Customers</strong> tab is a read-only registry — edits happen on <strong>Paid Licenses</strong>. Saving config/plans never deletes license or customer records.</p>
+                <p class="so-admin-muted">Create a license <strong>without</strong> customer details — it appears in <strong>License Customers</strong> as &quot;Unassigned&quot;. Add <code>customer_name</code>, <code>customer_phone</code>, <code>customer_email</code>, <code>customer_location</code>, and <code>customer_ip</code> anytime on <strong>Paid Licenses</strong>. Also tracks <code>shared_at</code> and <code>activatedAt</code>. Config/credits saves never delete license or customer records.</p>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-clipboard-check"></i> Save review (Config &amp; Credits tabs)</h5>
+                <p class="so-admin-muted">When you change plans, WhatsApp number, credit packs, etc., the yellow <strong>Unsaved changes</strong> banner appears. Tap <strong>Review</strong> to see a before/after summary in a modal, then <strong>Confirm &amp; save</strong> to write Firebase — or <strong>Cancel</strong> to go back. <strong>Save to Firebase</strong> also opens review when there are changes. License keys and Google users are <em>never</em> changed by this flow.</p>
             </div>
 
             <div class="so-defaults-section">
@@ -1989,6 +1995,12 @@
         const plan = soPlans.find(p => p.id === sel.value) || preferred;
         if (plan) soApplyPlanDefaultsToLicenseForm(plan);
         else soUpdateLicenseCreditsBreakdown();
+        const locEl = document.getElementById('so-license-customer-location');
+        if (locEl && !locEl.value) locEl.value = soGuessAdminLocation();
+        const ipEl = document.getElementById('so-license-customer-ip');
+        if (ipEl && !ipEl.placeholder) {
+            ipEl.placeholder = 'Optional — set when known';
+        }
     }
 
     function soResolveLicenseCreditBreakdown(plan, selectedIds, lic) {
@@ -3206,25 +3218,68 @@
         return soOpenSaveReviewModal(tab, saveFn);
     }
 
+    function soGuessAdminLocation() {
+        try {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+            const lang = navigator.language || '';
+            return [tz, lang].filter(Boolean).join(' · ') || '';
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function soReadLicenseCustomerFields() {
+        return {
+            customer_name: String(document.getElementById('so-license-customer-name')?.value || '').trim(),
+            customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
+            customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
+            customer_location: String(document.getElementById('so-license-customer-location')?.value || '').trim(),
+            customer_ip: String(document.getElementById('so-license-customer-ip')?.value || '').trim(),
+        };
+    }
+
+    function soCustomerDetailsComplete(fields) {
+        const f = fields || {};
+        return !!(f.customer_name && (f.customer_phone || f.customer_email));
+    }
+
+    function soCustomerDetailsLabel(lic) {
+        if (!lic) return 'Unassigned';
+        const name = lic.customer_name || '';
+        const phone = lic.customer_phone || '';
+        const email = lic.customer_email || '';
+        if (name || phone || email) {
+            return name || phone || email;
+        }
+        return 'Unassigned customer';
+    }
+
     function soLicenseCustomerSnapshot() {
-        const name = String(document.getElementById('so-license-customer-name')?.value || '').trim();
-        const phone = String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, '');
-        const email = String(document.getElementById('so-license-customer-email')?.value || '').trim();
-        return { customer_name: name, customer_phone: phone, customer_email: email };
+        return soReadLicenseCustomerFields();
     }
 
     function soConfirmLicenseCustomerClear(existingLic) {
         if (!existingLic) return true;
         const next = soLicenseCustomerSnapshot();
-        const had = existingLic.customer_name || existingLic.customer_phone || existingLic.customer_email;
-        const clearing = had && (!next.customer_name && !next.customer_phone && !next.customer_email);
+        const had = existingLic.customer_name || existingLic.customer_phone || existingLic.customer_email
+            || existingLic.customer_location || existingLic.customer_ip;
+        const clearing = had && (!next.customer_name && !next.customer_phone && !next.customer_email
+            && !next.customer_location && !next.customer_ip);
         const partialClear = (existingLic.customer_name && !next.customer_name)
             || (existingLic.customer_phone && !next.customer_phone)
-            || (existingLic.customer_email && !next.customer_email);
+            || (existingLic.customer_email && !next.customer_email)
+            || (existingLic.customer_location && !next.customer_location)
+            || (existingLic.customer_ip && !next.customer_ip);
         if (!clearing && !partialClear) return true;
         return confirm(
             'You are removing or clearing customer mapping fields on this license.\n\n'
-            + `Was: ${[existingLic.customer_name, existingLic.customer_phone, existingLic.customer_email].filter(Boolean).join(' · ') || '—'}\n\n`
+            + `Was: ${[
+                existingLic.customer_name,
+                existingLic.customer_phone,
+                existingLic.customer_email,
+                existingLic.customer_location,
+                existingLic.customer_ip,
+            ].filter(Boolean).join(' · ') || '—'}\n\n`
             + 'Continue? Customer details help track who owns this license key.'
         );
     }
@@ -3583,7 +3638,9 @@
             soBindGoogleTrialForm();
         }
         if (soActiveTab === 'google-users') {
-            renderSoGoogleTrialsRegistry();
+            soLoadGoogleTrials()
+                .then(() => renderSoGoogleTrialsRegistry())
+                .catch(() => renderSoGoogleTrialsRegistry());
         }
         if (soActiveTab === 'config' || soActiveTab === 'credits') {
             renderSoExtensionPreview();
@@ -3891,24 +3948,37 @@
 
     async function soLoadGoogleTrials() {
         soGoogleTrials = [];
-        try {
-            let snap;
+        const seen = new Set();
+        const cols = [SO_GOOGLE_TRIALS_COL, SO_GOOGLE_TRIALS_LEGACY_COL];
+        for (const colName of cols) {
             try {
-                snap = await soDb().collection(SO_GOOGLE_TRIALS_COL).orderBy('expires_at', 'desc').limit(200).get();
-            } catch (_) {
-                snap = await soDb().collection(SO_GOOGLE_TRIALS_COL).limit(200).get();
+                let snap;
+                try {
+                    snap = await soDb().collection(colName).orderBy('created_at', 'desc').limit(200).get();
+                } catch (_) {
+                    try {
+                        snap = await soDb().collection(colName).orderBy('expires_at', 'desc').limit(200).get();
+                    } catch (_2) {
+                        snap = await soDb().collection(colName).limit(200).get();
+                    }
+                }
+                snap.forEach(doc => {
+                    if (seen.has(doc.id)) return;
+                    seen.add(doc.id);
+                    soGoogleTrials.push(Object.assign(
+                        { uid: doc.id, _trialCollection: colName },
+                        doc.data(),
+                    ));
+                });
+            } catch (e) {
+                console.warn('Google trials load (' + colName + '):', e.message || e);
             }
-            snap.forEach(doc => {
-                soGoogleTrials.push(Object.assign({ uid: doc.id }, doc.data()));
-            });
-            soGoogleTrials.sort((a, b) => {
-                const ta = soGoogleTrialExpiryMs(a) || soGoogleTrialCreatedMs(a);
-                const tb = soGoogleTrialExpiryMs(b) || soGoogleTrialCreatedMs(b);
-                return tb - ta;
-            });
-        } catch (e) {
-            console.warn('Google trials load:', e.message || e);
         }
+        soGoogleTrials.sort((a, b) => {
+            const ta = soGoogleTrialExpiryMs(a) || soGoogleTrialCreatedMs(a);
+            const tb = soGoogleTrialExpiryMs(b) || soGoogleTrialCreatedMs(b);
+            return tb - ta;
+        });
     }
 
     function soGoogleTrialExpiryMs(row) {
@@ -4218,7 +4288,7 @@
             countEl.textContent = rows.length === 1 ? '1 Google user' : `${rows.length} Google users`;
         }
         if (!rows.length) {
-            container.innerHTML = '<p class="so-admin-muted">No Google sign-ins yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap <strong>Continue with Google</strong> in the extension.</p>';
+            container.innerHTML = '<p class="so-admin-muted">No Google sign-ins yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap <strong>Continue with Google</strong> in the extension.<br><span class="so-admin-tip">If users signed in before v1.8.1, tap <strong>Refresh</strong> — legacy <code>google_trials</code> docs are merged when readable.</span></p>';
             return;
         }
         const q = String(document.getElementById('so-google-trial-search')?.value || '').trim().toLowerCase();
@@ -4258,12 +4328,15 @@
                             const devices = soGoogleTrialDeviceCount(r);
                             const unlimitedTime = soGoogleTrialHasUnlimitedTimeRow(r);
                             const linkedKey = r.license_key || r.licenseKey || '';
+                            const legacyCol = r._trialCollection === SO_GOOGLE_TRIALS_LEGACY_COL
+                                ? '<br><span class="so-badge so-badge--meta">legacy collection</span>'
+                                : '';
                             const accessLabel = unlimitedTime
                                 ? '<span class="so-badge so-badge--on">No expiry</span>'
                                 : soEsc(soFormatGoogleTrialExpiry(r));
                             return `
                             <tr class="so-google-trial-row ${active ? '' : 'so-google-trial-row--revoked'}" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')" title="Click to manage credits and access time">
-                                <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}</td>
+                                <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}${legacyCol}</td>
                                 <td><strong>${soEsc(String(remaining))}</strong> / ${soEsc(String(limit || '—'))}</td>
                                 <td>${soEsc(String(used))}</td>
                                 <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
@@ -6289,6 +6362,10 @@
         document.getElementById('so-license-customer-name').value = '';
         document.getElementById('so-license-customer-phone').value = '';
         document.getElementById('so-license-customer-email').value = '';
+        const locEl = document.getElementById('so-license-customer-location');
+        if (locEl) locEl.value = soGuessAdminLocation();
+        const ipEl = document.getElementById('so-license-customer-ip');
+        if (ipEl) ipEl.value = '';
         document.getElementById('so-license-support-notes').value = '';
         document.getElementById('so-license-max-devices').value = '';
         document.getElementById('so-license-credits-balance').value = '0';
@@ -6330,6 +6407,10 @@
         document.getElementById('so-license-customer-name').value = lic.customer_name || '';
         document.getElementById('so-license-customer-phone').value = lic.customer_phone || '';
         document.getElementById('so-license-customer-email').value = lic.customer_email || '';
+        const locEl = document.getElementById('so-license-customer-location');
+        if (locEl) locEl.value = lic.customer_location || lic.customerLocation || '';
+        const ipEl = document.getElementById('so-license-customer-ip');
+        if (ipEl) ipEl.value = lic.customer_ip || lic.customerIp || '';
         document.getElementById('so-license-support-notes').value = lic.support_notes || '';
         soApplyLicenseExpiryFromDoc(lic);
         soUpdateLicensePlanHint();
@@ -6383,6 +6464,7 @@
         } catch (e) {
             return soToast(e.message || 'Invalid expiry settings.');
         }
+        const customerFields = soReadLicenseCustomerFields();
         const payload = Object.assign({
             active: true,
             planId: plan.id,
@@ -6404,22 +6486,20 @@
             images_generated_today_date: '',
             images_generated_month: 0,
             images_generated_month_key: '',
-            customer_name: String(document.getElementById('so-license-customer-name')?.value || '').trim(),
-            customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
-            customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
             issued_at: firebase.firestore.FieldValue.serverTimestamp(),
             shared_at: '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: soAuthEmail()
-        }, soBuildLicenseCreditFields(plan, formFields));
+        }, customerFields, soBuildLicenseCreditFields(plan, formFields));
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload);
             cancelSoLicenseEdit();
             await soLoadLicenses();
             renderSoLicensesList();
             renderSoCustomerRegistry();
-            soToast(`License ${key} created. Send to customer on WhatsApp.`);
+            const custLabel = soCustomerDetailsComplete(payload) ? 'Customer mapped.' : 'License created — add customer name/email anytime.';
+            soToast(`License ${key} created. ${custLabel}`);
         } catch (e) {
             soToast('Create failed: ' + (e.message || 'Unknown error'));
         }
@@ -6446,6 +6526,7 @@
         } catch (e) {
             return soToast(e.message || 'Invalid expiry settings.');
         }
+        const customerFields = soReadLicenseCustomerFields();
         const payload = Object.assign({
             planId: plan.id,
             planType: plan.id,
@@ -6458,13 +6539,10 @@
             unlimited_credits: formFields.unlimited_credits,
             expiresAt: expiryFields.expiresAt,
             expiry_starts_on_activation: expiryFields.expiry_starts_on_activation,
-            customer_name: String(document.getElementById('so-license-customer-name')?.value || '').trim(),
-            customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
-            customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: soAuthEmail()
-        }, soBuildLicenseCreditFields(plan, formFields));
+        }, customerFields, soBuildLicenseCreditFields(plan, formFields));
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
             cancelSoLicenseEdit();
@@ -6882,7 +6960,7 @@
         const filtered = soLicenses.filter(lic => {
             if (!soCustomerMatchesFilter(lic, soCustomerFilter)) return false;
             if (!q) return true;
-            const hay = [lic.key, lic.customer_name, lic.customer_phone, lic.customer_email, lic.planId, lic.planType]
+            const hay = [lic.key, lic.customer_name, lic.customer_phone, lic.customer_email, lic.customer_location, lic.customer_ip, lic.planId, lic.planType]
                 .filter(v => v != null && v !== '').join(' ').toLowerCase();
             return hay.includes(q);
         });
@@ -6907,9 +6985,16 @@
         }
         container.innerHTML = filtered.map(lic => {
             const status = soGetLicenseRegistryStatus(lic);
-            const name = lic.customer_name ? soEsc(lic.customer_name) : '<span class="so-admin-muted">No name</span>';
+            const hasCustomer = !!(lic.customer_name || lic.customer_phone || lic.customer_email);
+            const name = hasCustomer && lic.customer_name
+                ? soEsc(lic.customer_name)
+                : (hasCustomer
+                    ? soEsc(lic.customer_phone || lic.customer_email || 'Customer')
+                    : '<span class="so-admin-muted">Unassigned customer</span>');
             const phone = lic.customer_phone ? soEsc(lic.customer_phone) : '—';
             const email = lic.customer_email ? soEsc(lic.customer_email) : '—';
+            const location = lic.customer_location || lic.customerLocation || '';
+            const ip = lic.customer_ip || lic.customerIp || '';
             const shared = soIsLicenseShared(lic);
             const activated = soIsLicenseActivated(lic);
             return `<div class="so-customer-row">
@@ -6917,6 +7002,7 @@
                     <div>
                         <strong>${name}</strong>
                         <div class="so-admin-muted">${phone}${email !== '—' ? ` · ${email}` : ''}</div>
+                        ${location || ip ? `<div class="so-admin-muted" style="font-size:10px;margin-top:2px;">${location ? soEsc(location) : ''}${location && ip ? ' · ' : ''}${ip ? `IP: ${soEsc(ip)}` : ''}</div>` : ''}
                     </div>
                     <span class="so-badge so-badge--meta">${soEsc(soRegistryStatusLabel(status))}</span>
                 </div>
