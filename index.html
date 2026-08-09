@@ -2802,10 +2802,16 @@
                 </div>
 
                 <!-- Google user manage modal (credits + time + devices) -->
-                <div id="so-google-user-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoGoogleTrialManage()">
-                    <div class="so-modal-panel so-modal-panel--wide">
-                        <h4 class="so-modal-title">Manage Google user</h4>
-                        <p id="so-google-user-email-label" class="so-admin-muted"></p>
+                <div id="so-google-user-modal" class="so-modal-overlay so-google-user-modal-overlay" style="display:none;" hidden onclick="if(event.target===this)closeSoGoogleTrialManage()">
+                    <div class="so-modal-panel so-modal-panel--wide so-google-user-modal-panel" role="dialog" aria-labelledby="so-google-user-modal-title" aria-modal="true">
+                        <div class="so-modal-header so-modal-header--sticky">
+                            <div>
+                                <h4 id="so-google-user-modal-title" class="so-modal-title" style="margin:0;">Manage Google user</h4>
+                                <p id="so-google-user-email-label" class="so-admin-muted" style="margin:4px 0 0;font-size:11px;"></p>
+                            </div>
+                            <button type="button" class="so-modal-close-btn" onclick="closeSoGoogleTrialManage()" aria-label="Close">×</button>
+                        </div>
+                        <div class="so-google-user-modal-body">
                         <p id="so-google-user-summary-label" class="so-admin-muted"></p>
 
                         <div class="so-google-user-modal-section">
@@ -2869,8 +2875,9 @@
                             </div>
                         </div>
 
-                        <div class="so-modal-actions" style="flex-wrap:wrap; margin-top:14px;">
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoGoogleTrialManage()">Close</button>
+                        </div>
+                        <div class="so-modal-footer so-modal-footer--sticky">
+                            <button type="button" class="so-btn-sm so-btn-touch so-modal-close-footer-btn" onclick="closeSoGoogleTrialManage()">Close</button>
                         </div>
                     </div>
                 </div>
@@ -4710,7 +4717,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.9"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.10"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

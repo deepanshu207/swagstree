@@ -3034,19 +3034,20 @@
         soEnableDirtyTrackingAfterSettle(loadGen);
     }
 
-    /** Called when Super tab is shown — reset unsaved UI and reload SO admin if panel is open */
+    /** Called when Super tab is shown — reset unsaved UI; reload only if not loaded yet */
     window.soOnSuperViewShown = function() {
         soAllowDirtyMark = false;
         soUserEditedSinceLoad = false;
         soClearAllDirty();
         soApplyUnsavedBannerVisibility();
         soClearDraftStorage();
+        if (typeof window.soWarmExtensionFirebaseInBackground === 'function') {
+            window.soWarmExtensionFirebaseInBackground();
+        }
         const content = document.getElementById('shipping-optimizer-accordion-content');
         const panelOpen = content && content.style.display !== 'none' && content.style.display !== '';
         if (panelOpen && typeof window.loadShippingOptimizerAdmin === 'function') {
-            window.loadShippingOptimizerAdmin(true);
-        } else {
-            soLoaded = false;
+            window.loadShippingOptimizerAdmin(false);
         }
     };
 
@@ -3586,7 +3587,7 @@
         content.style.display = open ? 'flex' : 'none';
         if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
         if (open && typeof loadShippingOptimizerAdmin === 'function') {
-            loadShippingOptimizerAdmin(true);
+            loadShippingOptimizerAdmin(false);
         }
     };
 
@@ -4360,9 +4361,34 @@
     }
 
     let soGoogleTrialManageUid = null;
+    let soGoogleUserModalKeyHandler = null;
+
+    function soEnsureGoogleUserModalPortal() {
+        const modal = document.getElementById('so-google-user-modal');
+        if (modal && modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        return modal;
+    }
+
+    function soBindGoogleUserModalDismiss() {
+        if (soGoogleUserModalKeyHandler) return;
+        soGoogleUserModalKeyHandler = (e) => {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                closeSoGoogleTrialManage();
+            }
+        };
+        document.addEventListener('keydown', soGoogleUserModalKeyHandler);
+    }
+
+    function soUnbindGoogleUserModalDismiss() {
+        if (!soGoogleUserModalKeyHandler) return;
+        document.removeEventListener('keydown', soGoogleUserModalKeyHandler);
+        soGoogleUserModalKeyHandler = null;
+    }
 
     window.openSoGoogleTrialManage = function(uid) {
-        if (!soRequireExtensionWrite()) return;
+        if (!soRequireSuperAdmin()) return;
         const row = soGoogleTrials.find(r => r.uid === uid);
         if (!row) return soToast('Google user not found.');
         soGoogleTrialManageUid = uid;
@@ -4371,8 +4397,15 @@
         const extendEl = document.getElementById('so-google-user-extend-days');
         if (extendEl) extendEl.value = '';
         soRefreshGoogleUserModalLabels();
-        const modal = document.getElementById('so-google-user-modal');
-        if (modal) modal.style.display = 'flex';
+        const modal = soEnsureGoogleUserModalPortal();
+        if (modal) {
+            modal.hidden = false;
+            modal.style.display = 'flex';
+            document.body.classList.add('so-google-user-modal-open');
+            soBindGoogleUserModalDismiss();
+            const closeBtn = modal.querySelector('.so-modal-close-btn');
+            if (closeBtn) closeBtn.focus();
+        }
     };
 
     window.openSoGoogleTrialCredits = function(uid) {
@@ -4381,8 +4414,13 @@
 
     window.closeSoGoogleTrialManage = function() {
         soGoogleTrialManageUid = null;
+        soUnbindGoogleUserModalDismiss();
         const modal = document.getElementById('so-google-user-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.hidden = true;
+            modal.style.display = 'none';
+        }
+        document.body.classList.remove('so-google-user-modal-open');
     };
 
     window.closeSoGoogleTrialCredits = function() {
@@ -7049,7 +7087,10 @@
 
     window.loadShippingOptimizerAdmin = async function(forceReload) {
         if (!soRequireSuperAdmin()) return;
-        if (soLoadInProgress) return;
+        if (soLoadInProgress) {
+            if (soLoaded && !forceReload) return;
+            return;
+        }
         if (soLoaded && !forceReload) {
             soSyncDirtyFromSnapshots();
             return;
@@ -7057,6 +7098,9 @@
         if (typeof soGetExtensionDb !== 'function' || !soGetExtensionDb()) {
             soToast('Extension Firebase (extension-e6e32) not ready.');
             return;
+        }
+        if (typeof soWarmExtensionFirebaseInBackground === 'function') {
+            soWarmExtensionFirebaseInBackground();
         }
         if (typeof soEnsureExtensionFirebaseReady === 'function') {
             await soEnsureExtensionFirebaseReady();
@@ -7071,10 +7115,12 @@
         clearTimeout(soDraftSaveTimer);
         soUpdateUnsavedBanner();
         try {
-            await soLoadConfig();
-            await soLoadDemoKeys();
-            await soLoadLicenses();
-            await soLoadGoogleTrials();
+            await Promise.all([
+                soLoadConfig(),
+                soLoadDemoKeys(),
+                soLoadLicenses(),
+                soLoadGoogleTrials(),
+            ]);
             soHydrating = true;
             soPopulateLicensePlanSelect();
         soSetLicenseFormMode(null);

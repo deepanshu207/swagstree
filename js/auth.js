@@ -446,9 +446,13 @@ async function handleGoogleLogin() {
             if (result && result.user) {
                 showToast("✅ Google Login Successful!");
                 if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
-                    Promise.resolve(soSyncExtensionAuthWithGoogleResult(result, true)).catch((err) => {
-                        console.warn('Extension Firebase Google sync:', err && (err.code || err.message) ? (err.code || err.message) : err);
-                    });
+                    const defer = () => {
+                        Promise.resolve(soSyncExtensionAuthWithGoogleResult(result, true)).catch((err) => {
+                            console.warn('Extension Firebase Google sync:', err && (err.code || err.message) ? (err.code || err.message) : err);
+                        });
+                    };
+                    if (typeof requestIdleCallback === 'function') requestIdleCallback(defer, { timeout: 2500 });
+                    else setTimeout(defer, 100);
                 }
             }
         } catch (popupError) {
@@ -492,9 +496,13 @@ auth.getRedirectResult().then(async result => {
     if (result && result.user) {
         showToast("✅ Google Login Successful!");
         if (typeof soSyncExtensionAuthWithGoogleResult === 'function') {
-            Promise.resolve(soSyncExtensionAuthWithGoogleResult(result, true)).catch((err) => {
-                console.warn('Extension Firebase Google sync:', err && (err.code || err.message) ? (err.code || err.message) : err);
-            });
+            const defer = () => {
+                Promise.resolve(soSyncExtensionAuthWithGoogleResult(result, true)).catch((err) => {
+                    console.warn('Extension Firebase Google sync:', err && (err.code || err.message) ? (err.code || err.message) : err);
+                });
+            };
+            if (typeof requestIdleCallback === 'function') requestIdleCallback(defer, { timeout: 2500 });
+            else setTimeout(defer, 100);
         }
     }
 }).catch(async error => {
@@ -629,15 +637,24 @@ function authPrimaryButtonLabel() {
 function scheduleSoExtensionAuthSync(email, password) {
     if (!email || !password) return;
     if (String(email).trim().toLowerCase() !== SUPER_ADMIN_EMAIL) return;
-    if (typeof soSyncExtensionAuthWithCredentials !== 'function') return;
     const run = () => {
+        if (typeof soStartBackgroundExtensionAuthSync === 'function') {
+            soStartBackgroundExtensionAuthSync(email, password);
+            return;
+        }
+        if (typeof soSyncExtensionAuthWithCredentials !== 'function') return;
         Promise.resolve(soSyncExtensionAuthWithCredentials(email, password, true)).catch((err) => {
             const detail = err && (err.code || err.message) ? (err.code || err.message) : err;
             console.warn('Extension Firebase sync after login:', detail);
         });
     };
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
-    else setTimeout(run, 0);
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(run, { timeout: 2000 });
+    } else if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(run);
+    } else {
+        setTimeout(run, 0);
+    }
 }
 
 // ── Email / Password Auth ───────────────────────────────────────────────────

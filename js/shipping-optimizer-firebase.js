@@ -60,6 +60,53 @@
         });
     }
 
+    let soExtensionAuthSyncInFlight = false;
+
+    /** Init extension SDK early — does not block UI. */
+    window.soWarmExtensionFirebaseInBackground = function() {
+        try {
+            soInitExtensionApp();
+            window.renderSoExtensionAuthBanner();
+        } catch (e) {
+            console.warn('Extension Firebase warm:', e && e.message ? e.message : e);
+        }
+    };
+
+    /** Best-effort extension auth after Swagstree login — never blocks storefront UI. */
+    window.soStartBackgroundExtensionAuthSync = function(email, password) {
+        if (soExtensionAuthSyncInFlight) return;
+        if (window.soIsExtensionFirebaseAuthed()) return;
+        const normalized = String(email || '').trim().toLowerCase();
+        if (normalized !== SO_SUPERADMIN_EMAIL) return;
+        soExtensionAuthSyncInFlight = true;
+        const banner = document.getElementById('so-extension-auth-banner');
+        if (banner && !window.soIsExtensionFirebaseAuthed()) {
+            banner.className = 'so-ext-auth-banner so-ext-auth-banner--warn';
+            banner.innerHTML = '<span><i class="fa fa-spinner fa-spin"></i> Connecting extension Firebase in background…</span>';
+            banner.hidden = false;
+        }
+        const finish = () => {
+            soExtensionAuthSyncInFlight = false;
+            window.renderSoExtensionAuthBanner();
+        };
+        const run = async () => {
+            try {
+                if (password && typeof window.soSyncExtensionAuthWithCredentials === 'function') {
+                    await window.soSyncExtensionAuthWithCredentials(email, password, true);
+                }
+            } catch (e) {
+                console.warn('Background extension auth:', e && (e.code || e.message) ? (e.code || e.message) : e);
+            } finally {
+                finish();
+            }
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => { void run(); }, { timeout: 2500 });
+        } else {
+            setTimeout(() => { void run(); }, 50);
+        }
+    };
+
     async function soFinishExtensionAuthSuccess(silent) {
         window.renderSoExtensionAuthBanner();
         if (!silent && typeof showToast === 'function') {
@@ -119,6 +166,7 @@
     };
 
     window.soRefreshExtensionAuthFromSession = function() {
+        window.soWarmExtensionFirebaseInBackground();
         window.renderSoExtensionAuthBanner();
     };
 
@@ -220,11 +268,15 @@
 
     // Restore extension auth session on page load (reads work without auth; writes need this)
     document.addEventListener('DOMContentLoaded', function() {
+        window.soWarmExtensionFirebaseInBackground();
         const soAuth = window.soGetExtensionAuth();
         if (soAuth) {
-            soAuth.onAuthStateChanged(function() {
+            soAuth.onAuthStateChanged(function(user) {
                 if (document.getElementById('so-extension-auth-banner')) {
                     window.renderSoExtensionAuthBanner();
+                }
+                if (user && window.soIsExtensionFirebaseAuthed()) {
+                    soSafeLoadShippingOptimizerAdmin();
                 }
             });
         }
