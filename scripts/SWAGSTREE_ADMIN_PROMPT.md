@@ -760,11 +760,23 @@ Google trial does **not** use a row in `shipping_optimizer_licenses` — trial s
 
 List `shipping_optimizer_google_trials/{uid}` for signed-in Gmail accounts.
 
-**Click row or Manage** → modal to adjust:
-- **Credits:** add / remove / set limit / reset used → 0
-- **Time:** unlimited toggle, +7/+30 days, custom extend, set expiry datetime
-- **Devices:** reset bindings (`machine_ids[]`)
-- **Status:** revoke / reactivate / link paid license
+**Click row or Manage** → modal with explicit **Save** buttons per section:
+
+### Credits (Save credits)
+| Field | Meaning |
+|-------|---------|
+| **Total credits** | Pool size (`images_limit` / `trial_credits`) |
+| **Balance** | Remaining runs = total − used |
+| **Used** | Consumed runs (`images_used`) |
+
+Edit any field — the others reconcile (e.g. set balance → total = used + balance). Quick-adjust buttons update the form only; tap **Save credits** to write Firebase.
+
+### Access time (Save access time)
+- **No expiry** checkbox → `unlimited_time: true`, clears `expires_at`
+- Or set **expiry date/time** (+7 / +30 day helpers fill the datetime field first)
+
+### Devices / Status
+- Reset device bindings, revoke/reactivate, link paid license (immediate actions with confirm)
 
 Policy: Google users use **device limit** (`max_devices` from config) and **no calendar expiry** when `unlimited_time: true` on trial doc.
 

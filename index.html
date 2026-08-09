@@ -2057,9 +2057,54 @@
                                 </div>
                                 <div id="so-guide-section-workflow" class="admin-guide-section-content" style="display:none;">
                                     <p class="admin-guide-how"><strong>1.</strong> Sign in to <code>extension-e6e32</code> (auto-syncs with Swagstree superadmin login).</p>
-                                    <p class="admin-guide-how"><strong>2.</strong> Pick a tab → expand one accordion → edit → <strong>Save</strong> that section (or sticky “Save all” at bottom).</p>
+                                    <p class="admin-guide-how"><strong>2.</strong> Pick a tab → expand one accordion → edit → <strong>Save</strong> that section (or sticky “Save to Firebase” at bottom).</p>
                                     <p class="admin-guide-how"><strong>3.</strong> Open <strong>Extension preview</strong> to see what the Meesho popup will show.</p>
                                     <p class="admin-guide-caution"><strong>Never</strong> rename a plan id after licenses exist. Removed inline demo keys are deleted from Firebase on save.</p>
+                                </div>
+                            </div>
+
+                            <div id="so-guide-section-accord-defaults" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('defaults')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-defaults" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('defaults');}">
+                                    <span><i class="fa fa-seedling"></i> Load defaults vs Seed vs Save</span>
+                                    <i id="so-guide-section-icon-defaults" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-defaults" class="admin-guide-section-content" style="display:none;">
+                                    <div class="admin-guide-matrix">
+                                        <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
+                                            <span>Button</span><span>What it does</span><span>Writes Firebase?</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Load defaults</span>
+                                            <span>Resets <strong>this tab’s form</strong> to built-in recommended values from code (<code>soGetDefaultAppSeed()</code>). Does not touch live config until you save.</span>
+                                            <span>No</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Save to Firebase</span>
+                                            <span>Writes <strong>current form values</strong> on this tab to <code>shipping_optimizer_config/app</code> (merge). Extension picks this up on next refresh (~5 min cache).</span>
+                                            <span>Yes</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Save as defaults</span>
+                                            <span>Same as <strong>Save to Firebase</strong> for that tab — stores your edits as the live default for customers.</span>
+                                            <span>Yes</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Seed all defaults</span>
+                                            <span>Immediately writes the <strong>full built-in seed JSON</strong> (plans, credits, Google trial, etc.) to Firebase — use to restore factory settings or first-time setup.</span>
+                                            <span>Yes — full merge</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Save all as defaults</span>
+                                            <span>Writes <strong>all tabs’ current forms</strong> to Firebase in one go (config + credits + Google trial).</span>
+                                            <span>Yes</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">View / Copy defaults JSON</span>
+                                            <span>Read-only peek at the built-in seed object in code — useful for docs or manual Firebase edits.</span>
+                                            <span>No</span>
+                                        </div>
+                                    </div>
+                                    <p class="admin-guide-caution" style="margin-top:10px;"><strong>Tip:</strong> Use <em>Load defaults</em> → review → <em>Save to Firebase</em> when you want a safe preview. Use <em>Seed all defaults</em> only when you intend to overwrite live config with the code defaults.</p>
                                 </div>
                             </div>
 
@@ -2749,32 +2794,47 @@
 
                         <div class="so-google-user-modal-section">
                             <h5>Credits</h5>
-                            <p id="so-google-user-credits-label" class="so-admin-muted"></p>
-                            <label><span class="admin-settings-field-label">Credit amount</span>
-                                <input id="so-google-user-credits-amount" type="number" min="0" step="1" placeholder="Credits"></label>
+                            <p class="so-admin-muted so-admin-tip"><strong>Total</strong> = pool size (Firestore <code>images_limit</code>) · <strong>Used</strong> = consumed runs (<code>images_used</code>) · <strong>Balance</strong> = remaining = total − used. Extension uses trial credits before paid license credits.</p>
+                            <div class="so-admin-grid so-google-user-credits-grid">
+                                <label><span class="admin-settings-field-label">Total credits (limit)</span>
+                                    <input id="so-google-user-total-credits" type="number" min="0" step="1" oninput="soUpdateGoogleUserCreditsBreakdown('total')"></label>
+                                <label><span class="admin-settings-field-label">Balance (remaining)</span>
+                                    <input id="so-google-user-credits-balance" type="number" min="0" step="1" oninput="soUpdateGoogleUserCreditsBreakdown('balance')"></label>
+                                <label><span class="admin-settings-field-label">Used</span>
+                                    <input id="so-google-user-credits-used" type="number" min="0" step="1" oninput="soUpdateGoogleUserCreditsBreakdown('used')"></label>
+                            </div>
+                            <div id="so-google-user-credits-breakdown" class="so-google-user-credits-breakdown so-admin-muted so-admin-tip"></div>
+                            <div class="so-admin-subhead" style="margin-top:10px;">Quick adjust <span class="so-admin-muted">(updates fields above — tap Save credits)</span></div>
+                            <label><span class="admin-settings-field-label">Adjust amount</span>
+                                <input id="so-google-user-credits-adjust" type="number" min="1" step="1" placeholder="e.g. 3"></label>
                             <div class="so-google-user-quick-btns">
-                                <button type="button" class="btn-gold so-btn-sm" onclick="confirmSoGoogleTrialCredits('add')">Add</button>
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('remove')">Remove</button>
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('set')">Set limit</button>
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialUsed()">Reset used → 0</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('add-total')">+ Add to total</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('remove-total')">− From total</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('add-balance')">+ Add to balance</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('reset-used')">Reset used → 0</button>
+                            </div>
+                            <div class="so-section-save-bar" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserCredits()">Save credits</button>
                             </div>
                         </div>
 
                         <div class="so-google-user-modal-section">
                             <h5>Access time</h5>
-                            <p class="so-admin-muted so-admin-tip">Per-user override — use when a customer requests more time.</p>
-                            <label class="so-plan-check"><input id="so-google-user-unlimited-time" type="checkbox"> No expiry (unlimited time for this user)</label>
+                            <p class="so-admin-muted so-admin-tip">Per-user override — edit below, then <strong>Save access time</strong>. Default policy: Google users have no calendar expiry (<code>unlimited_time</code>); enable expiry only for special cases.</p>
+                            <label class="so-plan-check"><input id="so-google-user-unlimited-time" type="checkbox" onchange="soOnGoogleUserUnlimitedTimeToggle()"> No expiry (unlimited time for this user)</label>
                             <div id="so-google-user-time-limited-fields">
                                 <label><span class="admin-settings-field-label">Extend by days</span>
                                     <input id="so-google-user-extend-days" type="number" min="1" step="1" placeholder="e.g. 7"></label>
                                 <div class="so-google-user-quick-btns">
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soExtendGoogleTrialDays(7)">+7 days</button>
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soExtendGoogleTrialDays(30)">+30 days</button>
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyGoogleTrialExtendDays()">Apply days</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserPreviewExtendDays(7)">+7 days</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserPreviewExtendDays(30)">+30 days</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserPreviewExtendDaysInput()">Apply days to expiry field</button>
                                 </div>
-                                <label style="margin-top:8px;"><span class="admin-settings-field-label">Or set expiry date/time</span>
+                                <label style="margin-top:8px;"><span class="admin-settings-field-label">Expiry date/time</span>
                                     <input id="so-google-user-expires-at" type="datetime-local"></label>
-                                <button type="button" class="so-btn-sm so-btn-touch" style="margin-top:6px;" onclick="soApplyGoogleTrialExpiryDate()">Set expiry date</button>
+                            </div>
+                            <div class="so-section-save-bar" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserAccessTime()">Save access time</button>
                             </div>
                         </div>
 
@@ -4634,7 +4694,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.1"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.2"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

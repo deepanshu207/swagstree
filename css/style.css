@@ -11214,6 +11214,16 @@ body.seo-indexing-off #seo-primary-nav {
     gap: 6px;
     margin-top: 8px;
 }
+.so-google-user-credits-grid {
+    margin-top: 8px;
+}
+.so-google-user-credits-breakdown {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(255, 215, 0, 0.06);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.12);
+}
 .so-google-trials-actions {
     display: flex;
     flex-wrap: wrap;

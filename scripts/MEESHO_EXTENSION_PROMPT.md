@@ -9,18 +9,20 @@ Swagstree admin (PR #115+) now writes all config below to Firebase `extension-e6
 
 ## Admin per-user overrides (Google Users tab)
 
-Superadmin can patch any field on `shipping_optimizer_google_trials/{uid}`:
+Superadmin can patch any field on `shipping_optimizer_google_trials/{uid}` via the **Manage** modal:
 
-| Field | Admin action |
-|-------|----------------|
-| `images_limit` / `trial_credits` | Add, remove, set credit limit |
-| `images_used` | Reset to 0 |
-| `unlimited_time` | Toggle per user |
-| `expires_at` | Extend +N days, or set datetime |
-| `machine_ids` | Reset devices |
-| `active` | Revoke / reactivate |
+| Field | Admin UI | Firestore keys |
+|-------|----------|----------------|
+| Total credits | Editable number | `images_limit`, `trial_credits` (kept in sync) |
+| Balance (remaining) | Editable number | Derived: `images_limit - images_used` |
+| Used | Editable number | `images_used` |
+| Access time | Unlimited toggle + expiry datetime | `unlimited_time`, `expires_at`, `days_granted` |
+| Devices | Reset bindings | `machine_ids[]` |
+| Status | Revoke / reactivate | `active` |
 
-Extension must read **per-user** `unlimited_time` and `expires_at` from the trial doc (not only global config):
+**Save flow:** Admin edits total/balance/used in the form → **Save credits** writes all three atomically. Quick-adjust buttons (+ add to total, + add to balance, reset used) only update the form until Save.
+
+Extension must read **per-user** `unlimited_time`, `expires_at`, `images_limit`, and `images_used` from the trial doc (not only global config):
 
 ```javascript
 googleTrialHasUnlimitedTime(trial, cfg) {

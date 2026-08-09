@@ -3315,20 +3315,207 @@
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
+    function soBindGoogleUserCreditsForm(row) {
+        const used = soGoogleTrialImagesUsed(row);
+        const total = soGoogleTrialImagesLimit(row);
+        const balance = Math.max(0, total - used);
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        setVal('so-google-user-total-credits', total);
+        setVal('so-google-user-credits-used', used);
+        setVal('so-google-user-credits-balance', balance);
+        const adjustEl = document.getElementById('so-google-user-credits-adjust');
+        if (adjustEl && !adjustEl.value) adjustEl.placeholder = 'e.g. 3';
+        soUpdateGoogleUserCreditsBreakdown();
+    }
+
+    window.soUpdateGoogleUserCreditsBreakdown = function(changedField) {
+        const totalEl = document.getElementById('so-google-user-total-credits');
+        const usedEl = document.getElementById('so-google-user-credits-used');
+        const balanceEl = document.getElementById('so-google-user-credits-balance');
+        const panel = document.getElementById('so-google-user-credits-breakdown');
+        if (!totalEl || !usedEl || !balanceEl) return;
+
+        let total = Math.max(0, parseInt(totalEl.value, 10) || 0);
+        let used = Math.max(0, parseInt(usedEl.value, 10) || 0);
+        let balance = Math.max(0, parseInt(balanceEl.value, 10) || 0);
+
+        if (changedField === 'total') {
+            if (used > total) used = total;
+            balance = Math.max(0, total - used);
+            usedEl.value = used;
+            balanceEl.value = balance;
+        } else if (changedField === 'balance') {
+            total = used + balance;
+            totalEl.value = total;
+        } else if (changedField === 'used') {
+            if (used > total) total = used;
+            balance = Math.max(0, total - used);
+            totalEl.value = total;
+            balanceEl.value = balance;
+        } else {
+            balance = Math.max(0, total - used);
+            balanceEl.value = balance;
+        }
+
+        total = Math.max(0, parseInt(totalEl.value, 10) || 0);
+        used = Math.max(0, parseInt(usedEl.value, 10) || 0);
+        balance = Math.max(0, parseInt(balanceEl.value, 10) || 0);
+        const consistent = (used + balance) === total;
+        if (panel) {
+            panel.innerHTML = `<strong>Preview:</strong> ${balance} remaining of ${total} total · ${used} used` +
+                (consistent ? '' : ` <span style="color:#f59e0b;">(will reconcile to total ${used + balance} on save)</span>`);
+        }
+    };
+
+    window.soGoogleUserQuickAdjust = function(mode) {
+        const amount = parseInt(document.getElementById('so-google-user-credits-adjust')?.value, 10);
+        if (!Number.isFinite(amount) || amount < 1) {
+            return soToast('Enter an adjust amount (minimum 1).');
+        }
+        const totalEl = document.getElementById('so-google-user-total-credits');
+        const usedEl = document.getElementById('so-google-user-credits-used');
+        const balanceEl = document.getElementById('so-google-user-credits-balance');
+        if (!totalEl || !usedEl || !balanceEl) return;
+        let total = Math.max(0, parseInt(totalEl.value, 10) || 0);
+        let used = Math.max(0, parseInt(usedEl.value, 10) || 0);
+        let balance = Math.max(0, parseInt(balanceEl.value, 10) || 0);
+        if (mode === 'add-total') {
+            total += amount;
+            balance = Math.max(0, total - used);
+        } else if (mode === 'remove-total') {
+            total = Math.max(used, total - amount);
+            balance = Math.max(0, total - used);
+        } else if (mode === 'add-balance') {
+            balance += amount;
+            total = used + balance;
+        } else if (mode === 'reset-used') {
+            used = 0;
+            balance = total;
+        } else {
+            return;
+        }
+        totalEl.value = total;
+        usedEl.value = used;
+        balanceEl.value = balance;
+        soUpdateGoogleUserCreditsBreakdown();
+    };
+
+    window.saveSoGoogleUserCredits = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return soToast('No user selected.');
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+
+        let total = Math.max(0, parseInt(document.getElementById('so-google-user-total-credits')?.value, 10) || 0);
+        let used = Math.max(0, parseInt(document.getElementById('so-google-user-credits-used')?.value, 10) || 0);
+        let balance = Math.max(0, parseInt(document.getElementById('so-google-user-credits-balance')?.value, 10) || 0);
+
+        if (used > total) total = used;
+        if (used + balance !== total) total = used + balance;
+        balance = Math.max(0, total - used);
+
+        const prevUsed = soGoogleTrialImagesUsed(row);
+        const prevTotal = soGoogleTrialImagesLimit(row);
+        const summary = `Save credits for ${row.email || uid}?\n\n` +
+            `Total: ${prevTotal} → ${total}\n` +
+            `Used: ${prevUsed} → ${used}\n` +
+            `Balance: ${Math.max(0, prevTotal - prevUsed)} → ${balance}`;
+        if (!confirm(summary)) return;
+
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                images_limit: total,
+                trial_credits: total,
+                images_used: used,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soBindGoogleUserCreditsForm(soGoogleTrials.find(r => r.uid === uid) || row);
+            renderSoGoogleTrialsRegistry();
+            soToast(`Credits saved — ${balance} remaining of ${total} total.`);
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soOnGoogleUserUnlimitedTimeToggle = function() {
+        const unlimited = !!document.getElementById('so-google-user-unlimited-time')?.checked;
+        const limitedFields = document.getElementById('so-google-user-time-limited-fields');
+        if (limitedFields) limitedFields.style.display = unlimited ? 'none' : 'block';
+    };
+
+    window.soGoogleUserPreviewExtendDays = function(days) {
+        const el = document.getElementById('so-google-user-extend-days');
+        if (el) el.value = String(days);
+        soGoogleUserPreviewExtendDaysInput();
+    };
+
+    window.soGoogleUserPreviewExtendDaysInput = function() {
+        const uid = soGoogleTrialManageUid;
+        const row = uid ? soGoogleTrials.find(r => r.uid === uid) : null;
+        const days = parseInt(document.getElementById('so-google-user-extend-days')?.value, 10);
+        if (!Number.isFinite(days) || days < 1) return soToast('Enter days to extend (minimum 1).');
+        const currentMs = row ? soGoogleTrialExpiryMs(row) : 0;
+        const base = currentMs > Date.now() ? currentMs : Date.now();
+        const next = new Date(base + days * 86400000);
+        const expiresEl = document.getElementById('so-google-user-expires-at');
+        if (expiresEl) expiresEl.value = soGoogleTrialExpiryToDatetimeLocal(next.getTime());
+        soToast(`Expiry field set to ${next.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} — tap Save access time.`);
+    };
+
+    window.saveSoGoogleUserAccessTime = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return soToast('No user selected.');
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+        const unlimited = !!document.getElementById('so-google-user-unlimited-time')?.checked;
+        const payload = {
+            unlimited_time: unlimited,
+            adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+            adjusted_by: soAuthEmail()
+        };
+        if (unlimited) {
+            payload.expires_at = firebase.firestore.FieldValue.delete();
+            payload.days_granted = 0;
+        } else {
+            const raw = String(document.getElementById('so-google-user-expires-at')?.value || '').trim();
+            if (!raw) return soToast('Pick an expiry date/time, or enable unlimited time.');
+            const next = new Date(raw);
+            if (!Number.isFinite(next.getTime())) return soToast('Invalid expiry date.');
+            if (next.getTime() <= Date.now()) return soToast('Expiry must be in the future.');
+            payload.expires_at = next;
+            const days = parseInt(document.getElementById('so-google-user-extend-days')?.value, 10);
+            if (Number.isFinite(days) && days > 0) payload.days_granted = days;
+        }
+        const label = unlimited ? 'no expiry (unlimited time)' : `expires ${payload.expires_at.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
+        if (!confirm(`Save access time for ${row.email || uid}?\n\n${label}`)) return;
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set(payload, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast('Access time saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
     function soRefreshGoogleUserModalLabels() {
         const uid = soGoogleTrialManageUid;
         if (!uid) return;
         const row = soGoogleTrials.find(r => r.uid === uid);
         if (!row) return;
-        const used = soGoogleTrialImagesUsed(row);
-        const limit = soGoogleTrialImagesLimit(row);
-        const remaining = soGoogleTrialCreditsRemaining(row);
         const devices = soGoogleTrialDeviceCount(row);
         const maxDevices = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
         const unlimited = soGoogleTrialHasUnlimitedTimeRow(row);
         const emailEl = document.getElementById('so-google-user-email-label');
         const summaryEl = document.getElementById('so-google-user-summary-label');
-        const creditsEl = document.getElementById('so-google-user-credits-label');
         const devicesEl = document.getElementById('so-google-user-devices-label');
         if (emailEl) emailEl.textContent = row.email || uid;
         if (summaryEl) {
@@ -3336,14 +3523,13 @@
                 ? `Access: no expiry · UID ${row.uid || ''}`
                 : `Access expires: ${soFormatGoogleTrialExpiry(row)} · UID ${row.uid || ''}`;
         }
-        if (creditsEl) creditsEl.textContent = `Used ${used} · limit ${limit} · remaining ${remaining}`;
+        soBindGoogleUserCreditsForm(row);
         if (devicesEl) devicesEl.textContent = `${devices} / ${maxDevices} device(s) bound`;
         const unlimitedEl = document.getElementById('so-google-user-unlimited-time');
         if (unlimitedEl) unlimitedEl.checked = unlimited;
         const expiresEl = document.getElementById('so-google-user-expires-at');
         if (expiresEl && !unlimited) expiresEl.value = soGoogleTrialExpiryToDatetimeLocal(soGoogleTrialExpiryMs(row));
-        const limitedFields = document.getElementById('so-google-user-time-limited-fields');
-        if (limitedFields) limitedFields.style.display = unlimited ? 'none' : 'block';
+        soOnGoogleUserUnlimitedTimeToggle();
         const revokeBtn = document.getElementById('so-google-user-revoke-btn');
         const reactBtn = document.getElementById('so-google-user-reactivate-btn');
         const isActive = row.active !== false;
@@ -3382,8 +3568,8 @@
                     <thead>
                         <tr>
                             <th>Email</th>
-                            <th>Credits (used / limit)</th>
-                            <th>Remaining</th>
+                            <th>Balance / Total</th>
+                            <th>Used</th>
                             <th>Created</th>
                             <th>Access</th>
                             <th>Devices</th>
@@ -3407,8 +3593,8 @@
                             return `
                             <tr class="so-google-trial-row ${active ? '' : 'so-google-trial-row--revoked'}" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')" title="Click to manage credits and access time">
                                 <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}</td>
-                                <td><strong>${soEsc(String(used))}</strong> / ${soEsc(String(limit || '—'))}</td>
-                                <td><strong>${soEsc(String(remaining))}</strong></td>
+                                <td><strong>${soEsc(String(remaining))}</strong> / ${soEsc(String(limit || '—'))}</td>
+                                <td>${soEsc(String(used))}</td>
                                 <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
                                 <td>${accessLabel}</td>
                                 <td>${soEsc(`${devices}/${maxDevices}`)}</td>
@@ -3436,18 +3622,11 @@
         const row = soGoogleTrials.find(r => r.uid === uid);
         if (!row) return soToast('Google user not found.');
         soGoogleTrialManageUid = uid;
-        const amountEl = document.getElementById('so-google-user-credits-amount');
-        if (amountEl) amountEl.value = '';
+        const adjustEl = document.getElementById('so-google-user-credits-adjust');
+        if (adjustEl) adjustEl.value = '';
         const extendEl = document.getElementById('so-google-user-extend-days');
         if (extendEl) extendEl.value = '';
         soRefreshGoogleUserModalLabels();
-        const unlimitedEl = document.getElementById('so-google-user-unlimited-time');
-        if (unlimitedEl && !unlimitedEl.dataset.soBound) {
-            unlimitedEl.dataset.soBound = '1';
-            unlimitedEl.addEventListener('change', () => {
-                soSetGoogleTrialUnlimitedTime(!!unlimitedEl.checked);
-            });
-        }
         const modal = document.getElementById('so-google-user-modal');
         if (modal) modal.style.display = 'flex';
     };
@@ -3467,89 +3646,33 @@
     };
 
     window.soSetGoogleTrialUnlimitedTime = async function(unlimited) {
-        if (!soRequireExtensionWrite()) return;
-        const uid = soGoogleTrialManageUid;
-        if (!uid) return;
-        try {
-            const payload = {
-                unlimited_time: !!unlimited,
-                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
-                adjusted_by: soAuthEmail()
-            };
-            if (unlimited) {
-                payload.expires_at = firebase.firestore.FieldValue.delete();
-                payload.days_granted = 0;
-            }
-            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set(payload, { merge: true });
-            await soLoadGoogleTrials();
-            soRefreshGoogleUserModalLabels();
-            renderSoGoogleTrialsRegistry();
-            soToast(unlimited ? 'User set to unlimited time (no expiry).' : 'Time limit enabled — set expiry or extend days.');
-        } catch (e) {
-            soToast('Update failed: ' + (e.message || 'Unknown error'));
-        }
+        const el = document.getElementById('so-google-user-unlimited-time');
+        if (el) el.checked = !!unlimited;
+        soOnGoogleUserUnlimitedTimeToggle();
     };
 
     window.soExtendGoogleTrialDays = function(days) {
-        const el = document.getElementById('so-google-user-extend-days');
-        if (el) el.value = String(days);
-        soApplyGoogleTrialExtendDays();
+        soGoogleUserPreviewExtendDays(days);
     };
 
-    window.soApplyGoogleTrialExtendDays = async function() {
-        if (!soRequireExtensionWrite()) return;
-        const uid = soGoogleTrialManageUid;
-        if (!uid) return;
-        const row = soGoogleTrials.find(r => r.uid === uid);
-        if (!row) return soToast('Google user not found.');
-        const days = parseInt(document.getElementById('so-google-user-extend-days')?.value, 10);
-        if (!Number.isFinite(days) || days < 1) return soToast('Enter days to extend (minimum 1).');
-        const currentMs = soGoogleTrialExpiryMs(row);
-        const base = currentMs > Date.now() ? currentMs : Date.now();
-        const next = new Date(base + days * 86400000);
-        try {
-            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
-                unlimited_time: false,
-                expires_at: next,
-                days_granted: days,
-                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
-                adjusted_by: soAuthEmail()
-            }, { merge: true });
-            await soLoadGoogleTrials();
-            soRefreshGoogleUserModalLabels();
-            renderSoGoogleTrialsRegistry();
-            soToast(`Extended to ${next.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}.`);
-        } catch (e) {
-            soToast('Extend failed: ' + (e.message || 'Unknown error'));
-        }
+    window.soApplyGoogleTrialExtendDays = function() {
+        soGoogleUserPreviewExtendDaysInput();
     };
 
-    window.soApplyGoogleTrialExpiryDate = async function() {
-        if (!soRequireExtensionWrite()) return;
-        const uid = soGoogleTrialManageUid;
-        if (!uid) return;
-        const raw = String(document.getElementById('so-google-user-expires-at')?.value || '').trim();
-        if (!raw) return soToast('Pick an expiry date and time.');
-        const next = new Date(raw);
-        if (!Number.isFinite(next.getTime())) return soToast('Invalid expiry date.');
-        if (next.getTime() <= Date.now()) return soToast('Expiry must be in the future.');
-        try {
-            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
-                unlimited_time: false,
-                expires_at: next,
-                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
-                adjusted_by: soAuthEmail()
-            }, { merge: true });
-            await soLoadGoogleTrials();
-            soRefreshGoogleUserModalLabels();
-            renderSoGoogleTrialsRegistry();
-            soToast(`Expiry set to ${next.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}.`);
-        } catch (e) {
-            soToast('Update failed: ' + (e.message || 'Unknown error'));
-        }
+    window.soApplyGoogleTrialExpiryDate = function() {
+        return saveSoGoogleUserAccessTime();
     };
 
     window.soResetGoogleTrialUsed = async function() {
+        const usedEl = document.getElementById('so-google-user-credits-used');
+        const balanceEl = document.getElementById('so-google-user-credits-balance');
+        const totalEl = document.getElementById('so-google-user-total-credits');
+        if (usedEl && totalEl) {
+            usedEl.value = '0';
+            if (balanceEl) balanceEl.value = totalEl.value;
+            soUpdateGoogleUserCreditsBreakdown();
+            return soToast('Used reset in form — tap Save credits to apply.');
+        }
         if (!soRequireExtensionWrite()) return;
         const uid = soGoogleTrialManageUid;
         if (!uid) return;
@@ -3611,46 +3734,26 @@
     };
 
     window.confirmSoGoogleTrialCredits = async function(mode) {
-        if (!soRequireExtensionWrite()) return;
-        const uid = soGoogleTrialManageUid;
-        if (!uid) return;
-        const row = soGoogleTrials.find(r => r.uid === uid);
-        if (!row) return soToast('Google user not found.');
-        const used = soGoogleTrialImagesUsed(row);
-        const limit = soGoogleTrialImagesLimit(row);
-        const amount = parseInt(document.getElementById('so-google-user-credits-amount')?.value, 10);
-        if (!Number.isFinite(amount)) {
-            return soToast('Enter a valid credit amount.');
-        }
-        let nextLimit = limit;
-        if (mode === 'add') {
-            if (amount < 1) return soToast('Add at least 1 credit.');
-            nextLimit = limit + amount;
-        } else if (mode === 'remove') {
-            if (amount < 1) return soToast('Remove at least 1 credit.');
-            nextLimit = Math.max(used, limit - amount);
-        } else if (mode === 'set') {
-            if (amount < used) {
-                return soToast(`Cannot set below used credits (${used}).`);
+        const map = { add: 'add-total', remove: 'remove-total', set: 'add-balance' };
+        if (mode === 'set') {
+            const amount = parseInt(document.getElementById('so-google-user-credits-adjust')?.value, 10);
+            const totalEl = document.getElementById('so-google-user-total-credits');
+            const usedEl = document.getElementById('so-google-user-credits-used');
+            const balanceEl = document.getElementById('so-google-user-credits-balance');
+            if (totalEl && Number.isFinite(amount)) {
+                const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
+                if (amount < used) return soToast(`Cannot set total below used (${used}).`);
+                totalEl.value = amount;
+                if (balanceEl) balanceEl.value = Math.max(0, amount - used);
+                soUpdateGoogleUserCreditsBreakdown();
+                return soToast('Total set in form — tap Save credits.');
             }
-            nextLimit = amount;
-        } else {
+        }
+        if (map[mode]) {
+            soGoogleUserQuickAdjust(map[mode]);
             return;
         }
-        try {
-            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
-                images_limit: nextLimit,
-                trial_credits: nextLimit,
-                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
-                adjusted_by: soAuthEmail()
-            }, { merge: true });
-            await soLoadGoogleTrials();
-            soRefreshGoogleUserModalLabels();
-            renderSoGoogleTrialsRegistry();
-            soToast(`Credits updated. New limit: ${nextLimit} (${Math.max(0, nextLimit - used)} remaining).`);
-        } catch (e) {
-            soToast('Update failed: ' + (e.message || 'Unknown error'));
-        }
+        return saveSoGoogleUserCredits();
     };
 
     window.soRevokeGoogleTrial = async function(uid) {
