@@ -2594,6 +2594,10 @@
                                     <input id="so-google-trial-max-devices" type="number" min="1" step="1" value="1"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">label</span>
                                     <input id="so-google-trial-label" type="text" placeholder="Google free trial" value="Google free trial"></label>
+                            </div>
+                            <details class="so-details-block" style="margin-top:10px;">
+                                <summary>Advanced: OAuth &amp; setup (superadmin only — not shown in extension)</summary>
+                            <div class="so-admin-grid" style="margin-top:10px;">
                                 <label class="so-field-full"><span class="admin-settings-field-label">oauth_client_id (Chrome extension OAuth)</span>
                                     <input id="so-google-trial-oauth-client-id" type="text" value="860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com" placeholder="….apps.googleusercontent.com" autocomplete="off"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">oauth_web_client_id (Kiwi / launchWebAuthFlow)</span>
@@ -2601,6 +2605,7 @@
                                 <label class="so-field-full"><span class="admin-settings-field-label">chrome_extension_id (pinned — manifest key)</span>
                                     <input id="so-google-trial-chrome-extension-id" type="text" value="ibeijdggldhedpioahdjkhpcpmgieoch" placeholder="32-char extension ID from chrome://extensions" readonly class="so-readonly-input"></label>
                             </div>
+                            <div id="so-google-trial-oauth-status" class="so-admin-muted" style="margin-top:8px;"></div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:10px;">
                                 <strong>Pinned extension ID:</strong> <code id="so-google-trial-extension-id-hint">ibeijdggldhedpioahdjkhpcpmgieoch</code><br>
                                 <strong>Redirect URI (Web client 9djj…):</strong> <span id="so-google-trial-redirect-hint"></span><br>
@@ -2618,6 +2623,7 @@
                                     <li>Extension <strong>v1.7.7+</strong> on Kiwi with manifest <code>key</code> (stable ID)</li>
                                 </ol>
                             </div>
+                            </details>
                             <div class="so-section-save-bar" style="flex-wrap:wrap; gap:8px;">
                                 <button type="button" class="btn-gold so-btn-sm" onclick="soSaveRecommendedGoogleTrial()">Save recommended defaults to Firebase</button>
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyRecommendedGoogleTrial()">Apply to form only</button>
@@ -4698,7 +4704,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.5"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.6"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

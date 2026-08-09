@@ -95,9 +95,7 @@
     }
 
     function soDefaultPlanSaveBadge(planId, days, price) {
-        const { save, pct } = soPlanPriceDiscount(planId, days, price);
-        if (save <= 0) return '';
-        return pct > 0 ? `Save ₹${save.toLocaleString('en-IN')} (${pct}% off)` : `Save ₹${save.toLocaleString('en-IN')}`;
+        return soFormatSaveBadge(planId, days, price);
     }
 
     function soExplainPlanDiscount(planId, days, price) {
@@ -147,6 +145,41 @@
         return `${SO_CREDIT_VOLUME_RATE}×${months} = ${credits} credits`;
     }
 
+    /** Customer-facing plan card line (price is shown separately on the card). */
+    function soPlanCardSubtitle(_price, days, credits) {
+        const c = parseInt(credits, 10) || 0;
+        const d = parseInt(days, 10) || 0;
+        let duration = '';
+        if (d === 30) duration = '30 days';
+        else if (d === 90) duration = '90 days';
+        else if (d === 180) duration = '180 days';
+        else if (d === 365) duration = '1 year';
+        else if (d > 0) duration = `${d} days`;
+        return `${duration} · ${c.toLocaleString('en-IN')} credits`;
+    }
+
+    /** Customer-facing detail subtitle (price shown separately on card). */
+    function soPlanDetailSubtitle(days, credits) {
+        const c = parseInt(credits, 10) || 0;
+        const d = parseInt(days, 10) || 0;
+        let duration = '';
+        if (d === 30) duration = '30 days';
+        else if (d === 90) duration = '90 days';
+        else if (d === 180) duration = '180 days';
+        else if (d === 365) duration = '1 year';
+        else if (d > 0) duration = `${d} days`;
+        return `${duration} · ${c.toLocaleString('en-IN')} credits`;
+    }
+
+    function soFormatSaveBadge(planId, days, price) {
+        const { save, pct } = soPlanPriceDiscount(planId, days, price);
+        const roundedSave = Math.round(save);
+        if (roundedSave <= 0) return '';
+        return pct > 0
+            ? `Save ₹${roundedSave.toLocaleString('en-IN')} (${pct}% off)`
+            : `Save ₹${roundedSave.toLocaleString('en-IN')}`;
+    }
+
     function soBuildDefaultPlans() {
         const mk = (plan) => Object.assign({ active: true, show_whatsapp_icon: true, show_details_icon: true, cta_text: 'Buy via WhatsApp', card_hint: 'Tap ℹ️ for details · Tap card for WhatsApp' }, plan);
         const qPrice = soCalcDefaultPlanPrice('quarterly', 90);
@@ -161,7 +194,7 @@
         return [
             mk({
                 id: 'monthly', name: 'Monthly', price: SO_DEFAULT_MONTHLY_PRICE, days: 30, duration: '1 Month',
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
                 included_credits: soCalcDefaultPlanCredits('monthly', 30),
                 allow_credit_addons: true,
                 max_addon_selections: 0,
@@ -171,11 +204,11 @@
                 ],
                 offer_badges: ['Starter'],
                 description: 'Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.',
-                detail_subtitle: '1 device · 30 days · 200 AI generation runs included',
-                highlights: ['Live shipping checks', '200 AI runs included', 'Add-on credits at checkout'],
+                detail_subtitle: soPlanDetailSubtitle(30, soCalcDefaultPlanCredits('monthly', 30)),
+                highlights: ['200 credits included', '30 days access', 'Add-on credits at checkout'],
                 features: [
                     { icon: '📅', title: '30 days access', text: 'Renews every month' },
-                    { icon: '⚡', title: '200 credits', text: 'One credit ≈ one generation run (upload → variants)' },
+                    { icon: '⚡', title: '200 credits', text: 'One credit = one AI generation run' },
                     { icon: '➕', title: 'Optional add-ons', text: '+10 or +25 credits when you buy via WhatsApp' },
                     { icon: '🚚', title: 'Smart Mode', text: 'Preview up to 200 variants per run' }
                 ],
@@ -185,90 +218,90 @@
                 }, {
                     title: 'Already on Monthly?',
                     body: 'Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.',
-                    items: ['Credit packs stack on your license', 'Add-ons below apply only when purchasing a new monthly plan']
+                    items: ['Credit packs stack on your license', 'Add-ons apply when purchasing a new monthly plan']
                 }],
-                card_subtitle: `30 days · 1 device · 200 credits · ₹${SO_DEFAULT_MONTHLY_PRICE}/mo`,
+                card_subtitle: soPlanCardSubtitle(SO_DEFAULT_MONTHLY_PRICE, 30, soCalcDefaultPlanCredits('monthly', 30)),
                 detail_footer: 'Credits deduct per generation run. Buy credit packs anytime from the popup while your plan is active.',
                 order: 0
             }),
             mk({
                 id: 'quarterly', name: '3 Months', price: qPrice, days: 90, duration: '3 Months',
-                save: soDefaultPlanSaveBadge('quarterly', 90, qPrice), offer_badges: ['Popular', 'Volume deal'],
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
-                included_credits: soCalcDefaultPlanCredits('quarterly', 90),
+                save: soFormatSaveBadge('quarterly', 90, qPrice), offer_badges: ['Popular', '8% off'],
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: qCredits,
                 allow_credit_addons: true,
                 max_addon_selections: 0,
                 credit_addons: [
                     { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
                     { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1 }
                 ],
-                description: 'Three months of Smart Mode — full 600-credit pack with a lower per-month price than paying monthly.',
-                detail_subtitle: `1 device · 90 days · ${qCredits.toLocaleString('en-IN')} AI runs included`,
-                highlights: [`${qCredits.toLocaleString('en-IN')} credits included`, 'Save vs 3× monthly', 'Live Meesho shipping'],
+                description: 'Three months of Smart Mode — 600 credits with a lower price than paying monthly three times.',
+                detail_subtitle: soPlanDetailSubtitle(90, qCredits),
+                highlights: [`${qCredits.toLocaleString('en-IN')} credits`, '90 days access', 'Lower price vs monthly'],
                 features: [
                     { icon: '📅', title: '90 days access', text: 'One payment, three months' },
-                    { icon: '⚡', title: `${qCredits.toLocaleString('en-IN')} credits`, text: `Formula: ${SO_CREDIT_VOLUME_RATE}×3 = ${qCredits}` },
-                    { icon: '💰', title: soDefaultPlanSaveBadge('quarterly', 90, qPrice) || 'Volume pricing', text: qDisc || `vs ₹${SO_DEFAULT_MONTHLY_PRICE}×3 = ₹${SO_DEFAULT_MONTHLY_PRICE * 3} monthly` }
+                    { icon: '⚡', title: `${qCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
+                    { icon: '💰', title: soFormatSaveBadge('quarterly', 90, qPrice) || 'Volume pricing', text: qDisc || `vs ₹${SO_DEFAULT_MONTHLY_PRICE}×3 = ₹${SO_DEFAULT_MONTHLY_PRICE * 3}` }
                 ],
                 detail_sections: [{
-                    title: 'Price & credits',
-                    body: `Credits: ${SO_CREDIT_VOLUME_RATE}×3 = ${qCredits}. Price: ₹${SO_DEFAULT_MONTHLY_PRICE}×3−₹48 = ₹${qPrice}${qDisc ? ` (${qDisc})` : ''}.`,
+                    title: 'Plan summary',
+                    body: `₹${qPrice.toLocaleString('en-IN')} for 90 days · ${qCredits.toLocaleString('en-IN')} credits included.${qDisc ? ` ${qDisc}.` : ''}`,
                     items: ['Unused credits stay until used', 'Credit packs available anytime']
                 }],
-                card_subtitle: `3 months · ${qCredits.toLocaleString('en-IN')} credits · ${soExplainPlanPriceFormula('quarterly', 90)}`,
-                detail_footer: `Full ${qCredits} credits (200/month × 3). Price discount applies to rupees only.`,
+                card_subtitle: soPlanCardSubtitle(qPrice, 90, qCredits),
+                detail_footer: 'Full 600-credit pack. Price discount applies to rupees only — credits stay at 200/month × 3.',
                 order: 1
             }),
             mk({
                 id: 'halfyearly', name: '6 Months', price: hPrice, days: 180, duration: '6 Months',
-                save: soDefaultPlanSaveBadge('halfyearly', 180, hPrice), offer_badges: ['12.5% off price'],
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
-                included_credits: soCalcDefaultPlanCredits('halfyearly', 180),
+                save: soFormatSaveBadge('halfyearly', 180, hPrice), offer_badges: ['12.5% off'],
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: hCredits,
                 allow_credit_addons: true,
                 max_addon_selections: 1,
                 credit_addons: [
                     { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 0 }
                 ],
-                description: `Half-year access for serious Meesho sellers — ${hCredits.toLocaleString('en-IN')} AI generation runs with 12.5% price discount.`,
-                detail_subtitle: `1 device · 180 days · ${hCredits.toLocaleString('en-IN')} credits`,
-                highlights: [`${hCredits.toLocaleString('en-IN')} credits`, '12.5% price discount', '6 months access'],
+                description: `Half-year access for serious Meesho sellers — ${hCredits.toLocaleString('en-IN')} credits with 12.5% price discount.`,
+                detail_subtitle: soPlanDetailSubtitle(180, hCredits),
+                highlights: [`${hCredits.toLocaleString('en-IN')} credits`, '180 days access', '12.5% off price'],
                 features: [
-                    { icon: '📅', title: '6 months access', text: 'Renews twice a year' },
-                    { icon: '⚡', title: `${hCredits.toLocaleString('en-IN')} credits`, text: `${SO_CREDIT_VOLUME_RATE}×6 = ${hCredits}` },
-                    { icon: '📈', title: 'Best ₹/credit', text: hDisc || 'Lower cost per run than quarterly' }
+                    { icon: '📅', title: '180 days access', text: 'Six months in one payment' },
+                    { icon: '⚡', title: `${hCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
+                    { icon: '📈', title: 'Best value', text: hDisc || 'Lower cost per credit than quarterly' }
                 ],
                 detail_sections: [{
-                    title: 'Volume pricing',
-                    body: `Credits: ${SO_CREDIT_VOLUME_RATE}×6 = ${hCredits}. Price: ${soExplainPlanPriceFormula('halfyearly', 180)}.`,
-                    items: ['Smart Mode up to 200 variants/run', 'Credit top-ups available']
+                    title: 'Plan summary',
+                    body: `₹${hPrice.toLocaleString('en-IN')} for 180 days · ${hCredits.toLocaleString('en-IN')} credits included.${hDisc ? ` ${hDisc}.` : ''}`,
+                    items: ['Smart Mode up to 200 variants per run', 'Credit top-ups available']
                 }],
-                card_subtitle: `6 months · ${hCredits.toLocaleString('en-IN')} credits · ${soExplainPlanPriceFormula('halfyearly', 180)}`,
+                card_subtitle: soPlanCardSubtitle(hPrice, 180, hCredits),
                 order: 2
             }),
             mk({
                 id: 'yearly', name: 'Yearly', price: yPrice, days: 365, duration: '1 Year',
-                save: soDefaultPlanSaveBadge('yearly', 365, yPrice), best: true, offer_badges: ['Best deal', '17% off price'],
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
-                included_credits: soCalcDefaultPlanCredits('yearly', 365),
+                save: soFormatSaveBadge('yearly', 365, yPrice), best: true, offer_badges: ['Best deal', '17% off'],
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: yCredits,
                 allow_credit_addons: true, max_addon_selections: 2,
                 credit_addons: [
                     { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
                     { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1, default_selected: false }
                 ],
-                description: `Best for full-time Meesho sellers — one year access plus ${yCredits.toLocaleString('en-IN')} AI runs and optional credit add-ons at checkout.`,
-                detail_subtitle: `1 device · 1 year · ${yCredits.toLocaleString('en-IN')} credits`,
-                highlights: [`${yCredits.toLocaleString('en-IN')} credits`, 'Optional add-ons', 'BEST VALUE'],
+                description: `Best for full-time Meesho sellers — one year access with ${yCredits.toLocaleString('en-IN')} credits and optional add-ons at checkout.`,
+                detail_subtitle: soPlanDetailSubtitle(365, yCredits),
+                highlights: [`${yCredits.toLocaleString('en-IN')} credits`, '1 year access', 'BEST VALUE'],
                 features: [
                     { icon: '📅', title: '1 year access', text: 'Single annual payment' },
-                    { icon: '⚡', title: `${yCredits.toLocaleString('en-IN')} credits`, text: `${SO_CREDIT_VOLUME_RATE}×12 = ${yCredits}` },
+                    { icon: '⚡', title: `${yCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
                     { icon: '➕', title: 'Credit add-ons', text: 'Pick +25 or +50 credits in popup' },
-                    'Unlimited Smart Mode previews within credit balance'
+                    { icon: '🚚', title: 'Smart Mode', text: 'Use credits across the full year' }
                 ],
                 detail_sections: [
                     { title: "What's included", items: ['Live Meesho shipping on all variants', 'Apply best image to catalog', 'Credit packs anytime'] },
-                    { title: 'Price & credits', body: `Price ${soExplainPlanPriceFormula('yearly', 365)}. Credits ${SO_CREDIT_VOLUME_RATE}×12 = ${yCredits}.`, items: [] }
+                    { title: 'Plan summary', body: `₹${yPrice.toLocaleString('en-IN')} for 1 year · ${yCredits.toLocaleString('en-IN')} credits included.${yDisc ? ` ${yDisc}.` : ''}`, items: [] }
                 ],
-                card_subtitle: `1 year · ${yCredits.toLocaleString('en-IN')} credits · ${soExplainPlanPriceFormula('yearly', 365)}`,
+                card_subtitle: soPlanCardSubtitle(yPrice, 365, yCredits),
                 detail_footer: 'Add-on credits included in WhatsApp purchase message when selected.',
                 order: 3
             })
@@ -467,8 +500,8 @@
     const SO_PLAN_PRESETS = {
         monthly: {
             id: 'monthly', name: 'Monthly', price: SO_DEFAULT_MONTHLY_PRICE, days: 30, duration: '1 Month',
-            max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 200,
-            allow_credit_addons: true, active: true
+            max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 200,
+            unlimited_devices: true, allow_credit_addons: true, active: true
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
@@ -3442,7 +3475,12 @@
         parts.push(t.unlimited_time
             ? '<span class="so-badge so-badge--on">No calendar expiry</span>'
             : `<span class="so-badge so-badge--warn">${t.days}-day limit</span>`);
-        parts.push(`<span class="so-badge so-badge--on">Device limit: ${t.max_devices}</span>`);
+        parts.push(`<span class="so-badge so-badge--meta">Device limit: ${t.max_devices} (Google trial only — not shown to users)</span>`);
+        return parts.join(' ');
+    }
+
+    function soGoogleTrialOAuthStatusBadges(t) {
+        const parts = [];
         parts.push(t.oauth_client_id
             ? '<span class="so-badge so-badge--on">Chrome OAuth configured</span>'
             : '<span class="so-badge so-badge--off">oauth_client_id missing</span>');
@@ -3478,6 +3516,10 @@
         const statusEl = document.getElementById('so-google-trial-status');
         if (statusEl) {
             statusEl.innerHTML = soGoogleTrialStatusBadges(trial);
+        }
+        const oauthStatusEl = document.getElementById('so-google-trial-oauth-status');
+        if (oauthStatusEl) {
+            oauthStatusEl.innerHTML = soGoogleTrialOAuthStatusBadges(trial);
         }
         const redirectEl = document.getElementById('so-google-trial-redirect-hint');
         if (redirectEl) {

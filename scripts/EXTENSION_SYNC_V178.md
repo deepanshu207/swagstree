@@ -27,8 +27,16 @@ Copy these changes into `deepanshu207/meesho-shipping-optimizer-extension`:
 
 Monthly plan: `allow_credit_addons: true` (+10 / +25 at purchase).
 
-## Files changed
+## Files changed (v1.7.9 plan copy + UI)
 
+```
+js/firebaseLicense.js  — formatPlanCardSubtitle, show subtitle + save, hide devices/OAuth UI
+popup.js               — hide license-device-hint, no device count in license status
+popup.html             — hide license-device-hint
+js/license.js          — remove device line from account cards
+```
+
+## Files changed (v1.7.8)
 ```
 popup.html
 popup.js
