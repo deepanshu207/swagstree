@@ -11352,6 +11352,22 @@ body.seo-indexing-off #seo-primary-nav {
     font-size: 8px;
     font-weight: 800;
 }
+.so-ext-offer-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.so-ext-offer-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(230, 126, 34, 0.2);
+    color: #f5b041;
+    font-size: 8px;
+    font-weight: 700;
+    border: 1px solid rgba(230, 126, 34, 0.4);
+}
 .so-ext-plan-name {
     font-size: 11px;
     color: #ccc;
@@ -12248,6 +12264,11 @@ body.seo-indexing-off #seo-primary-nav {
     background: rgba(255, 215, 0, 0.15);
     color: var(--gold, #ffd700);
     border: 1px solid rgba(255, 215, 0, 0.35);
+}
+.so-badge--offer {
+    background: rgba(230, 126, 34, 0.15);
+    color: #e67e22;
+    border: 1px solid rgba(230, 126, 34, 0.35);
 }
 .so-badge--on {
     background: rgba(46, 204, 113, 0.12);
