@@ -11189,11 +11189,45 @@ body.seo-indexing-off #seo-primary-nav {
     font-size: 10px;
     word-break: break-all;
 }
+.so-google-trials-table tbody tr.so-google-trial-row {
+    cursor: pointer;
+}
+.so-google-trials-table tbody tr.so-google-trial-row:hover {
+    background: rgba(255, 215, 0, 0.04);
+}
+.so-google-trials-table tbody tr.so-google-trial-row--revoked {
+    opacity: 0.75;
+}
+.so-google-user-modal-section {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #2a2a2a;
+}
+.so-google-user-modal-section h5 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--gold, #ffd700);
+}
+.so-google-user-quick-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.so-google-user-credits-grid {
+    margin-top: 8px;
+}
+.so-google-user-credits-breakdown {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(255, 215, 0, 0.06);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.12);
+}
 .so-google-trials-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    white-space: nowrap;
 }
 .so-btn-danger {
     border-color: rgba(255, 99, 99, 0.45) !important;
@@ -11360,13 +11394,17 @@ body.seo-indexing-off #seo-primary-nav {
 }
 .so-ext-offer-badge {
     display: inline-block;
-    padding: 2px 6px;
-    border-radius: 999px;
+    padding: 3px 7px;
+    border-radius: 6px;
     background: rgba(230, 126, 34, 0.2);
     color: #f5b041;
     font-size: 8px;
     font-weight: 700;
     border: 1px solid rgba(230, 126, 34, 0.4);
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.25;
+    max-width: 100%;
 }
 .so-ext-plan-name {
     font-size: 11px;
@@ -11400,6 +11438,21 @@ body.seo-indexing-off #seo-primary-nav {
     color: #fff;
     font-size: 7px;
     font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.so-ext-details-icon {
+    position: absolute;
+    top: 6px;
+    right: 28px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #f0f0f0;
+    color: #555;
+    font-size: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -11885,6 +11938,8 @@ body.seo-indexing-off #seo-primary-nav {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    max-width: 100%;
+    line-height: 1.35;
 }
 .so-meta-chip {
     font-size: 10px;
@@ -11894,7 +11949,9 @@ body.seo-indexing-off #seo-primary-nav {
     background: #222;
     border: 1px solid #333;
     color: #bbb;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
+    max-width: 100%;
 }
 .so-meta-chip--gold {
     background: rgba(255, 215, 0, 0.1);
@@ -11903,9 +11960,17 @@ body.seo-indexing-off #seo-primary-nav {
 }
 .so-plan-card-badges {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 6px;
     margin-top: 8px;
+    max-width: 100%;
+}
+.so-plan-card-badges-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    max-width: 100%;
 }
 .so-plan-chevron {
     flex-shrink: 0;
@@ -12255,20 +12320,25 @@ body.seo-indexing-off #seo-primary-nav {
 .so-badge {
     font-size: 9px;
     font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.so-badge--best {
-    background: rgba(255, 215, 0, 0.15);
-    color: var(--gold, #ffd700);
-    border: 1px solid rgba(255, 215, 0, 0.35);
+    letter-spacing: 0.03em;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.25;
+    max-width: 100%;
 }
 .so-badge--offer {
     background: rgba(230, 126, 34, 0.15);
     color: #e67e22;
     border: 1px solid rgba(230, 126, 34, 0.35);
+    text-transform: none;
+}
+.so-badge--best {
+    background: rgba(255, 215, 0, 0.15);
+    color: var(--gold, #ffd700);
+    border: 1px solid rgba(255, 215, 0, 0.35);
 }
 .so-badge--on {
     background: rgba(46, 204, 113, 0.12);
@@ -12391,6 +12461,9 @@ body.seo-indexing-off #seo-primary-nav {
         border-radius: 16px;
         max-height: 90vh;
     }
+}
+.so-modal-panel--wide {
+    max-width: 520px;
 }
 
 /* Shipping Optimizer — mobile field info + toolbar */
@@ -12581,5 +12654,123 @@ body.seo-indexing-off #seo-primary-nav {
     background: #1a2433;
     color: #9ecbff;
     border: 1px solid #2a3a4d;
+}
+
+.so-link-btn {
+    background: none;
+    border: none;
+    color: var(--gold, #ffd700);
+    font-size: inherit;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+}
+.so-defaults-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.so-defaults-summary-root {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.so-defaults-section h5 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--gold, #ffd700);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.so-defaults-formula-box {
+    padding: 10px 12px;
+    background: #151515;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 1.6;
+}
+.so-defaults-plans-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+.so-defaults-plan-card {
+    padding: 10px 12px;
+    background: #151515;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    font-size: 11px;
+}
+.so-defaults-plan-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.so-defaults-price {
+    color: var(--gold, #ffd700);
+    font-weight: 700;
+}
+.so-defaults-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0;
+}
+.so-defaults-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.25);
+    color: #ffd700;
+}
+.so-defaults-plan-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: #888;
+    margin-bottom: 4px;
+}
+.so-defaults-credits-formula {
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: rgba(255, 215, 0, 0.06);
+    border-radius: 6px;
+}
+.so-defaults-mini {
+    color: #aaa;
+    margin-top: 4px;
+}
+.so-defaults-field-counts {
+    color: #666;
+    font-size: 10px;
+    margin-top: 6px;
+}
+.so-defaults-packs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.so-defaults-pack-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: baseline;
+    padding: 8px 10px;
+    background: #151515;
+    border-radius: 8px;
+    border: 1px solid #2a2a2a;
+    font-size: 11px;
+}
+.so-defaults-actions-help {
+    padding: 10px 12px;
+    background: #1a1a0a;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 10px;
 }
 

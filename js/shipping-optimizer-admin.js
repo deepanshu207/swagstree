@@ -21,29 +21,224 @@
     const SO_OAUTH_CHROME_CLIENT_ID = '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com';
     const SO_OAUTH_WEB_CLIENT_ID = '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com';
 
-    const DEFAULT_PLANS = [
-        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 0 },
-        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 1 },
-        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 2 },
-        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, offer_badges: ['Best deal'], max_devices: 1, billing_mode: 'hybrid', included_credits: 100, active: true, order: 3 }
-    ];
+    /** Default monthly plan price (INR). */
+    const SO_DEFAULT_MONTHLY_PRICE = 199;
+    /** Credits/month for volume formula on multi-month plans (see Built-in defaults tab). */
+    const SO_CREDIT_VOLUME_RATE = 200;
+    /** Included credits on the monthly plan. */
+    const SO_CREDIT_MONTHLY_GRANT = 19;
+
+    /**
+     * Default included credits per plan — monthly uses fixed grant; longer plans use volume rate + discount.
+     * Quarterly: 200×3−51=549 · Half-yearly: 200×6×(1−12.5%)=1050 · Yearly: 200×12×(1−17%)≈1992→2000
+     */
+    function soCalcDefaultPlanPrice(planId, days) {
+        const d = Math.max(0, parseInt(days, 10) || 0);
+        const id = String(planId || '').toLowerCase();
+        if (id === 'monthly' || d === 30) return SO_DEFAULT_MONTHLY_PRICE;
+        if (id === 'quarterly' || d === 90) return SO_DEFAULT_MONTHLY_PRICE * 3 - 50;
+        if (id === 'halfyearly' || d === 180) return Math.round(SO_DEFAULT_MONTHLY_PRICE * 6 * (1 - 0.125));
+        if (id === 'yearly' || d === 365) {
+            return Math.round((SO_DEFAULT_MONTHLY_PRICE * 12 * (1 - 0.17)) / 10) * 10;
+        }
+        const months = d > 0 ? d / 30 : 1;
+        const discountPct = Math.min(20, Math.max(0, Math.round((months - 1) * 5)));
+        return Math.max(SO_DEFAULT_MONTHLY_PRICE, Math.round(SO_DEFAULT_MONTHLY_PRICE * months * (1 - discountPct / 100)));
+    }
+
+    function soDefaultPlanSaveBadge(planId, days, price) {
+        const d = parseInt(days, 10) || 0;
+        if (d <= 30) return '';
+        const months = d / 30;
+        const full = SO_DEFAULT_MONTHLY_PRICE * months;
+        const save = full - (parseInt(price, 10) || 0);
+        if (save <= 0) return '';
+        return `Save ₹${save.toLocaleString('en-IN')}`;
+    }
+
+    function soExplainPlanPriceFormula(planId, days) {
+        const id = String(planId || '').toLowerCase();
+        const d = parseInt(days, 10) || 0;
+        if (id === 'monthly' || d === 30) return `₹${SO_DEFAULT_MONTHLY_PRICE} / month`;
+        if (id === 'quarterly' || d === 90) return `₹${SO_DEFAULT_MONTHLY_PRICE}×3−50 = ₹${SO_DEFAULT_MONTHLY_PRICE * 3 - 50}`;
+        if (id === 'halfyearly' || d === 180) return `₹${SO_DEFAULT_MONTHLY_PRICE}×6×(1−12.5%) = ₹${Math.round(SO_DEFAULT_MONTHLY_PRICE * 6 * (1 - 0.125))}`;
+        if (id === 'yearly' || d === 365) {
+            const p = Math.round((SO_DEFAULT_MONTHLY_PRICE * 12 * (1 - 0.17)) / 10) * 10;
+            return `₹${SO_DEFAULT_MONTHLY_PRICE}×12×(1−17%) ≈ ₹${p}`;
+        }
+        return `₹${soCalcDefaultPlanPrice(planId, d)}`;
+    }
+
+    function soCalcDefaultPlanCredits(planId, days) {
+        const d = Math.max(0, parseInt(days, 10) || 0);
+        const id = String(planId || '').toLowerCase();
+        if (id === 'monthly' || d === 30) return SO_CREDIT_MONTHLY_GRANT;
+        if (id === 'quarterly' || d === 90) return SO_CREDIT_VOLUME_RATE * 3 - 51;
+        if (id === 'halfyearly' || d === 180) return Math.round(SO_CREDIT_VOLUME_RATE * 6 * (1 - 0.125));
+        if (id === 'yearly' || d === 365) {
+            const raw = SO_CREDIT_VOLUME_RATE * 12 * (1 - 0.17);
+            return Math.round(raw / 50) * 50;
+        }
+        const months = d > 0 ? d / 30 : 1;
+        const discountPct = Math.min(20, Math.max(0, Math.round((months - 1) * 5)));
+        return Math.max(SO_CREDIT_MONTHLY_GRANT, Math.round(SO_CREDIT_VOLUME_RATE * months * (1 - discountPct / 100)));
+    }
+
+    function soExplainPlanCreditsFormula(planId, days) {
+        const id = String(planId || '').toLowerCase();
+        const d = parseInt(days, 10) || 0;
+        if (id === 'monthly' || d === 30) return `${SO_CREDIT_MONTHLY_GRANT} credits (monthly starter grant)`;
+        if (id === 'quarterly' || d === 90) return `${SO_CREDIT_VOLUME_RATE}×3−51 = ${SO_CREDIT_VOLUME_RATE * 3 - 51} credits`;
+        if (id === 'halfyearly' || d === 180) return `${SO_CREDIT_VOLUME_RATE}×6×(1−12.5%) = ${Math.round(SO_CREDIT_VOLUME_RATE * 6 * (1 - 0.125))} credits`;
+        if (id === 'yearly' || d === 365) {
+            const n = Math.round((SO_CREDIT_VOLUME_RATE * 12 * (1 - 0.17)) / 50) * 50;
+            return `${SO_CREDIT_VOLUME_RATE}×12×(1−17%) ≈ ${n} credits`;
+        }
+        const months = d > 0 ? (d / 30).toFixed(1) : '?';
+        return `~${soCalcDefaultPlanCredits(planId, d)} credits (${months} mo × ${SO_CREDIT_VOLUME_RATE}/mo with tier discount)`;
+    }
+
+    function soBuildDefaultPlans() {
+        const mk = (plan) => Object.assign({ active: true, show_whatsapp_icon: true, show_details_icon: true, cta_text: 'Buy via WhatsApp', card_hint: 'Tap ℹ️ for details · Tap card for WhatsApp' }, plan);
+        const qPrice = soCalcDefaultPlanPrice('quarterly', 90);
+        const hPrice = soCalcDefaultPlanPrice('halfyearly', 180);
+        const yPrice = soCalcDefaultPlanPrice('yearly', 365);
+        return [
+            mk({
+                id: 'monthly', name: 'Monthly', price: SO_DEFAULT_MONTHLY_PRICE, days: 30, duration: '1 Month',
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('monthly', 30),
+                allow_credit_addons: true,
+                max_addon_selections: 0,
+                credit_addons: [
+                    { id: 'addon_10', credits: 10, price: 20, label: '+10 credits', active: true, order: 0 },
+                    { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 1 }
+                ],
+                offer_badges: ['Starter'],
+                description: 'Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.',
+                detail_subtitle: '1 device · 30 days · 19 AI generation runs included',
+                highlights: ['Live shipping checks', '19 AI runs included', 'Add-on credits at checkout'],
+                features: [
+                    { icon: '📅', title: '30 days access', text: 'Renews every month' },
+                    { icon: '⚡', title: '19 credits', text: 'One credit ≈ one generation run (upload → variants)' },
+                    { icon: '➕', title: 'Optional add-ons', text: '+10 or +25 credits when you buy via WhatsApp' },
+                    { icon: '🚚', title: 'Smart Mode', text: 'Preview up to 200 variants per run' }
+                ],
+                detail_sections: [{
+                    title: "What's included",
+                    items: ['Smart Mode on Meesho catalog', 'Apply lowest-shipping variant to listing', 'Top up anytime with credit packs while your plan is active']
+                }, {
+                    title: 'Already on Monthly?',
+                    body: 'Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.',
+                    items: ['Credit packs stack on your license', 'Add-ons below apply only when purchasing a new monthly plan']
+                }],
+                card_subtitle: `30 days · 1 device · 19 credits · ₹${SO_DEFAULT_MONTHLY_PRICE}/mo`,
+                detail_footer: 'Credits deduct per generation run. Buy credit packs anytime from the popup while your plan is active.',
+                order: 0
+            }),
+            mk({
+                id: 'quarterly', name: '3 Months', price: qPrice, days: 90, duration: '3 Months',
+                save: soDefaultPlanSaveBadge('quarterly', 90, qPrice), offer_badges: ['Popular', 'Volume deal'],
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('quarterly', 90),
+                allow_credit_addons: true,
+                max_addon_selections: 0,
+                credit_addons: [
+                    { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
+                    { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1 }
+                ],
+                description: 'Three months of Smart Mode — volume credit pack at a lower per-month rate than paying monthly.',
+                detail_subtitle: '1 device · 90 days · 549 AI runs included',
+                highlights: ['549 credits included', 'Save vs 3× monthly', 'Live Meesho shipping'],
+                features: [
+                    { icon: '📅', title: '90 days access', text: 'One payment, three months' },
+                    { icon: '⚡', title: '549 credits', text: 'Formula: 200×3−51 volume discount' },
+                    { icon: '💰', title: soDefaultPlanSaveBadge('quarterly', 90, qPrice) || 'Volume pricing', text: `vs ₹${SO_DEFAULT_MONTHLY_PRICE}×3 = ₹${SO_DEFAULT_MONTHLY_PRICE * 3} monthly` }
+                ],
+                detail_sections: [{
+                    title: 'Credit formula',
+                    body: '549 = 200 credits/month × 3 months − 51 volume discount. Price: ₹199×3−50.',
+                    items: ['Unused credits stay until used', 'Credit packs available anytime']
+                }],
+                card_subtitle: `3 months · 549 credits · ${soExplainPlanPriceFormula('quarterly', 90)}`,
+                detail_footer: 'Equivalent to ~183 credits/month vs 19 on monthly plan.',
+                order: 1
+            }),
+            mk({
+                id: 'halfyearly', name: '6 Months', price: hPrice, days: 180, duration: '6 Months',
+                save: soDefaultPlanSaveBadge('halfyearly', 180, hPrice), offer_badges: ['12.5% off price'],
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('halfyearly', 180),
+                allow_credit_addons: true,
+                max_addon_selections: 1,
+                credit_addons: [
+                    { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 0 }
+                ],
+                description: 'Half-year access for serious Meesho sellers — 1,050 AI generation runs with percentage volume discount.',
+                detail_subtitle: '1 device · 180 days · 1,050 credits',
+                highlights: ['1,050 credits', '12.5% volume discount', '6 months access'],
+                features: [
+                    { icon: '📅', title: '6 months access', text: 'Renews twice a year' },
+                    { icon: '⚡', title: '1,050 credits', text: '200×6×(1−12.5%) = 1,050' },
+                    { icon: '📈', title: 'Best ₹/credit', text: 'Lower cost per run than quarterly' }
+                ],
+                detail_sections: [{
+                    title: 'Volume pricing',
+                    body: `Credits: 200/mo base with 12.5% off. Price: ${soExplainPlanPriceFormula('halfyearly', 180)}.`,
+                    items: ['Smart Mode up to 200 variants/run', 'Credit top-ups available']
+                }],
+                card_subtitle: `6 months · 1,050 credits · ${soExplainPlanPriceFormula('halfyearly', 180)}`,
+                order: 2
+            }),
+            mk({
+                id: 'yearly', name: 'Yearly', price: yPrice, days: 365, duration: '1 Year',
+                save: soDefaultPlanSaveBadge('yearly', 365, yPrice), best: true, offer_badges: ['Best deal', '17% off price'],
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('yearly', 365),
+                allow_credit_addons: true, max_addon_selections: 2,
+                credit_addons: [
+                    { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
+                    { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1, default_selected: false }
+                ],
+                description: 'Best for full-time Meesho sellers — one year access plus ~2,000 AI runs and optional credit add-ons at checkout.',
+                detail_subtitle: '1 device · 1 year · ~2,000 credits',
+                highlights: ['~2,000 credits', 'Optional add-ons', 'BEST VALUE'],
+                features: [
+                    { icon: '📅', title: '1 year access', text: 'Single annual payment' },
+                    { icon: '⚡', title: '~2,000 credits', text: '200×12×(1−17%) volume formula' },
+                    { icon: '➕', title: 'Credit add-ons', text: 'Pick +25 or +50 credits in popup' },
+                    'Unlimited Smart Mode previews within credit balance'
+                ],
+                detail_sections: [
+                    { title: "What's included", items: ['Live Meesho shipping on all variants', 'Apply best image to catalog', 'Credit packs anytime'] },
+                    { title: 'Price & credits', body: `Price ${soExplainPlanPriceFormula('yearly', 365)}. Credits ≈2,000.`, items: [] }
+                ],
+                card_subtitle: `1 year · ~2,000 credits · ${soExplainPlanPriceFormula('yearly', 365)}`,
+                detail_footer: 'Add-on credits included in WhatsApp purchase message when selected.',
+                order: 3
+            })
+        ];
+    }
+
+    const DEFAULT_PLANS = soBuildDefaultPlans();
 
     const SO_DEFAULT_LICENSE_PLAN_ID = 'monthly';
 
     /** Fallback included credits when plan doc omits included_credits (extension reads plan + license). */
     const PLAN_DEFAULT_INCLUDED_CREDITS = {
-        yearly: 100,
+        monthly: 19,
+        quarterly: 549,
+        halfyearly: 1050,
+        yearly: 2000,
         family_yearly: 3600,
         friends_yearly: 4800,
         lifetime: 5000,
         credits_starter: 50
     };
 
-    /** ~200 credits per 30-day month — used for custom plans and license prefill. */
+    /** @deprecated Use soCalcDefaultPlanCredits — kept for custom-day fallback. */
     function soSuggestCreditsForPlanDays(days) {
-        const d = Math.max(0, parseInt(days, 10) || 0);
-        if (d <= 0) return 50;
-        return Math.max(50, Math.round((d / 30) * 200));
+        return soCalcDefaultPlanCredits('', days);
     }
 
     const DEFAULT_INLINE_DEMO_KEYS = {
@@ -62,8 +257,14 @@
         credits_per_image: 1,
         daily_limit: 0,
         monthly_limit: 0,
-        max_batch_size: 200
+        max_batch_size: 200,
+        stop_billing_mode: 'full',
+        stop_billing_min_charge: 0,
+        stop_billing_round_decimals: 2,
+        stop_billing_full_on_complete: true
     };
+
+    const SO_STOP_BILLING_MODES = ['full', 'proportional'];
 
     const DEFAULT_SMART_MODE = {
         variant_options: [
@@ -97,10 +298,51 @@
     };
 
     const DEFAULT_CREDIT_PACKS = [
-        { id: 'pack_10', credits: 10, price: 20, label: '10 Credits', active: true, order: 0 },
-        { id: 'pack_20', credits: 20, price: 38, label: '20 Credits', active: true, order: 1 },
-        { id: 'pack_50', credits: 50, price: 90, label: '50 Credits', active: true, order: 2 },
-        { id: 'pack_100', credits: 100, price: 170, label: '100 Credits', active: true, order: 3 }
+        {
+            id: 'pack_10', credits: 10, price: 20, label: '10 Credits', active: true, order: 0,
+            description: 'Quick top-up for a few Smart Mode runs — instant delivery after payment.',
+            detail_subtitle: '10 generation runs',
+            highlights: ['Instant delivery', 'No expiry'],
+            features: [
+                { icon: '⚡', title: '10 credits', text: '≈10 upload → variant runs' },
+                { icon: '💬', title: 'WhatsApp checkout', text: 'Pay via UPI and get key' }
+            ],
+            detail_sections: [{ title: 'How it works', items: ['Credits stack on your license', 'Deducted per generation run', 'Works with hybrid plans'] }],
+            card_subtitle: '10 credits · ₹20',
+            cta_text: 'Buy via WhatsApp'
+        },
+        {
+            id: 'pack_20', credits: 20, price: 38, label: '20 Credits', active: true, order: 1,
+            description: 'Slightly better ₹/credit than the 10-pack — good for a busy week of listings.',
+            detail_subtitle: '20 generation runs · Save ₹2',
+            highlights: ['5% savings', 'No expiry'],
+            features: [{ icon: '⚡', title: '20 credits', text: 'Best for weekly sellers' }],
+            card_subtitle: '20 credits · ₹38',
+            cta_text: 'Buy 20 credits on WhatsApp'
+        },
+        {
+            id: 'pack_50', credits: 50, price: 90, label: '50 Credits', active: true, order: 2,
+            description: 'Mid-size pack for regular catalog updates — lower per-credit cost.',
+            detail_subtitle: '50 runs · ₹1.80/credit',
+            highlights: ['10% off vs 10-pack', 'Popular'],
+            features: [{ icon: '📦', title: '50 credits', text: 'Enough for a month of active listing' }],
+            card_subtitle: '50 credits · ₹90',
+            cta_text: 'Buy via WhatsApp'
+        },
+        {
+            id: 'pack_100', credits: 100, price: 170, label: '100 Credits', active: true, order: 3,
+            description: 'Bulk top-up for power sellers — best value per credit in preset packs.',
+            detail_subtitle: '100 runs · ₹1.70/credit',
+            highlights: ['Best pack value', 'Stack with yearly plan'],
+            features: [
+                { icon: '🏆', title: '100 credits', text: 'Lowest ₹/credit in packs' },
+                { icon: '➕', title: 'Stacks', text: 'Activate as second license key on same device' }
+            ],
+            detail_sections: [{ title: 'Tip', body: 'Yearly plan customers often buy this as a separate credit-top-up key.', items: [] }],
+            card_subtitle: '100 credits · ₹170',
+            cta_text: 'Buy 100 credits on WhatsApp',
+            offer_badges: ['Best value']
+        }
     ];
 
     function soDeepClone(obj) {
@@ -169,8 +411,9 @@
 
     const SO_PLAN_PRESETS = {
         monthly: {
-            id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month',
-            max_devices: 1, device_tier: 'standard', billing_mode: 'subscription', active: true
+            id: 'monthly', name: 'Monthly', price: SO_DEFAULT_MONTHLY_PRICE, days: 30, duration: '1 Month',
+            max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 19,
+            allow_credit_addons: true, active: true
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
@@ -288,7 +531,7 @@
             'google-trial': 'Google Free Trial'
         };
         const label = tabLabels[tab] || tab;
-        if (!confirm(`Load recommended defaults for "${label}"? Unsaved changes on this tab will be replaced.`)) return;
+        if (!confirm(`Load recommended defaults for "${label}"?\n\nPreview everything first on the Built-in defaults tab.\nUnsaved changes on this tab will be replaced in the form only — not Firebase until you Save.`)) return;
 
         const seed = soGetDefaultAppSeed();
         if (tab === 'config') {
@@ -330,14 +573,100 @@
     };
 
     window.soViewAllDefaults = function() {
-        const seed = soGetDefaultAppSeed();
+        switchShippingOptimizerTab('defaults');
+        renderSoDefaultsSummary();
         const panel = document.getElementById('so-default-seed-json');
-        if (!panel) return;
-        panel.hidden = !panel.hidden;
-        if (!panel.hidden) {
-            panel.textContent = JSON.stringify(seed, null, 2);
-            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (panel) {
+            panel.hidden = false;
+            panel.textContent = JSON.stringify(soGetDefaultAppSeed(), null, 2);
         }
+    };
+
+    window.renderSoDefaultsSummary = function() {
+        const root = document.getElementById('so-defaults-summary-root');
+        if (!root) return;
+        const seed = soGetDefaultAppSeed();
+        const plans = (seed.plans || []).map((p, i) => soNormalizePlan(p, i));
+        const packs = (seed.credits?.packs || []).map((p, i) => soNormalizeCreditPack(p, i));
+        const trial = soNormalizeGoogleTrial(seed.google_trial || DEFAULT_GOOGLE_TRIAL);
+
+        const plansHtml = plans.map(p => {
+            const badges = [...(p.offer_badges || []), p.best ? 'BEST VALUE' : '', p.save || ''].filter(Boolean);
+            const badgeHtml = badges.length
+                ? `<div class="so-defaults-badges">${badges.map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join('')}</div>`
+                : '';
+            const featCount = (p.features || []).length;
+            const secCount = (p.detail_sections || []).length;
+            return `<div class="so-defaults-plan-card">
+                <div class="so-defaults-plan-head">
+                    <strong>${soEsc(p.name)}</strong>
+                    <span class="so-defaults-price">₹${(p.price || 0).toLocaleString('en-IN')}</span>
+                </div>
+                ${badgeHtml}
+                <div class="so-defaults-plan-meta">
+                    <span><code>${soEsc(p.id)}</code></span>
+                    <span>${soEsc(p.duration || p.days + 'd')}</span>
+                    <span>${soEsc(p.billing_mode)}</span>
+                </div>
+                <div class="so-defaults-credits-formula"><strong>₹${(p.price || 0).toLocaleString('en-IN')}</strong> · <strong>${p.included_credits || 0} credits</strong> — ${soEsc(soExplainPlanPriceFormula(p.id, p.days))} · ${soEsc(soExplainPlanCreditsFormula(p.id, p.days))}</div>
+                <p class="so-admin-muted">${soEsc(p.description || p.card_subtitle || '')}</p>
+                <div class="so-defaults-mini">${soEsc(p.card_subtitle || '')}</div>
+                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections</div>
+            </div>`;
+        }).join('');
+
+        const packsHtml = packs.map(p => `
+            <div class="so-defaults-pack-row">
+                <strong>${soEsc(p.label)}</strong>
+                <span>₹${p.price} · ${p.credits} cr</span>
+                <span class="so-admin-muted">${soEsc(p.card_subtitle || '')}</span>
+            </div>`).join('');
+
+        root.innerHTML = `
+            <div class="so-defaults-actions-help so-admin-muted so-admin-tip">
+                <p><strong>Example — Load defaults on Config tab:</strong> You currently have custom plan text in Firebase. Tap <em>Load defaults</em> → forms show the cards below (nothing live yet) → review → <em>Save to Firebase</em> when ready.</p>
+                <p><strong>Example — Seed all defaults:</strong> Immediately overwrites <code>shipping_optimizer_config/app</code> with everything below — use for first-time setup or factory reset. <em>Does not delete licenses or Google users.</em></p>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-calculator"></i> Price &amp; credit formulas (built-in)</h5>
+                <div class="so-defaults-formula-box">
+                    <div><strong>Monthly:</strong> ₹${SO_DEFAULT_MONTHLY_PRICE} · <strong>${SO_CREDIT_MONTHLY_GRANT} credits</strong></div>
+                    <div><strong>3 months:</strong> ${soExplainPlanPriceFormula('quarterly', 90)} · <strong>${SO_CREDIT_VOLUME_RATE}×3−51 = 549 credits</strong></div>
+                    <div><strong>6 months:</strong> ${soExplainPlanPriceFormula('halfyearly', 180)} · <strong>${SO_CREDIT_VOLUME_RATE}×6×(1−12.5%) = 1,050 credits</strong></div>
+                    <div><strong>Yearly:</strong> ${soExplainPlanPriceFormula('yearly', 365)} · <strong>≈2,000 credits</strong></div>
+                    <div class="so-admin-muted" style="margin-top:6px;">Monthly plan includes optional credit add-ons (+10/+25) at purchase. Existing customers on any plan can buy credit packs in the extension popup.</div>
+                </div>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-tags"></i> Plans (${plans.length}) — extension card + detail screen</h5>
+                <div class="so-defaults-plans-grid">${plansHtml}</div>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-coins"></i> Credits &amp; packs</h5>
+                <p>₹${seed.credits?.price_per_credit}/credit · min ${seed.credits?.min_purchase} · ${seed.credits?.cost_per_operation} per operation · image gen ${seed.credits?.image_generation?.credits_per_image} credit/run</p>
+                <div class="so-defaults-packs-list">${packsHtml}</div>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-google"></i> Google trial defaults</h5>
+                <p>${trial.trial_credits} trial credits · ${trial.unlimited_time ? 'no calendar expiry' : trial.days + ' days'} · ${trial.max_devices} device(s) · login ${trial.google_login_enabled ? 'on' : 'off'}</p>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-key"></i> Demo key</h5>
+                <p><code>MEESHO-DEMOFREE</code> — 30 days, label “Free trial”</p>
+            </div>
+
+            <details class="so-details-block" style="margin-top:12px;">
+                <summary>Full seed JSON (read-only)</summary>
+                <pre id="so-default-seed-json-inline" class="so-default-seed-json"></pre>
+            </details>`;
+
+        const jsonEl = document.getElementById('so-default-seed-json-inline');
+        if (jsonEl) jsonEl.textContent = JSON.stringify(seed, null, 2);
     };
 
     window.soCopyAllDefaults = function() {
@@ -869,6 +1198,8 @@
         p.card_hint = String(p.card_hint || '').trim();
         if (p.show_whatsapp_icon === false) p.show_whatsapp_icon = false;
         else p.show_whatsapp_icon = p.show_whatsapp_icon !== false;
+        if (p.show_details_icon === false) p.show_details_icon = false;
+        else p.show_details_icon = p.show_details_icon !== false;
         p.active = p.active !== false;
         p.best = !!p.best;
         p.unlimited_time = !!p.unlimited_time;
@@ -1042,6 +1373,7 @@
         if (p.card_subtitle) out.card_subtitle = p.card_subtitle;
         if (p.card_hint) out.card_hint = p.card_hint;
         if (p.show_whatsapp_icon === false) out.show_whatsapp_icon = false;
+        if (p.show_details_icon === false) out.show_details_icon = false;
         if (p.included_credits > 0) out.included_credits = p.included_credits;
         if (p.allow_credit_addons) out.allow_credit_addons = true;
         if (p.max_addon_selections > 0) out.max_addon_selections = p.max_addon_selections;
@@ -1163,6 +1495,8 @@
         p.card_hint = String(p.card_hint || '').trim();
         if (p.show_whatsapp_icon === false) p.show_whatsapp_icon = false;
         else p.show_whatsapp_icon = p.show_whatsapp_icon !== false;
+        if (p.show_details_icon === false) p.show_details_icon = false;
+        else p.show_details_icon = p.show_details_icon !== false;
         p.highlights = Array.isArray(p.highlights)
             ? p.highlights.map(h => String(h || '').trim()).filter(Boolean)
             : [];
@@ -1191,6 +1525,7 @@
         if (p.card_subtitle) out.card_subtitle = p.card_subtitle;
         if (p.card_hint) out.card_hint = p.card_hint;
         if (p.show_whatsapp_icon === false) out.show_whatsapp_icon = false;
+        if (p.show_details_icon === false) out.show_details_icon = false;
         if (p.highlights && p.highlights.length) out.highlights = p.highlights.slice();
         if (p.features && p.features.length) {
             out.features = p.features.map(f => {
@@ -1987,6 +2322,14 @@
         g.monthly_limit = Math.max(0, parseInt(g.monthly_limit, 10) || 0);
         g.max_batch_size = Math.max(0, parseInt(g.max_batch_size, 10));
         if (!Number.isFinite(g.max_batch_size)) g.max_batch_size = DEFAULT_IMAGE_GENERATION.max_batch_size;
+        const mode = String(g.stop_billing_mode || DEFAULT_IMAGE_GENERATION.stop_billing_mode).toLowerCase();
+        g.stop_billing_mode = SO_STOP_BILLING_MODES.includes(mode) ? mode : DEFAULT_IMAGE_GENERATION.stop_billing_mode;
+        g.stop_billing_min_charge = Math.max(0, parseFloat(g.stop_billing_min_charge) || 0);
+        const roundDec = parseInt(g.stop_billing_round_decimals, 10);
+        g.stop_billing_round_decimals = Number.isFinite(roundDec) && roundDec >= 0 && roundDec <= 6
+            ? roundDec
+            : DEFAULT_IMAGE_GENERATION.stop_billing_round_decimals;
+        g.stop_billing_full_on_complete = g.stop_billing_full_on_complete !== false;
         return g;
     }
 
@@ -1996,7 +2339,11 @@
             credits_per_image: document.getElementById('so-img-gen-credits')?.value,
             daily_limit: document.getElementById('so-img-gen-daily-limit')?.value,
             monthly_limit: document.getElementById('so-img-gen-monthly-limit')?.value,
-            max_batch_size: document.getElementById('so-img-gen-batch-max')?.value
+            max_batch_size: document.getElementById('so-img-gen-batch-max')?.value,
+            stop_billing_mode: document.getElementById('so-img-gen-stop-mode')?.value,
+            stop_billing_min_charge: document.getElementById('so-img-gen-stop-min')?.value,
+            stop_billing_round_decimals: document.getElementById('so-img-gen-stop-round')?.value,
+            stop_billing_full_on_complete: !!document.getElementById('so-img-gen-stop-full-complete')?.checked
         });
     }
 
@@ -2012,15 +2359,38 @@
         setVal('so-img-gen-daily-limit', img.daily_limit);
         setVal('so-img-gen-monthly-limit', img.monthly_limit);
         setVal('so-img-gen-batch-max', img.max_batch_size);
+        setVal('so-img-gen-stop-mode', img.stop_billing_mode);
+        setVal('so-img-gen-stop-min', img.stop_billing_min_charge);
+        setVal('so-img-gen-stop-round', img.stop_billing_round_decimals);
+        const fullCompleteEl = document.getElementById('so-img-gen-stop-full-complete');
+        if (fullCompleteEl) fullCompleteEl.checked = img.stop_billing_full_on_complete !== false;
+        soUpdateImageGenStopBillingVisibility();
         soUpdateImageGenPreviewCard();
     }
+
+    window.soUpdateImageGenStopBillingVisibility = function() {
+        const mode = document.getElementById('so-img-gen-stop-mode')?.value || 'full';
+        const proportional = mode === 'proportional';
+        document.querySelectorAll('[data-so-stop-proportional]').forEach(el => {
+            el.style.display = proportional ? '' : 'none';
+        });
+    };
 
     window.soUpdateImageGenPreviewCard = function() {
         const card = document.getElementById('so-img-gen-preview-card');
         if (!card) return;
         const img = soReadImageGenerationFromDom();
         const creditsLabel = img.credits_per_image === 0 ? '0 (free)' : String(img.credits_per_image);
-        card.innerHTML = `Example: customer uploads 1 image, selects 50 variants → counts as <strong>1 run</strong>, costs <strong>${creditsLabel}</strong> credits (if credits plan), uses <strong>1</strong> from daily limit.`;
+        const base = `Example: customer uploads 1 image, selects 50 variants → counts as <strong>1 run</strong>, uses <strong>1</strong> from daily limit.`;
+        let billingNote = '';
+        if (img.stop_billing_mode === 'proportional') {
+            const perCredit = img.credits_per_image || 1;
+            const stopped = (perCredit * 5 / 50).toFixed(img.stop_billing_round_decimals);
+            billingNote = ` <strong>Proportional billing:</strong> stop at 5/50 variants → charge <strong>${stopped}</strong> credits (base ${perCredit}/run).`;
+        } else {
+            billingNote = ` <strong>Full billing:</strong> charged <strong>${creditsLabel}</strong> credits at run start (even if stopped early).`;
+        }
+        card.innerHTML = base + billingNote;
     };
 
     function soNormalizeSmartModeVariantOption(opt, index) {
@@ -2882,6 +3252,7 @@
         }
         if (soActiveTab === 'licenses') renderSoLicensesList();
         if (soActiveTab === 'customers') renderSoCustomerRegistry();
+        if (soActiveTab === 'defaults') renderSoDefaultsSummary();
     };
 
     async function soLoadConfig() {
@@ -3250,6 +3621,246 @@
         return Math.max(0, limit - used);
     }
 
+    function soGoogleTrialHasUnlimitedTimeRow(row) {
+        if (!row) return false;
+        if (row.unlimited_time === true || row.unlimitedTime === true) return true;
+        if (row.unlimited_time === false || row.unlimitedTime === false) return false;
+        if (!soGoogleTrialExpiryMs(row)) {
+            return soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).unlimited_time;
+        }
+        return false;
+    }
+
+    function soGoogleTrialExpiryToDatetimeLocal(ms) {
+        if (!ms) return '';
+        const d = new Date(ms);
+        if (!Number.isFinite(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function soBindGoogleUserCreditsForm(row) {
+        const used = soGoogleTrialImagesUsed(row);
+        const total = soGoogleTrialImagesLimit(row);
+        const balance = Math.max(0, total - used);
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val != null ? val : '';
+        };
+        setVal('so-google-user-total-credits', total);
+        setVal('so-google-user-credits-used', used);
+        setVal('so-google-user-credits-balance', balance);
+        const adjustEl = document.getElementById('so-google-user-credits-adjust');
+        if (adjustEl && !adjustEl.value) adjustEl.placeholder = 'e.g. 3';
+        soUpdateGoogleUserCreditsBreakdown();
+    }
+
+    window.soUpdateGoogleUserCreditsBreakdown = function(changedField) {
+        const totalEl = document.getElementById('so-google-user-total-credits');
+        const usedEl = document.getElementById('so-google-user-credits-used');
+        const balanceEl = document.getElementById('so-google-user-credits-balance');
+        const panel = document.getElementById('so-google-user-credits-breakdown');
+        if (!totalEl || !usedEl || !balanceEl) return;
+
+        let total = Math.max(0, parseInt(totalEl.value, 10) || 0);
+        let used = Math.max(0, parseInt(usedEl.value, 10) || 0);
+        let balance = Math.max(0, parseInt(balanceEl.value, 10) || 0);
+
+        if (changedField === 'total') {
+            if (used > total) used = total;
+            balance = Math.max(0, total - used);
+            usedEl.value = used;
+            balanceEl.value = balance;
+        } else if (changedField === 'balance') {
+            total = used + balance;
+            totalEl.value = total;
+        } else if (changedField === 'used') {
+            if (used > total) total = used;
+            balance = Math.max(0, total - used);
+            totalEl.value = total;
+            balanceEl.value = balance;
+        } else {
+            balance = Math.max(0, total - used);
+            balanceEl.value = balance;
+        }
+
+        total = Math.max(0, parseInt(totalEl.value, 10) || 0);
+        used = Math.max(0, parseInt(usedEl.value, 10) || 0);
+        balance = Math.max(0, parseInt(balanceEl.value, 10) || 0);
+        const consistent = (used + balance) === total;
+        if (panel) {
+            panel.innerHTML = `<strong>Preview:</strong> ${balance} remaining of ${total} total · ${used} used` +
+                (consistent ? '' : ` <span style="color:#f59e0b;">(will reconcile to total ${used + balance} on save)</span>`);
+        }
+    };
+
+    window.soGoogleUserQuickAdjust = function(mode) {
+        const amount = parseInt(document.getElementById('so-google-user-credits-adjust')?.value, 10);
+        if (!Number.isFinite(amount) || amount < 1) {
+            return soToast('Enter an adjust amount (minimum 1).');
+        }
+        const totalEl = document.getElementById('so-google-user-total-credits');
+        const usedEl = document.getElementById('so-google-user-credits-used');
+        const balanceEl = document.getElementById('so-google-user-credits-balance');
+        if (!totalEl || !usedEl || !balanceEl) return;
+        let total = Math.max(0, parseInt(totalEl.value, 10) || 0);
+        let used = Math.max(0, parseInt(usedEl.value, 10) || 0);
+        let balance = Math.max(0, parseInt(balanceEl.value, 10) || 0);
+        if (mode === 'add-total') {
+            total += amount;
+            balance = Math.max(0, total - used);
+        } else if (mode === 'remove-total') {
+            total = Math.max(used, total - amount);
+            balance = Math.max(0, total - used);
+        } else if (mode === 'add-balance') {
+            balance += amount;
+            total = used + balance;
+        } else if (mode === 'reset-used') {
+            used = 0;
+            balance = total;
+        } else {
+            return;
+        }
+        totalEl.value = total;
+        usedEl.value = used;
+        balanceEl.value = balance;
+        soUpdateGoogleUserCreditsBreakdown();
+    };
+
+    window.saveSoGoogleUserCredits = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return soToast('No user selected.');
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+
+        let total = Math.max(0, parseInt(document.getElementById('so-google-user-total-credits')?.value, 10) || 0);
+        let used = Math.max(0, parseInt(document.getElementById('so-google-user-credits-used')?.value, 10) || 0);
+        let balance = Math.max(0, parseInt(document.getElementById('so-google-user-credits-balance')?.value, 10) || 0);
+
+        if (used > total) total = used;
+        if (used + balance !== total) total = used + balance;
+        balance = Math.max(0, total - used);
+
+        const prevUsed = soGoogleTrialImagesUsed(row);
+        const prevTotal = soGoogleTrialImagesLimit(row);
+        const summary = `Save credits for ${row.email || uid}?\n\n` +
+            `Total: ${prevTotal} → ${total}\n` +
+            `Used: ${prevUsed} → ${used}\n` +
+            `Balance: ${Math.max(0, prevTotal - prevUsed)} → ${balance}`;
+        if (!confirm(summary)) return;
+
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                images_limit: total,
+                trial_credits: total,
+                images_used: used,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soBindGoogleUserCreditsForm(soGoogleTrials.find(r => r.uid === uid) || row);
+            renderSoGoogleTrialsRegistry();
+            soToast(`Credits saved — ${balance} remaining of ${total} total.`);
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soOnGoogleUserUnlimitedTimeToggle = function() {
+        const unlimited = !!document.getElementById('so-google-user-unlimited-time')?.checked;
+        const limitedFields = document.getElementById('so-google-user-time-limited-fields');
+        if (limitedFields) limitedFields.style.display = unlimited ? 'none' : 'block';
+    };
+
+    window.soGoogleUserPreviewExtendDays = function(days) {
+        const el = document.getElementById('so-google-user-extend-days');
+        if (el) el.value = String(days);
+        soGoogleUserPreviewExtendDaysInput();
+    };
+
+    window.soGoogleUserPreviewExtendDaysInput = function() {
+        const uid = soGoogleTrialManageUid;
+        const row = uid ? soGoogleTrials.find(r => r.uid === uid) : null;
+        const days = parseInt(document.getElementById('so-google-user-extend-days')?.value, 10);
+        if (!Number.isFinite(days) || days < 1) return soToast('Enter days to extend (minimum 1).');
+        const currentMs = row ? soGoogleTrialExpiryMs(row) : 0;
+        const base = currentMs > Date.now() ? currentMs : Date.now();
+        const next = new Date(base + days * 86400000);
+        const expiresEl = document.getElementById('so-google-user-expires-at');
+        if (expiresEl) expiresEl.value = soGoogleTrialExpiryToDatetimeLocal(next.getTime());
+        soToast(`Expiry field set to ${next.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} — tap Save access time.`);
+    };
+
+    window.saveSoGoogleUserAccessTime = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return soToast('No user selected.');
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+        const unlimited = !!document.getElementById('so-google-user-unlimited-time')?.checked;
+        const payload = {
+            unlimited_time: unlimited,
+            adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+            adjusted_by: soAuthEmail()
+        };
+        if (unlimited) {
+            payload.expires_at = firebase.firestore.FieldValue.delete();
+            payload.days_granted = 0;
+        } else {
+            const raw = String(document.getElementById('so-google-user-expires-at')?.value || '').trim();
+            if (!raw) return soToast('Pick an expiry date/time, or enable unlimited time.');
+            const next = new Date(raw);
+            if (!Number.isFinite(next.getTime())) return soToast('Invalid expiry date.');
+            if (next.getTime() <= Date.now()) return soToast('Expiry must be in the future.');
+            payload.expires_at = next;
+            const days = parseInt(document.getElementById('so-google-user-extend-days')?.value, 10);
+            if (Number.isFinite(days) && days > 0) payload.days_granted = days;
+        }
+        const label = unlimited ? 'no expiry (unlimited time)' : `expires ${payload.expires_at.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
+        if (!confirm(`Save access time for ${row.email || uid}?\n\n${label}`)) return;
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set(payload, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast('Access time saved.');
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    function soRefreshGoogleUserModalLabels() {
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return;
+        const devices = soGoogleTrialDeviceCount(row);
+        const maxDevices = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+        const unlimited = soGoogleTrialHasUnlimitedTimeRow(row);
+        const emailEl = document.getElementById('so-google-user-email-label');
+        const summaryEl = document.getElementById('so-google-user-summary-label');
+        const devicesEl = document.getElementById('so-google-user-devices-label');
+        if (emailEl) emailEl.textContent = row.email || uid;
+        if (summaryEl) {
+            summaryEl.textContent = unlimited
+                ? `Access: no expiry · UID ${row.uid || ''}`
+                : `Access expires: ${soFormatGoogleTrialExpiry(row)} · UID ${row.uid || ''}`;
+        }
+        soBindGoogleUserCreditsForm(row);
+        if (devicesEl) devicesEl.textContent = `${devices} / ${maxDevices} device(s) bound`;
+        const unlimitedEl = document.getElementById('so-google-user-unlimited-time');
+        if (unlimitedEl) unlimitedEl.checked = unlimited;
+        const expiresEl = document.getElementById('so-google-user-expires-at');
+        if (expiresEl && !unlimited) expiresEl.value = soGoogleTrialExpiryToDatetimeLocal(soGoogleTrialExpiryMs(row));
+        soOnGoogleUserUnlimitedTimeToggle();
+        const revokeBtn = document.getElementById('so-google-user-revoke-btn');
+        const reactBtn = document.getElementById('so-google-user-reactivate-btn');
+        const isActive = row.active !== false;
+        if (revokeBtn) revokeBtn.style.display = isActive ? '' : 'none';
+        if (reactBtn) reactBtn.style.display = isActive ? 'none' : '';
+    }
+
     function renderSoGoogleTrialsRegistry() {
         const container = document.getElementById('so-google-trials-list');
         const countEl = document.getElementById('so-google-trials-count');
@@ -3281,8 +3892,8 @@
                     <thead>
                         <tr>
                             <th>Email</th>
-                            <th>Credits (used / limit)</th>
-                            <th>Remaining</th>
+                            <th>Balance / Total</th>
+                            <th>Used</th>
                             <th>Created</th>
                             <th>Access</th>
                             <th>Devices</th>
@@ -3298,23 +3909,23 @@
                             const remaining = soGoogleTrialCreditsRemaining(r);
                             const active = r.active !== false;
                             const devices = soGoogleTrialDeviceCount(r);
-                            const unlimitedTime = r.unlimited_time === true || r.unlimitedTime === true || !r.expires_at;
+                            const unlimitedTime = soGoogleTrialHasUnlimitedTimeRow(r);
                             const linkedKey = r.license_key || r.licenseKey || '';
                             const accessLabel = unlimitedTime
                                 ? '<span class="so-badge so-badge--on">No expiry</span>'
                                 : soEsc(soFormatGoogleTrialExpiry(r));
                             return `
-                            <tr class="${active ? '' : 'so-google-trial-row--revoked'}">
+                            <tr class="so-google-trial-row ${active ? '' : 'so-google-trial-row--revoked'}" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')" title="Click to manage credits and access time">
                                 <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}</td>
-                                <td><strong>${soEsc(String(used))}</strong> / ${soEsc(String(limit || '—'))}</td>
-                                <td><strong>${soEsc(String(remaining))}</strong></td>
+                                <td><strong>${soEsc(String(remaining))}</strong> / ${soEsc(String(limit || '—'))}</td>
+                                <td>${soEsc(String(used))}</td>
                                 <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
                                 <td>${accessLabel}</td>
                                 <td>${soEsc(`${devices}/${maxDevices}`)}</td>
                                 <td>${active ? '<span class="so-badge so-badge--on">Active</span>' : '<span class="so-badge so-badge--off">Revoked</span>'}</td>
                                 <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
-                                <td class="so-google-trials-actions">
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoGoogleTrialCredits('${soAttr(r.uid || '')}')">Credits</button>
+                                <td class="so-google-trials-actions" onclick="event.stopPropagation()">
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')">Manage</button>
                                     ${active
                                         ? `<button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}')">Revoke</button>`
                                         : ''}
@@ -3328,73 +3939,145 @@
             </div>`;
     }
 
-    let soGoogleTrialCreditsUid = null;
+    let soGoogleTrialManageUid = null;
 
-    window.openSoGoogleTrialCredits = function(uid) {
+    window.openSoGoogleTrialManage = function(uid) {
         if (!soRequireExtensionWrite()) return;
         const row = soGoogleTrials.find(r => r.uid === uid);
         if (!row) return soToast('Google user not found.');
-        soGoogleTrialCreditsUid = uid;
-        const used = soGoogleTrialImagesUsed(row);
-        const limit = soGoogleTrialImagesLimit(row);
-        const remaining = soGoogleTrialCreditsRemaining(row);
-        const label = document.getElementById('so-google-credits-email-label');
-        const balLabel = document.getElementById('so-google-credits-balance-label');
-        if (label) label.textContent = row.email || uid;
-        if (balLabel) balLabel.textContent = `Used ${used} · limit ${limit} · remaining ${remaining}`;
-        const amountEl = document.getElementById('so-google-credits-amount');
-        if (amountEl) amountEl.value = '';
-        const modal = document.getElementById('so-google-credits-modal');
+        soGoogleTrialManageUid = uid;
+        const adjustEl = document.getElementById('so-google-user-credits-adjust');
+        if (adjustEl) adjustEl.value = '';
+        const extendEl = document.getElementById('so-google-user-extend-days');
+        if (extendEl) extendEl.value = '';
+        soRefreshGoogleUserModalLabels();
+        const modal = document.getElementById('so-google-user-modal');
         if (modal) modal.style.display = 'flex';
     };
 
-    window.closeSoGoogleTrialCredits = function() {
-        soGoogleTrialCreditsUid = null;
-        const modal = document.getElementById('so-google-credits-modal');
+    window.openSoGoogleTrialCredits = function(uid) {
+        openSoGoogleTrialManage(uid);
+    };
+
+    window.closeSoGoogleTrialManage = function() {
+        soGoogleTrialManageUid = null;
+        const modal = document.getElementById('so-google-user-modal');
         if (modal) modal.style.display = 'none';
     };
 
-    window.confirmSoGoogleTrialCredits = async function(mode) {
+    window.closeSoGoogleTrialCredits = function() {
+        closeSoGoogleTrialManage();
+    };
+
+    window.soSetGoogleTrialUnlimitedTime = async function(unlimited) {
+        const el = document.getElementById('so-google-user-unlimited-time');
+        if (el) el.checked = !!unlimited;
+        soOnGoogleUserUnlimitedTimeToggle();
+    };
+
+    window.soExtendGoogleTrialDays = function(days) {
+        soGoogleUserPreviewExtendDays(days);
+    };
+
+    window.soApplyGoogleTrialExtendDays = function() {
+        soGoogleUserPreviewExtendDaysInput();
+    };
+
+    window.soApplyGoogleTrialExpiryDate = function() {
+        return saveSoGoogleUserAccessTime();
+    };
+
+    window.soResetGoogleTrialUsed = async function() {
+        const usedEl = document.getElementById('so-google-user-credits-used');
+        const balanceEl = document.getElementById('so-google-user-credits-balance');
+        const totalEl = document.getElementById('so-google-user-total-credits');
+        if (usedEl && totalEl) {
+            usedEl.value = '0';
+            if (balanceEl) balanceEl.value = totalEl.value;
+            soUpdateGoogleUserCreditsBreakdown();
+            return soToast('Used reset in form — tap Save credits to apply.');
+        }
         if (!soRequireExtensionWrite()) return;
-        const uid = soGoogleTrialCreditsUid;
+        const uid = soGoogleTrialManageUid;
         if (!uid) return;
-        const row = soGoogleTrials.find(r => r.uid === uid);
-        if (!row) return soToast('Google user not found.');
-        const used = soGoogleTrialImagesUsed(row);
-        const limit = soGoogleTrialImagesLimit(row);
-        const amount = parseInt(document.getElementById('so-google-credits-amount')?.value, 10);
-        if (!Number.isFinite(amount)) {
-            return soToast('Enter a valid credit amount.');
-        }
-        let nextLimit = limit;
-        if (mode === 'add') {
-            if (amount < 1) return soToast('Add at least 1 credit.');
-            nextLimit = limit + amount;
-        } else if (mode === 'remove') {
-            if (amount < 1) return soToast('Remove at least 1 credit.');
-            nextLimit = Math.max(used, limit - amount);
-        } else if (mode === 'set') {
-            if (amount < used) {
-                return soToast(`Cannot set below used credits (${used}).`);
-            }
-            nextLimit = amount;
-        } else {
-            return;
-        }
+        if (!confirm('Reset credits used to 0 for this user?')) return;
         try {
             await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
-                images_limit: nextLimit,
-                trial_credits: nextLimit,
+                images_used: 0,
                 adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
                 adjusted_by: soAuthEmail()
             }, { merge: true });
-            closeSoGoogleTrialCredits();
             await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
             renderSoGoogleTrialsRegistry();
-            soToast(`Credits updated. New limit: ${nextLimit} (${Math.max(0, nextLimit - used)} remaining).`);
+            soToast('Credits used reset to 0.');
         } catch (e) {
-            soToast('Update failed: ' + (e.message || 'Unknown error'));
+            soToast('Reset failed: ' + (e.message || 'Unknown error'));
         }
+    };
+
+    window.soResetGoogleTrialDevicesFromModal = async function() {
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        await soResetGoogleTrialDevices(uid);
+        soRefreshGoogleUserModalLabels();
+    };
+
+    window.soRevokeGoogleTrialFromModal = async function() {
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        await soRevokeGoogleTrial(uid);
+        soRefreshGoogleUserModalLabels();
+    };
+
+    window.soReactivateGoogleTrialFromModal = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                active: true,
+                reactivated_at: firebase.firestore.FieldValue.serverTimestamp(),
+                reactivated_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast('Google user reactivated.');
+        } catch (e) {
+            soToast('Reactivate failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soLinkGoogleTrialToLicenseFromModal = async function() {
+        const uid = soGoogleTrialManageUid;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!uid) return;
+        closeSoGoogleTrialManage();
+        soLinkGoogleTrialToLicense(uid, row?.email || '');
+    };
+
+    window.confirmSoGoogleTrialCredits = async function(mode) {
+        const map = { add: 'add-total', remove: 'remove-total', set: 'add-balance' };
+        if (mode === 'set') {
+            const amount = parseInt(document.getElementById('so-google-user-credits-adjust')?.value, 10);
+            const totalEl = document.getElementById('so-google-user-total-credits');
+            const usedEl = document.getElementById('so-google-user-credits-used');
+            const balanceEl = document.getElementById('so-google-user-credits-balance');
+            if (totalEl && Number.isFinite(amount)) {
+                const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
+                if (amount < used) return soToast(`Cannot set total below used (${used}).`);
+                totalEl.value = amount;
+                if (balanceEl) balanceEl.value = Math.max(0, amount - used);
+                soUpdateGoogleUserCreditsBreakdown();
+                return soToast('Total set in form — tap Save credits.');
+            }
+        }
+        if (map[mode]) {
+            soGoogleUserQuickAdjust(map[mode]);
+            return;
+        }
+        return saveSoGoogleUserCredits();
     };
 
     window.soRevokeGoogleTrial = async function(uid) {
@@ -3735,6 +4418,7 @@
                             <label><span>WhatsApp button label</span><input type="text" data-field="cta_text" value="${soAttr(pack.cta_text || '')}" placeholder="Buy via WhatsApp" oninput="soMarkTabDirty('credits')"></label>
                             <label class="so-field-full"><span>Detail footer</span><input type="text" data-field="detail_footer" value="${soAttr(pack.detail_footer || '')}" oninput="soMarkTabDirty('credits')"></label>
                             <label class="so-plan-check"><input type="checkbox" data-field="show_whatsapp_icon" ${pack.show_whatsapp_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show green WhatsApp icon on pack card</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="show_details_icon" ${pack.show_details_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show details (ℹ️) icon on pack card</label>
                         </div>
                     </div>
                     <div class="so-plan-actions-bar">
@@ -3771,6 +4455,7 @@
                 card_subtitle: get('card_subtitle'),
                 card_hint: get('card_hint'),
                 show_whatsapp_icon: get('show_whatsapp_icon'),
+                show_details_icon: get('show_details_icon'),
                 highlights: soParsePlanFeaturesText(get('highlights_text')),
                 features: soParsePlanFeaturesFromText(get('features_text')),
                 detail_sections: soParsePlanDetailSectionsFromDom(row),
@@ -3940,9 +4625,12 @@
                     ).join('')}</div>`
                     : '';
                 return `<div class="so-ext-plan${bestClass}">
+                    <div class="so-plan-card-badges-row" style="margin-bottom:4px;">
                     ${p.best ? '<span class="so-ext-plan-tag">BEST VALUE</span>' : ''}
-                    ${offerBadges ? `<div class="so-ext-offer-badges">${offerBadges}</div>` : ''}
+                    ${p.show_details_icon !== false ? '<span class="so-ext-details-icon" title="Plan details">ℹ️</span>' : ''}
                     ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
+                    </div>
+                    ${offerBadges ? `<div class="so-ext-offer-badges">${offerBadges}</div>` : ''}
                     <div class="so-ext-plan-name">${soEsc(p.name)}</div>
                     <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
                     <div class="so-ext-plan-note">${soEsc(p.card_subtitle || p.save || `${durationLabel} · ${devicesLabel}`)}</div>
@@ -3959,6 +4647,7 @@
                 <p class="so-admin-muted">₹${credits.price_per_credit}/credit · min ${credits.min_purchase} · ${credits.cost_per_operation} per operation</p>
                 ${packs.length ? `<div class="so-ext-preview-grid so-ext-preview-grid--packs">${packs.map(p =>
                     `<div class="so-ext-plan so-ext-plan--pack">
+                        ${p.show_details_icon !== false ? '<span class="so-ext-details-icon" title="Pack details">ℹ️</span>' : ''}
                         ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
                         <div class="so-ext-plan-name">${soEsc(p.label || `${p.credits} credits`)}</div>
                         <div class="so-ext-plan-price">₹${p.price}</div>
@@ -4307,11 +4996,15 @@
                                 <div class="so-plan-chips">${soPlanMetaChips(plan)}</div>
                             </div>
                             <div class="so-plan-card-badges">
-                                ${creditsBadge}
-                                ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
-                                ${(plan.offer_badges || []).map(b => `<span class="so-badge so-badge--offer">${soEsc(b)}</span>`).join('')}
-                                ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
-                                ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
+                                <div class="so-plan-card-badges-row">
+                                    ${creditsBadge}
+                                    ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
+                                    ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                                </div>
+                                <div class="so-plan-card-badges-row">
+                                    ${(plan.offer_badges || []).map(b => `<span class="so-badge so-badge--offer">${soEsc(b)}</span>`).join('')}
+                                    ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
+                                </div>
                             </div>
                         </div>
                         <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
@@ -4378,6 +5071,7 @@
                             <label><span>WhatsApp button label</span><input type="text" data-field="cta_text" value="${soAttr(plan.cta_text || '')}" placeholder="Buy via WhatsApp" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-field-full"><span>Detail footer (small text under WhatsApp button)</span><input type="text" data-field="detail_footer" value="${soAttr(plan.detail_footer || '')}" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-plan-check"><input type="checkbox" data-field="show_whatsapp_icon" ${plan.show_whatsapp_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show green WhatsApp quick button on plan card</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="show_details_icon" ${plan.show_details_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show details (ℹ️) icon on plan card</label>
                         </div>
                     </div>
                     <div class="so-field-group">
@@ -4447,6 +5141,7 @@
                 card_subtitle: get('card_subtitle'),
                 card_hint: get('card_hint'),
                 show_whatsapp_icon: get('show_whatsapp_icon'),
+                show_details_icon: get('show_details_icon'),
                 highlights: soParsePlanFeaturesText(get('highlights_text')),
                 features: soParsePlanFeaturesFromText(get('features_text')),
                 detail_sections: soParsePlanDetailSectionsFromDom(row),

@@ -2057,9 +2057,54 @@
                                 </div>
                                 <div id="so-guide-section-workflow" class="admin-guide-section-content" style="display:none;">
                                     <p class="admin-guide-how"><strong>1.</strong> Sign in to <code>extension-e6e32</code> (auto-syncs with Swagstree superadmin login).</p>
-                                    <p class="admin-guide-how"><strong>2.</strong> Pick a tab → expand one accordion → edit → <strong>Save</strong> that section (or sticky “Save all” at bottom).</p>
+                                    <p class="admin-guide-how"><strong>2.</strong> Pick a tab → expand one accordion → edit → <strong>Save</strong> that section (or sticky “Save to Firebase” at bottom).</p>
                                     <p class="admin-guide-how"><strong>3.</strong> Open <strong>Extension preview</strong> to see what the Meesho popup will show.</p>
                                     <p class="admin-guide-caution"><strong>Never</strong> rename a plan id after licenses exist. Removed inline demo keys are deleted from Firebase on save.</p>
+                                </div>
+                            </div>
+
+                            <div id="so-guide-section-accord-defaults" class="admin-guide-section-accordion admin-guide-section-accordion--highlight">
+                                <div class="admin-guide-section-header" onclick="toggleSoGuideSection('defaults')" role="button" tabindex="0" aria-expanded="false" aria-controls="so-guide-section-defaults" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSoGuideSection('defaults');}">
+                                    <span><i class="fa fa-seedling"></i> Load defaults vs Seed vs Save</span>
+                                    <i id="so-guide-section-icon-defaults" class="fa fa-chevron-down admin-guide-section-chevron"></i>
+                                </div>
+                                <div id="so-guide-section-defaults" class="admin-guide-section-content" style="display:none;">
+                                    <div class="admin-guide-matrix">
+                                        <div class="admin-guide-matrix-row admin-guide-matrix-row--head">
+                                            <span>Button</span><span>What it does</span><span>Writes Firebase?</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Load defaults</span>
+                                            <span>Resets <strong>this tab’s form</strong> to built-in recommended values from code (<code>soGetDefaultAppSeed()</code>). Does not touch live config until you save.</span>
+                                            <span>No</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Save to Firebase</span>
+                                            <span>Writes <strong>current form values</strong> on this tab to <code>shipping_optimizer_config/app</code> (merge). Extension picks this up on next refresh (~5 min cache).</span>
+                                            <span>Yes</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Save as defaults</span>
+                                            <span>Same as <strong>Save to Firebase</strong> for that tab — stores your edits as the live default for customers.</span>
+                                            <span>Yes</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Seed all defaults</span>
+                                            <span>Immediately writes the <strong>full built-in seed JSON</strong> (plans, credits, Google trial, etc.) to Firebase — use to restore factory settings or first-time setup.</span>
+                                            <span>Yes — full merge</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Save all as defaults</span>
+                                            <span>Writes <strong>all tabs’ current forms</strong> to Firebase in one go (config + credits + Google trial).</span>
+                                            <span>Yes</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">View / Copy defaults JSON</span>
+                                            <span>Read-only peek at the built-in seed object in code — useful for docs or manual Firebase edits.</span>
+                                            <span>No</span>
+                                        </div>
+                                    </div>
+                                    <p class="admin-guide-caution" style="margin-top:10px;"><strong>Tip:</strong> Open the <strong>Built-in defaults</strong> tab first to see every plan, credit formula, and pack before Load or Seed. Use <em>Load defaults</em> → review → <em>Save to Firebase</em> when you want a safe preview.</p>
                                 </div>
                             </div>
 
@@ -2175,6 +2220,7 @@
 
                 <div class="so-tab-chips" aria-label="Quick jump">
                     <button type="button" class="so-tab-chip so-tab-chip--active" data-so-tab-chip="config" onclick="switchShippingOptimizerTab('config')">Config</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="defaults" onclick="switchShippingOptimizerTab('defaults')">Defaults</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="credits" onclick="switchShippingOptimizerTab('credits')">Credits</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="demo" onclick="switchShippingOptimizerTab('demo')">Demo keys</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="licenses" onclick="switchShippingOptimizerTab('licenses')">Licenses</button>
@@ -2188,6 +2234,7 @@
                     <span class="admin-settings-field-label">Section</span>
                     <select id="so-tab-select" class="so-tab-select" onchange="switchShippingOptimizerTab(this.value)">
                         <option value="config">Config &amp; Pricing</option>
+                        <option value="defaults">Built-in defaults</option>
                         <option value="credits">Credits &amp; Packs</option>
                         <option value="demo">Demo / Promo Keys</option>
                         <option value="licenses">Paid Licenses</option>
@@ -2198,6 +2245,7 @@
                 </label>
                 <div class="so-admin-tabs so-admin-tabs--desktop">
                     <button type="button" class="so-admin-tab-btn so-admin-tab-btn--active" data-so-tab="config" onclick="switchShippingOptimizerTab('config')">Config &amp; Pricing</button>
+                    <button type="button" class="so-admin-tab-btn" data-so-tab="defaults" onclick="switchShippingOptimizerTab('defaults')">Built-in defaults</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="credits" onclick="switchShippingOptimizerTab('credits')">Credits &amp; Packs</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
@@ -2212,6 +2260,20 @@
                         <button type="button" class="so-btn-sm" onclick="soSaveCurrentTab()">Save now</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soDiscardLocalEdits()">Revert</button>
                     </div>
+                </div>
+
+                <!-- Tab: Built-in defaults (read-only preview before Load / Seed) -->
+                <div id="so-tab-defaults" class="so-admin-tab-panel" style="display:none;">
+                    <p class="so-admin-muted so-admin-tip" style="margin-bottom:12px;">
+                        <strong>Read-only preview</strong> of values in code (<code>soGetDefaultAppSeed()</code>). Open this tab <em>before</em> Load defaults or Seed all defaults so you know exactly what will change. Nothing here writes Firebase until you use buttons on other tabs.
+                    </p>
+                    <div class="so-defaults-toolbar">
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Loads defaults into Config form only — does not write Firebase">Load → Config form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Loads defaults into Credits form only">Load → Credits form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy JSON</button>
+                        <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soSeedAllDefaults()" title="Writes full seed to Firebase immediately">Seed all to Firebase</button>
+                    </div>
+                    <div id="so-defaults-summary-root" class="so-defaults-summary-root"></div>
                 </div>
 
                 <!-- Tab 1: Config & Pricing -->
@@ -2234,7 +2296,7 @@
                                     <div id="so-hint-min-version" class="so-field-info-panel" hidden role="note">Semver like <code>1.2.0</code>. Older extension versions see an “please update” notice instead of plans.</div>
                                     <input id="so-min-version" type="text" placeholder="1.7.0" oninput="soMarkTabDirty('config')"></label>
                                 <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
-                                <label class="so-plan-check so-field-full"><input id="so-google-login-general" type="checkbox" checked onchange="soMarkTabDirty('config'); renderSoExtensionPreview()"> <strong>Show Google sign-in</strong> in extension (<code>google_trial.google_login_enabled</code>)</label>
+                                <label class="so-plan-check so-field-full"><input id="so-google-login-general" type="checkbox" checked onchange="soMarkTabDirty('config'); const t=document.getElementById('so-google-login-enabled'); if(t){t.checked=this.checked;} renderSoExtensionPreview()"> <strong>Show Google sign-in</strong> in extension (<code>google_trial.google_login_enabled</code>)</label>
                                 <label style="grid-column:1/-1;"><span class="so-field-label-row"><span class="admin-settings-field-label">Announcement banner</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('announcement', event)" aria-expanded="false" aria-controls="so-hint-announcement" title="More info">ⓘ</button></span>
                                     <div id="so-hint-announcement" class="so-field-info-panel" hidden role="note">Optional text shown at top of extension popup (e.g. sale, maintenance). Leave empty to hide.</div>
                                     <textarea id="so-announcement" rows="2" placeholder="Optional banner text" oninput="soMarkTabDirty('config'); renderSoExtensionPreview()"></textarea></label>
@@ -2341,10 +2403,10 @@
                     </details>
 
                     <div class="so-sticky-save so-sticky-save--muted">
-                        <span class="so-admin-muted">Save everything on this tab</span>
+                        <span class="so-admin-muted">Save everything on this tab · <button type="button" class="so-link-btn" onclick="switchShippingOptimizerTab('defaults')">Preview built-in defaults first ⓘ</button></span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soViewAllDefaults()">View all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy defaults JSON</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Resets this tab's form to built-in values — does not write Firebase">Load defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()">Save all as defaults</button>
@@ -2374,12 +2436,12 @@
                                     <input id="so-credits-cost-op" type="number" min="1" step="1" value="1" oninput="soMarkTabDirty('credits')"></label>
                             </div>
                             <div class="so-admin-subhead" style="margin-top:14px;"><i class="fa fa-image"></i> AI image generation limits</div>
-                            <p class="so-admin-muted so-admin-tip">One generation run = one upload in the extension, regardless of how many variants (20/50/100) are requested. Stopping mid-run still counts as 1 run. Daily/monthly limits count runs, not variants.</p>
+                            <p class="so-admin-muted so-admin-tip">One generation run = one upload in the extension, regardless of how many variants (20/50/100) are requested. Daily/monthly limits count runs, not variants. With <strong>full</strong> billing, stopping mid-run still charges the full run cost; with <strong>proportional</strong> billing, charge is based on completed variants.</p>
                             <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-img-gen-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Image generation enabled</label>
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Credits per run</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-credits', event)" aria-expanded="false" aria-controls="so-hint-img-gen-credits" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-credits" class="so-field-info-panel" hidden role="note">Charged once per upload/generation flow. Field key stays <code>credits_per_image</code> for extension compatibility. Use <code>0</code> to fall back to legacy <code>cost_per_operation</code> for credits/hybrid licenses.</div>
-                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="1" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
+                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="1" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateImageGenPreviewCard()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Daily run limit (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-daily', event)" aria-expanded="false" aria-controls="so-hint-img-gen-daily" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-daily" class="so-field-info-panel" hidden role="note">Max generation runs per license per calendar day. Resets at midnight (extension local time).</div>
                                     <input id="so-img-gen-daily-limit" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
@@ -2389,7 +2451,20 @@
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Max variants per run (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-batch', event)" aria-expanded="false" aria-controls="so-hint-img-gen-batch" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-batch" class="so-field-info-panel" hidden role="note">Blocks runs that request more variants than this limit. Does not change how runs are counted.</div>
                                     <input id="so-img-gen-batch-max" type="number" min="0" step="1" value="200" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateSmartModeDefaultSelect()"></label>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Stop billing mode</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-stop-mode', event)" aria-expanded="false" aria-controls="so-hint-img-gen-stop-mode" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-stop-mode" class="so-field-info-panel" hidden role="note"><strong>full</strong> charges the full run cost at start. <strong>proportional</strong> charges at run end by completed ÷ requested variants × credits per run.</div>
+                                    <select id="so-img-gen-stop-mode" onchange="soMarkTabDirty('credits'); soUpdateImageGenStopBillingVisibility(); soUpdateImageGenPreviewCard()">
+                                        <option value="full">full — charge at run start</option>
+                                        <option value="proportional">proportional — charge by completed variants</option>
+                                    </select></label>
+                                <label data-so-stop-proportional style="display:none;"><span class="so-field-label-row"><span class="admin-settings-field-label">Min proportional charge</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-stop-min', event)" aria-expanded="false" aria-controls="so-hint-img-gen-stop-min" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-stop-min" class="so-field-info-panel" hidden role="note">Floor for proportional charges (<code>0</code> = no minimum). Example: <code>0.1</code> ensures any partial run costs at least 0.1 credits.</div>
+                                    <input id="so-img-gen-stop-min" type="number" min="0" step="0.01" value="0" oninput="soMarkTabDirty('credits'); soUpdateImageGenPreviewCard()"></label>
+                                <label data-so-stop-proportional style="display:none;"><span class="so-field-label-row"><span class="admin-settings-field-label">Round decimals</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-stop-round', event)" aria-expanded="false" aria-controls="so-hint-img-gen-stop-round" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-stop-round" class="so-field-info-panel" hidden role="note">Decimal places when rounding proportional charges (default <code>2</code>).</div>
+                                    <input id="so-img-gen-stop-round" type="number" min="0" max="6" step="1" value="2" oninput="soMarkTabDirty('credits'); soUpdateImageGenPreviewCard()"></label>
                             </div>
+                            <label class="so-plan-check" data-so-stop-proportional style="display:none;margin-top:8px;"><input id="so-img-gen-stop-full-complete" type="checkbox" checked onchange="soMarkTabDirty('credits'); soUpdateImageGenPreviewCard()"> Charge full run cost when all requested variants finish (proportional mode)</label>
                             <div id="so-img-gen-preview-card" class="so-img-gen-preview-card so-admin-muted so-admin-tip"></div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
                             <div class="so-admin-inline-form so-admin-inline-form--stack">
@@ -2573,7 +2648,7 @@
 
                 <!-- Tab: Google Users (signed-in accounts) -->
                 <div id="so-tab-google-users" class="so-admin-tab-panel" style="display:none;">
-                    <p class="so-admin-muted so-admin-tip">One row per Google account in <code>shipping_optimizer_google_trials</code>. Track email, credits used/limit, and device bindings. Adjust credits per user — no calendar expiry when <code>unlimited_time</code> is on.</p>
+                    <p class="so-admin-muted so-admin-tip">One row per Google account. <strong>Click any row</strong> (or <strong>Manage</strong>) to adjust credits, extend access time, or reset devices — for manual support requests.</p>
                     <div class="so-inline-demo-toolbar">
                         <span id="so-google-trials-count" class="so-plans-count">0 Google users</span>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshGoogleTrials()"><i class="fa fa-rotate"></i> Refresh</button>
@@ -2727,22 +2802,82 @@
                     <div id="so-customer-registry-list" class="so-admin-list so-admin-list--tall"></div>
                 </div>
 
-                <!-- Google user credits modal -->
-                <div id="so-google-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoGoogleTrialCredits()">
-                    <div class="so-modal-panel">
-                        <h4 class="so-modal-title">Adjust Google user credits</h4>
-                        <p id="so-google-credits-email-label" class="so-admin-muted"></p>
-                        <p id="so-google-credits-balance-label" class="so-admin-muted"></p>
-                        <label style="margin-top:12px;"><span class="admin-settings-field-label">Amount</span>
-                            <input id="so-google-credits-amount" type="number" min="0" step="1" placeholder="Credits"></label>
-                        <div class="so-modal-actions" style="flex-wrap:wrap;">
-                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoGoogleTrialCredits('add')">Add credits</button>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('remove')">Remove</button>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('set')">Set limit</button>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoGoogleTrialCredits()">Cancel</button>
+                <!-- Google user manage modal (credits + time + devices) -->
+                <div id="so-google-user-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoGoogleTrialManage()">
+                    <div class="so-modal-panel so-modal-panel--wide">
+                        <h4 class="so-modal-title">Manage Google user</h4>
+                        <p id="so-google-user-email-label" class="so-admin-muted"></p>
+                        <p id="so-google-user-summary-label" class="so-admin-muted"></p>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Credits</h5>
+                            <p class="so-admin-muted so-admin-tip"><strong>Total</strong> = pool size (Firestore <code>images_limit</code>) · <strong>Used</strong> = consumed runs (<code>images_used</code>) · <strong>Balance</strong> = remaining = total − used. Extension uses trial credits before paid license credits.</p>
+                            <div class="so-admin-grid so-google-user-credits-grid">
+                                <label><span class="admin-settings-field-label">Total credits (limit)</span>
+                                    <input id="so-google-user-total-credits" type="number" min="0" step="1" oninput="soUpdateGoogleUserCreditsBreakdown('total')"></label>
+                                <label><span class="admin-settings-field-label">Balance (remaining)</span>
+                                    <input id="so-google-user-credits-balance" type="number" min="0" step="1" oninput="soUpdateGoogleUserCreditsBreakdown('balance')"></label>
+                                <label><span class="admin-settings-field-label">Used</span>
+                                    <input id="so-google-user-credits-used" type="number" min="0" step="1" oninput="soUpdateGoogleUserCreditsBreakdown('used')"></label>
+                            </div>
+                            <div id="so-google-user-credits-breakdown" class="so-google-user-credits-breakdown so-admin-muted so-admin-tip"></div>
+                            <div class="so-admin-subhead" style="margin-top:10px;">Quick adjust <span class="so-admin-muted">(updates fields above — tap Save credits)</span></div>
+                            <label><span class="admin-settings-field-label">Adjust amount</span>
+                                <input id="so-google-user-credits-adjust" type="number" min="1" step="1" placeholder="e.g. 3"></label>
+                            <div class="so-google-user-quick-btns">
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('add-total')">+ Add to total</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('remove-total')">− From total</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('add-balance')">+ Add to balance</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('reset-used')">Reset used → 0</button>
+                            </div>
+                            <div class="so-section-save-bar" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserCredits()">Save credits</button>
+                            </div>
+                        </div>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Access time</h5>
+                            <p class="so-admin-muted so-admin-tip">Per-user override — edit below, then <strong>Save access time</strong>. Default policy: Google users have no calendar expiry (<code>unlimited_time</code>); enable expiry only for special cases.</p>
+                            <label class="so-plan-check"><input id="so-google-user-unlimited-time" type="checkbox" onchange="soOnGoogleUserUnlimitedTimeToggle()"> No expiry (unlimited time for this user)</label>
+                            <div id="so-google-user-time-limited-fields">
+                                <label><span class="admin-settings-field-label">Extend by days</span>
+                                    <input id="so-google-user-extend-days" type="number" min="1" step="1" placeholder="e.g. 7"></label>
+                                <div class="so-google-user-quick-btns">
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserPreviewExtendDays(7)">+7 days</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserPreviewExtendDays(30)">+30 days</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserPreviewExtendDaysInput()">Apply days to expiry field</button>
+                                </div>
+                                <label style="margin-top:8px;"><span class="admin-settings-field-label">Expiry date/time</span>
+                                    <input id="so-google-user-expires-at" type="datetime-local"></label>
+                            </div>
+                            <div class="so-section-save-bar" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserAccessTime()">Save access time</button>
+                            </div>
+                        </div>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Devices</h5>
+                            <p id="so-google-user-devices-label" class="so-admin-muted"></p>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevicesFromModal()">Reset device bindings</button>
+                        </div>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Status</h5>
+                            <div class="so-google-user-quick-btns">
+                                <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" id="so-google-user-revoke-btn" onclick="soRevokeGoogleTrialFromModal()">Revoke access</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" id="so-google-user-reactivate-btn" onclick="soReactivateGoogleTrialFromModal()" style="display:none;">Reactivate</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soLinkGoogleTrialToLicenseFromModal()">Link license</button>
+                            </div>
+                        </div>
+
+                        <div class="so-modal-actions" style="flex-wrap:wrap; margin-top:14px;">
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoGoogleTrialManage()">Close</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- Legacy alias kept for older onclick handlers -->
+                <div id="so-google-credits-modal" class="so-modal-overlay" style="display:none;" hidden aria-hidden="true"></div>
 
                 <!-- Add credits modal (mobile-safe, no prompt) -->
                 <div id="so-add-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
@@ -4576,7 +4711,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=4.9"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.4"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
