@@ -2222,7 +2222,7 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">WhatsApp, extension toggle, announcement banner — saved separately from plans.</p>
+                            <p class="so-admin-muted so-admin-tip">WhatsApp, extension toggle, Google sign-in visibility, announcement banner — saved separately from plans.</p>
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">WhatsApp number (digits only)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('whatsapp', event)" aria-expanded="false" aria-controls="so-hint-whatsapp" title="More info">ⓘ</button></span>
                                     <div id="so-hint-whatsapp" class="so-field-info-panel" hidden role="note">Country code first, digits only (e.g. <code>919654414891</code>). Extension opens WhatsApp with this number when customer taps Buy.</div>
@@ -2234,9 +2234,13 @@
                                     <div id="so-hint-min-version" class="so-field-info-panel" hidden role="note">Semver like <code>1.2.0</code>. Older extension versions see an “please update” notice instead of plans.</div>
                                     <input id="so-min-version" type="text" placeholder="1.7.0" oninput="soMarkTabDirty('config')"></label>
                                 <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
+                                <label class="so-plan-check so-field-full"><input id="so-google-login-general" type="checkbox" checked onchange="soMarkTabDirty('config'); renderSoExtensionPreview()"> <strong>Show Google sign-in</strong> in extension (<code>google_trial.google_login_enabled</code>)</label>
                                 <label style="grid-column:1/-1;"><span class="so-field-label-row"><span class="admin-settings-field-label">Announcement banner</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('announcement', event)" aria-expanded="false" aria-controls="so-hint-announcement" title="More info">ⓘ</button></span>
                                     <div id="so-hint-announcement" class="so-field-info-panel" hidden role="note">Optional text shown at top of extension popup (e.g. sale, maintenance). Leave empty to hide.</div>
                                     <textarea id="so-announcement" rows="2" placeholder="Optional banner text" oninput="soMarkTabDirty('config'); renderSoExtensionPreview()"></textarea></label>
+                            </div>
+                            <div class="so-admin-muted so-admin-tip" style="margin-top:8px;">
+                                <strong>Access policy defaults:</strong> Google sign-in → device limit ON, no calendar expiry (credits only) · License key only → no device limit (shared keys OK) · Google + license → trial credits consumed first.
                             </div>
                             <div class="so-section-save-bar">
                                 <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerGeneral()">Save general settings</button>
@@ -2510,7 +2514,7 @@
                         </button>
                         <div class="so-section-accordion-body">
                             <div class="so-admin-grid" style="margin-bottom:12px;">
-                                <label class="so-plan-check so-field-full"><input id="so-google-login-enabled" type="checkbox" checked> <strong>google_login_enabled</strong> — show “Continue with Google” in extension</label>
+                                <label class="so-plan-check so-field-full"><input id="so-google-login-enabled" type="checkbox" checked onchange="soMarkTabDirty('google-trial'); const g=document.getElementById('so-google-login-general'); if(g){g.checked=this.checked; renderSoExtensionPreview();}"> <strong>google_login_enabled</strong> — show “Continue with Google” in extension</label>
                                 <label class="so-plan-check so-field-full"><input id="so-google-trial-enabled" type="checkbox" checked> <strong>enabled</strong> — allow new sign-ins (existing Google users still work when off)</label>
                                 <label class="so-plan-check so-field-full"><input id="so-google-trial-unlimited-time" type="checkbox" checked> <strong>unlimited_time</strong> — signed-in users have no calendar expiry (credits only)</label>
                             </div>
@@ -4572,7 +4576,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=4.8"></script>
+    <script src="js/shipping-optimizer-admin.js?v=4.9"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

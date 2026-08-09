@@ -25,7 +25,7 @@
         { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 0 },
         { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 1 },
         { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 2 },
-        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, max_devices: 1, billing_mode: 'hybrid', included_credits: 100, active: true, order: 3 }
+        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, offer_badges: ['Best deal'], max_devices: 1, billing_mode: 'hybrid', included_credits: 100, active: true, order: 3 }
     ];
 
     const SO_DEFAULT_LICENSE_PLAN_ID = 'monthly';
@@ -922,6 +922,9 @@
         p.highlights = Array.isArray(p.highlights)
             ? p.highlights.map(h => String(h || '').trim()).filter(Boolean)
             : [];
+        p.offer_badges = Array.isArray(p.offer_badges)
+            ? p.offer_badges.map(b => String(b || '').trim()).filter(Boolean)
+            : [];
         p.features = Array.isArray(p.features) ? p.features : [];
         p.detail_sections = Array.isArray(p.detail_sections) ? p.detail_sections.map(s => ({
             title: String(s && s.title || '').trim(),
@@ -1057,6 +1060,7 @@
         if (p.unlimited_devices) out.unlimited_devices = true;
         if (p.unlimited_credits) out.unlimited_credits = true;
         if (p.highlights && p.highlights.length) out.highlights = p.highlights.slice();
+        if (p.offer_badges && p.offer_badges.length) out.offer_badges = p.offer_badges.slice();
         if (p.features && p.features.length) {
             out.features = p.features.map(f => {
                 if (typeof f === 'string') return f;
@@ -3033,6 +3037,8 @@
         };
         setChecked('so-google-login-enabled', trial.google_login_enabled);
         setChecked('so-google-trial-enabled', trial.enabled);
+        const googleLoginGeneral = document.getElementById('so-google-login-general');
+        if (googleLoginGeneral) googleLoginGeneral.checked = trial.google_login_enabled;
         setChecked('so-google-trial-unlimited-time', trial.unlimited_time);
         setVal('so-google-trial-days', trial.days);
         setVal('so-google-trial-credits', trial.trial_credits);
@@ -3614,6 +3620,11 @@
         setVal('so-announcement', soConfig.announcement || '');
         const enabledEl = document.getElementById('so-extension-enabled');
         if (enabledEl) enabledEl.checked = soConfig.extension_enabled !== false;
+        const googleLoginGeneral = document.getElementById('so-google-login-general');
+        if (googleLoginGeneral) {
+            const trial = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL);
+            googleLoginGeneral.checked = trial.google_login_enabled;
+        }
     }
 
     function soBindCreditsForm() {
@@ -3881,6 +3892,9 @@
             }
         });
         soReadPlansFromDom().forEach(p => {
+            if ((p.offer_badges || []).length) {
+                warnings.push(`Plan "${p.name}" has offer_badges — extension v1.7.8+ must render them on plan cards.`);
+            }
             if (p.allow_credit_addons && soGetActivePlanCreditAddons(p).length) {
                 warnings.push(`Plan "${p.name}" has credit add-ons — extension must support credit_addons[] in popup (see extension prompt).`);
             }
@@ -3907,6 +3921,9 @@
         const extEnabled = document.getElementById('so-extension-enabled')
             ? document.getElementById('so-extension-enabled').checked
             : soConfig?.extension_enabled !== false;
+        const googleLoginOn = document.getElementById('so-google-login-general')
+            ? document.getElementById('so-google-login-general').checked
+            : soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).google_login_enabled;
 
         const plansHtml = activePlans.length
             ? `<div class="so-ext-preview-grid">${activePlans.map(p => {
@@ -3914,6 +3931,9 @@
                 const durationLabel = soFormatPlanDurationLabel(p);
                 const devicesLabel = soFormatPlanDevicesLabel(p);
                 const addons = soGetActivePlanCreditAddons(p);
+                const offerBadges = (p.offer_badges || []).map(b =>
+                    `<span class="so-ext-offer-badge">${soEsc(b)}</span>`
+                ).join('');
                 const addonsHtml = addons.length
                     ? `<div class="so-ext-plan-addons">${addons.map(a =>
                         `<span class="so-ext-addon-chip">+${a.credits} cr · ₹${a.price}</span>`
@@ -3921,6 +3941,7 @@
                     : '';
                 return `<div class="so-ext-plan${bestClass}">
                     ${p.best ? '<span class="so-ext-plan-tag">BEST VALUE</span>' : ''}
+                    ${offerBadges ? `<div class="so-ext-offer-badges">${offerBadges}</div>` : ''}
                     ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
                     <div class="so-ext-plan-name">${soEsc(p.name)}</div>
                     <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
@@ -3995,6 +4016,7 @@
         container.innerHTML = `
             <div class="so-ext-preview-status ${extEnabled ? 'so-ext-preview-status--on' : 'so-ext-preview-status--off'}">
                 Extension licensing: <strong>${extEnabled ? 'Enabled' : 'Disabled'}</strong>
+                · Google sign-in: <strong>${googleLoginOn ? 'Visible' : 'Hidden'}</strong>
             </div>
             ${announcement ? `<div class="so-ext-announce">${soEsc(announcement)}</div>` : ''}
             <div class="so-ext-preview-block">
@@ -4020,13 +4042,21 @@
     function soReadGeneralConfigFromDom() {
         const whatsappRaw = String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, '');
         if (whatsappRaw.length < 10) throw new Error('WhatsApp number must be at least 10 digits.');
-        return {
+        const out = {
             whatsapp_number: whatsappRaw,
             whatsapp_message: String(document.getElementById('so-whatsapp-message')?.value || '').trim(),
             extension_enabled: !!document.getElementById('so-extension-enabled')?.checked,
             min_extension_version: String(document.getElementById('so-min-version')?.value || DEFAULT_MIN_VERSION).trim(),
             announcement: String(document.getElementById('so-announcement')?.value || '').trim()
         };
+        const googleLoginGeneral = document.getElementById('so-google-login-general');
+        if (googleLoginGeneral) {
+            const trial = soNormalizeGoogleTrial(Object.assign({}, soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL, {
+                google_login_enabled: !!googleLoginGeneral.checked
+            }));
+            out.google_trial = soGoogleTrialToFirestore(trial);
+        }
+        return out;
     }
 
     async function soPersistConfigPatch(patch, successMsg, options) {
@@ -4048,6 +4078,11 @@
             soPlans.forEach((p, i) => { p.order = i; });
             renderSoPlansEditor();
             soPopulateLicensePlanSelect();
+        }
+        if (patch.google_trial) {
+            soConfig = Object.assign({}, soConfig, { google_trial: patch.google_trial });
+            soBindGoogleTrialForm();
+            soBindConfigForm();
         }
         renderSoExtensionPreview();
         const snap = soTabSnapshots.config
@@ -4232,6 +4267,16 @@
         renderSoPlansEditor();
     };
 
+    window.soTogglePlanActive = function(planIdx) {
+        soPlans = soReadPlansFromDom();
+        const plan = soPlans[planIdx];
+        if (!plan) return;
+        plan.active = !plan.active;
+        soMarkTabDirty('config');
+        renderSoPlansEditor();
+        soToast(plan.active ? `Plan "${plan.name}" is now visible.` : `Plan "${plan.name}" is hidden.`);
+    };
+
     function renderSoPlansEditor() {
         const container = document.getElementById('so-plans-editor');
         if (!container) return;
@@ -4264,6 +4309,7 @@
                             <div class="so-plan-card-badges">
                                 ${creditsBadge}
                                 ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
+                                ${(plan.offer_badges || []).map(b => `<span class="so-badge so-badge--offer">${soEsc(b)}</span>`).join('')}
                                 ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
                                 ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
                             </div>
@@ -4273,6 +4319,7 @@
                     <div class="so-plan-reorder" onclick="event.stopPropagation()">
                         <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, -1)" title="Move up in list" aria-label="Move plan up">▲</button>
                         <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoPlan(${idx}, 1)" title="Move down in list" aria-label="Move plan down">▼</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTogglePlanActive(${idx})" title="${plan.active ? 'Hide plan' : 'Show plan'}">${plan.active ? 'Hide' : 'Show'}</button>
                     </div>
                 </div>
                 <div class="so-plan-card-body" onclick="event.stopPropagation()">
@@ -4286,6 +4333,8 @@
                             <label><span>Days (0 = unlimited)</span><input type="number" min="0" step="1" data-field="days" value="${plan.days}" oninput="soOnPlanDaysInput(${idx})"></label>
                             <label><span>Duration label</span><input type="text" data-field="duration" value="${soAttr(plan.duration || '')}" placeholder="1 Year, Forever" oninput="soMarkTabDirty('config')"></label>
                             <label><span>Save badge</span><input type="text" data-field="save" value="${soAttr(plan.save || '')}" placeholder="Save ₹8000" oninput="soMarkTabDirty('config')"></label>
+                            <label class="so-field-full"><span>Offer badges (one per line — e.g. 20% OFF, Limited time)</span>
+                                <textarea rows="2" data-field="offer_badges_text" placeholder="Flash sale&#10;20% OFF" oninput="soMarkTabDirty('config')">${soEsc((plan.offer_badges || []).join('\n'))}</textarea></label>
                         </div>
                     </div>
                     <div class="so-field-group">
@@ -4333,10 +4382,10 @@
                     </div>
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-eye"></i> Visibility &amp; badges</div>
-                        <p class="so-field-group-hint">Controls what customers see in the extension popup.</p>
+                        <p class="so-field-group-hint">Uncheck <strong>Show in extension</strong> to hide a plan without deleting it. Hidden plans stay in Firebase but customers won't see them.</p>
                         <div class="so-plan-flags so-plan-flags--simple">
-                            <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show in extension</label>
-                            <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Best value badge</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="active" ${plan.active ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show in extension (visible to customers)</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="best" ${plan.best ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Best value badge (only one plan)</label>
                         </div>
                     </div>
                     <div class="so-field-group">
@@ -4389,6 +4438,7 @@
                 days: get('days'),
                 duration: get('duration'),
                 save: get('save'),
+                offer_badges: soParsePlanFeaturesText(get('offer_badges_text')),
                 plan_kind: get('plan_kind'),
                 description: get('description'),
                 detail_subtitle: get('detail_subtitle'),
