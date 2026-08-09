@@ -2104,7 +2104,7 @@
                                             <span>No</span>
                                         </div>
                                     </div>
-                                    <p class="admin-guide-caution" style="margin-top:10px;"><strong>Tip:</strong> Use <em>Load defaults</em> → review → <em>Save to Firebase</em> when you want a safe preview. Use <em>Seed all defaults</em> only when you intend to overwrite live config with the code defaults.</p>
+                                    <p class="admin-guide-caution" style="margin-top:10px;"><strong>Tip:</strong> Open the <strong>Built-in defaults</strong> tab first to see every plan, credit formula, and pack before Load or Seed. Use <em>Load defaults</em> → review → <em>Save to Firebase</em> when you want a safe preview.</p>
                                 </div>
                             </div>
 
@@ -2220,6 +2220,7 @@
 
                 <div class="so-tab-chips" aria-label="Quick jump">
                     <button type="button" class="so-tab-chip so-tab-chip--active" data-so-tab-chip="config" onclick="switchShippingOptimizerTab('config')">Config</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="defaults" onclick="switchShippingOptimizerTab('defaults')">Defaults</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="credits" onclick="switchShippingOptimizerTab('credits')">Credits</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="demo" onclick="switchShippingOptimizerTab('demo')">Demo keys</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="licenses" onclick="switchShippingOptimizerTab('licenses')">Licenses</button>
@@ -2233,6 +2234,7 @@
                     <span class="admin-settings-field-label">Section</span>
                     <select id="so-tab-select" class="so-tab-select" onchange="switchShippingOptimizerTab(this.value)">
                         <option value="config">Config &amp; Pricing</option>
+                        <option value="defaults">Built-in defaults</option>
                         <option value="credits">Credits &amp; Packs</option>
                         <option value="demo">Demo / Promo Keys</option>
                         <option value="licenses">Paid Licenses</option>
@@ -2243,6 +2245,7 @@
                 </label>
                 <div class="so-admin-tabs so-admin-tabs--desktop">
                     <button type="button" class="so-admin-tab-btn so-admin-tab-btn--active" data-so-tab="config" onclick="switchShippingOptimizerTab('config')">Config &amp; Pricing</button>
+                    <button type="button" class="so-admin-tab-btn" data-so-tab="defaults" onclick="switchShippingOptimizerTab('defaults')">Built-in defaults</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="credits" onclick="switchShippingOptimizerTab('credits')">Credits &amp; Packs</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
@@ -2257,6 +2260,20 @@
                         <button type="button" class="so-btn-sm" onclick="soSaveCurrentTab()">Save now</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soDiscardLocalEdits()">Revert</button>
                     </div>
+                </div>
+
+                <!-- Tab: Built-in defaults (read-only preview before Load / Seed) -->
+                <div id="so-tab-defaults" class="so-admin-tab-panel" style="display:none;">
+                    <p class="so-admin-muted so-admin-tip" style="margin-bottom:12px;">
+                        <strong>Read-only preview</strong> of values in code (<code>soGetDefaultAppSeed()</code>). Open this tab <em>before</em> Load defaults or Seed all defaults so you know exactly what will change. Nothing here writes Firebase until you use buttons on other tabs.
+                    </p>
+                    <div class="so-defaults-toolbar">
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Loads defaults into Config form only — does not write Firebase">Load → Config form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Loads defaults into Credits form only">Load → Credits form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy JSON</button>
+                        <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soSeedAllDefaults()" title="Writes full seed to Firebase immediately">Seed all to Firebase</button>
+                    </div>
+                    <div id="so-defaults-summary-root" class="so-defaults-summary-root"></div>
                 </div>
 
                 <!-- Tab 1: Config & Pricing -->
@@ -2386,10 +2403,10 @@
                     </details>
 
                     <div class="so-sticky-save so-sticky-save--muted">
-                        <span class="so-admin-muted">Save everything on this tab</span>
+                        <span class="so-admin-muted">Save everything on this tab · <button type="button" class="so-link-btn" onclick="switchShippingOptimizerTab('defaults')">Preview built-in defaults first ⓘ</button></span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soViewAllDefaults()">View all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy defaults JSON</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Resets this tab's form to built-in values — does not write Firebase">Load defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()">Save all as defaults</button>
@@ -4694,7 +4711,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.2"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.3"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

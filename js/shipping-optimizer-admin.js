@@ -21,29 +21,160 @@
     const SO_OAUTH_CHROME_CLIENT_ID = '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com';
     const SO_OAUTH_WEB_CLIENT_ID = '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com';
 
-    const DEFAULT_PLANS = [
-        { id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 0 },
-        { id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months', save: 'Save ₹1000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 1 },
-        { id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months', save: 'Save ₹3000', max_devices: 1, billing_mode: 'subscription', included_credits: 0, active: true, order: 2 },
-        { id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year', save: 'Save ₹8000', best: true, offer_badges: ['Best deal'], max_devices: 1, billing_mode: 'hybrid', included_credits: 100, active: true, order: 3 }
-    ];
+    /** Credits/month for volume formula on multi-month plans (see Built-in defaults tab). */
+    const SO_CREDIT_VOLUME_RATE = 200;
+    /** Included credits on the monthly plan. */
+    const SO_CREDIT_MONTHLY_GRANT = 19;
+
+    /**
+     * Default included credits per plan — monthly uses fixed grant; longer plans use volume rate + discount.
+     * Quarterly: 200×3−51=549 · Half-yearly: 200×6×(1−12.5%)=1050 · Yearly: 200×12×(1−17%)≈1992→2000
+     */
+    function soCalcDefaultPlanCredits(planId, days) {
+        const d = Math.max(0, parseInt(days, 10) || 0);
+        const id = String(planId || '').toLowerCase();
+        if (id === 'monthly' || d === 30) return SO_CREDIT_MONTHLY_GRANT;
+        if (id === 'quarterly' || d === 90) return SO_CREDIT_VOLUME_RATE * 3 - 51;
+        if (id === 'halfyearly' || d === 180) return Math.round(SO_CREDIT_VOLUME_RATE * 6 * (1 - 0.125));
+        if (id === 'yearly' || d === 365) {
+            const raw = SO_CREDIT_VOLUME_RATE * 12 * (1 - 0.17);
+            return Math.round(raw / 50) * 50;
+        }
+        const months = d > 0 ? d / 30 : 1;
+        const discountPct = Math.min(20, Math.max(0, Math.round((months - 1) * 5)));
+        return Math.max(SO_CREDIT_MONTHLY_GRANT, Math.round(SO_CREDIT_VOLUME_RATE * months * (1 - discountPct / 100)));
+    }
+
+    function soExplainPlanCreditsFormula(planId, days) {
+        const id = String(planId || '').toLowerCase();
+        const d = parseInt(days, 10) || 0;
+        if (id === 'monthly' || d === 30) return `${SO_CREDIT_MONTHLY_GRANT} credits (monthly starter grant)`;
+        if (id === 'quarterly' || d === 90) return `${SO_CREDIT_VOLUME_RATE}×3−51 = ${SO_CREDIT_VOLUME_RATE * 3 - 51} credits`;
+        if (id === 'halfyearly' || d === 180) return `${SO_CREDIT_VOLUME_RATE}×6×(1−12.5%) = ${Math.round(SO_CREDIT_VOLUME_RATE * 6 * (1 - 0.125))} credits`;
+        if (id === 'yearly' || d === 365) {
+            const n = Math.round((SO_CREDIT_VOLUME_RATE * 12 * (1 - 0.17)) / 50) * 50;
+            return `${SO_CREDIT_VOLUME_RATE}×12×(1−17%) ≈ ${n} credits`;
+        }
+        const months = d > 0 ? (d / 30).toFixed(1) : '?';
+        return `~${soCalcDefaultPlanCredits(planId, d)} credits (${months} mo × ${SO_CREDIT_VOLUME_RATE}/mo with tier discount)`;
+    }
+
+    function soBuildDefaultPlans() {
+        const mk = (plan) => Object.assign({ active: true, show_whatsapp_icon: true, show_details_icon: true, cta_text: 'Buy via WhatsApp', card_hint: 'Tap ℹ️ for details · Tap card for WhatsApp' }, plan);
+        return [
+            mk({
+                id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month',
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('monthly', 30),
+                offer_badges: ['Starter'],
+                description: 'Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.',
+                detail_subtitle: '1 device · 30 days · 19 AI generation runs included',
+                highlights: ['Live shipping checks', '19 AI runs included', 'WhatsApp support'],
+                features: [
+                    { icon: '📅', title: '30 days access', text: 'Renews every month' },
+                    { icon: '⚡', title: '19 credits', text: 'One credit ≈ one generation run (upload → variants)' },
+                    { icon: '🚚', title: 'Smart Mode', text: 'Preview up to 200 variants per run' }
+                ],
+                detail_sections: [{
+                    title: "What's included",
+                    items: ['Smart Mode on Meesho catalog', 'Apply lowest-shipping variant to listing', 'Top up credits anytime from Credits tab']
+                }],
+                card_subtitle: '30 days · 1 device · 19 credits',
+                detail_footer: 'Credits deduct per generation run. Subscription renews via WhatsApp.',
+                order: 0
+            }),
+            mk({
+                id: 'quarterly', name: '3 Months', price: 1399, days: 90, duration: '3 Months',
+                save: 'Save ₹1000', offer_badges: ['Popular', 'Volume deal'],
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('quarterly', 90),
+                description: 'Three months of Smart Mode — volume credit pack at a lower per-month rate than paying monthly.',
+                detail_subtitle: '1 device · 90 days · 549 AI runs included',
+                highlights: ['549 credits included', 'Save vs 3× monthly', 'Live Meesho shipping'],
+                features: [
+                    { icon: '📅', title: '90 days access', text: 'One payment, three months' },
+                    { icon: '⚡', title: '549 credits', text: 'Formula: 200×3−51 volume discount' },
+                    { icon: '💰', title: 'Save ₹1000', text: 'vs buying monthly at ₹599×3' }
+                ],
+                detail_sections: [{
+                    title: 'Credit formula',
+                    body: '549 = 200 credits/month × 3 months − 51 volume discount. Adjust rate/discount in admin Built-in defaults tab.',
+                    items: ['Unused credits stay until used', 'Hybrid: time + credits both apply']
+                }],
+                card_subtitle: '3 months · 549 credits · Save ₹1000',
+                detail_footer: 'Equivalent to ~183 credits/month vs 19 on monthly plan.',
+                order: 1
+            }),
+            mk({
+                id: 'halfyearly', name: '6 Months', price: 2299, days: 180, duration: '6 Months',
+                save: 'Save ₹3000', offer_badges: ['12.5% bonus credits'],
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('halfyearly', 180),
+                description: 'Half-year access for serious Meesho sellers — 1,050 AI generation runs with percentage volume discount.',
+                detail_subtitle: '1 device · 180 days · 1,050 credits',
+                highlights: ['1,050 credits', '12.5% volume discount', '6 months access'],
+                features: [
+                    { icon: '📅', title: '6 months access', text: 'Renews twice a year' },
+                    { icon: '⚡', title: '1,050 credits', text: '200×6×(1−12.5%) = 1,050' },
+                    { icon: '📈', title: 'Best ₹/credit', text: 'Lower cost per run than quarterly' }
+                ],
+                detail_sections: [{
+                    title: 'Volume pricing',
+                    body: 'Credits use 200/month base with 12.5% off for 6-month commitment.',
+                    items: ['Smart Mode up to 200 variants/run', 'Credit top-ups available', 'WhatsApp renewal']
+                }],
+                card_subtitle: '6 months · 1,050 credits · Save ₹3000',
+                order: 2
+            }),
+            mk({
+                id: 'yearly', name: 'Yearly', price: 3099, days: 365, duration: '1 Year',
+                save: 'Save ₹8000', best: true, offer_badges: ['Best deal', '17% bonus credits'],
+                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: soCalcDefaultPlanCredits('yearly', 365),
+                allow_credit_addons: true, max_addon_selections: 2,
+                credit_addons: [
+                    { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
+                    { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1, default_selected: false }
+                ],
+                description: 'Best for full-time Meesho sellers — one year access plus ~2,000 AI runs and optional credit add-ons at checkout.',
+                detail_subtitle: '1 device · 1 year · ~2,000 credits',
+                highlights: ['~2,000 credits', 'Optional add-ons', 'BEST VALUE'],
+                features: [
+                    { icon: '📅', title: '1 year access', text: 'Single annual payment' },
+                    { icon: '⚡', title: '~2,000 credits', text: '200×12×(1−17%) volume formula' },
+                    { icon: '➕', title: 'Credit add-ons', text: 'Pick +25 or +50 credits in popup' },
+                    'Unlimited Smart Mode previews within credit balance'
+                ],
+                detail_sections: [
+                    { title: "What's included", items: ['Live Meesho shipping on all variants', 'Apply best image to catalog', 'Family device upgrade available'] },
+                    { title: 'Credit formula', body: '≈2,000 = 200 credits/month × 12 months × (1 − 17% yearly discount).', items: [] }
+                ],
+                card_subtitle: '1 year · ~2,000 credits · Save ₹8000',
+                detail_footer: 'Add-on credits included in WhatsApp purchase message when selected.',
+                order: 3
+            })
+        ];
+    }
+
+    const DEFAULT_PLANS = soBuildDefaultPlans();
 
     const SO_DEFAULT_LICENSE_PLAN_ID = 'monthly';
 
     /** Fallback included credits when plan doc omits included_credits (extension reads plan + license). */
     const PLAN_DEFAULT_INCLUDED_CREDITS = {
-        yearly: 100,
+        monthly: 19,
+        quarterly: 549,
+        halfyearly: 1050,
+        yearly: 2000,
         family_yearly: 3600,
         friends_yearly: 4800,
         lifetime: 5000,
         credits_starter: 50
     };
 
-    /** ~200 credits per 30-day month — used for custom plans and license prefill. */
+    /** @deprecated Use soCalcDefaultPlanCredits — kept for custom-day fallback. */
     function soSuggestCreditsForPlanDays(days) {
-        const d = Math.max(0, parseInt(days, 10) || 0);
-        if (d <= 0) return 50;
-        return Math.max(50, Math.round((d / 30) * 200));
+        return soCalcDefaultPlanCredits('', days);
     }
 
     const DEFAULT_INLINE_DEMO_KEYS = {
@@ -103,10 +234,51 @@
     };
 
     const DEFAULT_CREDIT_PACKS = [
-        { id: 'pack_10', credits: 10, price: 20, label: '10 Credits', active: true, order: 0 },
-        { id: 'pack_20', credits: 20, price: 38, label: '20 Credits', active: true, order: 1 },
-        { id: 'pack_50', credits: 50, price: 90, label: '50 Credits', active: true, order: 2 },
-        { id: 'pack_100', credits: 100, price: 170, label: '100 Credits', active: true, order: 3 }
+        {
+            id: 'pack_10', credits: 10, price: 20, label: '10 Credits', active: true, order: 0,
+            description: 'Quick top-up for a few Smart Mode runs — instant delivery after payment.',
+            detail_subtitle: '10 generation runs',
+            highlights: ['Instant delivery', 'No expiry'],
+            features: [
+                { icon: '⚡', title: '10 credits', text: '≈10 upload → variant runs' },
+                { icon: '💬', title: 'WhatsApp checkout', text: 'Pay via UPI and get key' }
+            ],
+            detail_sections: [{ title: 'How it works', items: ['Credits stack on your license', 'Deducted per generation run', 'Works with hybrid plans'] }],
+            card_subtitle: '10 credits · ₹20',
+            cta_text: 'Buy via WhatsApp'
+        },
+        {
+            id: 'pack_20', credits: 20, price: 38, label: '20 Credits', active: true, order: 1,
+            description: 'Slightly better ₹/credit than the 10-pack — good for a busy week of listings.',
+            detail_subtitle: '20 generation runs · Save ₹2',
+            highlights: ['5% savings', 'No expiry'],
+            features: [{ icon: '⚡', title: '20 credits', text: 'Best for weekly sellers' }],
+            card_subtitle: '20 credits · ₹38',
+            cta_text: 'Buy 20 credits on WhatsApp'
+        },
+        {
+            id: 'pack_50', credits: 50, price: 90, label: '50 Credits', active: true, order: 2,
+            description: 'Mid-size pack for regular catalog updates — lower per-credit cost.',
+            detail_subtitle: '50 runs · ₹1.80/credit',
+            highlights: ['10% off vs 10-pack', 'Popular'],
+            features: [{ icon: '📦', title: '50 credits', text: 'Enough for a month of active listing' }],
+            card_subtitle: '50 credits · ₹90',
+            cta_text: 'Buy via WhatsApp'
+        },
+        {
+            id: 'pack_100', credits: 100, price: 170, label: '100 Credits', active: true, order: 3,
+            description: 'Bulk top-up for power sellers — best value per credit in preset packs.',
+            detail_subtitle: '100 runs · ₹1.70/credit',
+            highlights: ['Best pack value', 'Stack with yearly plan'],
+            features: [
+                { icon: '🏆', title: '100 credits', text: 'Lowest ₹/credit in packs' },
+                { icon: '➕', title: 'Stacks', text: 'Activate as second license key on same device' }
+            ],
+            detail_sections: [{ title: 'Tip', body: 'Yearly plan customers often buy this as a separate credit-top-up key.', items: [] }],
+            card_subtitle: '100 credits · ₹170',
+            cta_text: 'Buy 100 credits on WhatsApp',
+            offer_badges: ['Best value']
+        }
     ];
 
     function soDeepClone(obj) {
@@ -176,7 +348,7 @@
     const SO_PLAN_PRESETS = {
         monthly: {
             id: 'monthly', name: 'Monthly', price: 599, days: 30, duration: '1 Month',
-            max_devices: 1, device_tier: 'standard', billing_mode: 'subscription', active: true
+            max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 19, active: true
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
@@ -294,7 +466,7 @@
             'google-trial': 'Google Free Trial'
         };
         const label = tabLabels[tab] || tab;
-        if (!confirm(`Load recommended defaults for "${label}"? Unsaved changes on this tab will be replaced.`)) return;
+        if (!confirm(`Load recommended defaults for "${label}"?\n\nPreview everything first on the Built-in defaults tab.\nUnsaved changes on this tab will be replaced in the form only — not Firebase until you Save.`)) return;
 
         const seed = soGetDefaultAppSeed();
         if (tab === 'config') {
@@ -336,14 +508,100 @@
     };
 
     window.soViewAllDefaults = function() {
-        const seed = soGetDefaultAppSeed();
+        switchShippingOptimizerTab('defaults');
+        renderSoDefaultsSummary();
         const panel = document.getElementById('so-default-seed-json');
-        if (!panel) return;
-        panel.hidden = !panel.hidden;
-        if (!panel.hidden) {
-            panel.textContent = JSON.stringify(seed, null, 2);
-            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (panel) {
+            panel.hidden = false;
+            panel.textContent = JSON.stringify(soGetDefaultAppSeed(), null, 2);
         }
+    };
+
+    window.renderSoDefaultsSummary = function() {
+        const root = document.getElementById('so-defaults-summary-root');
+        if (!root) return;
+        const seed = soGetDefaultAppSeed();
+        const plans = (seed.plans || []).map((p, i) => soNormalizePlan(p, i));
+        const packs = (seed.credits?.packs || []).map((p, i) => soNormalizeCreditPack(p, i));
+        const trial = soNormalizeGoogleTrial(seed.google_trial || DEFAULT_GOOGLE_TRIAL);
+
+        const plansHtml = plans.map(p => {
+            const badges = [...(p.offer_badges || []), p.best ? 'BEST VALUE' : '', p.save || ''].filter(Boolean);
+            const badgeHtml = badges.length
+                ? `<div class="so-defaults-badges">${badges.map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join('')}</div>`
+                : '';
+            const featCount = (p.features || []).length;
+            const secCount = (p.detail_sections || []).length;
+            return `<div class="so-defaults-plan-card">
+                <div class="so-defaults-plan-head">
+                    <strong>${soEsc(p.name)}</strong>
+                    <span class="so-defaults-price">₹${(p.price || 0).toLocaleString('en-IN')}</span>
+                </div>
+                ${badgeHtml}
+                <div class="so-defaults-plan-meta">
+                    <span><code>${soEsc(p.id)}</code></span>
+                    <span>${soEsc(p.duration || p.days + 'd')}</span>
+                    <span>${soEsc(p.billing_mode)}</span>
+                </div>
+                <div class="so-defaults-credits-formula"><strong>${p.included_credits || 0} credits</strong> — ${soEsc(soExplainPlanCreditsFormula(p.id, p.days))}</div>
+                <p class="so-admin-muted">${soEsc(p.description || p.card_subtitle || '')}</p>
+                <div class="so-defaults-mini">${soEsc(p.card_subtitle || '')}</div>
+                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections</div>
+            </div>`;
+        }).join('');
+
+        const packsHtml = packs.map(p => `
+            <div class="so-defaults-pack-row">
+                <strong>${soEsc(p.label)}</strong>
+                <span>₹${p.price} · ${p.credits} cr</span>
+                <span class="so-admin-muted">${soEsc(p.card_subtitle || '')}</span>
+            </div>`).join('');
+
+        root.innerHTML = `
+            <div class="so-defaults-actions-help so-admin-muted so-admin-tip">
+                <p><strong>Example — Load defaults on Config tab:</strong> You currently have custom plan text in Firebase. Tap <em>Load defaults</em> → forms show the cards below (nothing live yet) → review → <em>Save to Firebase</em> when ready.</p>
+                <p><strong>Example — Seed all defaults:</strong> Immediately overwrites <code>shipping_optimizer_config/app</code> with everything below — use for first-time setup or factory reset. <em>Does not delete licenses or Google users.</em></p>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-calculator"></i> Credit formula (built-in)</h5>
+                <div class="so-defaults-formula-box">
+                    <div><strong>Monthly:</strong> ${SO_CREDIT_MONTHLY_GRANT} credits (fixed starter grant)</div>
+                    <div><strong>3 months:</strong> ${SO_CREDIT_VOLUME_RATE}×3−51 = <strong>549</strong> credits</div>
+                    <div><strong>6 months:</strong> ${SO_CREDIT_VOLUME_RATE}×6×(1−12.5%) = <strong>1,050</strong> credits</div>
+                    <div><strong>Yearly:</strong> ${SO_CREDIT_VOLUME_RATE}×12×(1−17%) ≈ <strong>1,992</strong> → <strong>2,000</strong> credits</div>
+                    <div class="so-admin-muted" style="margin-top:6px;">Custom plans: ~${SO_CREDIT_VOLUME_RATE} credits/month with +5% discount per extra month (max 20%). Edit rates in code or override per plan in Config.</div>
+                </div>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-tags"></i> Plans (${plans.length}) — extension card + detail screen</h5>
+                <div class="so-defaults-plans-grid">${plansHtml}</div>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-coins"></i> Credits &amp; packs</h5>
+                <p>₹${seed.credits?.price_per_credit}/credit · min ${seed.credits?.min_purchase} · ${seed.credits?.cost_per_operation} per operation · image gen ${seed.credits?.image_generation?.credits_per_image} credit/run</p>
+                <div class="so-defaults-packs-list">${packsHtml}</div>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-google"></i> Google trial defaults</h5>
+                <p>${trial.trial_credits} trial credits · ${trial.unlimited_time ? 'no calendar expiry' : trial.days + ' days'} · ${trial.max_devices} device(s) · login ${trial.google_login_enabled ? 'on' : 'off'}</p>
+            </div>
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-key"></i> Demo key</h5>
+                <p><code>MEESHO-DEMOFREE</code> — 30 days, label “Free trial”</p>
+            </div>
+
+            <details class="so-details-block" style="margin-top:12px;">
+                <summary>Full seed JSON (read-only)</summary>
+                <pre id="so-default-seed-json-inline" class="so-default-seed-json"></pre>
+            </details>`;
+
+        const jsonEl = document.getElementById('so-default-seed-json-inline');
+        if (jsonEl) jsonEl.textContent = JSON.stringify(seed, null, 2);
     };
 
     window.soCopyAllDefaults = function() {
@@ -2929,6 +3187,7 @@
         }
         if (soActiveTab === 'licenses') renderSoLicensesList();
         if (soActiveTab === 'customers') renderSoCustomerRegistry();
+        if (soActiveTab === 'defaults') renderSoDefaultsSummary();
     };
 
     async function soLoadConfig() {

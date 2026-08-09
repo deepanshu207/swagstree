@@ -3,7 +3,37 @@
 Copy this entire prompt into the **meesho-shipping-optimizer-extension** repo (Cursor agent or PR description).  
 Swagstree admin (PR #115+) now writes all config below to Firebase `extension-e6e32` → `shipping_optimizer_config/app`.
 
-**Target extension version:** `1.7.8+`
+**Target extension version:** `1.7.8+`  
+**Swagstree admin v5.3+** seeds full plan detail examples + credit formulas (see Built-in defaults tab).
+
+---
+
+## Default included credits (admin seed → extension activation)
+
+| Plan | Credits | Formula |
+|------|---------|---------|
+| Monthly | **19** | Fixed starter grant |
+| 3 Months | **549** | `200×3−51` |
+| 6 Months | **1,050** | `200×6×(1−12.5%)` |
+| Yearly | **2,000** | `200×12×(1−17%)` rounded |
+
+All multi-month plans use `billing_mode: hybrid`. Extension grants `included_credits` on license activation.
+
+---
+
+## Goals
+
+1. **Plan offer badges** — render `offer_badges[]` on plan cards via `planOfferBadgesHtml()` in `firebaseLicense.js` (below BEST VALUE tag, above plan name). CSS: `.plan-offer-badges` / `.plan-offer-badge` in `popup.html`.
+2. **Plan visibility** — only show plans where `active !== false` (already expected; verify).
+3. **Hide Google login** — respect `google_trial.google_login_enabled === false` → hide “Continue with Google” everywhere.
+4. **Device policy (defaults)**
+   - **Google signed-in users:** enforce `google_trial.max_devices` (default `1`) via `shipping_optimizer_google_trials/{uid}.machine_ids`.
+   - **License-key users (no Google sign-in):** **no device limit** — shared license keys allowed (`unlimited_devices` default true on new licenses; `resolveUnlimitedDevices` returns true for license path).
+5. **Credit consumption order** — when user has **both** Google trial + paid license:
+   - Consume **Google trial credits first** (`images_used` / `images_limit` on trial doc).
+   - Only after trial exhausted → deduct from paid license `credits_balance`.
+6. **Silent Google re-auth** — no OAuth popup on return visits (session + silent token; see v1.7.7 work).
+7. **Plan detail fields** — render `description`, `highlights`, `features`, `detail_sections`, `card_subtitle`, `card_hint`, `cta_text`, `detail_footer` on plan/pack detail screens (already in admin seed).
 
 ---
 
@@ -20,34 +50,9 @@ Superadmin can patch any field on `shipping_optimizer_google_trials/{uid}` via t
 | Devices | Reset bindings | `machine_ids[]` |
 | Status | Revoke / reactivate | `active` |
 
-**Save flow:** Admin edits total/balance/used in the form → **Save credits** writes all three atomically. Quick-adjust buttons (+ add to total, + add to balance, reset used) only update the form until Save.
+**Save flow:** Admin edits total/balance/used → **Save credits** writes all three atomically.
 
-Extension must read **per-user** `unlimited_time`, `expires_at`, `images_limit`, and `images_used` from the trial doc (not only global config):
-
-```javascript
-googleTrialHasUnlimitedTime(trial, cfg) {
-  if (trial.unlimited_time === true) return true;
-  if (trial.unlimited_time === false && trial.expiresAt) return false;
-  return cfg.unlimited_time !== false && !trial.expiresAt;
-}
-```
-
-When admin sets `expires_at` in the future, user regains access until that date (if credits remain).
-
----
-
-## Goals
-
-1. **Plan offer badges** — render `offer_badges[]` on plan cards (in addition to `best` and `save`).
-2. **Plan visibility** — only show plans where `active !== false` (already expected; verify).
-3. **Hide Google login** — respect `google_trial.google_login_enabled === false` → hide “Continue with Google” everywhere.
-4. **Device policy (defaults)**
-   - **Google signed-in users:** enforce `google_trial.max_devices` (default `1`) via `shipping_optimizer_google_trials/{uid}.machine_ids`.
-   - **License-key users (no Google sign-in):** **no device limit** — shared license keys allowed (`unlimited_devices` default true on new licenses; `resolveUnlimitedDevices` returns true for license path).
-5. **Credit consumption order** — when user has **both** Google trial + paid license:
-   - Consume **Google trial credits first** (`images_used` / `images_limit` on trial doc).
-   - Only after trial exhausted → deduct from paid license `credits_balance`.
-6. **Silent Google re-auth** — no OAuth popup on return visits (session + silent token; see v1.7.7 work).
+Extension must read **per-user** `unlimited_time`, `expires_at`, `images_limit`, and `images_used` from the trial doc (not only global config).
 
 ---
 
@@ -74,23 +79,28 @@ When admin sets `expires_at` in the future, user regains access until that date 
   "active": true,
   "best": true,
   "save": "Save ₹8000",
-  "offer_badges": ["Best deal", "Limited slots"],
+  "offer_badges": ["Best deal", "17% bonus credits"],
   "billing_mode": "hybrid",
-  "included_credits": 100
+  "included_credits": 2000,
+  "description": "Best for full-time Meesho sellers…",
+  "highlights": ["~2,000 credits", "Optional add-ons"],
+  "features": [{ "icon": "📅", "title": "1 year access", "text": "…" }],
+  "detail_sections": [{ "title": "What's included", "items": ["…"] }],
+  "card_subtitle": "1 year · ~2,000 credits · Save ₹8000"
 }
 ```
 
-### Google trial (`config.google_trial`)
+---
+
+## Google trial (`config.google_trial`)
 
 | Field | Default | Behavior |
 |-------|---------|----------|
-| `google_login_enabled` | `true` | `false` → **hide** Google sign-in button in popup/content |
-| `enabled` | `true` | `false` → block **new** trial claims; existing trials still work |
-| `unlimited_time` | `true` | Signed-in users: **no calendar expiry**; access by credits only |
+| `google_login_enabled` | `true` | `false` → hide Google sign-in button |
+| `enabled` | `true` | `false` → block new trial claims |
+| `unlimited_time` | `true` | No calendar expiry for Google users |
 | `max_devices` | `1` | Device limit for Google accounts |
-| `trial_credits` / `image_run_limit` | `3` | Free runs per Google uid |
-
----
+| `trial_credits` | `3` | Free runs per Google uid |
 
 ## Code changes required
 
