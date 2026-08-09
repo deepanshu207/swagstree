@@ -328,6 +328,27 @@
         }
     };
 
+    window.soViewAllDefaults = function() {
+        const seed = soGetDefaultAppSeed();
+        const panel = document.getElementById('so-default-seed-json');
+        if (!panel) return;
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden) {
+            panel.textContent = JSON.stringify(seed, null, 2);
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    };
+
+    window.soCopyAllDefaults = function() {
+        const seed = soGetDefaultAppSeed();
+        const text = JSON.stringify(seed, null, 2);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => soToast('Default seed JSON copied.')).catch(() => soToast('Copy failed.'));
+        } else {
+            soToast('Clipboard not available.');
+        }
+    };
+
     window.soSeedAllDefaults = async function() {
         if (!confirm('Write the full recommended app config to Firebase (shipping_optimizer_config/app)? Existing fields will be merged/overwritten with seed values.')) return;
         if (!soRequireExtensionWrite()) return;
@@ -347,6 +368,11 @@
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: soAuthEmail()
             }), { merge: true });
+            const legacyDeletes = {};
+            SO_GOOGLE_TRIAL_LEGACY_FIELDS.forEach((field) => {
+                legacyDeletes[`google_trial.${field}`] = firebase.firestore.FieldValue.delete();
+            });
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update(legacyDeletes);
             soApplySeedSectionToState(seed, 'all');
             soRefreshFormsAfterSeed('all');
             soEstablishCleanBaseline();

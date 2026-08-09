@@ -2328,8 +2328,15 @@
                         </div>
                     </div>
 
+                    <details class="so-details-block" style="margin-bottom:12px;">
+                        <summary>View built-in default seed JSON (read-only)</summary>
+                        <pre id="so-default-seed-json" class="so-default-seed-json" hidden></pre>
+                    </details>
+
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soViewAllDefaults()">View all defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy defaults JSON</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')">Load defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
@@ -2537,7 +2544,7 @@
                                     <li>Google Cloud <strong>Web client 1</strong> → add redirect URIs shown above (with and without trailing <code>/</code>)</li>
                                     <li>Google Cloud <strong>Chrome extension</strong> OAuth client → Item ID <code>ibeijdggldhedpioahdjkhpcpmgieoch</code></li>
                                     <li>OAuth consent screen → <strong>Test users</strong> for every Gmail that will sign in</li>
-                                    <li>Deploy <code>firestore.rules</code>: <code>bash scripts/extension-e6e32/deploy-firestore-rules.sh</code> (required for Google trial save)</li>
+                                    <li>Firestore rules deployed — trial create allowed (no strict timestamp/email casing)</li>
                                     <li>Extension <strong>v1.7.2+</strong> on Kiwi with manifest <code>key</code> (stable ID)</li>
                                 </ol>
                             </div>
