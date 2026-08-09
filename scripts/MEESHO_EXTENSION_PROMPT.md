@@ -12,12 +12,27 @@ Swagstree admin (PR #115+) now writes all config below to Firebase `extension-e6
 
 | Plan | Price | Credits | Formula |
 |------|-------|---------|---------|
-| Monthly | **₹199** | **19** | Fixed starter |
-| 3 Months | ₹547 | **549** | `200×3−51` credits · `199×3−50` price |
-| 6 Months | ₹1,044 | **1,050** | `200×6×(1−12.5%)` |
-| Yearly | ₹1,980 | **~2,000** | `200×12×(1−17%)` |
+| Monthly | **₹199** | **200** | `200/mo` fixed grant |
+| 3 Months | **₹549** | **600** | `200×3` credits · `199×3−48` price (~8% off ₹597) |
+| 6 Months | **₹1,045** | **1,200** | `200×6` credits · `199×6×(1−12.5%)` price |
+| Yearly | **₹1,980** | **2,400** | `200×12` credits · `199×12×(1−17%)` price |
 
 Monthly includes **credit add-ons** (+10/+25) at purchase. **Existing customers** on any active plan buy **credit packs** in the popup (⚡ BUY CREDITS) — v1.7.8 moves this section outside the hidden activation area.
+
+### Plan card copy (customer-facing — v5.6+)
+
+Each plan must show **subtitle + save badge** (both visible — not either/or):
+
+| Plan | `card_subtitle` (below price) | `save` |
+|------|-----------------|--------|
+| Monthly | `30 days · 200 credits` | — |
+| 3 Months | `90 days · 600 credits` | `Save ₹48 (8% off)` |
+| 6 Months | `180 days · 1,200 credits` | `Save ₹149 (12.5% off)` |
+| Yearly | `1 year · 2,400 credits` | `Save ₹408 (17% off)` |
+
+- **Do not show device limits** on plan cards or detail screens (licensed users get `unlimited_devices: true`).
+- **Do not show OAuth setup** diagnostics in the popup (`#google-trial-redirect` stays hidden).
+- Google trial still enforces `max_devices` server-side — users never see this count.
 
 ---
 

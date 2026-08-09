@@ -11119,18 +11119,36 @@ body.seo-indexing-off #seo-primary-nav {
     min-height: 44px;
     font-size: 14px !important;
 }
-@media (max-width: 768px) {
-    .so-tab-select-wrap { display: flex; }
-    .so-admin-tabs--desktop { display: none; }
+.so-section-nav-chips {
+    display: none !important;
 }
 .so-admin-tabs {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
+    margin-bottom: 8px;
 }
 .so-admin-tabs--desktop .so-admin-tab-btn {
-    flex: 1;
-    min-width: 100px;
+    flex: unset;
+    min-width: 0;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 6px;
+    font-size: 10px;
+    line-height: 1.25;
+    text-align: center;
+}
+@media (max-width: 420px) {
+    .so-admin-tabs--desktop .so-admin-tab-btn {
+        font-size: 9px;
+        padding: 8px 4px;
+    }
+}
+@media (max-width: 768px) {
+    #so-tab-licenses .so-tab-select-wrap,
+    #so-tab-customers .so-tab-select-wrap {
+        display: flex;
+    }
 }
 .so-unsaved-banner {
     display: flex;

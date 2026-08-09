@@ -16,19 +16,27 @@ Copy these changes into `deepanshu207/meesho-shipping-optimizer-extension`:
 - `js/firebaseLicense.js` — `parseOfferBadges`, `planOfferBadgesHtml`, render on plan cards
 - `popup.html` — CSS `.plan-offer-badges` / `.plan-offer-badge`
 
-## Admin defaults (Firebase via Swagstree v5.4)
+## Admin defaults (Firebase via Swagstree v5.5)
 
 | Plan | Price | Credits |
 |------|-------|---------|
-| Monthly | **₹199** | 19 |
-| 3 Months | ₹547 (199×3−50) | 549 |
-| 6 Months | ₹1,044 | 1,050 |
-| Yearly | ₹1,980 | ~2,000 |
+| Monthly | **₹199** | 200 |
+| 3 Months | **₹549** (199×3−48, ~8% off) | 600 (200×3) |
+| 6 Months | **₹1,045** (12.5% off) | 1,200 |
+| Yearly | **₹1,980** (17% off) | 2,400 |
 
 Monthly plan: `allow_credit_addons: true` (+10 / +25 at purchase).
 
-## Files changed
+## Files changed (v1.7.9 plan copy + UI)
 
+```
+js/firebaseLicense.js  — formatPlanCardSubtitle, show subtitle + save, hide devices/OAuth UI
+popup.js               — hide license-device-hint, no device count in license status
+popup.html             — hide license-device-hint
+js/license.js          — remove device line from account cards
+```
+
+## Files changed (v1.7.8)
 ```
 popup.html
 popup.js

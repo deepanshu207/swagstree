@@ -23,79 +23,161 @@
 
     /** Default monthly plan price (INR). */
     const SO_DEFAULT_MONTHLY_PRICE = 199;
-    /** Credits/month for volume formula on multi-month plans (see Built-in defaults tab). */
+    /** Base credits per month — monthly grant and multi-month volume rate. */
     const SO_CREDIT_VOLUME_RATE = 200;
-    /** Included credits on the monthly plan. */
-    const SO_CREDIT_MONTHLY_GRANT = 19;
+    /** Included credits on the monthly plan (= SO_CREDIT_VOLUME_RATE). */
+    const SO_CREDIT_MONTHLY_GRANT = 200;
 
     /**
-     * Default included credits per plan — monthly uses fixed grant; longer plans use volume rate + discount.
-     * Quarterly: 200×3−51=549 · Half-yearly: 200×6×(1−12.5%)=1050 · Yearly: 200×12×(1−17%)≈1992→2000
+     * Price discounts per tier (credits stay at 200×months unless creditsPct is set).
+     * Quarterly: ₹199×3−₹48 = ₹549 (~8% off ₹597). Credits: 200×3 = 600.
      */
-    function soCalcDefaultPlanPrice(planId, days) {
-        const d = Math.max(0, parseInt(days, 10) || 0);
+    const SO_PLAN_TIER_DISCOUNTS = {
+        monthly: { pricePct: 0, creditsPct: 0, flatPriceOff: 0 },
+        quarterly: { pricePct: 0, creditsPct: 0, flatPriceOff: 48 },
+        halfyearly: { pricePct: 12.5, creditsPct: 0, flatPriceOff: 0 },
+        yearly: { pricePct: 17, creditsPct: 0, flatPriceOff: 0 }
+    };
+
+    function soPlanMonths(planId, days) {
         const id = String(planId || '').toLowerCase();
-        if (id === 'monthly' || d === 30) return SO_DEFAULT_MONTHLY_PRICE;
-        if (id === 'quarterly' || d === 90) return SO_DEFAULT_MONTHLY_PRICE * 3 - 50;
-        if (id === 'halfyearly' || d === 180) return Math.round(SO_DEFAULT_MONTHLY_PRICE * 6 * (1 - 0.125));
-        if (id === 'yearly' || d === 365) {
-            return Math.round((SO_DEFAULT_MONTHLY_PRICE * 12 * (1 - 0.17)) / 10) * 10;
+        const d = Math.max(0, parseInt(days, 10) || 0);
+        if (id === 'monthly' || d === 30) return 1;
+        if (id === 'quarterly' || d === 90) return 3;
+        if (id === 'halfyearly' || d === 180) return 6;
+        if (id === 'yearly' || d === 365) return 12;
+        return d > 0 ? d / 30 : 1;
+    }
+
+    function soPlanTierKey(planId, days) {
+        const id = String(planId || '').toLowerCase();
+        const d = parseInt(days, 10) || 0;
+        if (id === 'monthly' || d === 30) return 'monthly';
+        if (id === 'quarterly' || d === 90) return 'quarterly';
+        if (id === 'halfyearly' || d === 180) return 'halfyearly';
+        if (id === 'yearly' || d === 365) return 'yearly';
+        return '';
+    }
+
+    function soFullPrice(months) {
+        return SO_DEFAULT_MONTHLY_PRICE * months;
+    }
+
+    function soFullCredits(months) {
+        return SO_CREDIT_VOLUME_RATE * months;
+    }
+
+    function soCalcDefaultPlanPrice(planId, days) {
+        const tier = soPlanTierKey(planId, days);
+        const months = soPlanMonths(planId, days);
+        if (tier && SO_PLAN_TIER_DISCOUNTS[tier]) {
+            const t = SO_PLAN_TIER_DISCOUNTS[tier];
+            if (t.flatPriceOff > 0) return soFullPrice(months) - t.flatPriceOff;
+            if (t.pricePct > 0) {
+                const raw = soFullPrice(months) * (1 - t.pricePct / 100);
+                return tier === 'yearly' ? Math.round(raw / 10) * 10 : Math.round(raw);
+            }
+            return SO_DEFAULT_MONTHLY_PRICE;
         }
-        const months = d > 0 ? d / 30 : 1;
         const discountPct = Math.min(20, Math.max(0, Math.round((months - 1) * 5)));
-        return Math.max(SO_DEFAULT_MONTHLY_PRICE, Math.round(SO_DEFAULT_MONTHLY_PRICE * months * (1 - discountPct / 100)));
+        return Math.max(SO_DEFAULT_MONTHLY_PRICE, Math.round(soFullPrice(months) * (1 - discountPct / 100)));
+    }
+
+    function soPlanPriceDiscount(planId, days, price) {
+        const months = soPlanMonths(planId, days);
+        if (months <= 1) return { full: SO_DEFAULT_MONTHLY_PRICE, actual: SO_DEFAULT_MONTHLY_PRICE, save: 0, pct: 0 };
+        const full = soFullPrice(months);
+        const actual = parseInt(price, 10);
+        const resolved = Number.isFinite(actual) && actual > 0 ? actual : soCalcDefaultPlanPrice(planId, days);
+        const save = Math.max(0, full - resolved);
+        const pct = full > 0 && save > 0 ? Math.round((save / full) * 1000) / 10 : 0;
+        return { full, actual: resolved, save, pct };
     }
 
     function soDefaultPlanSaveBadge(planId, days, price) {
-        const d = parseInt(days, 10) || 0;
-        if (d <= 30) return '';
-        const months = d / 30;
-        const full = SO_DEFAULT_MONTHLY_PRICE * months;
-        const save = full - (parseInt(price, 10) || 0);
+        return soFormatSaveBadge(planId, days, price);
+    }
+
+    function soExplainPlanDiscount(planId, days, price) {
+        const { full, actual, save, pct } = soPlanPriceDiscount(planId, days, price);
         if (save <= 0) return '';
-        return `Save ₹${save.toLocaleString('en-IN')}`;
+        return `${pct}% off ₹${full.toLocaleString('en-IN')} → ₹${actual.toLocaleString('en-IN')} (save ₹${save.toLocaleString('en-IN')})`;
     }
 
     function soExplainPlanPriceFormula(planId, days) {
-        const id = String(planId || '').toLowerCase();
+        const tier = soPlanTierKey(planId, days);
         const d = parseInt(days, 10) || 0;
-        if (id === 'monthly' || d === 30) return `₹${SO_DEFAULT_MONTHLY_PRICE} / month`;
-        if (id === 'quarterly' || d === 90) return `₹${SO_DEFAULT_MONTHLY_PRICE}×3−50 = ₹${SO_DEFAULT_MONTHLY_PRICE * 3 - 50}`;
-        if (id === 'halfyearly' || d === 180) return `₹${SO_DEFAULT_MONTHLY_PRICE}×6×(1−12.5%) = ₹${Math.round(SO_DEFAULT_MONTHLY_PRICE * 6 * (1 - 0.125))}`;
-        if (id === 'yearly' || d === 365) {
-            const p = Math.round((SO_DEFAULT_MONTHLY_PRICE * 12 * (1 - 0.17)) / 10) * 10;
-            return `₹${SO_DEFAULT_MONTHLY_PRICE}×12×(1−17%) ≈ ₹${p}`;
+        const price = soCalcDefaultPlanPrice(planId, d);
+        if (tier === 'monthly' || d === 30) return `₹${SO_DEFAULT_MONTHLY_PRICE} / month`;
+        if (tier === 'quarterly' || d === 90) {
+            const disc = soExplainPlanDiscount('quarterly', 90, price);
+            return `₹${SO_DEFAULT_MONTHLY_PRICE}×3−₹48 = ₹${price}${disc ? ` · ${disc}` : ''}`;
         }
-        return `₹${soCalcDefaultPlanPrice(planId, d)}`;
+        if (tier === 'halfyearly' || d === 180) {
+            const disc = soExplainPlanDiscount('halfyearly', 180, price);
+            return `₹${SO_DEFAULT_MONTHLY_PRICE}×6×(1−12.5%) = ₹${price}${disc ? ` · ${disc}` : ''}`;
+        }
+        if (tier === 'yearly' || d === 365) {
+            const disc = soExplainPlanDiscount('yearly', 365, price);
+            return `₹${SO_DEFAULT_MONTHLY_PRICE}×12×(1−17%) ≈ ₹${price}${disc ? ` · ${disc}` : ''}`;
+        }
+        return `₹${price}`;
     }
 
     function soCalcDefaultPlanCredits(planId, days) {
-        const d = Math.max(0, parseInt(days, 10) || 0);
-        const id = String(planId || '').toLowerCase();
-        if (id === 'monthly' || d === 30) return SO_CREDIT_MONTHLY_GRANT;
-        if (id === 'quarterly' || d === 90) return SO_CREDIT_VOLUME_RATE * 3 - 51;
-        if (id === 'halfyearly' || d === 180) return Math.round(SO_CREDIT_VOLUME_RATE * 6 * (1 - 0.125));
-        if (id === 'yearly' || d === 365) {
-            const raw = SO_CREDIT_VOLUME_RATE * 12 * (1 - 0.17);
-            return Math.round(raw / 50) * 50;
-        }
-        const months = d > 0 ? d / 30 : 1;
-        const discountPct = Math.min(20, Math.max(0, Math.round((months - 1) * 5)));
-        return Math.max(SO_CREDIT_MONTHLY_GRANT, Math.round(SO_CREDIT_VOLUME_RATE * months * (1 - discountPct / 100)));
+        const months = soPlanMonths(planId, days);
+        const tier = soPlanTierKey(planId, days);
+        if (months <= 1) return SO_CREDIT_MONTHLY_GRANT;
+        const tierDisc = tier && SO_PLAN_TIER_DISCOUNTS[tier] ? SO_PLAN_TIER_DISCOUNTS[tier].creditsPct : 0;
+        if (tierDisc > 0) return Math.round(soFullCredits(months) * (1 - tierDisc / 100));
+        return Math.round(soFullCredits(months));
     }
 
     function soExplainPlanCreditsFormula(planId, days) {
-        const id = String(planId || '').toLowerCase();
-        const d = parseInt(days, 10) || 0;
-        if (id === 'monthly' || d === 30) return `${SO_CREDIT_MONTHLY_GRANT} credits (monthly starter grant)`;
-        if (id === 'quarterly' || d === 90) return `${SO_CREDIT_VOLUME_RATE}×3−51 = ${SO_CREDIT_VOLUME_RATE * 3 - 51} credits`;
-        if (id === 'halfyearly' || d === 180) return `${SO_CREDIT_VOLUME_RATE}×6×(1−12.5%) = ${Math.round(SO_CREDIT_VOLUME_RATE * 6 * (1 - 0.125))} credits`;
-        if (id === 'yearly' || d === 365) {
-            const n = Math.round((SO_CREDIT_VOLUME_RATE * 12 * (1 - 0.17)) / 50) * 50;
-            return `${SO_CREDIT_VOLUME_RATE}×12×(1−17%) ≈ ${n} credits`;
+        const months = soPlanMonths(planId, days);
+        const credits = soCalcDefaultPlanCredits(planId, days);
+        if (months <= 1) return `${SO_CREDIT_MONTHLY_GRANT} credits (${SO_CREDIT_VOLUME_RATE}/mo monthly grant)`;
+        const tier = soPlanTierKey(planId, days);
+        const tierDisc = tier && SO_PLAN_TIER_DISCOUNTS[tier] ? SO_PLAN_TIER_DISCOUNTS[tier].creditsPct : 0;
+        if (tierDisc > 0) {
+            return `${SO_CREDIT_VOLUME_RATE}×${months}×(1−${tierDisc}%) = ${credits} credits`;
         }
-        const months = d > 0 ? (d / 30).toFixed(1) : '?';
-        return `~${soCalcDefaultPlanCredits(planId, d)} credits (${months} mo × ${SO_CREDIT_VOLUME_RATE}/mo with tier discount)`;
+        return `${SO_CREDIT_VOLUME_RATE}×${months} = ${credits} credits`;
+    }
+
+    /** Customer-facing plan card line (price is shown separately on the card). */
+    function soPlanCardSubtitle(_price, days, credits) {
+        const c = parseInt(credits, 10) || 0;
+        const d = parseInt(days, 10) || 0;
+        let duration = '';
+        if (d === 30) duration = '30 days';
+        else if (d === 90) duration = '90 days';
+        else if (d === 180) duration = '180 days';
+        else if (d === 365) duration = '1 year';
+        else if (d > 0) duration = `${d} days`;
+        return `${duration} · ${c.toLocaleString('en-IN')} credits`;
+    }
+
+    /** Customer-facing detail subtitle (price shown separately on card). */
+    function soPlanDetailSubtitle(days, credits) {
+        const c = parseInt(credits, 10) || 0;
+        const d = parseInt(days, 10) || 0;
+        let duration = '';
+        if (d === 30) duration = '30 days';
+        else if (d === 90) duration = '90 days';
+        else if (d === 180) duration = '180 days';
+        else if (d === 365) duration = '1 year';
+        else if (d > 0) duration = `${d} days`;
+        return `${duration} · ${c.toLocaleString('en-IN')} credits`;
+    }
+
+    function soFormatSaveBadge(planId, days, price) {
+        const { save, pct } = soPlanPriceDiscount(planId, days, price);
+        const roundedSave = Math.round(save);
+        if (roundedSave <= 0) return '';
+        return pct > 0
+            ? `Save ₹${roundedSave.toLocaleString('en-IN')} (${pct}% off)`
+            : `Save ₹${roundedSave.toLocaleString('en-IN')}`;
     }
 
     function soBuildDefaultPlans() {
@@ -103,10 +185,16 @@
         const qPrice = soCalcDefaultPlanPrice('quarterly', 90);
         const hPrice = soCalcDefaultPlanPrice('halfyearly', 180);
         const yPrice = soCalcDefaultPlanPrice('yearly', 365);
+        const qCredits = soCalcDefaultPlanCredits('quarterly', 90);
+        const hCredits = soCalcDefaultPlanCredits('halfyearly', 180);
+        const yCredits = soCalcDefaultPlanCredits('yearly', 365);
+        const qDisc = soExplainPlanDiscount('quarterly', 90, qPrice);
+        const hDisc = soExplainPlanDiscount('halfyearly', 180, hPrice);
+        const yDisc = soExplainPlanDiscount('yearly', 365, yPrice);
         return [
             mk({
                 id: 'monthly', name: 'Monthly', price: SO_DEFAULT_MONTHLY_PRICE, days: 30, duration: '1 Month',
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
                 included_credits: soCalcDefaultPlanCredits('monthly', 30),
                 allow_credit_addons: true,
                 max_addon_selections: 0,
@@ -116,11 +204,11 @@
                 ],
                 offer_badges: ['Starter'],
                 description: 'Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.',
-                detail_subtitle: '1 device · 30 days · 19 AI generation runs included',
-                highlights: ['Live shipping checks', '19 AI runs included', 'Add-on credits at checkout'],
+                detail_subtitle: soPlanDetailSubtitle(30, soCalcDefaultPlanCredits('monthly', 30)),
+                highlights: ['200 credits included', '30 days access', 'Add-on credits at checkout'],
                 features: [
                     { icon: '📅', title: '30 days access', text: 'Renews every month' },
-                    { icon: '⚡', title: '19 credits', text: 'One credit ≈ one generation run (upload → variants)' },
+                    { icon: '⚡', title: '200 credits', text: 'One credit = one AI generation run' },
                     { icon: '➕', title: 'Optional add-ons', text: '+10 or +25 credits when you buy via WhatsApp' },
                     { icon: '🚚', title: 'Smart Mode', text: 'Preview up to 200 variants per run' }
                 ],
@@ -130,90 +218,90 @@
                 }, {
                     title: 'Already on Monthly?',
                     body: 'Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.',
-                    items: ['Credit packs stack on your license', 'Add-ons below apply only when purchasing a new monthly plan']
+                    items: ['Credit packs stack on your license', 'Add-ons apply when purchasing a new monthly plan']
                 }],
-                card_subtitle: `30 days · 1 device · 19 credits · ₹${SO_DEFAULT_MONTHLY_PRICE}/mo`,
+                card_subtitle: soPlanCardSubtitle(SO_DEFAULT_MONTHLY_PRICE, 30, soCalcDefaultPlanCredits('monthly', 30)),
                 detail_footer: 'Credits deduct per generation run. Buy credit packs anytime from the popup while your plan is active.',
                 order: 0
             }),
             mk({
                 id: 'quarterly', name: '3 Months', price: qPrice, days: 90, duration: '3 Months',
-                save: soDefaultPlanSaveBadge('quarterly', 90, qPrice), offer_badges: ['Popular', 'Volume deal'],
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
-                included_credits: soCalcDefaultPlanCredits('quarterly', 90),
+                save: soFormatSaveBadge('quarterly', 90, qPrice), offer_badges: ['Popular', '8% off'],
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: qCredits,
                 allow_credit_addons: true,
                 max_addon_selections: 0,
                 credit_addons: [
                     { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
                     { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1 }
                 ],
-                description: 'Three months of Smart Mode — volume credit pack at a lower per-month rate than paying monthly.',
-                detail_subtitle: '1 device · 90 days · 549 AI runs included',
-                highlights: ['549 credits included', 'Save vs 3× monthly', 'Live Meesho shipping'],
+                description: 'Three months of Smart Mode — 600 credits with a lower price than paying monthly three times.',
+                detail_subtitle: soPlanDetailSubtitle(90, qCredits),
+                highlights: [`${qCredits.toLocaleString('en-IN')} credits`, '90 days access', 'Lower price vs monthly'],
                 features: [
                     { icon: '📅', title: '90 days access', text: 'One payment, three months' },
-                    { icon: '⚡', title: '549 credits', text: 'Formula: 200×3−51 volume discount' },
-                    { icon: '💰', title: soDefaultPlanSaveBadge('quarterly', 90, qPrice) || 'Volume pricing', text: `vs ₹${SO_DEFAULT_MONTHLY_PRICE}×3 = ₹${SO_DEFAULT_MONTHLY_PRICE * 3} monthly` }
+                    { icon: '⚡', title: `${qCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
+                    { icon: '💰', title: soFormatSaveBadge('quarterly', 90, qPrice) || 'Volume pricing', text: qDisc || `vs ₹${SO_DEFAULT_MONTHLY_PRICE}×3 = ₹${SO_DEFAULT_MONTHLY_PRICE * 3}` }
                 ],
                 detail_sections: [{
-                    title: 'Credit formula',
-                    body: '549 = 200 credits/month × 3 months − 51 volume discount. Price: ₹199×3−50.',
+                    title: 'Plan summary',
+                    body: `₹${qPrice.toLocaleString('en-IN')} for 90 days · ${qCredits.toLocaleString('en-IN')} credits included.${qDisc ? ` ${qDisc}.` : ''}`,
                     items: ['Unused credits stay until used', 'Credit packs available anytime']
                 }],
-                card_subtitle: `3 months · 549 credits · ${soExplainPlanPriceFormula('quarterly', 90)}`,
-                detail_footer: 'Equivalent to ~183 credits/month vs 19 on monthly plan.',
+                card_subtitle: soPlanCardSubtitle(qPrice, 90, qCredits),
+                detail_footer: 'Full 600-credit pack. Price discount applies to rupees only — credits stay at 200/month × 3.',
                 order: 1
             }),
             mk({
                 id: 'halfyearly', name: '6 Months', price: hPrice, days: 180, duration: '6 Months',
-                save: soDefaultPlanSaveBadge('halfyearly', 180, hPrice), offer_badges: ['12.5% off price'],
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
-                included_credits: soCalcDefaultPlanCredits('halfyearly', 180),
+                save: soFormatSaveBadge('halfyearly', 180, hPrice), offer_badges: ['12.5% off'],
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: hCredits,
                 allow_credit_addons: true,
                 max_addon_selections: 1,
                 credit_addons: [
                     { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 0 }
                 ],
-                description: 'Half-year access for serious Meesho sellers — 1,050 AI generation runs with percentage volume discount.',
-                detail_subtitle: '1 device · 180 days · 1,050 credits',
-                highlights: ['1,050 credits', '12.5% volume discount', '6 months access'],
+                description: `Half-year access for serious Meesho sellers — ${hCredits.toLocaleString('en-IN')} credits with 12.5% price discount.`,
+                detail_subtitle: soPlanDetailSubtitle(180, hCredits),
+                highlights: [`${hCredits.toLocaleString('en-IN')} credits`, '180 days access', '12.5% off price'],
                 features: [
-                    { icon: '📅', title: '6 months access', text: 'Renews twice a year' },
-                    { icon: '⚡', title: '1,050 credits', text: '200×6×(1−12.5%) = 1,050' },
-                    { icon: '📈', title: 'Best ₹/credit', text: 'Lower cost per run than quarterly' }
+                    { icon: '📅', title: '180 days access', text: 'Six months in one payment' },
+                    { icon: '⚡', title: `${hCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
+                    { icon: '📈', title: 'Best value', text: hDisc || 'Lower cost per credit than quarterly' }
                 ],
                 detail_sections: [{
-                    title: 'Volume pricing',
-                    body: `Credits: 200/mo base with 12.5% off. Price: ${soExplainPlanPriceFormula('halfyearly', 180)}.`,
-                    items: ['Smart Mode up to 200 variants/run', 'Credit top-ups available']
+                    title: 'Plan summary',
+                    body: `₹${hPrice.toLocaleString('en-IN')} for 180 days · ${hCredits.toLocaleString('en-IN')} credits included.${hDisc ? ` ${hDisc}.` : ''}`,
+                    items: ['Smart Mode up to 200 variants per run', 'Credit top-ups available']
                 }],
-                card_subtitle: `6 months · 1,050 credits · ${soExplainPlanPriceFormula('halfyearly', 180)}`,
+                card_subtitle: soPlanCardSubtitle(hPrice, 180, hCredits),
                 order: 2
             }),
             mk({
                 id: 'yearly', name: 'Yearly', price: yPrice, days: 365, duration: '1 Year',
-                save: soDefaultPlanSaveBadge('yearly', 365, yPrice), best: true, offer_badges: ['Best deal', '17% off price'],
-                max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid',
-                included_credits: soCalcDefaultPlanCredits('yearly', 365),
+                save: soFormatSaveBadge('yearly', 365, yPrice), best: true, offer_badges: ['Best deal', '17% off'],
+                unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
+                included_credits: yCredits,
                 allow_credit_addons: true, max_addon_selections: 2,
                 credit_addons: [
                     { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
                     { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1, default_selected: false }
                 ],
-                description: 'Best for full-time Meesho sellers — one year access plus ~2,000 AI runs and optional credit add-ons at checkout.',
-                detail_subtitle: '1 device · 1 year · ~2,000 credits',
-                highlights: ['~2,000 credits', 'Optional add-ons', 'BEST VALUE'],
+                description: `Best for full-time Meesho sellers — one year access with ${yCredits.toLocaleString('en-IN')} credits and optional add-ons at checkout.`,
+                detail_subtitle: soPlanDetailSubtitle(365, yCredits),
+                highlights: [`${yCredits.toLocaleString('en-IN')} credits`, '1 year access', 'BEST VALUE'],
                 features: [
                     { icon: '📅', title: '1 year access', text: 'Single annual payment' },
-                    { icon: '⚡', title: '~2,000 credits', text: '200×12×(1−17%) volume formula' },
+                    { icon: '⚡', title: `${yCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
                     { icon: '➕', title: 'Credit add-ons', text: 'Pick +25 or +50 credits in popup' },
-                    'Unlimited Smart Mode previews within credit balance'
+                    { icon: '🚚', title: 'Smart Mode', text: 'Use credits across the full year' }
                 ],
                 detail_sections: [
                     { title: "What's included", items: ['Live Meesho shipping on all variants', 'Apply best image to catalog', 'Credit packs anytime'] },
-                    { title: 'Price & credits', body: `Price ${soExplainPlanPriceFormula('yearly', 365)}. Credits ≈2,000.`, items: [] }
+                    { title: 'Plan summary', body: `₹${yPrice.toLocaleString('en-IN')} for 1 year · ${yCredits.toLocaleString('en-IN')} credits included.${yDisc ? ` ${yDisc}.` : ''}`, items: [] }
                 ],
-                card_subtitle: `1 year · ~2,000 credits · ${soExplainPlanPriceFormula('yearly', 365)}`,
+                card_subtitle: soPlanCardSubtitle(yPrice, 365, yCredits),
                 detail_footer: 'Add-on credits included in WhatsApp purchase message when selected.',
                 order: 3
             })
@@ -226,10 +314,10 @@
 
     /** Fallback included credits when plan doc omits included_credits (extension reads plan + license). */
     const PLAN_DEFAULT_INCLUDED_CREDITS = {
-        monthly: 19,
-        quarterly: 549,
-        halfyearly: 1050,
-        yearly: 2000,
+        monthly: 200,
+        quarterly: 600,
+        halfyearly: 1200,
+        yearly: 2400,
         family_yearly: 3600,
         friends_yearly: 4800,
         lifetime: 5000,
@@ -412,8 +500,8 @@
     const SO_PLAN_PRESETS = {
         monthly: {
             id: 'monthly', name: 'Monthly', price: SO_DEFAULT_MONTHLY_PRICE, days: 30, duration: '1 Month',
-            max_devices: 1, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 19,
-            allow_credit_addons: true, active: true
+            max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid', included_credits: 200,
+            unlimited_devices: true, allow_credit_addons: true, active: true
         },
         family_yearly: {
             id: 'family_yearly', name: 'Family Yearly', price: 4999, days: 365, duration: '1 Year',
@@ -608,7 +696,7 @@
                     <span>${soEsc(p.duration || p.days + 'd')}</span>
                     <span>${soEsc(p.billing_mode)}</span>
                 </div>
-                <div class="so-defaults-credits-formula"><strong>₹${(p.price || 0).toLocaleString('en-IN')}</strong> · <strong>${p.included_credits || 0} credits</strong> — ${soEsc(soExplainPlanPriceFormula(p.id, p.days))} · ${soEsc(soExplainPlanCreditsFormula(p.id, p.days))}</div>
+                <div class="so-defaults-credits-formula"><strong>₹${(p.price || 0).toLocaleString('en-IN')}</strong> · <strong>${p.included_credits || 0} credits</strong> — ${soEsc(soExplainPlanPriceFormula(p.id, p.days))} · ${soEsc(soExplainPlanCreditsFormula(p.id, p.days))}${p.days > 30 ? ` · ${soEsc(soExplainPlanDiscount(p.id, p.days, p.price) || '')}` : ''}</div>
                 <p class="so-admin-muted">${soEsc(p.description || p.card_subtitle || '')}</p>
                 <div class="so-defaults-mini">${soEsc(p.card_subtitle || '')}</div>
                 <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections</div>
@@ -631,11 +719,12 @@
             <div class="so-defaults-section">
                 <h5><i class="fa fa-calculator"></i> Price &amp; credit formulas (built-in)</h5>
                 <div class="so-defaults-formula-box">
-                    <div><strong>Monthly:</strong> ₹${SO_DEFAULT_MONTHLY_PRICE} · <strong>${SO_CREDIT_MONTHLY_GRANT} credits</strong></div>
-                    <div><strong>3 months:</strong> ${soExplainPlanPriceFormula('quarterly', 90)} · <strong>${SO_CREDIT_VOLUME_RATE}×3−51 = 549 credits</strong></div>
-                    <div><strong>6 months:</strong> ${soExplainPlanPriceFormula('halfyearly', 180)} · <strong>${SO_CREDIT_VOLUME_RATE}×6×(1−12.5%) = 1,050 credits</strong></div>
-                    <div><strong>Yearly:</strong> ${soExplainPlanPriceFormula('yearly', 365)} · <strong>≈2,000 credits</strong></div>
-                    <div class="so-admin-muted" style="margin-top:6px;">Monthly plan includes optional credit add-ons (+10/+25) at purchase. Existing customers on any plan can buy credit packs in the extension popup.</div>
+                    <div><strong>Monthly:</strong> ₹${SO_DEFAULT_MONTHLY_PRICE} · <strong>${SO_CREDIT_MONTHLY_GRANT} credits</strong> (${SO_CREDIT_VOLUME_RATE}/mo)</div>
+                    <div><strong>3 months:</strong> ${soExplainPlanPriceFormula('quarterly', 90)} · <strong>${soExplainPlanCreditsFormula('quarterly', 90)}</strong></div>
+                    <div><strong>6 months:</strong> ${soExplainPlanPriceFormula('halfyearly', 180)} · <strong>${soExplainPlanCreditsFormula('halfyearly', 180)}</strong></div>
+                    <div><strong>Yearly:</strong> ${soExplainPlanPriceFormula('yearly', 365)} · <strong>${soExplainPlanCreditsFormula('yearly', 365)}</strong></div>
+                    <div class="so-admin-muted" style="margin-top:6px;">Price discounts are % off (monthly price × months). Credits = ${SO_CREDIT_VOLUME_RATE}×months unless you set <code>creditsPct</code> in tier config. Quarterly example: ₹549 vs ₹597 = ${soPlanPriceDiscount('quarterly', 90, soCalcDefaultPlanPrice('quarterly', 90)).pct}% off.</div>
+                    <div class="so-admin-muted">Monthly plan includes optional credit add-ons (+10/+25) at purchase. Existing customers on any plan can buy credit packs in the extension popup.</div>
                 </div>
             </div>
 
@@ -3386,7 +3475,12 @@
         parts.push(t.unlimited_time
             ? '<span class="so-badge so-badge--on">No calendar expiry</span>'
             : `<span class="so-badge so-badge--warn">${t.days}-day limit</span>`);
-        parts.push(`<span class="so-badge so-badge--on">Device limit: ${t.max_devices}</span>`);
+        parts.push(`<span class="so-badge so-badge--meta">Device limit: ${t.max_devices} (Google trial only — not shown to users)</span>`);
+        return parts.join(' ');
+    }
+
+    function soGoogleTrialOAuthStatusBadges(t) {
+        const parts = [];
         parts.push(t.oauth_client_id
             ? '<span class="so-badge so-badge--on">Chrome OAuth configured</span>'
             : '<span class="so-badge so-badge--off">oauth_client_id missing</span>');
@@ -3422,6 +3516,10 @@
         const statusEl = document.getElementById('so-google-trial-status');
         if (statusEl) {
             statusEl.innerHTML = soGoogleTrialStatusBadges(trial);
+        }
+        const oauthStatusEl = document.getElementById('so-google-trial-oauth-status');
+        if (oauthStatusEl) {
+            oauthStatusEl.innerHTML = soGoogleTrialOAuthStatusBadges(trial);
         }
         const redirectEl = document.getElementById('so-google-trial-redirect-hint');
         if (redirectEl) {
