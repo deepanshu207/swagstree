@@ -7,6 +7,33 @@ Swagstree admin (PR #115+) now writes all config below to Firebase `extension-e6
 
 ---
 
+## Admin per-user overrides (Google Users tab)
+
+Superadmin can patch any field on `shipping_optimizer_google_trials/{uid}`:
+
+| Field | Admin action |
+|-------|----------------|
+| `images_limit` / `trial_credits` | Add, remove, set credit limit |
+| `images_used` | Reset to 0 |
+| `unlimited_time` | Toggle per user |
+| `expires_at` | Extend +N days, or set datetime |
+| `machine_ids` | Reset devices |
+| `active` | Revoke / reactivate |
+
+Extension must read **per-user** `unlimited_time` and `expires_at` from the trial doc (not only global config):
+
+```javascript
+googleTrialHasUnlimitedTime(trial, cfg) {
+  if (trial.unlimited_time === true) return true;
+  if (trial.unlimited_time === false && trial.expiresAt) return false;
+  return cfg.unlimited_time !== false && !trial.expiresAt;
+}
+```
+
+When admin sets `expires_at` in the future, user regains access until that date (if credits remain).
+
+---
+
 ## Goals
 
 1. **Plan offer badges** — render `offer_badges[]` on plan cards (in addition to `best` and `save`).

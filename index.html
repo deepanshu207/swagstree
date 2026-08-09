@@ -2234,7 +2234,7 @@
                                     <div id="so-hint-min-version" class="so-field-info-panel" hidden role="note">Semver like <code>1.2.0</code>. Older extension versions see an “please update” notice instead of plans.</div>
                                     <input id="so-min-version" type="text" placeholder="1.7.0" oninput="soMarkTabDirty('config')"></label>
                                 <label class="so-plan-check"><input id="so-extension-enabled" type="checkbox" checked onchange="soMarkTabDirty('config')"> Extension enabled</label>
-                                <label class="so-plan-check so-field-full"><input id="so-google-login-general" type="checkbox" checked onchange="soMarkTabDirty('config'); renderSoExtensionPreview()"> <strong>Show Google sign-in</strong> in extension (<code>google_trial.google_login_enabled</code>)</label>
+                                <label class="so-plan-check so-field-full"><input id="so-google-login-general" type="checkbox" checked onchange="soMarkTabDirty('config'); const t=document.getElementById('so-google-login-enabled'); if(t){t.checked=this.checked;} renderSoExtensionPreview()"> <strong>Show Google sign-in</strong> in extension (<code>google_trial.google_login_enabled</code>)</label>
                                 <label style="grid-column:1/-1;"><span class="so-field-label-row"><span class="admin-settings-field-label">Announcement banner</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('announcement', event)" aria-expanded="false" aria-controls="so-hint-announcement" title="More info">ⓘ</button></span>
                                     <div id="so-hint-announcement" class="so-field-info-panel" hidden role="note">Optional text shown at top of extension popup (e.g. sale, maintenance). Leave empty to hide.</div>
                                     <textarea id="so-announcement" rows="2" placeholder="Optional banner text" oninput="soMarkTabDirty('config'); renderSoExtensionPreview()"></textarea></label>
@@ -2573,7 +2573,7 @@
 
                 <!-- Tab: Google Users (signed-in accounts) -->
                 <div id="so-tab-google-users" class="so-admin-tab-panel" style="display:none;">
-                    <p class="so-admin-muted so-admin-tip">One row per Google account in <code>shipping_optimizer_google_trials</code>. Track email, credits used/limit, and device bindings. Adjust credits per user — no calendar expiry when <code>unlimited_time</code> is on.</p>
+                    <p class="so-admin-muted so-admin-tip">One row per Google account. <strong>Click any row</strong> (or <strong>Manage</strong>) to adjust credits, extend access time, or reset devices — for manual support requests.</p>
                     <div class="so-inline-demo-toolbar">
                         <span id="so-google-trials-count" class="so-plans-count">0 Google users</span>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshGoogleTrials()"><i class="fa fa-rotate"></i> Refresh</button>
@@ -2727,22 +2727,67 @@
                     <div id="so-customer-registry-list" class="so-admin-list so-admin-list--tall"></div>
                 </div>
 
-                <!-- Google user credits modal -->
-                <div id="so-google-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoGoogleTrialCredits()">
-                    <div class="so-modal-panel">
-                        <h4 class="so-modal-title">Adjust Google user credits</h4>
-                        <p id="so-google-credits-email-label" class="so-admin-muted"></p>
-                        <p id="so-google-credits-balance-label" class="so-admin-muted"></p>
-                        <label style="margin-top:12px;"><span class="admin-settings-field-label">Amount</span>
-                            <input id="so-google-credits-amount" type="number" min="0" step="1" placeholder="Credits"></label>
-                        <div class="so-modal-actions" style="flex-wrap:wrap;">
-                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoGoogleTrialCredits('add')">Add credits</button>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('remove')">Remove</button>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('set')">Set limit</button>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoGoogleTrialCredits()">Cancel</button>
+                <!-- Google user manage modal (credits + time + devices) -->
+                <div id="so-google-user-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoGoogleTrialManage()">
+                    <div class="so-modal-panel so-modal-panel--wide">
+                        <h4 class="so-modal-title">Manage Google user</h4>
+                        <p id="so-google-user-email-label" class="so-admin-muted"></p>
+                        <p id="so-google-user-summary-label" class="so-admin-muted"></p>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Credits</h5>
+                            <p id="so-google-user-credits-label" class="so-admin-muted"></p>
+                            <label><span class="admin-settings-field-label">Credit amount</span>
+                                <input id="so-google-user-credits-amount" type="number" min="0" step="1" placeholder="Credits"></label>
+                            <div class="so-google-user-quick-btns">
+                                <button type="button" class="btn-gold so-btn-sm" onclick="confirmSoGoogleTrialCredits('add')">Add</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('remove')">Remove</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('set')">Set limit</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialUsed()">Reset used → 0</button>
+                            </div>
+                        </div>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Access time</h5>
+                            <p class="so-admin-muted so-admin-tip">Per-user override — use when a customer requests more time.</p>
+                            <label class="so-plan-check"><input id="so-google-user-unlimited-time" type="checkbox"> No expiry (unlimited time for this user)</label>
+                            <div id="so-google-user-time-limited-fields">
+                                <label><span class="admin-settings-field-label">Extend by days</span>
+                                    <input id="so-google-user-extend-days" type="number" min="1" step="1" placeholder="e.g. 7"></label>
+                                <div class="so-google-user-quick-btns">
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soExtendGoogleTrialDays(7)">+7 days</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soExtendGoogleTrialDays(30)">+30 days</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soApplyGoogleTrialExtendDays()">Apply days</button>
+                                </div>
+                                <label style="margin-top:8px;"><span class="admin-settings-field-label">Or set expiry date/time</span>
+                                    <input id="so-google-user-expires-at" type="datetime-local"></label>
+                                <button type="button" class="so-btn-sm so-btn-touch" style="margin-top:6px;" onclick="soApplyGoogleTrialExpiryDate()">Set expiry date</button>
+                            </div>
+                        </div>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Devices</h5>
+                            <p id="so-google-user-devices-label" class="so-admin-muted"></p>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevicesFromModal()">Reset device bindings</button>
+                        </div>
+
+                        <div class="so-google-user-modal-section">
+                            <h5>Status</h5>
+                            <div class="so-google-user-quick-btns">
+                                <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" id="so-google-user-revoke-btn" onclick="soRevokeGoogleTrialFromModal()">Revoke access</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" id="so-google-user-reactivate-btn" onclick="soReactivateGoogleTrialFromModal()" style="display:none;">Reactivate</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soLinkGoogleTrialToLicenseFromModal()">Link license</button>
+                            </div>
+                        </div>
+
+                        <div class="so-modal-actions" style="flex-wrap:wrap; margin-top:14px;">
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoGoogleTrialManage()">Close</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- Legacy alias kept for older onclick handlers -->
+                <div id="so-google-credits-modal" class="so-modal-overlay" style="display:none;" hidden aria-hidden="true"></div>
 
                 <!-- Add credits modal (mobile-safe, no prompt) -->
                 <div id="so-add-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
@@ -4576,7 +4621,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=4.9"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.0"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

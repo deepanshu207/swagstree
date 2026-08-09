@@ -3250,6 +3250,60 @@
         return Math.max(0, limit - used);
     }
 
+    function soGoogleTrialHasUnlimitedTimeRow(row) {
+        if (!row) return false;
+        if (row.unlimited_time === true || row.unlimitedTime === true) return true;
+        if (row.unlimited_time === false || row.unlimitedTime === false) return false;
+        if (!soGoogleTrialExpiryMs(row)) {
+            return soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).unlimited_time;
+        }
+        return false;
+    }
+
+    function soGoogleTrialExpiryToDatetimeLocal(ms) {
+        if (!ms) return '';
+        const d = new Date(ms);
+        if (!Number.isFinite(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function soRefreshGoogleUserModalLabels() {
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return;
+        const used = soGoogleTrialImagesUsed(row);
+        const limit = soGoogleTrialImagesLimit(row);
+        const remaining = soGoogleTrialCreditsRemaining(row);
+        const devices = soGoogleTrialDeviceCount(row);
+        const maxDevices = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+        const unlimited = soGoogleTrialHasUnlimitedTimeRow(row);
+        const emailEl = document.getElementById('so-google-user-email-label');
+        const summaryEl = document.getElementById('so-google-user-summary-label');
+        const creditsEl = document.getElementById('so-google-user-credits-label');
+        const devicesEl = document.getElementById('so-google-user-devices-label');
+        if (emailEl) emailEl.textContent = row.email || uid;
+        if (summaryEl) {
+            summaryEl.textContent = unlimited
+                ? `Access: no expiry · UID ${row.uid || ''}`
+                : `Access expires: ${soFormatGoogleTrialExpiry(row)} · UID ${row.uid || ''}`;
+        }
+        if (creditsEl) creditsEl.textContent = `Used ${used} · limit ${limit} · remaining ${remaining}`;
+        if (devicesEl) devicesEl.textContent = `${devices} / ${maxDevices} device(s) bound`;
+        const unlimitedEl = document.getElementById('so-google-user-unlimited-time');
+        if (unlimitedEl) unlimitedEl.checked = unlimited;
+        const expiresEl = document.getElementById('so-google-user-expires-at');
+        if (expiresEl && !unlimited) expiresEl.value = soGoogleTrialExpiryToDatetimeLocal(soGoogleTrialExpiryMs(row));
+        const limitedFields = document.getElementById('so-google-user-time-limited-fields');
+        if (limitedFields) limitedFields.style.display = unlimited ? 'none' : 'block';
+        const revokeBtn = document.getElementById('so-google-user-revoke-btn');
+        const reactBtn = document.getElementById('so-google-user-reactivate-btn');
+        const isActive = row.active !== false;
+        if (revokeBtn) revokeBtn.style.display = isActive ? '' : 'none';
+        if (reactBtn) reactBtn.style.display = isActive ? 'none' : '';
+    }
+
     function renderSoGoogleTrialsRegistry() {
         const container = document.getElementById('so-google-trials-list');
         const countEl = document.getElementById('so-google-trials-count');
@@ -3298,13 +3352,13 @@
                             const remaining = soGoogleTrialCreditsRemaining(r);
                             const active = r.active !== false;
                             const devices = soGoogleTrialDeviceCount(r);
-                            const unlimitedTime = r.unlimited_time === true || r.unlimitedTime === true || !r.expires_at;
+                            const unlimitedTime = soGoogleTrialHasUnlimitedTimeRow(r);
                             const linkedKey = r.license_key || r.licenseKey || '';
                             const accessLabel = unlimitedTime
                                 ? '<span class="so-badge so-badge--on">No expiry</span>'
                                 : soEsc(soFormatGoogleTrialExpiry(r));
                             return `
-                            <tr class="${active ? '' : 'so-google-trial-row--revoked'}">
+                            <tr class="so-google-trial-row ${active ? '' : 'so-google-trial-row--revoked'}" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')" title="Click to manage credits and access time">
                                 <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}</td>
                                 <td><strong>${soEsc(String(used))}</strong> / ${soEsc(String(limit || '—'))}</td>
                                 <td><strong>${soEsc(String(remaining))}</strong></td>
@@ -3313,8 +3367,8 @@
                                 <td>${soEsc(`${devices}/${maxDevices}`)}</td>
                                 <td>${active ? '<span class="so-badge so-badge--on">Active</span>' : '<span class="so-badge so-badge--off">Revoked</span>'}</td>
                                 <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
-                                <td class="so-google-trials-actions">
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoGoogleTrialCredits('${soAttr(r.uid || '')}')">Credits</button>
+                                <td class="so-google-trials-actions" onclick="event.stopPropagation()">
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')">Manage</button>
                                     ${active
                                         ? `<button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}')">Revoke</button>`
                                         : ''}
@@ -3328,41 +3382,196 @@
             </div>`;
     }
 
-    let soGoogleTrialCreditsUid = null;
+    let soGoogleTrialManageUid = null;
 
-    window.openSoGoogleTrialCredits = function(uid) {
+    window.openSoGoogleTrialManage = function(uid) {
         if (!soRequireExtensionWrite()) return;
         const row = soGoogleTrials.find(r => r.uid === uid);
         if (!row) return soToast('Google user not found.');
-        soGoogleTrialCreditsUid = uid;
-        const used = soGoogleTrialImagesUsed(row);
-        const limit = soGoogleTrialImagesLimit(row);
-        const remaining = soGoogleTrialCreditsRemaining(row);
-        const label = document.getElementById('so-google-credits-email-label');
-        const balLabel = document.getElementById('so-google-credits-balance-label');
-        if (label) label.textContent = row.email || uid;
-        if (balLabel) balLabel.textContent = `Used ${used} · limit ${limit} · remaining ${remaining}`;
-        const amountEl = document.getElementById('so-google-credits-amount');
+        soGoogleTrialManageUid = uid;
+        const amountEl = document.getElementById('so-google-user-credits-amount');
         if (amountEl) amountEl.value = '';
-        const modal = document.getElementById('so-google-credits-modal');
+        const extendEl = document.getElementById('so-google-user-extend-days');
+        if (extendEl) extendEl.value = '';
+        soRefreshGoogleUserModalLabels();
+        const unlimitedEl = document.getElementById('so-google-user-unlimited-time');
+        if (unlimitedEl && !unlimitedEl.dataset.soBound) {
+            unlimitedEl.dataset.soBound = '1';
+            unlimitedEl.addEventListener('change', () => {
+                soSetGoogleTrialUnlimitedTime(!!unlimitedEl.checked);
+            });
+        }
+        const modal = document.getElementById('so-google-user-modal');
         if (modal) modal.style.display = 'flex';
     };
 
-    window.closeSoGoogleTrialCredits = function() {
-        soGoogleTrialCreditsUid = null;
-        const modal = document.getElementById('so-google-credits-modal');
+    window.openSoGoogleTrialCredits = function(uid) {
+        openSoGoogleTrialManage(uid);
+    };
+
+    window.closeSoGoogleTrialManage = function() {
+        soGoogleTrialManageUid = null;
+        const modal = document.getElementById('so-google-user-modal');
         if (modal) modal.style.display = 'none';
+    };
+
+    window.closeSoGoogleTrialCredits = function() {
+        closeSoGoogleTrialManage();
+    };
+
+    window.soSetGoogleTrialUnlimitedTime = async function(unlimited) {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        try {
+            const payload = {
+                unlimited_time: !!unlimited,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            };
+            if (unlimited) {
+                payload.expires_at = firebase.firestore.FieldValue.delete();
+                payload.days_granted = 0;
+            }
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set(payload, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast(unlimited ? 'User set to unlimited time (no expiry).' : 'Time limit enabled — set expiry or extend days.');
+        } catch (e) {
+            soToast('Update failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soExtendGoogleTrialDays = function(days) {
+        const el = document.getElementById('so-google-user-extend-days');
+        if (el) el.value = String(days);
+        soApplyGoogleTrialExtendDays();
+    };
+
+    window.soApplyGoogleTrialExtendDays = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+        const days = parseInt(document.getElementById('so-google-user-extend-days')?.value, 10);
+        if (!Number.isFinite(days) || days < 1) return soToast('Enter days to extend (minimum 1).');
+        const currentMs = soGoogleTrialExpiryMs(row);
+        const base = currentMs > Date.now() ? currentMs : Date.now();
+        const next = new Date(base + days * 86400000);
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                unlimited_time: false,
+                expires_at: next,
+                days_granted: days,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast(`Extended to ${next.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}.`);
+        } catch (e) {
+            soToast('Extend failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soApplyGoogleTrialExpiryDate = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        const raw = String(document.getElementById('so-google-user-expires-at')?.value || '').trim();
+        if (!raw) return soToast('Pick an expiry date and time.');
+        const next = new Date(raw);
+        if (!Number.isFinite(next.getTime())) return soToast('Invalid expiry date.');
+        if (next.getTime() <= Date.now()) return soToast('Expiry must be in the future.');
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                unlimited_time: false,
+                expires_at: next,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast(`Expiry set to ${next.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}.`);
+        } catch (e) {
+            soToast('Update failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soResetGoogleTrialUsed = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        if (!confirm('Reset credits used to 0 for this user?')) return;
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                images_used: 0,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast('Credits used reset to 0.');
+        } catch (e) {
+            soToast('Reset failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soResetGoogleTrialDevicesFromModal = async function() {
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        await soResetGoogleTrialDevices(uid);
+        soRefreshGoogleUserModalLabels();
+    };
+
+    window.soRevokeGoogleTrialFromModal = async function() {
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        await soRevokeGoogleTrial(uid);
+        soRefreshGoogleUserModalLabels();
+    };
+
+    window.soReactivateGoogleTrialFromModal = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return;
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                active: true,
+                reactivated_at: firebase.firestore.FieldValue.serverTimestamp(),
+                reactivated_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast('Google user reactivated.');
+        } catch (e) {
+            soToast('Reactivate failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soLinkGoogleTrialToLicenseFromModal = async function() {
+        const uid = soGoogleTrialManageUid;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!uid) return;
+        closeSoGoogleTrialManage();
+        soLinkGoogleTrialToLicense(uid, row?.email || '');
     };
 
     window.confirmSoGoogleTrialCredits = async function(mode) {
         if (!soRequireExtensionWrite()) return;
-        const uid = soGoogleTrialCreditsUid;
+        const uid = soGoogleTrialManageUid;
         if (!uid) return;
         const row = soGoogleTrials.find(r => r.uid === uid);
         if (!row) return soToast('Google user not found.');
         const used = soGoogleTrialImagesUsed(row);
         const limit = soGoogleTrialImagesLimit(row);
-        const amount = parseInt(document.getElementById('so-google-credits-amount')?.value, 10);
+        const amount = parseInt(document.getElementById('so-google-user-credits-amount')?.value, 10);
         if (!Number.isFinite(amount)) {
             return soToast('Enter a valid credit amount.');
         }
@@ -3388,8 +3597,8 @@
                 adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
                 adjusted_by: soAuthEmail()
             }, { merge: true });
-            closeSoGoogleTrialCredits();
             await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
             renderSoGoogleTrialsRegistry();
             soToast(`Credits updated. New limit: ${nextLimit} (${Math.max(0, nextLimit - used)} remaining).`);
         } catch (e) {
@@ -3940,9 +4149,11 @@
                     ).join('')}</div>`
                     : '';
                 return `<div class="so-ext-plan${bestClass}">
+                    <div class="so-plan-card-badges-row" style="margin-bottom:4px;">
                     ${p.best ? '<span class="so-ext-plan-tag">BEST VALUE</span>' : ''}
-                    ${offerBadges ? `<div class="so-ext-offer-badges">${offerBadges}</div>` : ''}
                     ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
+                    </div>
+                    ${offerBadges ? `<div class="so-ext-offer-badges">${offerBadges}</div>` : ''}
                     <div class="so-ext-plan-name">${soEsc(p.name)}</div>
                     <div class="so-ext-plan-price">₹${(p.price || 0).toLocaleString('en-IN')}</div>
                     <div class="so-ext-plan-note">${soEsc(p.card_subtitle || p.save || `${durationLabel} · ${devicesLabel}`)}</div>
@@ -4307,11 +4518,15 @@
                                 <div class="so-plan-chips">${soPlanMetaChips(plan)}</div>
                             </div>
                             <div class="so-plan-card-badges">
-                                ${creditsBadge}
-                                ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
-                                ${(plan.offer_badges || []).map(b => `<span class="so-badge so-badge--offer">${soEsc(b)}</span>`).join('')}
-                                ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
-                                ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
+                                <div class="so-plan-card-badges-row">
+                                    ${creditsBadge}
+                                    ${plan.best ? '<span class="so-badge so-badge--best">Best value</span>' : ''}
+                                    ${plan.active ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                                </div>
+                                <div class="so-plan-card-badges-row">
+                                    ${(plan.offer_badges || []).map(b => `<span class="so-badge so-badge--offer">${soEsc(b)}</span>`).join('')}
+                                    ${plan.save ? `<span class="so-meta-chip so-meta-chip--gold">${soEsc(plan.save)}</span>` : ''}
+                                </div>
                             </div>
                         </div>
                         <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
