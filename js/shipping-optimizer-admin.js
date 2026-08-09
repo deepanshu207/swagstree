@@ -3143,16 +3143,28 @@
         return `<p class="so-admin-muted" style="margin-bottom:8px;">These changes will be written to Firebase. License and Google user records are <strong>not</strong> modified by config/credits saves.</p><ul class="so-save-review-list">${lines.join('')}</ul>`;
     }
 
+    function soEnsureSaveReviewModalPortal() {
+        const modal = document.getElementById('so-save-review-modal');
+        if (modal && modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        return modal;
+    }
+
     function soCloseSaveReviewModal() {
         const modal = document.getElementById('so-save-review-modal');
-        if (modal) modal.hidden = true;
+        if (modal) {
+            modal.hidden = true;
+            modal.style.display = 'none';
+        }
+        document.body.classList.remove('so-save-review-open');
         soSaveReviewResolver = null;
     }
 
     let soSaveReviewResolver = null;
 
     function soOpenSaveReviewModal(tab, onConfirm) {
-        const modal = document.getElementById('so-save-review-modal');
+        const modal = soEnsureSaveReviewModalPortal();
         const body = document.getElementById('so-save-review-body');
         const title = document.getElementById('so-save-review-title');
         if (!modal || !body) {
@@ -3163,6 +3175,8 @@
         if (title) title.textContent = `Review changes — ${tabLabel}`;
         body.innerHTML = soBuildSaveReviewHtml(tab);
         modal.hidden = false;
+        modal.style.display = 'flex';
+        document.body.classList.add('so-save-review-open');
         return new Promise(resolve => {
             soSaveReviewResolver = (ok) => {
                 soCloseSaveReviewModal();

@@ -11138,10 +11138,32 @@ body.seo-indexing-off #seo-primary-nav {
     line-height: 1.25;
     text-align: center;
 }
+@media (max-width: 520px) {
+    .so-admin-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .so-admin-tabs--desktop .so-admin-tab-btn {
+        font-size: 10px;
+        min-height: 42px;
+        padding: 8px 6px;
+        line-height: 1.3;
+    }
+}
 @media (max-width: 420px) {
     .so-admin-tabs--desktop .so-admin-tab-btn {
         font-size: 9px;
         padding: 8px 4px;
+    }
+    .so-unsaved-banner {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .so-unsaved-banner__actions {
+        width: 100%;
+    }
+    .so-unsaved-banner__actions .so-btn-sm {
+        flex: 1;
+        min-width: 0;
     }
 }
 @media (max-width: 768px) {
@@ -11169,20 +11191,30 @@ body.seo-indexing-off #seo-primary-nav {
     flex-wrap: wrap;
     gap: 6px;
 }
-.so-save-review-modal {
-    max-width: 520px;
-    width: calc(100% - 24px);
-    max-height: min(80vh, 640px);
+.so-save-review-overlay {
+    z-index: 12050;
+}
+.so-save-review-overlay[hidden] {
+    display: none !important;
+}
+body.so-save-review-open {
     overflow: hidden;
+}
+.so-save-review-panel {
     display: flex;
     flex-direction: column;
+    max-height: min(88vh, 640px);
+    width: 100%;
+    max-width: 520px;
 }
 .so-save-review-body {
     flex: 1;
+    min-height: 0;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
     font-size: 11px;
     line-height: 1.5;
-    margin: 8px 0 12px;
+    margin: 0 0 12px;
     padding: 10px 12px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.04);
