@@ -10,14 +10,24 @@ Swagstree admin (PR #115+) now writes all config below to Firebase `extension-e6
 
 ## Default included credits (admin seed → extension activation)
 
-| Plan | Credits | Formula |
-|------|---------|---------|
-| Monthly | **19** | Fixed starter grant |
-| 3 Months | **549** | `200×3−51` |
-| 6 Months | **1,050** | `200×6×(1−12.5%)` |
-| Yearly | **2,000** | `200×12×(1−17%)` rounded |
+| Plan | Price | Credits | Formula |
+|------|-------|---------|---------|
+| Monthly | **₹199** | **19** | Fixed starter |
+| 3 Months | ₹547 | **549** | `200×3−51` credits · `199×3−50` price |
+| 6 Months | ₹1,044 | **1,050** | `200×6×(1−12.5%)` |
+| Yearly | ₹1,980 | **~2,000** | `200×12×(1−17%)` |
 
-All multi-month plans use `billing_mode: hybrid`. Extension grants `included_credits` on license activation.
+Monthly includes **credit add-ons** (+10/+25) at purchase. **Existing customers** on any active plan buy **credit packs** in the popup (⚡ BUY CREDITS) — v1.7.8 moves this section outside the hidden activation area.
+
+---
+
+## v1.7.8 — Credit top-up for active plans
+
+1. `popup.html` — `#popup-credits-section` below license status (not inside `#activation-section`)
+2. `popup.js` — `refreshCreditsTopUpSection(licenses)` shows packs when any active license exists
+3. `license.js` — subscription + `includedCredits` counts as credit billing
+
+See `scripts/EXTENSION_SYNC_V178.md` for file list.
 
 ---
 
