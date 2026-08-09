@@ -27,6 +27,17 @@ Copy these changes into `deepanshu207/meesho-shipping-optimizer-extension`:
 
 Monthly plan: `allow_credit_addons: true` (+10 / +25 at purchase).
 
+## Files changed (v1.8 add-ons layout)
+
+See **`scripts/MEESHO_EXTENSION_V18_ADDONS_LAYOUT.md`** for full spec and copy-paste prompt.
+
+```
+popup.html
+popup.js
+js/firebaseLicense.js
+manifest.json          → 1.8.0
+```
+
 ## Files changed (v1.7.9 plan copy + UI)
 
 ```

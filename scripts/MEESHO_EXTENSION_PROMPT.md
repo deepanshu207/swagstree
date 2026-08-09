@@ -19,7 +19,23 @@ Swagstree admin (PR #115+) now writes all config below to Firebase `extension-e6
 
 Monthly includes **credit add-ons** (+10/+25) at purchase. **Existing customers** on any active plan buy **credit packs** in the popup (⚡ BUY CREDITS) — v1.7.8 moves this section outside the hidden activation area.
 
-### Plan card copy (customer-facing — v5.6+)
+### Plan credit add-ons (checkout — v5.7+)
+
+Each add-on has `label`, `card_subtitle` (e.g. `25 credits · ₹40`), `description`, `credits`, `price`. Extension shows `card_subtitle` on add-on chips; selected add-ons map to license `addon_credits` + `addon_credit_ids` on activation.
+
+| Plan | Add-ons |
+|------|---------|
+| Monthly | +10 · ₹20, +25 · ₹40 |
+| 3 Months | +25 · ₹40, +50 · ₹70 |
+| 6 Months | +50 · ₹70 (pick 1) |
+| Yearly | +25 · ₹40, +50 · ₹70 (pick up to 2) |
+
+`normalizeCreditAddon()` must preserve `card_subtitle` and `description`. Button text: `card_subtitle` or fallback `+N · ₹P`.
+
+### License ↔ customer mapping
+
+License docs store `customer_name`, `customer_phone`, `customer_email`, `shared_at`, `activatedAt`. Config/plan saves never delete these. Admin confirms before clearing customer fields or deleting a license.
+
 
 Each plan must show **subtitle + save badge** (both visible — not either/or):
 

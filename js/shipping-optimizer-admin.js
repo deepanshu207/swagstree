@@ -180,6 +180,27 @@
             : `Save ₹${roundedSave.toLocaleString('en-IN')}`;
     }
 
+    /** Built-in credit add-on with customer-facing subtitle (shown under plan in extension). */
+    function soDefaultCreditAddon(id, credits, price, extra) {
+        const ex = extra || {};
+        const cr = Math.max(1, parseInt(credits, 10) || 1);
+        const pr = Math.max(0, parseInt(price, 10) || 0);
+        const perCredit = pr > 0 && cr > 0 ? (pr / cr).toFixed(2) : '';
+        return soNormalizeCreditAddon({
+            id,
+            credits: cr,
+            price: pr,
+            label: ex.label || `+${cr} credits`,
+            card_subtitle: ex.card_subtitle || `${cr} credits · ₹${pr}`,
+            description: ex.description || (perCredit
+                ? `Add ${cr} credits at checkout — ₹${pr} total (₹${perCredit}/credit). Stacks on your plan included credits.`
+                : `Add ${cr} credits at checkout — stacks on plan included credits.`),
+            active: ex.active !== false,
+            default_selected: ex.default_selected === true,
+            order: ex.order != null ? ex.order : 0
+        }, ex.order || 0);
+    }
+
     function soBuildDefaultPlans() {
         const mk = (plan) => Object.assign({ active: true, show_whatsapp_icon: true, show_details_icon: true, cta_text: 'Buy via WhatsApp', card_hint: 'Tap ℹ️ for details · Tap card for WhatsApp' }, plan);
         const qPrice = soCalcDefaultPlanPrice('quarterly', 90);
@@ -199,8 +220,14 @@
                 allow_credit_addons: true,
                 max_addon_selections: 0,
                 credit_addons: [
-                    { id: 'addon_10', credits: 10, price: 20, label: '+10 credits', active: true, order: 0 },
-                    { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 1 }
+                    soDefaultCreditAddon('addon_10', 10, 20, {
+                        order: 0,
+                        description: 'Quick boost — 10 extra generation runs added to your monthly plan at checkout.'
+                    }),
+                    soDefaultCreditAddon('addon_25', 25, 40, {
+                        order: 1,
+                        description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 for 10-pack).'
+                    })
                 ],
                 offer_badges: ['Starter'],
                 description: 'Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.',
@@ -232,8 +259,14 @@
                 allow_credit_addons: true,
                 max_addon_selections: 0,
                 credit_addons: [
-                    { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
-                    { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1 }
+                    soDefaultCreditAddon('addon_25', 25, 40, {
+                        order: 0,
+                        description: 'Add 25 credits when buying the 3-month plan — stacks on 600 included credits.'
+                    }),
+                    soDefaultCreditAddon('addon_50', 50, 70, {
+                        order: 1,
+                        description: 'Add 50 credits at checkout — best add-on value for quarterly plan (₹1.40/credit).'
+                    })
                 ],
                 description: 'Three months of Smart Mode — 600 credits with a lower price than paying monthly three times.',
                 detail_subtitle: soPlanDetailSubtitle(90, qCredits),
@@ -260,7 +293,10 @@
                 allow_credit_addons: true,
                 max_addon_selections: 1,
                 credit_addons: [
-                    { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 0 }
+                    soDefaultCreditAddon('addon_50', 50, 70, {
+                        order: 0,
+                        description: 'Optional +50 credits when buying the 6-month plan — pick one add-on at checkout.'
+                    })
                 ],
                 description: `Half-year access for serious Meesho sellers — ${hCredits.toLocaleString('en-IN')} credits with 12.5% price discount.`,
                 detail_subtitle: soPlanDetailSubtitle(180, hCredits),
@@ -285,8 +321,12 @@
                 included_credits: yCredits,
                 allow_credit_addons: true, max_addon_selections: 2,
                 credit_addons: [
-                    { id: 'addon_25', credits: 25, price: 40, label: '+25 credits', active: true, order: 0 },
-                    { id: 'addon_50', credits: 50, price: 70, label: '+50 credits', active: true, order: 1, default_selected: false }
+                    soDefaultCreditAddon('addon_25', 25, 40, { order: 0, default_selected: false }),
+                    soDefaultCreditAddon('addon_50', 50, 70, {
+                        order: 1,
+                        default_selected: false,
+                        description: 'Optional +50 credits — pick up to 2 add-ons when buying the yearly plan.'
+                    })
                 ],
                 description: `Best for full-time Meesho sellers — one year access with ${yCredits.toLocaleString('en-IN')} credits and optional add-ons at checkout.`,
                 detail_subtitle: soPlanDetailSubtitle(365, yCredits),
@@ -685,6 +725,10 @@
                 : '';
             const featCount = (p.features || []).length;
             const secCount = (p.detail_sections || []).length;
+            const addons = (p.credit_addons || []).filter(a => a.active !== false);
+            const addonsHtml = addons.length
+                ? `<div class="so-defaults-addon-list">${addons.map(a => `<div class="so-defaults-addon-row"><strong>${soEsc(a.label)}</strong> · ${soEsc(a.card_subtitle || `${a.credits} credits · ₹${a.price}`)}${a.description ? `<span class="so-admin-muted"> — ${soEsc(a.description)}</span>` : ''}</div>`).join('')}</div>`
+                : '';
             return `<div class="so-defaults-plan-card">
                 <div class="so-defaults-plan-head">
                     <strong>${soEsc(p.name)}</strong>
@@ -697,11 +741,18 @@
                     <span>${soEsc(p.billing_mode)}</span>
                 </div>
                 <div class="so-defaults-credits-formula"><strong>₹${(p.price || 0).toLocaleString('en-IN')}</strong> · <strong>${p.included_credits || 0} credits</strong> — ${soEsc(soExplainPlanPriceFormula(p.id, p.days))} · ${soEsc(soExplainPlanCreditsFormula(p.id, p.days))}${p.days > 30 ? ` · ${soEsc(soExplainPlanDiscount(p.id, p.days, p.price) || '')}` : ''}</div>
-                <p class="so-admin-muted">${soEsc(p.description || p.card_subtitle || '')}</p>
-                <div class="so-defaults-mini">${soEsc(p.card_subtitle || '')}</div>
-                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections</div>
+                <div class="so-defaults-mini"><strong>Card:</strong> ${soEsc(p.card_subtitle || '')}</div>
+                ${addonsHtml}
+                <p class="so-admin-muted">${soEsc(p.description || '')}</p>
+                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections · ${addons.length} add-on(s)</div>
             </div>`;
         }).join('');
+
+        const planAddonsSummary = plans.map(p => {
+            const addons = (p.credit_addons || []).filter(a => a.active !== false);
+            if (!addons.length) return '';
+            return `<div class="so-defaults-addon-plan"><strong>${soEsc(p.name)}</strong>${addons.map(a => `<div class="so-defaults-addon-row">${soEsc(a.label)} · ${soEsc(a.card_subtitle)} · maps to license <code>addon_credits</code> on activation</div>`).join('')}</div>`;
+        }).filter(Boolean).join('');
 
         const packsHtml = packs.map(p => `
             <div class="so-defaults-pack-row">
@@ -731,6 +782,17 @@
             <div class="so-defaults-section">
                 <h5><i class="fa fa-tags"></i> Plans (${plans.length}) — extension card + detail screen</h5>
                 <div class="so-defaults-plans-grid">${plansHtml}</div>
+            </div>
+
+            ${planAddonsSummary ? `<div class="so-defaults-section">
+                <h5><i class="fa fa-plus-circle"></i> Plan credit add-ons (checkout)</h5>
+                <p class="so-admin-muted">Selected add-ons grant extra credits on license activation (<code>included_credits</code> + <code>addon_credits</code>). Customer name/phone/email stay on the license doc — not changed by plan defaults.</p>
+                ${planAddonsSummary}
+            </div>` : ''}
+
+            <div class="so-defaults-section">
+                <h5><i class="fa fa-id-card"></i> License ↔ customer mapping</h5>
+                <p class="so-admin-muted">Each paid license in <code>shipping_optimizer_licenses</code> stores <code>customer_name</code>, <code>customer_phone</code>, <code>customer_email</code>, <code>shared_at</code>, and <code>activatedAt</code>. The <strong>License Customers</strong> tab is a read-only registry — edits happen on <strong>Paid Licenses</strong>. Saving config/plans never deletes license or customer records.</p>
             </div>
 
             <div class="so-defaults-section">
@@ -1360,6 +1422,9 @@
         a.credits = Math.max(1, parseInt(a.credits, 10) || 1);
         a.price = Math.max(0, parseInt(a.price, 10) || 0);
         a.label = String(a.label || `+${a.credits} credits`).trim();
+        a.card_subtitle = String(a.card_subtitle || a.cardSubtitle || '').trim();
+        if (!a.card_subtitle) a.card_subtitle = `${a.credits} credits · ₹${a.price}`;
+        a.description = String(a.description || '').trim();
         a.active = a.active !== false;
         a.default_selected = a.default_selected === true;
         a.order = Number.isFinite(Number(a.order)) ? Number(a.order) : index;
@@ -1419,6 +1484,8 @@
                 credits: get('credits'),
                 price: get('price'),
                 label: get('label'),
+                card_subtitle: get('card_subtitle'),
+                description: get('description'),
                 active: get('active'),
                 default_selected: get('default_selected'),
                 order: idx
@@ -1432,9 +1499,11 @@
                 <label><span>Addon id</span><input type="text" data-addon-field="id" value="${soAttr(addon.id)}" oninput="soMarkTabDirty('config')"></label>
                 <label><span>Credits</span><input type="number" min="1" step="1" data-addon-field="credits" value="${addon.credits || 10}" oninput="soMarkTabDirty('config')"></label>
                 <label><span>Price ₹</span><input type="number" min="0" step="1" data-addon-field="price" value="${addon.price || 0}" oninput="soMarkTabDirty('config')"></label>
-                <label><span>Label</span><input type="text" data-addon-field="label" value="${soAttr(addon.label || '')}" placeholder="+50 credits" oninput="soMarkTabDirty('config')"></label>
+                <label><span>Button label</span><input type="text" data-addon-field="label" value="${soAttr(addon.label || '')}" placeholder="+50 credits" oninput="soMarkTabDirty('config')"></label>
+                <label class="so-field-full"><span>Card subtitle (extension)</span><input type="text" data-addon-field="card_subtitle" value="${soAttr(addon.card_subtitle || '')}" placeholder="25 credits · ₹40" oninput="soMarkTabDirty('config')"></label>
+                <label class="so-field-full"><span>Description (detail / admin)</span><input type="text" data-addon-field="description" value="${soAttr(addon.description || '')}" placeholder="Add 25 credits at checkout…" oninput="soMarkTabDirty('config')"></label>
                 <label class="so-plan-check"><input type="checkbox" data-addon-field="active" ${addon.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Active</label>
-                <label class="so-plan-check"><input type="checkbox" data-addon-field="default_selected" ${addon.default_selected ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Default on license</label>
+                <label class="so-plan-check"><input type="checkbox" data-addon-field="default_selected" ${addon.default_selected ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Pre-select on new license</label>
                 <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoPlanCreditAddon(${planIdx}, ${addonIdx})">Remove</button>
             </div>`;
     }
@@ -1467,15 +1536,20 @@
         if (p.allow_credit_addons) out.allow_credit_addons = true;
         if (p.max_addon_selections > 0) out.max_addon_selections = p.max_addon_selections;
         if (Array.isArray(p.credit_addons) && p.credit_addons.length) {
-            out.credit_addons = p.credit_addons.map((a, i) => ({
-                id: a.id,
-                credits: a.credits,
-                price: a.price,
-                label: a.label,
-                active: a.active !== false,
-                default_selected: a.default_selected === true,
-                order: i
-            }));
+            out.credit_addons = p.credit_addons.map((a, i) => {
+                const row = {
+                    id: a.id,
+                    credits: a.credits,
+                    price: a.price,
+                    label: a.label,
+                    active: a.active !== false,
+                    default_selected: a.default_selected === true,
+                    order: i
+                };
+                if (a.card_subtitle) row.card_subtitle = a.card_subtitle;
+                if (a.description) row.description = a.description;
+                return row;
+            });
         }
         if (p.unlimited_time) out.unlimited_time = true;
         if (p.unlimited_devices) out.unlimited_devices = true;
@@ -2978,6 +3052,181 @@
 
     function soClearTabDirty(tab) {
         soAfterTabSaved(tab);
+    }
+
+    function soPlanReviewSummary(plan) {
+        if (!plan) return '';
+        const addons = (plan.credit_addons || []).filter(a => a.active !== false)
+            .map(a => `${a.label || '+' + a.credits} (₹${a.price})`).join(', ');
+        const parts = [
+            `₹${plan.price}`,
+            `${plan.included_credits || 0} cr`,
+            plan.card_subtitle ? `"${plan.card_subtitle}"` : ''
+        ];
+        if (addons) parts.push(`add-ons: ${addons}`);
+        return `${plan.name} [${plan.id}]: ${parts.filter(Boolean).join(' · ')}`;
+    }
+
+    function soBuildSaveReviewHtml(tab) {
+        const lines = [];
+        if (tab === 'config') {
+            let before;
+            let after;
+            try {
+                before = JSON.parse(soTabSnapshots.config || '{}');
+                after = JSON.parse(soSerializeConfigTabState());
+            } catch (_) {
+                return '<p class="so-admin-muted">Could not compute diff — review form manually before saving.</p>';
+            }
+            const gKeys = ['whatsapp_number', 'whatsapp_message', 'min_extension_version', 'announcement'];
+            gKeys.forEach(k => {
+                const b = before.general?.[k];
+                const a = after.general?.[k];
+                if (String(b ?? '') !== String(a ?? '')) {
+                    lines.push(`<li><strong>General · ${soEsc(k)}</strong><br><span class="so-admin-muted">Was:</span> ${soEsc(String(b ?? '—'))}<br><span class="so-admin-muted">Now:</span> ${soEsc(String(a ?? '—'))}</li>`);
+                }
+            });
+            if (!!before.general?.extension_enabled !== !!after.general?.extension_enabled) {
+                lines.push(`<li><strong>General · extension_enabled</strong>: ${before.general?.extension_enabled !== false ? 'ON' : 'OFF'} → ${after.general?.extension_enabled !== false ? 'ON' : 'OFF'}</li>`);
+            }
+            const bPlans = before.plans || [];
+            const aPlans = after.plans || [];
+            const bMap = {};
+            bPlans.forEach(p => { bMap[p.id] = p; });
+            const aMap = {};
+            aPlans.forEach(p => { aMap[p.id] = p; });
+            const allIds = [...new Set([...Object.keys(bMap), ...Object.keys(aMap)])].sort();
+            allIds.forEach(id => {
+                const b = bMap[id];
+                const a = aMap[id];
+                if (!b && a) lines.push(`<li><strong>Plan added</strong> — ${soEsc(soPlanReviewSummary(a))}</li>`);
+                else if (b && !a) lines.push(`<li><strong>Plan removed</strong> — ${soEsc(soPlanReviewSummary(b))} <span class="so-admin-muted">(hidden from extension if deleted in editor)</span></li>`);
+                else if (JSON.stringify(b) !== JSON.stringify(a)) {
+                    lines.push(`<li><strong>Plan changed</strong> — ${soEsc(soPlanReviewSummary(a))}</li>`);
+                }
+            });
+            const bDemo = JSON.stringify(before.inlineDemo || {});
+            const aDemo = JSON.stringify(after.inlineDemo || {});
+            if (bDemo !== aDemo) lines.push('<li><strong>Inline demo keys</strong> changed</li>');
+            if (JSON.stringify(before.support) !== JSON.stringify(after.support)) {
+                lines.push('<li><strong>Support contacts</strong> changed</li>');
+            }
+        } else if (tab === 'credits') {
+            let before;
+            let after;
+            try {
+                before = JSON.parse(soTabSnapshots.credits || '{}');
+                after = JSON.parse(soSerializeCreditsTabState());
+            } catch (_) {
+                return '<p class="so-admin-muted">Could not compute diff.</p>';
+            }
+            ['enabled', 'price_per_credit', 'min_purchase', 'cost_per_operation'].forEach(k => {
+                if (String(before[k]) !== String(after[k])) {
+                    lines.push(`<li><strong>${soEsc(k)}</strong>: ${soEsc(String(before[k]))} → ${soEsc(String(after[k]))}</li>`);
+                }
+            });
+            const bPacks = before.packs || [];
+            const aPacks = after.packs || [];
+            if (JSON.stringify(bPacks) !== JSON.stringify(aPacks)) {
+                lines.push(`<li><strong>Credit packs</strong> (${aPacks.length} pack(s))</li>`);
+            }
+            if (JSON.stringify(before.smart_mode) !== JSON.stringify(after.smart_mode)) {
+                lines.push('<li><strong>Smart Mode options</strong> changed</li>');
+            }
+            if (JSON.stringify(before.image_generation) !== JSON.stringify(after.image_generation)) {
+                lines.push('<li><strong>Image generation billing</strong> changed</li>');
+            }
+        }
+        if (!lines.length) {
+            return '<p class="so-admin-muted">No changes detected vs last saved snapshot.</p>';
+        }
+        return `<p class="so-admin-muted" style="margin-bottom:8px;">These changes will be written to Firebase. License and Google user records are <strong>not</strong> modified by config/credits saves.</p><ul class="so-save-review-list">${lines.join('')}</ul>`;
+    }
+
+    function soEnsureSaveReviewModalPortal() {
+        const modal = document.getElementById('so-save-review-modal');
+        if (modal && modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        return modal;
+    }
+
+    function soCloseSaveReviewModal() {
+        const modal = document.getElementById('so-save-review-modal');
+        if (modal) {
+            modal.hidden = true;
+            modal.style.display = 'none';
+        }
+        document.body.classList.remove('so-save-review-open');
+        soSaveReviewResolver = null;
+    }
+
+    let soSaveReviewResolver = null;
+
+    function soOpenSaveReviewModal(tab, onConfirm) {
+        const modal = soEnsureSaveReviewModalPortal();
+        const body = document.getElementById('so-save-review-body');
+        const title = document.getElementById('so-save-review-title');
+        if (!modal || !body) {
+            if (typeof onConfirm === 'function') onConfirm();
+            return Promise.resolve(true);
+        }
+        const tabLabel = tab === 'credits' ? 'Credits & Packs' : 'Config & Pricing';
+        if (title) title.textContent = `Review changes — ${tabLabel}`;
+        body.innerHTML = soBuildSaveReviewHtml(tab);
+        modal.hidden = false;
+        modal.style.display = 'flex';
+        document.body.classList.add('so-save-review-open');
+        return new Promise(resolve => {
+            soSaveReviewResolver = (ok) => {
+                soCloseSaveReviewModal();
+                resolve(!!ok);
+                if (ok && typeof onConfirm === 'function') onConfirm();
+            };
+        });
+    }
+
+    window.soReviewUnsavedChanges = function() {
+        const tab = soActiveTab === 'credits' ? 'credits' : soActiveTab === 'config' ? 'config' : null;
+        if (!tab) return soToast('Review is available on Config or Credits tabs.');
+        soOpenSaveReviewModal(tab);
+    };
+
+    window.soConfirmSaveReview = function() {
+        if (soSaveReviewResolver) soSaveReviewResolver(true);
+    };
+
+    window.soCancelSaveReview = function() {
+        if (soSaveReviewResolver) soSaveReviewResolver(false);
+    };
+
+    async function soConfirmSaveWithReview(tab, saveFn) {
+        const dirty = soComputeDirtyFromSnapshots();
+        if (!dirty[tab]) return saveFn();
+        return soOpenSaveReviewModal(tab, saveFn);
+    }
+
+    function soLicenseCustomerSnapshot() {
+        const name = String(document.getElementById('so-license-customer-name')?.value || '').trim();
+        const phone = String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, '');
+        const email = String(document.getElementById('so-license-customer-email')?.value || '').trim();
+        return { customer_name: name, customer_phone: phone, customer_email: email };
+    }
+
+    function soConfirmLicenseCustomerClear(existingLic) {
+        if (!existingLic) return true;
+        const next = soLicenseCustomerSnapshot();
+        const had = existingLic.customer_name || existingLic.customer_phone || existingLic.customer_email;
+        const clearing = had && (!next.customer_name && !next.customer_phone && !next.customer_email);
+        const partialClear = (existingLic.customer_name && !next.customer_name)
+            || (existingLic.customer_phone && !next.customer_phone)
+            || (existingLic.customer_email && !next.customer_email);
+        if (!clearing && !partialClear) return true;
+        return confirm(
+            'You are removing or clearing customer mapping fields on this license.\n\n'
+            + `Was: ${[existingLic.customer_name, existingLic.customer_phone, existingLic.customer_email].filter(Boolean).join(' · ') || '—'}\n\n`
+            + 'Continue? Customer details help track who owns this license key.'
+        );
     }
 
     function soApplyUnsavedBannerVisibility() {
@@ -5283,6 +5532,9 @@
         soPlans = soReadPlansFromDom();
         const plan = soPlans[planIdx];
         if (!plan || !plan.credit_addons) return;
+        const addon = plan.credit_addons[addonIdx];
+        const label = addon ? (addon.label || `+${addon.credits} credits`) : 'this add-on';
+        if (!confirm(`Remove credit add-on "${label}" from plan "${plan.name}"?\n\nExisting licenses keep credits already granted. Only new purchases use updated add-ons.`)) return;
         plan.credit_addons.splice(addonIdx, 1);
         renderSoPlansEditor();
         soMarkTabDirty('config');
@@ -5508,6 +5760,7 @@
 
     window.saveShippingOptimizerConfig = async function() {
         if (!soRequireExtensionWrite()) return;
+        await soConfirmSaveWithReview('config', async () => {
         soPreserveInlineDemoRowsFromDom();
         soPlans = soReadPlansFromDom();
         const err = soValidatePlans(soPlans);
@@ -5533,10 +5786,12 @@
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
+        });
     };
 
     window.saveShippingOptimizerCredits = async function() {
         if (!soRequireExtensionWrite()) return;
+        await soConfirmSaveWithReview('credits', async () => {
         soCreditPacks = soReadCreditPacksFromDom();
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
@@ -5569,6 +5824,7 @@
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
+        });
     };
 
     function soSyncDemoEditRowsFromCollection() {
@@ -6173,6 +6429,8 @@
         if (!soRequireExtensionWrite()) return;
         const key = soEditingLicenseKey;
         if (!key) return createSoLicense();
+        const existingLic = soLicenses.find(l => l.key === key);
+        if (!soConfirmLicenseCustomerClear(existingLic)) return;
         const planId = String(document.getElementById('so-license-plan')?.value || '').trim();
         const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
         if (!plan) return soToast('Select a valid plan.');
@@ -6212,6 +6470,7 @@
             cancelSoLicenseEdit();
             await soLoadLicenses();
             renderSoLicensesList();
+            renderSoCustomerRegistry();
             soToast(`License ${key} updated.`);
         } catch (e) {
             soToast('Update failed: ' + (e.message || 'Unknown error'));
@@ -6539,12 +6798,20 @@
 
     window.deleteSoLicense = async function(key) {
         if (!soRequireExtensionWrite()) return;
+        const lic = soLicenses.find(l => l.key === key);
+        const cust = lic
+            ? [lic.customer_name, lic.customer_phone, lic.customer_email].filter(Boolean).join(' · ')
+            : '';
+        if (!confirm(
+            `Delete license ${key}?${cust ? `\n\nCustomer mapping:\n${cust}` : ''}\n\nThis permanently removes the license and customer link from Firebase.`
+        )) return;
         const typed = prompt(`Type DELETE to permanently remove license ${key}:`);
         if (typed !== 'DELETE') return soToast('Delete cancelled.');
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).delete();
             await soLoadLicenses();
             renderSoLicensesList();
+            renderSoCustomerRegistry();
             soToast('License deleted.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
