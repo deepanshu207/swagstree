@@ -55,6 +55,30 @@ service cloud.firestore {
       );
     }
 
+    function trialUnlimitedTime() {
+      let cfg = googleTrialConfig();
+      return cfg != null && cfg.unlimited_time != false;
+    }
+
+    function trialExpiresAtValidOnCreate() {
+      return trialUnlimitedTime()
+        ? (
+            !('expires_at' in request.resource.data)
+            || request.resource.data.expires_at == null
+          )
+        : ('expires_at' in request.resource.data);
+    }
+
+    function trialExpiresAtImmutable() {
+      return resource.data.unlimited_time == true
+        || request.resource.data.expires_at == resource.data.expires_at;
+    }
+
+    function trialDaysGrantedImmutable() {
+      return resource.data.unlimited_time == true
+        || request.resource.data.days_granted == resource.data.days_granted;
+    }
+
     function trialMachineIdsValid() {
       let prev = resource.data.machine_ids;
       let next = request.resource.data.machine_ids;
@@ -107,6 +131,7 @@ service cloud.firestore {
         && request.resource.data.images_used == 0
         && request.resource.data.images_limit == trialImageRunLimit()
         && request.resource.data.active == true
+        && trialExpiresAtValidOnCreate()
         && (
           !('machine_ids' in request.resource.data)
           || request.resource.data.machine_ids.size() <= trialMaxDevices()
@@ -118,10 +143,10 @@ service cloud.firestore {
         && request.resource.data.google_uid == resource.data.google_uid
         && request.resource.data.email == resource.data.email
         && request.resource.data.images_limit == resource.data.images_limit
-        && request.resource.data.expires_at == resource.data.expires_at
+        && trialExpiresAtImmutable()
         && request.resource.data.created_at == resource.data.created_at
         && request.resource.data.active == resource.data.active
-        && request.resource.data.days_granted == resource.data.days_granted
+        && trialDaysGrantedImmutable()
         && request.resource.data.images_used >= resource.data.images_used
         && request.resource.data.images_used <= resource.data.images_limit
         && request.resource.data.images_used <= resource.data.images_used + trialMaxIncrement()
