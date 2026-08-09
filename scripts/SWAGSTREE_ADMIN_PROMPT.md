@@ -1,0 +1,818 @@
+# Swagstree superadmin prompt — Shipping Optimizer extension (v1.3)
+
+Canonical spec for the Swagstree **Superadmin → Shipping Optimizer Extension** admin panel (`js/shipping-optimizer-admin.js`). Copy sections into Cursor when extending the panel.
+
+**Implemented in Swagstree v5.1+** — 7 tabs (Config, Credits, Demo, Licenses, Google Free Trial, **Google Users**, **License Customers**).
+
+---
+
+## Prompt (copy from here)
+
+Build a **Shipping Optimizer Extension** admin panel in Swagstree **Superadmin** tab. Manages the Meesho Chrome extension license backend in the dedicated Firebase project `extension-e6e32` (NOT `swagstree-web`).
+
+**CRITICAL:** Only read/write `shipping_optimizer_*` collections on the `extension-e6e32` project. Point this admin panel's Firebase access at `extension-e6e32`.
+
+**Access:** `superadmin@swagstree.com` only — use existing `isSuperAdmin` gating.
+
+**UI:** Superadmin → **Shipping Optimizer Extension** → 7 sub-tabs:
+1. Config & Pricing
+2. Credits & Packs
+3. Demo / Promo Keys
+4. Paid Licenses
+5. **Google Free Trial**
+6. **Google Users** (signed-in Gmail accounts — manage credits, time, devices)
+7. **License Customers** (one row per paid license key)
+
+Reference extension repo: `deepanshu207/meesho-shipping-optimizer-extension` → `FIREBASE_SETUP.md`, `firestore.rules` (Spark — no Cloud Function required)
+
+### DEFAULT FORM VALUES (required)
+
+On **first load**, if `shipping_optimizer_config/app` is missing or empty, **pre-fill every form field** with defaults (do not leave blank inputs). Add a gold **"Load defaults"** button on each tab (confirm dialog). Add **"Save to Firebase"** per tab.
+
+**Seed document** — merge into `shipping_optimizer_config/app` on first save or via **"Seed all defaults"** on Tab 1. See `js/shipping-optimizer-admin.js` → `soGetDefaultAppSeed()`.
+
+**Pinned extension ID:** `ibeijdggldhedpioahdjkhpcpmgieoch` (manifest `key` in v1.7.2+)
+
+**Google trial policy defaults (Swagstree v5.0+):** `unlimited_time: true`, `days: 0` — Google sign-in users have **no calendar expiry** (credits-only gate). License-key-only customers keep **no device cap** (`unlimited_devices: true` on create). Google + license: trial credits consumed first.
+
+---
+
+### Firestore collections
+
+| Collection | Doc ID | Purpose |
+|------------|--------|---------|
+| `shipping_optimizer_config` | `app` | WhatsApp, plans[], credits{}, demo_keys{}, announcement, **google_trial{}** |
+| `shipping_optimizer_demo_keys` | `{KEY}` | Extra promo codes |
+| `shipping_optimizer_licenses` | `{LICENSE_KEY}` | Paid + Google trial licenses |
+| `shipping_optimizer_google_trials` | `{firebase_auth_uid}` | One trial per Google account (extension writes with user ID token + rules) |
+
+### Firestore rules (merge)
+
+```javascript
+function isShippingOptimizerSuperAdmin() {
+  return request.auth != null && request.auth.token.email == 'superadmin@swagstree.com';
+}
+match /shipping_optimizer_config/{doc} {
+  allow read: if true;
+  allow write: if isShippingOptimizerSuperAdmin();
+}
+match /shipping_optimizer_demo_keys/{key} {
+  allow read: if true;
+  allow write: if isShippingOptimizerSuperAdmin();
+}
+match /shipping_optimizer_licenses/{key} {
+  allow read: if true;
+  allow create, update, delete: if isShippingOptimizerSuperAdmin();
+  allow update: if request.resource.data.diff(resource.data).affectedKeys()
+    .hasOnly([
+      'machineId', 'device_ids', 'max_devices', 'billing_mode',
+      'unlimited_time', 'unlimited_devices', 'unlimited_credits',
+      'activatedAt', 'lastVerifiedAt', 'expiresAt',
+      'credits_balance', 'credits_used'
+    ]);
+}
+match /shipping_optimizer_google_trials/{uid} {
+  allow read: if request.auth != null && request.auth.uid == uid;
+  allow read: if isShippingOptimizerSuperAdmin();
+  allow create, update: if request.auth != null && request.auth.uid == uid;
+  allow delete: if isShippingOptimizerSuperAdmin();
+}
+```
+
+**Use the full rules from extension repo `firestore.rules`** (trial credits, device limits, increment caps). Deploy:
+```bash
+firebase deploy --only firestore:rules --project extension-e6e32
+```
+
+---
+
+## TAB 1: Config & Pricing
+
+Save to `shipping_optimizer_config/app`:
+
+```json
+{
+  "whatsapp_number": "919654414891",
+  "whatsapp_message": "Hi! I want to purchase Shipping Optimizer license.",
+  "extension_enabled": true,
+  "min_extension_version": "1.2.0",
+  "announcement": "",
+  "plans": [],
+  "support": {
+    "enabled": true,
+    "title": "Support team",
+    "page_size": 5,
+    "users": [
+      {
+        "id": "sales",
+        "name": "Deepanshu",
+        "role": "Sales & licenses",
+        "label": "New plans, upgrades, payments",
+        "whatsapp_number": "919654414891",
+        "whatsapp_message": "Hi! I need help with Shipping Optimizer.",
+        "active": true,
+        "order": 0
+      }
+    ]
+  },
+  "demo_keys": { "MEESHO-DEMOFREE": { "days": 30, "label": "Free trial" } }
+}
+```
+
+**Plan detail screen (extension):** Tapping a plan opens a dedicated screen (popup + Meesho modal) with name, price, description, highlights, features, detail sections, add-ons, and **Buy via WhatsApp**. All fields above are read from Firebase — no extension update needed when you edit plans.
+
+**Support team list (extension):** Footer **WhatsApp Support** and **Upgrade / WhatsApp** open a paginated contact list when `support.users` is configured. Each row opens WhatsApp to that person's number (mobile opens app directly; desktop opens wa.me). Admin controls `page_size` (default 5) for easy pagination.
+
+### Support team editor (`support` on app doc)
+
+| Field | Notes |
+|-------|-------|
+| `enabled` | `false` hides list — extension falls back to default `whatsapp_number` |
+| `title` | Screen title e.g. "Support team" |
+| `page_size` | Contacts per page in extension (`5` default) |
+| `users[]` | Contact rows (see below) |
+
+**User row fields:** `id`, `name`, `role`, `label` (subtitle), `whatsapp_number`, `whatsapp_message` (optional prefill), `active`, `order`
+
+**Editor UI:** + Add contact, ▲/▼ reorder, Show toggle, ✕ remove. Preview pagination: "Page 1 of N". Extension shows ← Prev / Next → when more than `page_size` contacts.
+
+```json
+{
+  "id": "billing",
+  "name": "Billing",
+  "role": "Payments",
+  "label": "Invoices, UPI, credit top-ups",
+  "whatsapp_number": "919654414891",
+  "whatsapp_message": "Hi! I need billing help for Shipping Optimizer.",
+  "active": true,
+  "order": 1
+}
+```
+
+**Example plan with detail fields:**
+
+```json
+{
+  "id": "yearly",
+  "name": "Yearly Hybrid",
+  "price": 3099,
+  "days": 365,
+  "description": "Best for serious sellers — 1 year access plus credits for AI image runs.",
+  "highlights": ["Live Meesho shipping", "Family device option"],
+  "features": [
+    { "icon": "📅", "title": "1 year access", "text": "Renews annually" },
+    { "icon": "⚡", "title": "100 credits included", "text": "For AI generation runs" },
+    "Unlimited variant previews"
+  ],
+  "detail_sections": [
+    {
+      "title": "What's included",
+      "items": ["Smart mode up to 100 variants", "Apply best image to catalog", "Credit top-ups available"]
+    }
+  ],
+  "billing_mode": "hybrid",
+  "included_credits": 100,
+  "allow_credit_addons": true,
+  "credit_addons": [
+    { "id": "addon_25", "credits": 25, "price": 40, "label": "+25 credits", "active": true, "order": 0 }
+  ],
+  "active": true,
+  "order": 3,
+  "best": true
+}
+```
+
+### Plans editor — fully flexible `plans[]`
+
+**+ Add Plan** for any custom plan (monthly, lifetime, unlimited, enterprise, credits-only, etc.). No hardcoded plan list in extension.
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `id` | Yes | Stable slug — never rename after licenses issued |
+| `name` | Yes | Display name |
+| `price` | Yes | INR |
+| `days` | Yes* | Duration days; `0` = unlimited/lifetime |
+| `duration` | No | Label e.g. "1 Year", "Forever" |
+| `save` | No | Badge e.g. "Save ₹8000" |
+| `best` | No | One "BEST VALUE" in extension |
+| `active` | No | `false` hides from UI |
+| `order` | No | Sort order |
+| `max_devices` | No | `1` default; `3` family; `5` friends; `0` = unlimited |
+| `device_tier` | No | `standard` \| `family` \| `friends` \| `unlimited` |
+| `billing_mode` | No | `subscription` \| `credits` \| `hybrid` |
+| `plan_kind` | No | Free text: `lifetime`, `unlimited`, `enterprise`, `custom` |
+| `included_credits` | No | Starting credits for credits/hybrid plans |
+| `unlimited_time` | No | `true` = never expires |
+| `unlimited_devices` | No | `true` = no device limit |
+| `unlimited_credits` | No | `true` = never deduct credits |
+| `allow_credit_addons` | No | `true` = show per-plan credit add-on chips |
+| `max_addon_selections` | No | `1` = pick one; `0` = unlimited multi-select |
+| `credit_addons` | No | Array: `{ id, credits, price, label, active, default_selected, order }` |
+| `description` | No | Short text on plan detail screen |
+| `highlights` | No | String array — pills on plan detail (e.g. `["Live shipping", "Unlimited variants"]`) |
+| `features` | No | Array of `{ icon, title, text }` or plain strings — shown on plan detail screen |
+| `detail_sections` | No | Array of `{ title, body, items[] }` — extra flexible blocks on plan detail |
+
+**Editor actions:** + Add Plan, ▲/▼ reorder, Show (active), ✕ remove, validate unique IDs.
+
+**Per-plan credit add-ons:** When `allow_credit_addons` is on, add a sub-editor for `credit_addons[]` (add/remove/reorder, set credits+price+label, mark default). The extension shows these as chips; the customer's selection is included in the WhatsApp message. When you create the license, set `addon_credit_ids` (and optionally `addon_credits`) so activation grants the right balance. Add-ons are hidden if `unlimited_credits` is true.
+
+```json
+{
+  "id": "yearly", "name": "Yearly", "price": 3099, "days": 365,
+  "billing_mode": "hybrid", "included_credits": 100,
+  "allow_credit_addons": true, "max_addon_selections": 2,
+  "credit_addons": [
+    { "id": "addon_25", "credits": 25, "price": 40, "label": "+25 credits", "order": 0 },
+    { "id": "addon_50", "credits": 50, "price": 70, "label": "+50 credits", "order": 1 }
+  ]
+}
+```
+
+**Preset templates (quick-add buttons):**
+- Standard Monthly (1 device, 30 days)
+- Family Yearly (3 devices, 365 days)
+- Friends Yearly (5 devices, 365 days)
+- Lifetime (unlimited time, 1 device)
+- Unlimited Pro (unlimited time + devices + credits)
+- Credits Starter (billing_mode: credits, included_credits: 50)
+
+**Example custom plans in Firebase:**
+
+```json
+{ "id": "lifetime", "name": "Lifetime", "price": 9999, "days": 0, "unlimited_time": true, "plan_kind": "lifetime", "max_devices": 1, "active": true }
+{ "id": "family_yearly", "name": "Family Yearly", "price": 4999, "days": 365, "max_devices": 3, "device_tier": "family", "active": true }
+{ "id": "unlimited_pro", "name": "Unlimited Pro", "price": 19999, "days": 0, "unlimited_time": true, "unlimited_devices": true, "unlimited_credits": true, "plan_kind": "unlimited", "active": true }
+```
+
+### Inline demo keys (`demo_keys` map)
+Key → { days, label } editor with + Add / ✕ Remove.
+
+---
+
+## TAB 2: Credits & Packs
+
+Edit `credits` object on app doc:
+
+```json
+{
+  "enabled": true,
+  "price_per_credit": 2,
+  "min_purchase": 10,
+  "cost_per_operation": 1,
+  "packs": [
+    { "id": "pack_10", "credits": 10, "price": 20, "label": "10 Credits", "active": true, "order": 0 },
+    { "id": "pack_20", "credits": 20, "price": 38, "label": "20 Credits", "active": true, "order": 1 },
+    { "id": "pack_50", "credits": 50, "price": 90, "label": "50 Credits", "active": true, "order": 2 },
+    { "id": "pack_100", "credits": 100, "price": 170, "label": "100 Credits", "active": true, "order": 3 }
+  ]
+}
+```
+
+**Packs editor:** + Add Pack (any credits/price), ▲/▼ reorder, Show toggle, ✕ remove.
+**Custom pack example:** `{ "id": "pack_250", "credits": 250, "price": 400, "label": "250 Credits" }`
+**Custom amount:** show `price_per_credit` × amount (min `min_purchase`) for WhatsApp quote.
+
+**Credit pack detail screen fields** (same pattern as subscription plans — extension opens a detail view with ← Back):
+
+| Field | Purpose |
+|-------|---------|
+| `description` | Short paragraph on detail screen |
+| `detail_subtitle` | Subtitle under pack name |
+| `highlights` | Pill chips (e.g. `["Instant delivery", "No expiry"]`) |
+| `features` | `[{ "icon": "⚡", "title": "10 credits", "text": "..." }]` |
+| `detail_sections` | `[{ "title": "...", "body": "...", "items": ["..."] }]` |
+| `cta_text` | WhatsApp button label (default: "Buy via WhatsApp") |
+| `detail_footer` | Small footer note |
+| `show_whatsapp_icon` | `false` to hide corner WhatsApp icon on pack card |
+| `show_details_icon` | `false` to hide corner details (ℹ️) icon on pack card |
+
+**Plan / pack card UI:** Each plan and credit pack card has a small **details (ℹ️) icon in the top-right corner** — tap it to open that plan/pack detail screen. **Tap the card body** to open WhatsApp with the purchase message. Set `show_details_icon: false` to hide the corner icon.
+
+**Subscription plans with included credits:** A plan can keep `billing_mode: "subscription"` but set `included_credits: 1` (or more). On activation the extension grants `credits_balance` and **deducts credits on each image generation run** until balance is 0. Use `billing_mode: "hybrid"` when time + credits both gate access.
+
+**AI image generation limits** — add an editor for `credits.image_generation`:
+
+```json
+{
+  "image_generation": {
+    "enabled": true,
+    "credits_per_image": 2,
+    "daily_limit": 20,
+    "monthly_limit": 0,
+    "max_batch_size": 100,
+    "stop_billing_mode": "full",
+    "stop_billing_min_charge": 0,
+    "stop_billing_round_decimals": 2,
+    "stop_billing_full_on_complete": true
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `enabled` | Master on/off for AI image generation |
+| `credits_per_image` | Base credits **per generation run** (`0` = use legacy `cost_per_operation`). One run = one upload → variants. |
+| `daily_limit` | **Runs**/day per license (`0` = unlimited) |
+| `monthly_limit` | **Runs**/month (`0` = unlimited) |
+| `max_batch_size` | Max **variants** per run (`0` = unlimited) — does not change how runs are counted |
+| `stop_billing_mode` | **`full`** (default) = charge full `credits_per_image` when run starts. **`proportional`** = charge at run end by `completed_variants ÷ requested_variants × credits_per_image` |
+| `stop_billing_min_charge` | Minimum charge in proportional mode (`0` = no floor) |
+| `stop_billing_round_decimals` | Decimal places when rounding proportional charges (default `2`) |
+| `stop_billing_full_on_complete` | When `true` (default), finishing all requested variants charges full run cost even in proportional mode |
+
+**Stop billing examples** (base `credits_per_image: 1`):
+
+| Mode | Selected | Stopped at | Charged |
+|------|----------|------------|---------|
+| `full` | 20 | 5 | **1** (charged at start) |
+| `proportional` | 20 | 5 | **0.25** |
+| `proportional` | 200 | 50 | **0.25** |
+| `proportional` | 20 | 20 (finished) | **1** |
+| `proportional` | 20 | 0 (instant stop) | **0** |
+
+The extension enforces these client-side and writes counters back to each license: `images_generated_total`, `images_generated_today`, `images_generated_today_date`, `images_generated_month`, `images_generated_month_key`. Counter field names say "images" for backward compatibility — they track **generation runs**, not individual variants. Your **Paid Licenses** view should label them "Generations today / this month / total" and display read-only. Leave the whole `image_generation` object out to keep legacy behavior (1 credit/operation).
+
+**Admin UI for image generation limits (Credits & Packs tab):**
+
+1. **Section title:** "AI image generation limits"
+2. **Help text (always visible):** "One generation run = one upload… Daily/monthly limits count runs, not variants. With **full** billing, stopping mid-run still charges the full run cost; with **proportional** billing, charge is based on completed variants."
+3. **Fields:** `enabled`, `credits_per_image`, `daily_limit`, `monthly_limit`, `max_batch_size`, `stop_billing_mode`, `stop_billing_min_charge`, `stop_billing_round_decimals`, `stop_billing_full_on_complete`
+4. **Preview card** under the form showing example: "Customer uploads 1 image, selects 50 variants → counts as **1 run**, costs **{credits_per_image}** credits (if credits plan), uses **1** from daily limit."
+5. Save nested under `credits.image_generation` on `shipping_optimizer_config/app`.
+
+**Paid Licenses tab — generation usage (read-only):**
+
+Show on each license row / detail drawer:
+- `images_generated_today` / `images_generated_today_date` → label **"Runs today"**
+- `images_generated_month` / `images_generated_month_key` → label **"Runs this month"**
+- `images_generated_total` → label **"Total runs"**
+
+Optional admin action: **Reset today's runs** (sets `images_generated_today` to `0` and updates `images_generated_today_date` to today) — for support only, with confirm dialog.
+
+**Smart Mode variant options** — add an editor for `smart_mode` on `shipping_optimizer_config/app` (extension v1.5.9+):
+
+```json
+{
+  "smart_mode": {
+    "variant_options": [
+      { "value": 20, "label": "20 variants", "active": true, "order": 0 },
+      { "value": 50, "label": "50 variants", "active": true, "order": 1 },
+      { "value": 100, "label": "100 variants", "active": true, "order": 2 },
+      { "value": 200, "label": "200 variants", "active": true, "order": 3 }
+    ],
+    "default_variant": 20,
+    "max_variants_cap": 200,
+    "label": "Max Variants",
+    "hint": "Live Meesho shipping checks — finds the lowest ₹ from generated variants"
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `variant_options[]` | Dropdown choices in the extension Smart Mode selector. Each item: `value` (number), `label` (display), `active` (show/hide), `order` (sort). Plain numbers `[20,50,100]` also work. |
+| `default_variant` | Pre-selected option when modal opens |
+| `max_variants_cap` | Hard cap for API/results (extension raises internal limit) |
+| `label` | Field label above the dropdown |
+| `hint` | Help text under the dropdown |
+
+Admin UI: **add / delete / reorder / edit** variant options dynamically. Options above `credits.image_generation.max_batch_size` are hidden automatically when batch limit is set.
+
+**Plan detail & card fields** (per plan in `plans[]`, extension v1.5.9+):
+
+| Field | Where shown |
+|-------|-------------|
+| `description` | Plan detail body |
+| `detail_subtitle` | Under plan name on detail screen |
+| `highlights[]` | Pills on detail screen |
+| `features[]` | Feature list (`{ icon, title, text }` or string) |
+| `detail_sections[]` | Extra blocks (`{ title, body, items[] }`) |
+| `detail_footer` | Small text under WhatsApp button |
+| `cta_text` | WhatsApp button label (default "Buy via WhatsApp") |
+| `card_subtitle` | Subtitle on plan card (else duration · devices) |
+| `card_hint` | Hint under card: "Tap for details · WhatsApp to buy" |
+| `show_whatsapp_icon` | `false` hides green WhatsApp quick button on card |
+| `show_details_icon` | `false` hides details (ℹ️) icon on card |
+| `offer_badges[]` | Extra pill badges on plan card (2-line badge layout in admin preview) |
+
+Extension UX: tap plan card → detail screen (all Firebase fields). Green WhatsApp icon on card → direct purchase message. **Do not show demo key names in license activation UI** (demo keys still work when entered manually).
+
+---
+
+## TAB 3: Demo / Promo Keys
+
+Collection `shipping_optimizer_demo_keys/{KEY}` — list, add, enable/disable, delete.
+Merged with inline `demo_keys` in config.
+
+| Field | Notes |
+|-------|-------|
+| `days` | Trial length (`30` default). Ignored when `unlimited_time: true` |
+| `label` | Shown in extension |
+| `unlimited_time` | `true` = demo never expires (extension shows **Never expires**) |
+
+```json
+{ "days": 30, "label": "Free trial", "unlimited_time": false }
+{ "days": 0, "label": "Partner unlimited demo", "unlimited_time": true }
+```
+
+---
+
+## TAB 4: Paid Licenses
+
+### Create license form
+
+| Field | Notes |
+|-------|-------|
+| License key | `MEESHO-XXXX-XXXX-XXXX` or Generate 🎲 |
+| Plan | Dropdown from **all** plans (including custom/unlimited) |
+| billing_mode | Auto from plan; allow override |
+| max_devices | Auto from plan; allow override |
+| credits_balance | For credits/hybrid; or use included_credits from plan |
+| addon_credit_ids | Add-ons the customer paid for (ids from plan `credit_addons`) |
+| addon_credits | Optional explicit add-on credit total (else summed from ids) |
+| unlimited_time / unlimited_devices / unlimited_credits | Checkboxes; override plan |
+| customer_name, customer_phone, customer_email, support_notes | Optional |
+
+**On create** copy from plan: `planId`, `planType`, `planDays`, `max_devices`, `billing_mode`, `included_credits`, `addon_credit_ids` (selected add-ons), unlimited flags. Leave `credits_balance: 0` — the extension grants `included_credits + add-ons` on first activation.
+
+```json
+{
+  "active": true,
+  "planId": "yearly",
+  "planDays": 365,
+  "billing_mode": "subscription",
+  "max_devices": 1,
+  "device_ids": [],
+  "credits_balance": 0,
+  "credits_used": 0,
+  "unlimited_time": false,
+  "unlimited_devices": false,
+  "unlimited_credits": false,
+  "expiry_starts_on_activation": true,
+  "expiresAt": "",
+  "machineId": "",
+  "activatedAt": ""
+}
+```
+
+### License list & actions
+
+Show: key, customer, plan, billing_mode, devices (2/3 or Unlimited), credits, **validity** (Never expires / No expiry / date / Expired), status.
+
+**Validity column rules (match extension):**
+| Display | When |
+|---------|------|
+| **Never expires** | `unlimited_time: true` OR `plan_kind: lifetime` OR plan `days: 0` |
+| **No expiry** | `expiresAt` empty and not unlimited (open-ended admin grant) |
+| **Expires {date}** | Future `expiresAt` |
+| **Expired** | Past `expiresAt` and not unlimited |
+
+| Action | Effect |
+|-------|--------|
+| Revoke/Activate | Toggle `active` |
+| Reset devices | Clear `device_ids[]`, `machineId`, `activatedAt` |
+| Add credits | `credits_balance += N` (top-up after pack purchase) |
+| Edit overrides | Change unlimited flags, max_devices, billing_mode per customer |
+| **Grant lifetime** | Set `unlimited_time: true`, clear `expiresAt` |
+| **Clear expiry** | Set `expiresAt: ""` for open-ended access |
+| Delete | Confirm + type DELETE |
+
+Search: key, phone, planId, machineId, device_ids.
+
+### License flexibility matrix (admin must support all)
+
+The extension treats these as **never expiring** (no expiry countdown, badge **Lifetime** / **Never expires**):
+
+| Trigger | Where set |
+|---------|-----------|
+| `unlimited_time: true` | Plan or license doc |
+| `plan_kind: "lifetime"` or `"unlimited"` | Plan or license doc |
+| `days: 0` on plan | Plan (auto-sets unlimited time on activation) |
+| `expiresAt` empty + `billing_mode: subscription` | License doc (open-ended grant) |
+
+**Unlimited flags (independent — mix freely):**
+
+| Flag | Effect |
+|------|--------|
+| `unlimited_time` | Never expires — ignores `expiresAt` even if set |
+| `unlimited_devices` | No device cap (`device_ids` still tracked) |
+| `unlimited_credits` | Never deduct credits; image-gen free if credits would apply |
+
+**Billing mode × expiry examples (create-license presets):**
+
+| Preset | billing_mode | unlimited_time | unlimited_credits | Typical use |
+|--------|--------------|----------------|-------------------|-------------|
+| Monthly sub | subscription | false | false | `expiresAt` on activation + 30d |
+| **Lifetime** | subscription | **true** | false | Pay once, use forever |
+| **Lifetime Pro** | subscription | **true** | **true** | Everything unlimited |
+| Credits pack | credits | true* | false | Balance-based; no time limit |
+| Hybrid yearly | hybrid | false | false | 1 year + credit pool |
+| **Lifetime hybrid** | hybrid | **true** | false | Never expires; top up credits when empty |
+| Enterprise open | subscription | false | false | Leave `expiresAt` empty = no expiry |
+
+\*Credits-only licenses don't use time expiry; `unlimited_time` optional.
+
+**Admin create-license UI must include:**
+- Checkboxes: **Never expires** (`unlimited_time`), **Unlimited devices**, **Unlimited credits**
+- **Expiry mode:** ( ) Starts on activation  ( ) Fixed date  ( ) Never expires  ( ) No expiry (leave blank)
+- When **Never expires** checked → hide/disable `expiresAt` and `planDays` inputs; force `expiresAt: ""` on save
+- Plan dropdown shows badges: `Lifetime`, `Unlimited credits`, `Hybrid`, etc.
+- License list filter: Active / Expired / **Lifetime** / Credits low
+
+**Stacked licenses:** Lifetime subscription + separate credit top-up key → extension keeps lifetime access even if top-up credits hit 0 (credits only required when an *accessible* hybrid/credits license exists).
+
+---
+
+## Device ID (Kiwi mobile)
+
+Extension generates Device ID per browser profile (e.g. `M1A2B3C4D5E6`). Kiwi Android = same check as Chrome. Admin shows `device_ids[]` list per license.
+
+| Plan | Devices |
+|------|---------|
+| Standard | 1 |
+| Family | 3 (configurable) |
+| Friends | 5 (configurable) |
+| Unlimited | `max_devices: 0` or `unlimited_devices: true` |
+
+---
+
+## Billing modes
+
+| Mode | Access rule |
+|------|-------------|
+| `subscription` | Valid while **not expired** — `unlimited_time` / lifetime / empty `expiresAt` = never expires |
+| `credits` | Valid while `credits_balance` > 0 (or `unlimited_credits`) — time not used |
+| `hybrid` | Valid while **(not expired OR unlimited_time)** AND **(has credits OR unlimited_credits)** |
+
+**Never-expire subscription example (paid license doc):**
+```json
+{
+  "active": true,
+  "planId": "lifetime",
+  "billing_mode": "subscription",
+  "unlimited_time": true,
+  "unlimited_devices": false,
+  "unlimited_credits": false,
+  "expiresAt": "",
+  "planDays": 0
+}
+```
+
+Extension shows: badge **Lifetime**, validity **Never expires**, no expiry warnings.
+
+### Renewal / re-activation with the **same license key**
+
+The extension must **never sign the user off** when credits are exhausted or a subscription expires. The same key stays on the device so the customer can renew or buy add-ons.
+
+| Scenario | Firebase / admin action | Extension behavior |
+|----------|-------------------------|-------------------|
+| **Credits exhausted** (hybrid / credits) | Top up `credits_balance` on the **same** license doc after payment | User re-enters same key OR refresh picks up new balance; status shows **Credits exhausted** until topped up |
+| **Subscription expired** | Extend `expiresAt` on the **same** license doc (or set new `planDays` from activation) | User re-activates same key; status shows **Expired** with renew CTA; plans + credit packs visible |
+| **Add-on credits on monthly/hybrid** | Set `addon_credits`, `addon_credit_ids`, increase `credits_balance` on same license | Show type **Monthly · Plan + credits** with base + addon breakdown |
+| **Admin deactivated** | `active: false` on license doc | Only case where extension removes the key |
+
+**Paid license editor fields for renewal (same doc, same key):**
+- `expiresAt` — push forward for subscription/hybrid renewal
+- `credits_balance` — add pack credits or reset included credits
+- `addon_credits`, `addon_credit_ids`, `included_credits` — for add-on purchases
+- `billing_mode` — `subscription` \| `hybrid` \| `credits` (shown in extension as plan type)
+- `active: true` — must stay true for customer access
+
+**Do not** create a new license key for renewals unless the customer wants a separate credit-top-up key (stacked license).
+
+### Stacked licenses (plan + credit top-up)
+
+The extension supports **multiple active keys on one device**:
+
+| Key type | Example | Behavior |
+|----------|---------|----------|
+| Primary plan | Yearly hybrid / subscription | Grants time-based access |
+| Credit top-up | Separate `billing_mode: credits` key | Stacks credits; deducted after hybrid plan credits |
+
+**Admin workflow for credit pack purchase:**
+1. Create a **new** paid license with `billing_mode: credits` and `credits_balance` = pack size (e.g. 50).
+2. Send that key to the customer — they activate it **in addition to** their existing plan key.
+3. Extension shows both licenses and combined credit balance.
+
+**Sign-off:** Customer can remove a key from the device in popup/modal — extension unbinds their device ID from that license doc (`device_ids[]`).
+
+---
+
+## TAB 5: Google Free Trial
+
+Manage secure Gmail-based free trials (extension v1.6.3+). Trials are **not** shareable demo keys — one per Google account. Extension writes `shipping_optimizer_google_trials/{uid}` directly using the user's Firebase ID token; **Firestore rules** enforce limits (Spark plan — no Cloud Function required).
+
+### Trial credits vs paid plan credits
+
+| Pool | Source | Consumed when |
+|------|--------|----------------|
+| **Trial credits** | Google sign-in → `google_trials` doc | First — e.g. 3 free runs per Gmail |
+| **Paid credits** | `shipping_optimizer_licenses` doc | After trial credits are used up |
+
+Extension stacks Google trial with paid license keys on the same device. Trial credits and plan credits are **separate counters** — admin sets `trial_credits` in config; paid `credits_balance` is unchanged until trial pool is empty.
+
+### Config editor (`google_trial` on `shipping_optimizer_config/app`)
+
+| Field | UI | Notes |
+|-------|-----|-------|
+| `google_login_enabled` | Toggle | **Master Google sign-in switch** — `false` hides "Continue with Google" in extension anytime |
+| `enabled` | Toggle | `false` blocks **new** trial claims; existing trials still work; sign-in still allowed if `google_login_enabled` |
+| `days` | Number input | Trial length (e.g. 7, 14, 30) — enforced in Firestore rules |
+| `trial_credits` | Number input | Free generation runs per Google account (e.g. **3**) — preferred field |
+| `image_run_limit` | Number input | Legacy alias for `trial_credits` |
+| `max_devices` | Number input | Default `1` — enforced in rules + extension |
+| `max_increment_per_run` | Number input | Anti-cheat cap per request (default `10`) |
+| `label` | Text | Shown in extension license type |
+| `oauth_client_id` | Text | **Chrome Extension** OAuth client — `getAuthToken` + `manifest.json` oauth2 |
+| `oauth_web_client_id` | Text | **Web application** OAuth client — Kiwi `launchWebAuthFlow`; add redirect URI in Google Cloud |
+| `chrome_extension_id` | Text | Extension Item ID from `chrome://extensions` (e.g. Kiwi: `dhhlaikkdfkaofbiacpoaadfademdmne`) — admin reference only |
+
+```json
+{
+  "google_trial": {
+    "google_login_enabled": true,
+    "enabled": true,
+    "days": 7,
+    "trial_credits": 3,
+    "image_run_limit": 3,
+    "max_devices": 1,
+    "max_increment_per_run": 10,
+    "label": "Google free trial",
+    "oauth_client_id": "860976240598-lfncu478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com",
+    "oauth_web_client_id": "860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com",
+    "chrome_extension_id": "dhhlaikkdfkaofbiacpoaadfademdmne"
+  }
+}
+```
+
+### Google Cloud OAuth setup (admin UI helper text)
+
+**Step A — Chrome Extension client (Kiwi / mobile — recommended)**
+
+1. Google Cloud → project `extension-e6e32` → Credentials → **+ Create client**
+2. Type: **Chrome extension** (NOT Web application)
+3. **Item ID:** 32-char extension ID from `chrome://extensions` (lowercase)
+   - Kiwi dev example: `dhhlaikkdfkaofbiacpoaadfademdmne`
+4. Copy Client ID → save to `oauth_client_id` above
+5. **No redirect URIs** needed for Chrome extension type
+
+**Step B — OAuth consent screen**
+
+- If status is **Testing**: add customer Gmail addresses under **Test users**
+- For production: publish app or add all users as test users until published
+
+**Step C — Firebase Authentication**
+
+- Authentication → Google → enable
+- Web client ID = same `oauth_client_id` (Chrome extension client)
+- Web client secret: if Chrome extension client has no secret, keep Firebase linked to the Firebase auto-created Web client for backend only; extension uses Chrome extension client via `getAuthToken`
+
+**Step D — Web application client (Kiwi / mobile fallback — required)**
+
+1. Google Cloud → Credentials → **Web application** OAuth client (e.g. `9djj...`)
+2. **Authorized redirect URIs** — add:
+   ```
+   https://dhhlaikkdfkaofbiacpoaadfademdmne.chromiumapp.org/
+   ```
+3. Copy that Web client ID → `oauth_web_client_id` in config above
+4. **Do NOT** use the Chrome Extension client ID here — causes **401 invalid_client** on Kiwi
+
+**Step E — Optional desktop dev Web client**
+
+- Add redirect URI for desktop extension ID `kgnmnoaobnpfaaipnjkkidekbajpldlm` to the same Web application client if testing desktop sideload separately.
+
+**Do NOT use** `function_url` / `claimGoogleTrial` for sign-in — extension uses Firestore rules (Spark plan).
+
+```json
+{
+  "google_trial": {
+    "google_login_enabled": true,
+    "enabled": true,
+    "days": 7,
+    "trial_credits": 3,
+    "image_run_limit": 3,
+    "max_devices": 1,
+    "max_increment_per_run": 10,
+    "label": "Google free trial",
+    "oauth_client_id": "860976240598-lfncu478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com",
+    "oauth_web_client_id": "860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com",
+    "chrome_extension_id": "dhhlaikkdfkaofbiacpoaadfademdmne"
+  }
+}
+```
+
+**Admin toggles (common scenarios):**
+
+| google_login_enabled | enabled | Extension behavior |
+|---------------------|---------|-------------------|
+| ✅ | ✅ | Show Google button; new users get trial |
+| ✅ | ❌ | Show Google button; sign-in only for existing trials |
+| ❌ | ✅ | Hide Google button entirely |
+| ❌ | ❌ | Hide Google button entirely |
+
+### Trials list (`shipping_optimizer_google_trials`)
+
+Read-only table for superadmin (superadmin read via rules):
+
+| Column | Source |
+|--------|--------|
+| Email | `email` |
+| Google UID | doc id |
+| Trial credits | `images_used` / `images_limit` (label **"Trial credits used"**) |
+| Created | `created_at` |
+| Expires | `expires_at` |
+| Days granted | `days_granted` |
+| Devices | `machine_ids[]` length / `max_devices` from config |
+
+**Actions:**
+- **Revoke trial** — set `active: false` on trial doc (superadmin write)
+- **Reset devices** — clear `machine_ids[]` (support)
+- Link customer to paid license after trial credits used
+
+### Setup checklist (show in admin UI)
+
+1. Firebase Console → Authentication → Google → Enable
+2. Google Cloud → Create **Chrome extension** OAuth client with extension Item ID
+3. Paste `oauth_client_id` + `chrome_extension_id` in config above
+4. OAuth consent screen → add **Test users** (your Gmail) if app is in Testing
+5. Set `trial_credits: 3` (or desired free runs)
+6. **Deploy Firestore rules** from extension repo:
+   ```bash
+   firebase deploy --only firestore:rules --project extension-e6e32
+   ```
+7. Set `google_login_enabled: true` and `enabled: true`
+
+### Smart Mode dropdown (Config tab or Credits tab)
+
+Edit `smart_mode` on `shipping_optimizer_config/app` — extension reads this for the **Max Variants** dropdown dynamically (add/remove/reorder options without extension release). See TAB 2 `smart_mode` section above.
+
+Google trial does **not** use a row in `shipping_optimizer_licenses` — trial state lives only in `shipping_optimizer_google_trials/{uid}`.
+
+**OAuth helper text (admin UI):**
+- **Pinned extension ID:** `ibeijdggldhedpioahdjkhpcpmgieoch`
+- **Redirect URI for Web client:** `https://ibeijdggldhedpioahdjkhpcpmgieoch.chromiumapp.org/`
+- **Chrome Extension client** = desktop `getAuthToken` only; **Web client** = Kiwi `launchWebAuthFlow`
+
+---
+
+## TAB 6: Google Users
+
+List `shipping_optimizer_google_trials/{uid}` for signed-in Gmail accounts.
+
+**Click row or Manage** → modal to adjust:
+- **Credits:** add / remove / set limit / reset used → 0
+- **Time:** unlimited toggle, +7/+30 days, custom extend, set expiry datetime
+- **Devices:** reset bindings (`machine_ids[]`)
+- **Status:** revoke / reactivate / link paid license
+
+Policy: Google users use **device limit** (`max_devices` from config) and **no calendar expiry** when `unlimited_time: true` on trial doc.
+
+---
+
+## TAB 7: License Customers
+
+Aggregated view of paid `shipping_optimizer_licenses` — customer contact fields, plan, validity, credits, generation usage (runs today / month / total).
+
+License-key-only users: **no device cap** by default (`unlimited_devices: true` on create). Google + license stacks trial credits first.
+
+---
+
+## Technical
+
+- Match Swagstree superadmin dark theme (`btn-gold`)
+- Use existing `db`, `auth`, `showToast`, `isSuperAdmin`
+- Files: `js/shipping-optimizer-admin.js`, `js/shipping-optimizer-firebase.js`, HTML in `#shipping-optimizer-admin-section`, hook `loadShippingOptimizerAdmin()` on super tab
+- Cache-bust: `shipping-optimizer-admin.js?v=5.1`
+- Escape HTML in all renders
+
+---
+
+## Verify
+
+1. Add custom plan "Lifetime" → shows in extension popup
+2. Create family license (3 devices) → 3rd device works, 4th blocked
+3. Create credits license → deduct on use → top-up adds balance
+4. Create separate credit top-up key → customer stacks with plan → combined balance shown
+5. Unlimited plan → no expiry, no device cap, no credit deduction
+6. Kiwi mobile activation → device ID appears in `device_ids[]`
+7. Sign-off in extension → device removed from `device_ids[]` for that key
+8. Set `daily_limit: 2` → customer can run generation twice (any variant count) → 3rd upload blocked until tomorrow
+9. Customer stops a run at 5/50 variants → still counts as 1 run toward daily limit and credits
+10. Add 6 support users with `page_size: 5` → extension shows paginated list with Prev/Next
+11. Edit plan `features` / `detail_sections` in Firebase → plan detail screen updates without extension release
+12. Mobile Kiwi: WhatsApp Support opens app directly (not intent:// page)
+13. Create license with `unlimited_time: true` → extension shows **Lifetime** / **Never expires**, no expiry warnings
+14. Lifetime subscription + empty credit top-up → generate still works (subscription not blocked by empty top-up)
+15. Demo key with `unlimited_time: true` → never expires in extension
+16. Google trial `trial_credits: 3` + paid hybrid license → first 3 runs use trial, then paid credits deduct
+17. `google_login_enabled: false` → Google button hidden; `enabled: false` → no new trials
+18. Edit `smart_mode.variant_options` → Max Variants dropdown updates without extension release
+19. Trial `max_devices: 1` → second device blocked with clear message
+
+---
+
+## Reference
+
+- `FIREBASE_SETUP.md` — complete schema
+- `ACTIVATION_GUIDE.md` — workflows

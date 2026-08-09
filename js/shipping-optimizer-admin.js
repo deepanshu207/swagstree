@@ -62,8 +62,14 @@
         credits_per_image: 1,
         daily_limit: 0,
         monthly_limit: 0,
-        max_batch_size: 200
+        max_batch_size: 200,
+        stop_billing_mode: 'full',
+        stop_billing_min_charge: 0,
+        stop_billing_round_decimals: 2,
+        stop_billing_full_on_complete: true
     };
+
+    const SO_STOP_BILLING_MODES = ['full', 'proportional'];
 
     const DEFAULT_SMART_MODE = {
         variant_options: [
@@ -869,6 +875,8 @@
         p.card_hint = String(p.card_hint || '').trim();
         if (p.show_whatsapp_icon === false) p.show_whatsapp_icon = false;
         else p.show_whatsapp_icon = p.show_whatsapp_icon !== false;
+        if (p.show_details_icon === false) p.show_details_icon = false;
+        else p.show_details_icon = p.show_details_icon !== false;
         p.active = p.active !== false;
         p.best = !!p.best;
         p.unlimited_time = !!p.unlimited_time;
@@ -1042,6 +1050,7 @@
         if (p.card_subtitle) out.card_subtitle = p.card_subtitle;
         if (p.card_hint) out.card_hint = p.card_hint;
         if (p.show_whatsapp_icon === false) out.show_whatsapp_icon = false;
+        if (p.show_details_icon === false) out.show_details_icon = false;
         if (p.included_credits > 0) out.included_credits = p.included_credits;
         if (p.allow_credit_addons) out.allow_credit_addons = true;
         if (p.max_addon_selections > 0) out.max_addon_selections = p.max_addon_selections;
@@ -1163,6 +1172,8 @@
         p.card_hint = String(p.card_hint || '').trim();
         if (p.show_whatsapp_icon === false) p.show_whatsapp_icon = false;
         else p.show_whatsapp_icon = p.show_whatsapp_icon !== false;
+        if (p.show_details_icon === false) p.show_details_icon = false;
+        else p.show_details_icon = p.show_details_icon !== false;
         p.highlights = Array.isArray(p.highlights)
             ? p.highlights.map(h => String(h || '').trim()).filter(Boolean)
             : [];
@@ -1191,6 +1202,7 @@
         if (p.card_subtitle) out.card_subtitle = p.card_subtitle;
         if (p.card_hint) out.card_hint = p.card_hint;
         if (p.show_whatsapp_icon === false) out.show_whatsapp_icon = false;
+        if (p.show_details_icon === false) out.show_details_icon = false;
         if (p.highlights && p.highlights.length) out.highlights = p.highlights.slice();
         if (p.features && p.features.length) {
             out.features = p.features.map(f => {
@@ -1987,6 +1999,14 @@
         g.monthly_limit = Math.max(0, parseInt(g.monthly_limit, 10) || 0);
         g.max_batch_size = Math.max(0, parseInt(g.max_batch_size, 10));
         if (!Number.isFinite(g.max_batch_size)) g.max_batch_size = DEFAULT_IMAGE_GENERATION.max_batch_size;
+        const mode = String(g.stop_billing_mode || DEFAULT_IMAGE_GENERATION.stop_billing_mode).toLowerCase();
+        g.stop_billing_mode = SO_STOP_BILLING_MODES.includes(mode) ? mode : DEFAULT_IMAGE_GENERATION.stop_billing_mode;
+        g.stop_billing_min_charge = Math.max(0, parseFloat(g.stop_billing_min_charge) || 0);
+        const roundDec = parseInt(g.stop_billing_round_decimals, 10);
+        g.stop_billing_round_decimals = Number.isFinite(roundDec) && roundDec >= 0 && roundDec <= 6
+            ? roundDec
+            : DEFAULT_IMAGE_GENERATION.stop_billing_round_decimals;
+        g.stop_billing_full_on_complete = g.stop_billing_full_on_complete !== false;
         return g;
     }
 
@@ -1996,7 +2016,11 @@
             credits_per_image: document.getElementById('so-img-gen-credits')?.value,
             daily_limit: document.getElementById('so-img-gen-daily-limit')?.value,
             monthly_limit: document.getElementById('so-img-gen-monthly-limit')?.value,
-            max_batch_size: document.getElementById('so-img-gen-batch-max')?.value
+            max_batch_size: document.getElementById('so-img-gen-batch-max')?.value,
+            stop_billing_mode: document.getElementById('so-img-gen-stop-mode')?.value,
+            stop_billing_min_charge: document.getElementById('so-img-gen-stop-min')?.value,
+            stop_billing_round_decimals: document.getElementById('so-img-gen-stop-round')?.value,
+            stop_billing_full_on_complete: !!document.getElementById('so-img-gen-stop-full-complete')?.checked
         });
     }
 
@@ -2012,15 +2036,38 @@
         setVal('so-img-gen-daily-limit', img.daily_limit);
         setVal('so-img-gen-monthly-limit', img.monthly_limit);
         setVal('so-img-gen-batch-max', img.max_batch_size);
+        setVal('so-img-gen-stop-mode', img.stop_billing_mode);
+        setVal('so-img-gen-stop-min', img.stop_billing_min_charge);
+        setVal('so-img-gen-stop-round', img.stop_billing_round_decimals);
+        const fullCompleteEl = document.getElementById('so-img-gen-stop-full-complete');
+        if (fullCompleteEl) fullCompleteEl.checked = img.stop_billing_full_on_complete !== false;
+        soUpdateImageGenStopBillingVisibility();
         soUpdateImageGenPreviewCard();
     }
+
+    window.soUpdateImageGenStopBillingVisibility = function() {
+        const mode = document.getElementById('so-img-gen-stop-mode')?.value || 'full';
+        const proportional = mode === 'proportional';
+        document.querySelectorAll('[data-so-stop-proportional]').forEach(el => {
+            el.style.display = proportional ? '' : 'none';
+        });
+    };
 
     window.soUpdateImageGenPreviewCard = function() {
         const card = document.getElementById('so-img-gen-preview-card');
         if (!card) return;
         const img = soReadImageGenerationFromDom();
         const creditsLabel = img.credits_per_image === 0 ? '0 (free)' : String(img.credits_per_image);
-        card.innerHTML = `Example: customer uploads 1 image, selects 50 variants → counts as <strong>1 run</strong>, costs <strong>${creditsLabel}</strong> credits (if credits plan), uses <strong>1</strong> from daily limit.`;
+        const base = `Example: customer uploads 1 image, selects 50 variants → counts as <strong>1 run</strong>, uses <strong>1</strong> from daily limit.`;
+        let billingNote = '';
+        if (img.stop_billing_mode === 'proportional') {
+            const perCredit = img.credits_per_image || 1;
+            const stopped = (perCredit * 5 / 50).toFixed(img.stop_billing_round_decimals);
+            billingNote = ` <strong>Proportional billing:</strong> stop at 5/50 variants → charge <strong>${stopped}</strong> credits (base ${perCredit}/run).`;
+        } else {
+            billingNote = ` <strong>Full billing:</strong> charged <strong>${creditsLabel}</strong> credits at run start (even if stopped early).`;
+        }
+        card.innerHTML = base + billingNote;
     };
 
     function soNormalizeSmartModeVariantOption(opt, index) {
@@ -3944,6 +3991,7 @@
                             <label><span>WhatsApp button label</span><input type="text" data-field="cta_text" value="${soAttr(pack.cta_text || '')}" placeholder="Buy via WhatsApp" oninput="soMarkTabDirty('credits')"></label>
                             <label class="so-field-full"><span>Detail footer</span><input type="text" data-field="detail_footer" value="${soAttr(pack.detail_footer || '')}" oninput="soMarkTabDirty('credits')"></label>
                             <label class="so-plan-check"><input type="checkbox" data-field="show_whatsapp_icon" ${pack.show_whatsapp_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show green WhatsApp icon on pack card</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="show_details_icon" ${pack.show_details_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show details (ℹ️) icon on pack card</label>
                         </div>
                     </div>
                     <div class="so-plan-actions-bar">
@@ -3980,6 +4028,7 @@
                 card_subtitle: get('card_subtitle'),
                 card_hint: get('card_hint'),
                 show_whatsapp_icon: get('show_whatsapp_icon'),
+                show_details_icon: get('show_details_icon'),
                 highlights: soParsePlanFeaturesText(get('highlights_text')),
                 features: soParsePlanFeaturesFromText(get('features_text')),
                 detail_sections: soParsePlanDetailSectionsFromDom(row),
@@ -4151,6 +4200,7 @@
                 return `<div class="so-ext-plan${bestClass}">
                     <div class="so-plan-card-badges-row" style="margin-bottom:4px;">
                     ${p.best ? '<span class="so-ext-plan-tag">BEST VALUE</span>' : ''}
+                    ${p.show_details_icon !== false ? '<span class="so-ext-details-icon" title="Plan details">ℹ️</span>' : ''}
                     ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
                     </div>
                     ${offerBadges ? `<div class="so-ext-offer-badges">${offerBadges}</div>` : ''}
@@ -4170,6 +4220,7 @@
                 <p class="so-admin-muted">₹${credits.price_per_credit}/credit · min ${credits.min_purchase} · ${credits.cost_per_operation} per operation</p>
                 ${packs.length ? `<div class="so-ext-preview-grid so-ext-preview-grid--packs">${packs.map(p =>
                     `<div class="so-ext-plan so-ext-plan--pack">
+                        ${p.show_details_icon !== false ? '<span class="so-ext-details-icon" title="Pack details">ℹ️</span>' : ''}
                         ${p.show_whatsapp_icon !== false ? '<span class="so-ext-wa-icon" title="WhatsApp quick buy">WA</span>' : ''}
                         <div class="so-ext-plan-name">${soEsc(p.label || `${p.credits} credits`)}</div>
                         <div class="so-ext-plan-price">₹${p.price}</div>
@@ -4593,6 +4644,7 @@
                             <label><span>WhatsApp button label</span><input type="text" data-field="cta_text" value="${soAttr(plan.cta_text || '')}" placeholder="Buy via WhatsApp" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-field-full"><span>Detail footer (small text under WhatsApp button)</span><input type="text" data-field="detail_footer" value="${soAttr(plan.detail_footer || '')}" oninput="soMarkTabDirty('config')"></label>
                             <label class="so-plan-check"><input type="checkbox" data-field="show_whatsapp_icon" ${plan.show_whatsapp_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show green WhatsApp quick button on plan card</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="show_details_icon" ${plan.show_details_icon !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Show details (ℹ️) icon on plan card</label>
                         </div>
                     </div>
                     <div class="so-field-group">
@@ -4662,6 +4714,7 @@
                 card_subtitle: get('card_subtitle'),
                 card_hint: get('card_hint'),
                 show_whatsapp_icon: get('show_whatsapp_icon'),
+                show_details_icon: get('show_details_icon'),
                 highlights: soParsePlanFeaturesText(get('highlights_text')),
                 features: soParsePlanFeaturesFromText(get('features_text')),
                 detail_sections: soParsePlanDetailSectionsFromDom(row),

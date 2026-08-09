@@ -2374,12 +2374,12 @@
                                     <input id="so-credits-cost-op" type="number" min="1" step="1" value="1" oninput="soMarkTabDirty('credits')"></label>
                             </div>
                             <div class="so-admin-subhead" style="margin-top:14px;"><i class="fa fa-image"></i> AI image generation limits</div>
-                            <p class="so-admin-muted so-admin-tip">One generation run = one upload in the extension, regardless of how many variants (20/50/100) are requested. Stopping mid-run still counts as 1 run. Daily/monthly limits count runs, not variants.</p>
+                            <p class="so-admin-muted so-admin-tip">One generation run = one upload in the extension, regardless of how many variants (20/50/100) are requested. Daily/monthly limits count runs, not variants. With <strong>full</strong> billing, stopping mid-run still charges the full run cost; with <strong>proportional</strong> billing, charge is based on completed variants.</p>
                             <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-img-gen-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Image generation enabled</label>
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Credits per run</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-credits', event)" aria-expanded="false" aria-controls="so-hint-img-gen-credits" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-credits" class="so-field-info-panel" hidden role="note">Charged once per upload/generation flow. Field key stays <code>credits_per_image</code> for extension compatibility. Use <code>0</code> to fall back to legacy <code>cost_per_operation</code> for credits/hybrid licenses.</div>
-                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="1" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
+                                    <input id="so-img-gen-credits" type="number" min="0" step="1" value="1" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateImageGenPreviewCard()"></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Daily run limit (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-daily', event)" aria-expanded="false" aria-controls="so-hint-img-gen-daily" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-daily" class="so-field-info-panel" hidden role="note">Max generation runs per license per calendar day. Resets at midnight (extension local time).</div>
                                     <input id="so-img-gen-daily-limit" type="number" min="0" step="1" value="0" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview()"></label>
@@ -2389,7 +2389,20 @@
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Max variants per run (0 = ∞)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-batch', event)" aria-expanded="false" aria-controls="so-hint-img-gen-batch" title="More info">ⓘ</button></span>
                                     <div id="so-hint-img-gen-batch" class="so-field-info-panel" hidden role="note">Blocks runs that request more variants than this limit. Does not change how runs are counted.</div>
                                     <input id="so-img-gen-batch-max" type="number" min="0" step="1" value="200" oninput="soMarkTabDirty('credits'); renderSoExtensionPreview(); soUpdateSmartModeDefaultSelect()"></label>
+                                <label><span class="so-field-label-row"><span class="admin-settings-field-label">Stop billing mode</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-stop-mode', event)" aria-expanded="false" aria-controls="so-hint-img-gen-stop-mode" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-stop-mode" class="so-field-info-panel" hidden role="note"><strong>full</strong> charges the full run cost at start. <strong>proportional</strong> charges at run end by completed ÷ requested variants × credits per run.</div>
+                                    <select id="so-img-gen-stop-mode" onchange="soMarkTabDirty('credits'); soUpdateImageGenStopBillingVisibility(); soUpdateImageGenPreviewCard()">
+                                        <option value="full">full — charge at run start</option>
+                                        <option value="proportional">proportional — charge by completed variants</option>
+                                    </select></label>
+                                <label data-so-stop-proportional style="display:none;"><span class="so-field-label-row"><span class="admin-settings-field-label">Min proportional charge</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-stop-min', event)" aria-expanded="false" aria-controls="so-hint-img-gen-stop-min" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-stop-min" class="so-field-info-panel" hidden role="note">Floor for proportional charges (<code>0</code> = no minimum). Example: <code>0.1</code> ensures any partial run costs at least 0.1 credits.</div>
+                                    <input id="so-img-gen-stop-min" type="number" min="0" step="0.01" value="0" oninput="soMarkTabDirty('credits'); soUpdateImageGenPreviewCard()"></label>
+                                <label data-so-stop-proportional style="display:none;"><span class="so-field-label-row"><span class="admin-settings-field-label">Round decimals</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('img-gen-stop-round', event)" aria-expanded="false" aria-controls="so-hint-img-gen-stop-round" title="More info">ⓘ</button></span>
+                                    <div id="so-hint-img-gen-stop-round" class="so-field-info-panel" hidden role="note">Decimal places when rounding proportional charges (default <code>2</code>).</div>
+                                    <input id="so-img-gen-stop-round" type="number" min="0" max="6" step="1" value="2" oninput="soMarkTabDirty('credits'); soUpdateImageGenPreviewCard()"></label>
                             </div>
+                            <label class="so-plan-check" data-so-stop-proportional style="display:none;margin-top:8px;"><input id="so-img-gen-stop-full-complete" type="checkbox" checked onchange="soMarkTabDirty('credits'); soUpdateImageGenPreviewCard()"> Charge full run cost when all requested variants finish (proportional mode)</label>
                             <div id="so-img-gen-preview-card" class="so-img-gen-preview-card so-admin-muted so-admin-tip"></div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Custom amount preview</div>
                             <div class="so-admin-inline-form so-admin-inline-form--stack">
@@ -4621,7 +4634,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.0"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.1"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
