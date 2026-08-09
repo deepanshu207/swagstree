@@ -17,7 +17,20 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/extension-e6e32-sa.json
 node scripts/extension-e6e32/seed-google-trial-config.js
 ```
 
-## 2. Deploy Cloud Function (Task 2)
+## 2. Deploy Firestore rules (required for Google trial)
+
+Rules file: `firestore.extension.rules` (repo root). **Must be published** or trial save returns `Missing or insufficient permissions`.
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/extension-e6e32-sa.json
+bash scripts/extension-e6e32/deploy-firestore-rules.sh
+```
+
+Or Firebase Console → Firestore → **Rules** → paste `firestore.extension.rules` → **Publish**
+
+Extension **v1.7.6+** sends `timestampValue` for `created_at` / `expires_at` (not ISO strings). Rules require Firestore timestamps.
+
+## 3. Deploy Cloud Function (optional — Blaze only)
 
 ### Option A — Swagstree deploy script (agent or local)
 

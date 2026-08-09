@@ -2537,7 +2537,7 @@
                                     <li>Google Cloud <strong>Web client 1</strong> → add redirect URIs shown above (with and without trailing <code>/</code>)</li>
                                     <li>Google Cloud <strong>Chrome extension</strong> OAuth client → Item ID <code>ibeijdggldhedpioahdjkhpcpmgieoch</code></li>
                                     <li>OAuth consent screen → <strong>Test users</strong> for every Gmail that will sign in</li>
-                                    <li>Deploy <code>firestore.rules</code> from extension repo: <code>firebase deploy --only firestore:rules --project extension-e6e32</code></li>
+                                    <li>Deploy <code>firestore.rules</code>: <code>bash scripts/extension-e6e32/deploy-firestore-rules.sh</code> (required for Google trial save)</li>
                                     <li>Extension <strong>v1.7.2+</strong> on Kiwi with manifest <code>key</code> (stable ID)</li>
                                 </ol>
                             </div>

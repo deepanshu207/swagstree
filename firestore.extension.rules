@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // Deploy to Firebase project: extension-e6e32
-// Synced with meesho-shipping-optimizer-extension firestore.rules (Spark Google trial)
+// firebase deploy --only firestore:rules --project extension-e6e32
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -55,6 +55,21 @@ service cloud.firestore {
       );
     }
 
+    /** Accept Firestore timestamp (extension v1.7.6+) — not ISO strings. */
+    function trialExpiresAtValid() {
+      let exp = request.resource.data.expires_at;
+      return exp is timestamp
+        && exp > request.time
+        && exp <= request.time + duration.value(trialDays(), 'D');
+    }
+
+    function trialCreatedAtValid() {
+      let created = request.resource.data.created_at;
+      return created is timestamp
+        && created <= request.time
+        && created >= request.time - duration.value(10, 'm');
+    }
+
     function trialMachineIdsValid() {
       let prev = resource.data.machine_ids;
       let next = request.resource.data.machine_ids;
@@ -105,9 +120,8 @@ service cloud.firestore {
         && request.resource.data.images_used == 0
         && request.resource.data.images_limit == trialImageRunLimit()
         && request.resource.data.active == true
-        && request.resource.data.expires_at > request.time
-        && request.resource.data.expires_at <= request.time + duration.value(trialDays(), 'D')
-        && request.resource.data.created_at == request.time
+        && trialExpiresAtValid()
+        && trialCreatedAtValid()
         && (
           !('machine_ids' in request.resource.data)
           || request.resource.data.machine_ids.size() <= trialMaxDevices()
