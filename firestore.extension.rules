@@ -55,21 +55,6 @@ service cloud.firestore {
       );
     }
 
-    /** Accept Firestore timestamp (extension v1.7.6+) — not ISO strings. */
-    function trialExpiresAtValid() {
-      let exp = request.resource.data.expires_at;
-      return exp is timestamp
-        && exp > request.time
-        && exp <= request.time + duration.value(trialDays(), 'D');
-    }
-
-    function trialCreatedAtValid() {
-      let created = request.resource.data.created_at;
-      return created is timestamp
-        && created <= request.time
-        && created >= request.time - duration.value(10, 'm');
-    }
-
     function trialMachineIdsValid() {
       let prev = resource.data.machine_ids;
       let next = request.resource.data.machine_ids;
@@ -111,17 +96,17 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow read: if isShippingOptimizerSuperAdmin();
 
+      // Create: uid-bound; no strict timestamp/email casing (extension v1.6.7–1.7.6 compatible).
       allow create: if request.auth != null
         && request.auth.uid == uid
         && googleTrialEnabled()
         && !exists(/databases/$(database)/documents/shipping_optimizer_google_trials/$(uid))
         && request.resource.data.google_uid == uid
-        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 3
         && request.resource.data.images_used == 0
         && request.resource.data.images_limit == trialImageRunLimit()
         && request.resource.data.active == true
-        && trialExpiresAtValid()
-        && trialCreatedAtValid()
         && (
           !('machine_ids' in request.resource.data)
           || request.resource.data.machine_ids.size() <= trialMaxDevices()
