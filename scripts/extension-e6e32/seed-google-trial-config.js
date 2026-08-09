@@ -20,10 +20,10 @@ const GOOGLE_TRIAL_DEFAULTS = {
   max_devices: 1,
   label: 'Google free trial',
   oauth_client_id:
-    '860976240598-lfncu478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
+    '860976240598-lfncv478meb0hel45vr3elf8fu5muv17.apps.googleusercontent.com',
   oauth_web_client_id:
     '860976240598-9djjnlud57s4fv0aul9eqdi2o8a11vr0.apps.googleusercontent.com',
-  chrome_extension_id: 'dhhlaikkdfkaofbiacpoaadfademdmne',
+  chrome_extension_id: 'ibeijdggldhedpioahdjkhpcpmgieoch',
 };
 
 async function main() {
@@ -34,9 +34,21 @@ async function main() {
   const ref = db.collection('shipping_optimizer_config').doc('app');
   const snap = await ref.get();
   const existing = snap.exists ? snap.data()?.google_trial || {} : {};
-  const merged = { ...GOOGLE_TRIAL_DEFAULTS, ...existing };
+  const merged = Object.assign({}, GOOGLE_TRIAL_DEFAULTS, existing, {
+    oauth_client_id: GOOGLE_TRIAL_DEFAULTS.oauth_client_id,
+    oauth_web_client_id: GOOGLE_TRIAL_DEFAULTS.oauth_web_client_id,
+    chrome_extension_id: GOOGLE_TRIAL_DEFAULTS.chrome_extension_id,
+    trial_credits: GOOGLE_TRIAL_DEFAULTS.trial_credits,
+    image_run_limit: GOOGLE_TRIAL_DEFAULTS.image_run_limit,
+  });
+  delete merged.function_url;
+  delete merged.credits;
 
   await ref.set({ google_trial: merged }, { merge: true });
+  await ref.update({
+    'google_trial.function_url': admin.firestore.FieldValue.delete(),
+    'google_trial.credits': admin.firestore.FieldValue.delete(),
+  });
   console.log('Merged shipping_optimizer_config/app.google_trial on', PROJECT_ID);
   console.log(JSON.stringify(merged, null, 2));
 }
