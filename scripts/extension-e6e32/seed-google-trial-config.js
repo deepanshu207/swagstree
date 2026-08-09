@@ -13,7 +13,8 @@ const PROJECT_ID = 'extension-e6e32';
 const GOOGLE_TRIAL_DEFAULTS = {
   google_login_enabled: true,
   enabled: true,
-  days: 7,
+  unlimited_time: true,
+  days: 0,
   trial_credits: 3,
   image_run_limit: 3,
   max_increment_per_run: 10,

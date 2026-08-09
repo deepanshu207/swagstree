@@ -129,7 +129,8 @@
     const DEFAULT_GOOGLE_TRIAL = {
         google_login_enabled: true,
         enabled: true,
-        days: 7,
+        unlimited_time: true,
+        days: 0,
         trial_credits: 3,
         image_run_limit: 3,
         max_increment_per_run: 10,
@@ -2868,6 +2869,8 @@
         }
         if (soActiveTab === 'google-trial') {
             soBindGoogleTrialForm();
+        }
+        if (soActiveTab === 'google-users') {
             renderSoGoogleTrialsRegistry();
         }
         if (soActiveTab === 'config' || soActiveTab === 'credits') {
@@ -2933,10 +2936,16 @@
     function soNormalizeGoogleTrial(raw) {
         const src = raw && typeof raw === 'object' ? raw : {};
         const trialCredits = soResolveTrialCredits(src);
+        const unlimitedTime = src.unlimited_time !== false && src.unlimitedTime !== false;
+        const daysRaw = parseInt(src.days, 10);
+        const days = unlimitedTime
+            ? 0
+            : Math.max(1, Number.isFinite(daysRaw) ? daysRaw : DEFAULT_GOOGLE_TRIAL.days || 7);
         return {
             google_login_enabled: src.google_login_enabled !== false && src.googleLoginEnabled !== false,
             enabled: src.enabled !== false,
-            days: Math.max(1, parseInt(src.days, 10) || DEFAULT_GOOGLE_TRIAL.days),
+            unlimited_time: unlimitedTime,
+            days,
             trial_credits: trialCredits,
             image_run_limit: trialCredits,
             max_increment_per_run: Math.max(1, parseInt(src.max_increment_per_run ?? src.maxIncrementPerRun, 10) || DEFAULT_GOOGLE_TRIAL.max_increment_per_run),
@@ -2953,6 +2962,7 @@
         const out = {
             google_login_enabled: t.google_login_enabled,
             enabled: t.enabled,
+            unlimited_time: t.unlimited_time,
             days: t.days,
             trial_credits: t.trial_credits,
             image_run_limit: t.trial_credits,
@@ -2996,8 +3006,12 @@
             ? '<span class="so-badge so-badge--on">Google login ON</span>'
             : '<span class="so-badge so-badge--off">Google login OFF</span>');
         parts.push(t.enabled
-            ? '<span class="so-badge so-badge--on">New trials ON</span>'
-            : '<span class="so-badge so-badge--off">New trials OFF</span>');
+            ? '<span class="so-badge so-badge--on">New sign-ins ON</span>'
+            : '<span class="so-badge so-badge--off">New sign-ins OFF</span>');
+        parts.push(t.unlimited_time
+            ? '<span class="so-badge so-badge--on">No calendar expiry</span>'
+            : `<span class="so-badge so-badge--warn">${t.days}-day limit</span>`);
+        parts.push(`<span class="so-badge so-badge--on">Device limit: ${t.max_devices}</span>`);
         parts.push(t.oauth_client_id
             ? '<span class="so-badge so-badge--on">Chrome OAuth configured</span>'
             : '<span class="so-badge so-badge--off">oauth_client_id missing</span>');
@@ -3019,6 +3033,7 @@
         };
         setChecked('so-google-login-enabled', trial.google_login_enabled);
         setChecked('so-google-trial-enabled', trial.enabled);
+        setChecked('so-google-trial-unlimited-time', trial.unlimited_time);
         setVal('so-google-trial-days', trial.days);
         setVal('so-google-trial-credits', trial.trial_credits);
         setVal('so-google-trial-max-increment', trial.max_increment_per_run);
@@ -3043,6 +3058,20 @@
             extIdEl.textContent = soGoogleTrialExtensionId(trial);
         }
         const extInput = document.getElementById('so-google-trial-chrome-extension-id');
+        const daysEl = document.getElementById('so-google-trial-days');
+        if (daysEl) daysEl.disabled = !!trial.unlimited_time;
+        const unlimitedEl = document.getElementById('so-google-trial-unlimited-time');
+        if (unlimitedEl && !unlimitedEl.dataset.soBound) {
+            unlimitedEl.dataset.soBound = '1';
+            unlimitedEl.addEventListener('change', () => {
+                const on = !!unlimitedEl.checked;
+                const daysField = document.getElementById('so-google-trial-days');
+                if (daysField) {
+                    daysField.disabled = on;
+                    if (on) daysField.value = '0';
+                }
+            });
+        }
         if (extInput && !extInput.dataset.soBound) {
             extInput.dataset.soBound = '1';
             extInput.addEventListener('input', () => {
@@ -3064,6 +3093,7 @@
         return soNormalizeGoogleTrial({
             google_login_enabled: !!document.getElementById('so-google-login-enabled')?.checked,
             enabled: !!document.getElementById('so-google-trial-enabled')?.checked,
+            unlimited_time: !!document.getElementById('so-google-trial-unlimited-time')?.checked,
             days: document.getElementById('so-google-trial-days')?.value,
             trial_credits: document.getElementById('so-google-trial-credits')?.value,
             max_increment_per_run: document.getElementById('so-google-trial-max-increment')?.value,
@@ -3087,6 +3117,7 @@
         };
         setChecked('so-google-login-enabled', trial.google_login_enabled);
         setChecked('so-google-trial-enabled', trial.enabled);
+        setChecked('so-google-trial-unlimited-time', trial.unlimited_time);
         setVal('so-google-trial-days', trial.days);
         setVal('so-google-trial-credits', trial.trial_credits);
         setVal('so-google-trial-max-increment', trial.max_increment_per_run);
@@ -3147,8 +3178,8 @@
                 soGoogleTrials.push(Object.assign({ uid: doc.id }, doc.data()));
             });
             soGoogleTrials.sort((a, b) => {
-                const ta = soGoogleTrialExpiryMs(a);
-                const tb = soGoogleTrialExpiryMs(b);
+                const ta = soGoogleTrialExpiryMs(a) || soGoogleTrialCreatedMs(a);
+                const tb = soGoogleTrialExpiryMs(b) || soGoogleTrialCreatedMs(b);
                 return tb - ta;
             });
         } catch (e) {
@@ -3158,6 +3189,15 @@
 
     function soGoogleTrialExpiryMs(row) {
         const raw = row.expires_at || row.expiresAt;
+        if (!raw) return 0;
+        if (raw.toMillis) return raw.toMillis();
+        if (raw.toDate) return raw.toDate().getTime();
+        const d = new Date(raw);
+        return Number.isFinite(d.getTime()) ? d.getTime() : 0;
+    }
+
+    function soGoogleTrialCreatedMs(row) {
+        const raw = row.created_at || row.createdAt;
         if (!raw) return 0;
         if (raw.toMillis) return raw.toMillis();
         if (raw.toDate) return raw.toDate().getTime();
@@ -3198,6 +3238,12 @@
         return limit != null ? Number(limit) || 0 : 0;
     }
 
+    function soGoogleTrialCreditsRemaining(row) {
+        const used = soGoogleTrialImagesUsed(row);
+        const limit = soGoogleTrialImagesLimit(row);
+        return Math.max(0, limit - used);
+    }
+
     function renderSoGoogleTrialsRegistry() {
         const container = document.getElementById('so-google-trials-list');
         const countEl = document.getElementById('so-google-trials-count');
@@ -3205,10 +3251,10 @@
         const rows = soGoogleTrials.slice();
         const maxDevices = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
         if (countEl) {
-            countEl.textContent = rows.length === 1 ? '1 trial record' : `${rows.length} trial records`;
+            countEl.textContent = rows.length === 1 ? '1 Google user' : `${rows.length} Google users`;
         }
         if (!rows.length) {
-            container.innerHTML = '<p class="so-admin-muted">No Google trial claims yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap <strong>Continue with Google</strong> in the extension.</p>';
+            container.innerHTML = '<p class="so-admin-muted">No Google sign-ins yet. Records appear in <code>shipping_optimizer_google_trials</code> after users tap <strong>Continue with Google</strong> in the extension.</p>';
             return;
         }
         const q = String(document.getElementById('so-google-trial-search')?.value || '').trim().toLowerCase();
@@ -3229,10 +3275,10 @@
                     <thead>
                         <tr>
                             <th>Email</th>
-                            <th>Trial credits used</th>
+                            <th>Credits (used / limit)</th>
+                            <th>Remaining</th>
                             <th>Created</th>
-                            <th>Expires</th>
-                            <th>Days</th>
+                            <th>Access</th>
                             <th>Devices</th>
                             <th>Status</th>
                             <th>UID</th>
@@ -3243,21 +3289,26 @@
                         ${filtered.map(r => {
                             const used = soGoogleTrialImagesUsed(r);
                             const limit = soGoogleTrialImagesLimit(r);
+                            const remaining = soGoogleTrialCreditsRemaining(r);
                             const active = r.active !== false;
                             const devices = soGoogleTrialDeviceCount(r);
-                            const days = r.days_granted != null ? r.days_granted : '—';
+                            const unlimitedTime = r.unlimited_time === true || r.unlimitedTime === true || !r.expires_at;
                             const linkedKey = r.license_key || r.licenseKey || '';
+                            const accessLabel = unlimitedTime
+                                ? '<span class="so-badge so-badge--on">No expiry</span>'
+                                : soEsc(soFormatGoogleTrialExpiry(r));
                             return `
                             <tr class="${active ? '' : 'so-google-trial-row--revoked'}">
                                 <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}</td>
                                 <td><strong>${soEsc(String(used))}</strong> / ${soEsc(String(limit || '—'))}</td>
+                                <td><strong>${soEsc(String(remaining))}</strong></td>
                                 <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
-                                <td>${soEsc(soFormatGoogleTrialExpiry(r))}</td>
-                                <td>${soEsc(String(days))}</td>
+                                <td>${accessLabel}</td>
                                 <td>${soEsc(`${devices}/${maxDevices}`)}</td>
                                 <td>${active ? '<span class="so-badge so-badge--on">Active</span>' : '<span class="so-badge so-badge--off">Revoked</span>'}</td>
                                 <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
                                 <td class="so-google-trials-actions">
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoGoogleTrialCredits('${soAttr(r.uid || '')}')">Credits</button>
                                     ${active
                                         ? `<button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}')">Revoke</button>`
                                         : ''}
@@ -3270,6 +3321,75 @@
                 </table>
             </div>`;
     }
+
+    let soGoogleTrialCreditsUid = null;
+
+    window.openSoGoogleTrialCredits = function(uid) {
+        if (!soRequireExtensionWrite()) return;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+        soGoogleTrialCreditsUid = uid;
+        const used = soGoogleTrialImagesUsed(row);
+        const limit = soGoogleTrialImagesLimit(row);
+        const remaining = soGoogleTrialCreditsRemaining(row);
+        const label = document.getElementById('so-google-credits-email-label');
+        const balLabel = document.getElementById('so-google-credits-balance-label');
+        if (label) label.textContent = row.email || uid;
+        if (balLabel) balLabel.textContent = `Used ${used} · limit ${limit} · remaining ${remaining}`;
+        const amountEl = document.getElementById('so-google-credits-amount');
+        if (amountEl) amountEl.value = '';
+        const modal = document.getElementById('so-google-credits-modal');
+        if (modal) modal.style.display = 'flex';
+    };
+
+    window.closeSoGoogleTrialCredits = function() {
+        soGoogleTrialCreditsUid = null;
+        const modal = document.getElementById('so-google-credits-modal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.confirmSoGoogleTrialCredits = async function(mode) {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialCreditsUid;
+        if (!uid) return;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+        const used = soGoogleTrialImagesUsed(row);
+        const limit = soGoogleTrialImagesLimit(row);
+        const amount = parseInt(document.getElementById('so-google-credits-amount')?.value, 10);
+        if (!Number.isFinite(amount)) {
+            return soToast('Enter a valid credit amount.');
+        }
+        let nextLimit = limit;
+        if (mode === 'add') {
+            if (amount < 1) return soToast('Add at least 1 credit.');
+            nextLimit = limit + amount;
+        } else if (mode === 'remove') {
+            if (amount < 1) return soToast('Remove at least 1 credit.');
+            nextLimit = Math.max(used, limit - amount);
+        } else if (mode === 'set') {
+            if (amount < used) {
+                return soToast(`Cannot set below used credits (${used}).`);
+            }
+            nextLimit = amount;
+        } else {
+            return;
+        }
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                images_limit: nextLimit,
+                trial_credits: nextLimit,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            }, { merge: true });
+            closeSoGoogleTrialCredits();
+            await soLoadGoogleTrials();
+            renderSoGoogleTrialsRegistry();
+            soToast(`Credits updated. New limit: ${nextLimit} (${Math.max(0, nextLimit - used)} remaining).`);
+        } catch (e) {
+            soToast('Update failed: ' + (e.message || 'Unknown error'));
+        }
+    };
 
     window.soRevokeGoogleTrial = async function(uid) {
         if (!soRequireExtensionWrite()) return;
@@ -5152,11 +5272,12 @@
         const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
         if (!plan) return soToast('Select a valid plan.');
         const formFields = soReadLicenseFormFields();
-        let maxDevices = formFields.max_devices;
-        if (maxDevices == null) {
-            maxDevices = soIsUnlimitedDevices(plan) ? 0 : (plan.max_devices != null ? plan.max_devices : (SO_DEVICE_TIER_MAX[plan.device_tier] != null ? SO_DEVICE_TIER_MAX[plan.device_tier] : 1));
-        }
-        if (formFields.unlimited_devices) maxDevices = 0;
+        const unlimitedDevices = formFields.unlimited_devices !== false;
+        let maxDevices = unlimitedDevices
+            ? 0
+            : (formFields.max_devices != null
+                ? formFields.max_devices
+                : (plan.max_devices != null ? plan.max_devices : 1));
         let expiryFields;
         try {
             expiryFields = soReadLicenseExpiryFields();
@@ -5172,7 +5293,7 @@
             max_devices: maxDevices,
             credits_used: formFields.credits_used,
             unlimited_time: expiryFields.unlimited_time || formFields.unlimited_time || soIsUnlimitedTime(plan),
-            unlimited_devices: formFields.unlimited_devices || soIsUnlimitedDevices(plan),
+            unlimited_devices: unlimitedDevices,
             unlimited_credits: formFields.unlimited_credits || soIsUnlimitedCredits(plan),
             device_ids: [],
             expiry_starts_on_activation: expiryFields.expiry_starts_on_activation,

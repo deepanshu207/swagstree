@@ -2179,7 +2179,8 @@
                     <button type="button" class="so-tab-chip" data-so-tab-chip="demo" onclick="switchShippingOptimizerTab('demo')">Demo keys</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="licenses" onclick="switchShippingOptimizerTab('licenses')">Licenses</button>
                     <button type="button" class="so-tab-chip" data-so-tab-chip="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google trial</button>
-                    <button type="button" class="so-tab-chip" data-so-tab-chip="customers" onclick="switchShippingOptimizerTab('customers')">Users</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="google-users" onclick="switchShippingOptimizerTab('google-users')">Google users</button>
+                    <button type="button" class="so-tab-chip" data-so-tab-chip="customers" onclick="switchShippingOptimizerTab('customers')">License users</button>
                 </div>
 
                 <!-- Mobile-friendly tab picker + desktop tabs -->
@@ -2191,6 +2192,7 @@
                         <option value="demo">Demo / Promo Keys</option>
                         <option value="licenses">Paid Licenses</option>
                         <option value="google-trial">Google Free Trial</option>
+                        <option value="google-users">Google Users</option>
                         <option value="customers">License Customers</option>
                     </select>
                 </label>
@@ -2200,6 +2202,7 @@
                     <button type="button" class="so-admin-tab-btn" data-so-tab="demo" onclick="switchShippingOptimizerTab('demo')">Demo / Promo Keys</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="licenses" onclick="switchShippingOptimizerTab('licenses')">Paid Licenses</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="google-trial" onclick="switchShippingOptimizerTab('google-trial')">Google Free Trial</button>
+                    <button type="button" class="so-admin-tab-btn" data-so-tab="google-users" onclick="switchShippingOptimizerTab('google-users')">Google Users</button>
                     <button type="button" class="so-admin-tab-btn" data-so-tab="customers" onclick="switchShippingOptimizerTab('customers')">License Customers</button>
                 </div>
                 <div id="so-draft-recovery-banner" class="so-draft-recovery-banner" hidden></div>
@@ -2508,14 +2511,15 @@
                         <div class="so-section-accordion-body">
                             <div class="so-admin-grid" style="margin-bottom:12px;">
                                 <label class="so-plan-check so-field-full"><input id="so-google-login-enabled" type="checkbox" checked> <strong>google_login_enabled</strong> — show “Continue with Google” in extension</label>
-                                <label class="so-plan-check so-field-full"><input id="so-google-trial-enabled" type="checkbox" checked> <strong>enabled</strong> — allow new trial claims (existing trials still work when off)</label>
+                                <label class="so-plan-check so-field-full"><input id="so-google-trial-enabled" type="checkbox" checked> <strong>enabled</strong> — allow new sign-ins (existing Google users still work when off)</label>
+                                <label class="so-plan-check so-field-full"><input id="so-google-trial-unlimited-time" type="checkbox" checked> <strong>unlimited_time</strong> — signed-in users have no calendar expiry (credits only)</label>
                             </div>
                             <div class="so-admin-muted so-admin-tip" style="margin-bottom:12px;">
-                                <strong>Toggle matrix:</strong> login ON + enabled ON → new users get trial · login ON + enabled OFF → sign-in only for existing trials · login OFF → button hidden
+                                <strong>Policy:</strong> Google sign-in → device limit ON · no monthly expiry (credits only) · License key (no sign-in) → no device limit (shared keys OK).
                             </div>
                             <div class="so-admin-grid">
-                                <label><span class="admin-settings-field-label">Trial days</span>
-                                    <input id="so-google-trial-days" type="number" min="1" step="1" value="7"></label>
+                                <label><span class="admin-settings-field-label">Trial days (if time-limited)</span>
+                                    <input id="so-google-trial-days" type="number" min="0" step="1" value="0"></label>
                                 <label><span class="admin-settings-field-label">trial_credits (free runs)</span>
                                     <input id="so-google-trial-credits" type="number" min="0" step="1" value="3"></label>
                                 <label><span class="admin-settings-field-label">max_increment_per_run</span>
@@ -2545,7 +2549,7 @@
                                     <li>Google Cloud <strong>Chrome extension</strong> OAuth client → Item ID <code>ibeijdggldhedpioahdjkhpcpmgieoch</code></li>
                                     <li>OAuth consent screen → <strong>Test users</strong> for every Gmail that will sign in</li>
                                     <li>Firestore rules deployed — trial create allowed (no strict timestamp/email casing)</li>
-                                    <li>Extension <strong>v1.7.2+</strong> on Kiwi with manifest <code>key</code> (stable ID)</li>
+                                    <li>Extension <strong>v1.7.7+</strong> on Kiwi with manifest <code>key</code> (stable ID)</li>
                                 </ol>
                             </div>
                             <div class="so-section-save-bar" style="flex-wrap:wrap; gap:8px;">
@@ -2555,27 +2559,23 @@
                             </div>
                         </div>
                     </div>
-                    <div class="so-section-accordion" data-so-section="google-trial-registry">
-                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('google-trial-registry')">
-                            <span><i class="fa fa-list"></i> Trial claims registry</span>
-                            <i class="fa fa-chevron-down so-section-chevron"></i>
-                        </button>
-                        <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Collection <code>shipping_optimizer_google_trials</code> — doc id = Google uid; fields include <code>email</code>, <code>images_used</code>, <code>images_limit</code>, <code>expires_at</code>.</p>
-                            <div class="so-inline-demo-toolbar">
-                                <span id="so-google-trials-count" class="so-plans-count">0 trial records</span>
-                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshGoogleTrials()"><i class="fa fa-rotate"></i> Refresh</button>
-                            </div>
-                            <input id="so-google-trial-search" type="search" placeholder="Search email or uid…" oninput="filterSoGoogleTrials()">
-                            <div id="so-google-trials-list" class="so-admin-list so-admin-list--tall"></div>
-                        </div>
-                    </div>
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Google trial config</span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('google-trial')">Load defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('google-trial')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('google-trial')">Save to Firebase</button>
                     </div>
+                </div>
+
+                <!-- Tab: Google Users (signed-in accounts) -->
+                <div id="so-tab-google-users" class="so-admin-tab-panel" style="display:none;">
+                    <p class="so-admin-muted so-admin-tip">One row per Google account in <code>shipping_optimizer_google_trials</code>. Track email, credits used/limit, and device bindings. Adjust credits per user — no calendar expiry when <code>unlimited_time</code> is on.</p>
+                    <div class="so-inline-demo-toolbar">
+                        <span id="so-google-trials-count" class="so-plans-count">0 Google users</span>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshGoogleTrials()"><i class="fa fa-rotate"></i> Refresh</button>
+                    </div>
+                    <input id="so-google-trial-search" type="search" placeholder="Search email or uid…" oninput="filterSoGoogleTrials()">
+                    <div id="so-google-trials-list" class="so-admin-list so-admin-list--tall"></div>
                 </div>
 
                 <!-- Tab 4: Paid Licenses -->
@@ -2620,7 +2620,7 @@
                             <div id="so-license-credits-breakdown" class="so-license-credits-breakdown so-admin-muted so-admin-tip"></div>
                             <div class="so-checkbox-group">
                                 <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox" onchange="soOnLicenseUnlimitedTimeToggle()"> Never expires (unlimited time)</label>
-                                <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox"> Unlimited devices</label>
+                                <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox" checked> Unlimited devices</label>
                                 <label class="so-plan-check"><input id="so-license-unlimited-credits" type="checkbox" onchange="soUpdateLicenseCreditsBreakdown()"> Unlimited credits</label>
                             </div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Expiry mode</div>
@@ -2721,6 +2721,23 @@
                     </label>
                     <input id="so-customer-search" type="search" placeholder="Search name, phone, email, license key…" oninput="filterSoCustomers()">
                     <div id="so-customer-registry-list" class="so-admin-list so-admin-list--tall"></div>
+                </div>
+
+                <!-- Google user credits modal -->
+                <div id="so-google-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoGoogleTrialCredits()">
+                    <div class="so-modal-panel">
+                        <h4 class="so-modal-title">Adjust Google user credits</h4>
+                        <p id="so-google-credits-email-label" class="so-admin-muted"></p>
+                        <p id="so-google-credits-balance-label" class="so-admin-muted"></p>
+                        <label style="margin-top:12px;"><span class="admin-settings-field-label">Amount</span>
+                            <input id="so-google-credits-amount" type="number" min="0" step="1" placeholder="Credits"></label>
+                        <div class="so-modal-actions" style="flex-wrap:wrap;">
+                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoGoogleTrialCredits('add')">Add credits</button>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('remove')">Remove</button>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="confirmSoGoogleTrialCredits('set')">Set limit</button>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoGoogleTrialCredits()">Cancel</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Add credits modal (mobile-safe, no prompt) -->
@@ -4555,7 +4572,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=4.6"></script>
+    <script src="js/shipping-optimizer-admin.js?v=4.8"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
