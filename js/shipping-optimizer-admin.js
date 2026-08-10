@@ -181,12 +181,31 @@
             : `Save ₹${roundedSave.toLocaleString('en-IN')}`;
     }
 
+    /** % off vs ₹2/credit base for add-on badge defaults. */
+    function soAddonPctOffLabel(credits, price, basePpc) {
+        const cr = Math.max(1, parseInt(credits, 10) || 1);
+        const pr = Math.max(0, parseInt(price, 10) || 0);
+        const base = Number(basePpc) || DEFAULT_CREDITS.price_per_credit || 2;
+        if (!pr || !cr) return '';
+        const ppc = pr / cr;
+        if (ppc < base * 0.99) {
+            const pct = Math.round((1 - ppc / base) * 100);
+            if (pct > 0) return `${pct}% off`;
+        }
+        return '';
+    }
+
     /** Built-in credit add-on with customer-facing subtitle (shown under plan in extension). */
     function soDefaultCreditAddon(id, credits, price, extra) {
         const ex = extra || {};
         const cr = Math.max(1, parseInt(credits, 10) || 1);
         const pr = Math.max(0, parseInt(price, 10) || 0);
         const perCredit = pr > 0 && cr > 0 ? (pr / cr).toFixed(2) : '';
+        const pctBadge = soAddonPctOffLabel(cr, pr);
+        const defaultBadges = ex.offer_badges || [
+            ...(pctBadge ? [pctBadge] : []),
+            `+${cr}`
+        ].filter(Boolean);
         return soNormalizeCreditAddon({
             id,
             credits: cr,
@@ -196,6 +215,7 @@
             description: ex.description || (perCredit
                 ? `Add ${cr} credits at checkout — ₹${pr} total (₹${perCredit}/credit). Stacks on your plan included credits.`
                 : `Add ${cr} credits at checkout — stacks on plan included credits.`),
+            offer_badges: defaultBadges,
             active: ex.active !== false,
             default_selected: ex.default_selected === true,
             order: ex.order != null ? ex.order : 0
@@ -223,10 +243,12 @@
                 credit_addons: [
                     soDefaultCreditAddon('addon_10', 10, 20, {
                         order: 0,
+                        offer_badges: ['+10'],
                         description: 'Quick boost — 10 extra generation runs added to your monthly plan at checkout.'
                     }),
                     soDefaultCreditAddon('addon_25', 25, 40, {
                         order: 1,
+                        offer_badges: ['Popular', '20% off', '+25'],
                         description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 for 10-pack).'
                     })
                 ],
@@ -262,10 +284,12 @@
                 credit_addons: [
                     soDefaultCreditAddon('addon_25', 25, 40, {
                         order: 0,
+                        offer_badges: ['20% off', '+25'],
                         description: 'Add 25 credits when buying the 3-month plan — stacks on 600 included credits.'
                     }),
                     soDefaultCreditAddon('addon_50', 50, 70, {
                         order: 1,
+                        offer_badges: ['30% off', '+50'],
                         description: 'Add 50 credits at checkout — best add-on value for quarterly plan (₹1.40/credit).'
                     })
                 ],
@@ -296,6 +320,7 @@
                 credit_addons: [
                     soDefaultCreditAddon('addon_50', 50, 70, {
                         order: 0,
+                        offer_badges: ['30% off', '+50'],
                         description: 'Optional +50 credits when buying the 6-month plan — pick one add-on at checkout.'
                     })
                 ],
@@ -322,9 +347,10 @@
                 included_credits: yCredits,
                 allow_credit_addons: true, max_addon_selections: 2,
                 credit_addons: [
-                    soDefaultCreditAddon('addon_25', 25, 40, { order: 0, default_selected: false }),
+                    soDefaultCreditAddon('addon_25', 25, 40, { order: 0, default_selected: false, offer_badges: ['20% off', '+25'] }),
                     soDefaultCreditAddon('addon_50', 50, 70, {
                         order: 1,
+                        offer_badges: ['30% off', '+50'],
                         default_selected: false,
                         description: 'Optional +50 credits — pick up to 2 add-ons when buying the yearly plan.'
                     })
@@ -380,6 +406,13 @@
         min_purchase: 10,
         cost_per_operation: 1
     };
+
+    const DEFAULT_ADDON_CATALOG = [
+        { id: 'addon_10', credits: 10, price: 20, name: '+10 Credits', label: '+10 credits', card_subtitle: '10 credits · ₹20', offer_badges: ['+10'], active: true, order: 0 },
+        { id: 'addon_25', credits: 25, price: 40, name: '+25 Credits', label: '+25 credits', card_subtitle: '25 credits · ₹40', offer_badges: ['Popular', '20% off', '+25'], active: true, order: 1 },
+        { id: 'addon_50', credits: 50, price: 70, name: '+50 Credits', label: '+50 credits', card_subtitle: '50 credits · ₹70', offer_badges: ['30% off', '+50'], active: true, order: 2 },
+        { id: 'addon_100', credits: 100, price: 170, name: '+100 Credits', label: '+100 credits', card_subtitle: '100 credits · best value', offer_badges: ['Best value', '15% off', '+100'], active: true, order: 3 }
+    ];
 
     const DEFAULT_IMAGE_GENERATION = {
         enabled: true,
@@ -490,6 +523,7 @@
             demo_keys: soDeepClone(DEFAULT_INLINE_DEMO_KEYS),
             credits: Object.assign({}, DEFAULT_CREDITS, {
                 packs: soDeepClone(DEFAULT_CREDIT_PACKS),
+                addon_catalog: soDeepClone(DEFAULT_ADDON_CATALOG),
                 image_generation: soDeepClone(DEFAULT_IMAGE_GENERATION)
             }),
             smart_mode: soDeepClone(DEFAULT_SMART_MODE),
@@ -728,7 +762,10 @@
             const secCount = (p.detail_sections || []).length;
             const addons = (p.credit_addons || []).filter(a => a.active !== false);
             const addonsHtml = addons.length
-                ? `<div class="so-defaults-addon-list">${addons.map(a => `<div class="so-defaults-addon-row"><strong>${soEsc(a.label)}</strong> · ${soEsc(a.card_subtitle || `${a.credits} credits · ₹${a.price}`)}${a.description ? `<span class="so-admin-muted"> — ${soEsc(a.description)}</span>` : ''}</div>`).join('')}</div>`
+                ? `<div class="so-defaults-addon-list">${addons.map(a => {
+                    const ab = (a.offer_badges || []).map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join('');
+                    return `<div class="so-defaults-addon-row"><strong>${soEsc(a.label)}</strong> · ${soEsc(a.card_subtitle || `${a.credits} credits · ₹${a.price}`)}${ab ? ` ${ab}` : ''}${a.description ? `<span class="so-admin-muted"> — ${soEsc(a.description)}</span>` : ''}</div>`;
+                }).join('')}</div>`
                 : '';
             return `<div class="so-defaults-plan-card">
                 <div class="so-defaults-plan-head">
@@ -752,7 +789,10 @@
         const planAddonsSummary = plans.map(p => {
             const addons = (p.credit_addons || []).filter(a => a.active !== false);
             if (!addons.length) return '';
-            return `<div class="so-defaults-addon-plan"><strong>${soEsc(p.name)}</strong>${addons.map(a => `<div class="so-defaults-addon-row">${soEsc(a.label)} · ${soEsc(a.card_subtitle)} · maps to license <code>addon_credits</code> on activation</div>`).join('')}</div>`;
+            return `<div class="so-defaults-addon-plan"><strong>${soEsc(p.name)}</strong>${addons.map(a => {
+                const badges = (a.offer_badges || []).map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join(' ');
+                return `<div class="so-defaults-addon-row">${soEsc(a.label)} · ${soEsc(a.card_subtitle)}${badges ? ` · ${badges}` : ''} · maps to <code>addon_credits</code></div>`;
+            }).join('')}</div>`;
         }).filter(Boolean).join('');
 
         const packsHtml = packs.map(p => `
@@ -1431,6 +1471,11 @@
         a.card_subtitle = String(a.card_subtitle || a.cardSubtitle || '').trim();
         if (!a.card_subtitle) a.card_subtitle = `${a.credits} credits · ₹${a.price}`;
         a.description = String(a.description || '').trim();
+        a.offer_badges = Array.isArray(a.offer_badges)
+            ? a.offer_badges.map(b => String(b || '').trim()).filter(Boolean)
+            : (typeof a.offer_badges === 'string' && a.offer_badges.trim()
+                ? a.offer_badges.split(/[\n,]+/).map(b => b.trim()).filter(Boolean)
+                : []);
         a.active = a.active !== false;
         a.default_selected = a.default_selected === true;
         a.order = Number.isFinite(Number(a.order)) ? Number(a.order) : index;
@@ -1492,6 +1537,7 @@
                 label: get('label'),
                 card_subtitle: get('card_subtitle'),
                 description: get('description'),
+                offer_badges: soParsePlanFeaturesText(get('offer_badges_text')),
                 active: get('active'),
                 default_selected: get('default_selected'),
                 order: idx
@@ -1508,6 +1554,7 @@
                 <label><span>Button label</span><input type="text" data-addon-field="label" value="${soAttr(addon.label || '')}" placeholder="+50 credits" oninput="soMarkTabDirty('config')"></label>
                 <label class="so-field-full"><span>Card subtitle (extension)</span><input type="text" data-addon-field="card_subtitle" value="${soAttr(addon.card_subtitle || '')}" placeholder="25 credits · ₹40" oninput="soMarkTabDirty('config')"></label>
                 <label class="so-field-full"><span>Description (detail / admin)</span><input type="text" data-addon-field="description" value="${soAttr(addon.description || '')}" placeholder="Add 25 credits at checkout…" oninput="soMarkTabDirty('config')"></label>
+                <label class="so-field-full"><span>Offer badges (extension — one per line)</span><textarea rows="2" data-addon-field="offer_badges_text" placeholder="20% off&#10;+25" oninput="soMarkTabDirty('config')">${soEsc((addon.offer_badges || []).join('\n'))}</textarea></label>
                 <label class="so-plan-check"><input type="checkbox" data-addon-field="active" ${addon.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Active</label>
                 <label class="so-plan-check"><input type="checkbox" data-addon-field="default_selected" ${addon.default_selected ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Pre-select on new license</label>
                 <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoPlanCreditAddon(${planIdx}, ${addonIdx})">Remove</button>
@@ -1554,6 +1601,7 @@
                 };
                 if (a.card_subtitle) row.card_subtitle = a.card_subtitle;
                 if (a.description) row.description = a.description;
+                if (a.offer_badges && a.offer_badges.length) row.offer_badges = a.offer_badges.slice();
                 return row;
             });
         }
@@ -1967,7 +2015,32 @@
         };
     }
 
+    let soLicenseCreditsTotalDirty = false;
+
+    function soReadLicenseGrantTotal(plan, selectedIds, lic) {
+        const totalEl = document.getElementById('so-license-total-credits');
+        const manual = Math.max(0, parseInt(totalEl?.value, 10) || 0);
+        const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        if (soLicenseCreditsTotalDirty && manual > 0) return manual;
+        if (manual > 0 && manual !== breakdown.total) return manual;
+        return breakdown.total > 0 ? breakdown.total : manual;
+    }
+
+    window.soOnLicenseTotalCreditsChange = function() {
+        soLicenseCreditsTotalDirty = true;
+        const totalEl = document.getElementById('so-license-total-credits');
+        const balEl = document.getElementById('so-license-credits-balance');
+        const usedEl = document.getElementById('so-license-credits-used');
+        const total = Math.max(0, parseInt(totalEl?.value, 10) || 0);
+        const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
+        if (balEl && (!soEditingLicenseKey || total >= used)) {
+            balEl.value = Math.max(0, total - used);
+        }
+        soUpdateLicenseCreditsBreakdown();
+    };
+
     function soPrefillLicenseCreditsFromPlan(plan, selectedIds) {
+        soLicenseCreditsTotalDirty = false;
         const prefill = soCalculateLicenseCreditPrefill(plan, selectedIds);
         const includedEl = document.getElementById('so-license-included-credits');
         const addonEl = document.getElementById('so-license-addon-credits');
@@ -2031,28 +2104,32 @@
             return;
         }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        const grantTotal = soReadLicenseGrantTotal(plan, selectedIds, lic);
         const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
         const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
-        const grantTotal = breakdown.total > 0 ? breakdown.total : (bal + used);
-        const unused = Math.max(0, bal);
+        const planGrant = breakdown.total;
+        const bonus = grantTotal > planGrant ? grantTotal - planGrant : 0;
         if (!plan) {
             panel.textContent = '';
             return;
         }
         const billing = plan.billing_mode || 'subscription';
-        const grantLine = breakdown.total > 0
-            ? `<strong>Plan grant:</strong> ${breakdown.included} included + ${breakdown.addon} addon = <strong>${breakdown.total} total</strong>`
-            : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
-        const balanceLine = `<strong>Unused (balance):</strong> ${unused} · <strong>Used:</strong> ${used}` +
-            (grantTotal > 0 ? ` · <strong>Granted total:</strong> ${grantTotal}` : '');
-        const consistencyWarn = grantTotal > 0 && (unused + used) !== grantTotal
-            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${unused + used}) ≠ grant total (${grantTotal}). Adjust balance or used.</span>`
+        const grantLine = planGrant > 0
+            ? `<strong>Plan grant:</strong> ${breakdown.included} included + ${breakdown.addon} addon = <strong>${planGrant}</strong>`
+            + (bonus > 0 ? ` + <strong>${bonus} manual bonus</strong> = <strong>${grantTotal} total</strong>` : ` = <strong>${grantTotal} total</strong>`)
+            : grantTotal > 0
+                ? `<strong>Manual grant:</strong> <strong>${grantTotal} credits</strong> (no plan credits — customer support top-up)`
+                : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
+        const balanceLine = `<strong>Unused (balance):</strong> ${bal} · <strong>Used:</strong> ${used}` +
+            (grantTotal > 0 ? ` · <strong>Grant total:</strong> ${grantTotal}` : '');
+        const consistencyWarn = grantTotal > 0 && (bal + used) !== grantTotal
+            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${bal + used}) ≠ grant total (${grantTotal}). Adjust balance, used, or total.</span>`
             : '';
-        const activationHint = !soEditingLicenseKey && breakdown.total > 0
-            ? '<br><span class="so-admin-muted">New license: balance prefilled with full grant — customer starts with all credits unused.</span>'
+        const activationHint = !soEditingLicenseKey && grantTotal > 0
+            ? '<br><span class="so-admin-muted">New license: balance prefilled from grant total — edit <strong>Total</strong> for manual credit requests.</span>'
             : '';
-        const planHint = breakdown.total === 0 && (billing === 'hybrid' || billing === 'credits')
-            ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing so customers get credits on activation.</span>'
+        const planHint = planGrant === 0 && grantTotal === 0 && (billing === 'hybrid' || billing === 'credits')
+            ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing, or enter a manual <strong>Total</strong> for credit-only keys.</span>'
             : '';
         panel.innerHTML = `${grantLine}<br>${balanceLine}${consistencyWarn}${activationHint}${planHint}`;
         const includedEl = document.getElementById('so-license-included-credits');
@@ -2060,7 +2137,7 @@
         const totalEl = document.getElementById('so-license-total-credits');
         if (includedEl) includedEl.value = breakdown.included;
         if (addonEl) addonEl.value = breakdown.addon;
-        if (totalEl) totalEl.value = breakdown.total;
+        if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal > 0 ? grantTotal : planGrant;
     };
 
     function soValidatePlans(plans) {
@@ -6322,14 +6399,21 @@
 
     function soBuildLicenseCreditFields(plan, formFields) {
         const selectedIds = formFields.addon_credit_ids || [];
-        const calc = plan ? soCalculatePlanCredits(plan, selectedIds) : { included: 0, addon: 0, total: formFields.credits_balance };
+        const calc = plan ? soCalculatePlanCredits(plan, selectedIds) : { included: 0, addon: 0, total: 0 };
+        const grantTotal = Math.max(0, parseInt(document.getElementById('so-license-total-credits')?.value, 10) || 0);
+        const planTotal = calc.total;
+        const effectiveTotal = grantTotal > 0 ? grantTotal : planTotal;
         const out = {
             included_credits: calc.included,
             addon_credits: calc.addon,
             addon_credit_ids: selectedIds
         };
-        if (!soIsUnlimitedCredits(plan) && !soIsUnlimitedCredits(formFields)) {
-            out.credits_balance = formFields.credits_balance != null ? formFields.credits_balance : calc.total;
+        if (effectiveTotal > planTotal) out.bonus_credits = effectiveTotal - planTotal;
+        if (!soIsUnlimitedCredits(plan) && !formFields.unlimited_credits) {
+            const used = Math.max(0, parseInt(formFields.credits_used, 10) || 0);
+            out.credits_balance = formFields.credits_balance != null
+                ? Math.max(0, parseInt(formFields.credits_balance, 10) || 0)
+                : Math.max(0, effectiveTotal - used);
         }
         return out;
     }
@@ -6404,6 +6488,7 @@
         if (locEl) locEl.value = soGuessAdminLocation();
         const ipEl = document.getElementById('so-license-customer-ip');
         if (ipEl) ipEl.value = '';
+        soLicenseCreditsTotalDirty = false;
         document.getElementById('so-license-support-notes').value = '';
         document.getElementById('so-license-max-devices').value = '';
         document.getElementById('so-license-credits-balance').value = '0';
@@ -6435,8 +6520,15 @@
         const totalEl = document.getElementById('so-license-total-credits');
         if (includedEl) includedEl.value = lic.included_credits != null ? lic.included_credits : 0;
         if (addonEl) addonEl.value = lic.addon_credits != null ? lic.addon_credits : 0;
-        const grantTotal = (parseInt(lic.included_credits, 10) || 0) + (parseInt(lic.addon_credits, 10) || 0);
-        if (totalEl) totalEl.value = grantTotal > 0 ? grantTotal : ((parseInt(lic.credits_balance, 10) || 0) + (parseInt(lic.credits_used, 10) || 0));
+        const grantTotal = (parseInt(lic.included_credits, 10) || 0)
+            + (parseInt(lic.addon_credits, 10) || 0)
+            + (parseInt(lic.bonus_credits, 10) || 0);
+        soLicenseCreditsTotalDirty = false;
+        if (totalEl) {
+            totalEl.value = grantTotal > 0
+                ? grantTotal
+                : ((parseInt(lic.credits_balance, 10) || 0) + (parseInt(lic.credits_used, 10) || 0));
+        }
         soSetLicenseUnlimitedCheckboxes(lic);
         const addonIds = Array.isArray(lic.addon_credit_ids) ? lic.addon_credit_ids
             : (Array.isArray(lic.addonCreditIds) ? lic.addonCreditIds : []);
