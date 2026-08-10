@@ -227,6 +227,40 @@
         }, ex.order || 0);
     }
 
+    const DEFAULT_ADDON_CATALOG = [
+        soDefaultCreditAddon('addon_10', 10, 20, {
+            order: 0,
+            offer_badges: ['+10'],
+            description: 'Quick boost — 10 extra generation runs added at checkout. Stacks on plan included credits.',
+            card_subtitle: '10 credits · ₹20'
+        }),
+        soDefaultCreditAddon('addon_25', 25, 40, {
+            order: 1,
+            offer_badges: ['Popular', '20% off', '+25'],
+            description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 base).',
+            card_subtitle: '25 credits · ₹40'
+        }),
+        soDefaultCreditAddon('addon_50', 50, 70, {
+            order: 2,
+            offer_badges: ['30% off', '+50'],
+            save: 'Save ₹30 vs 5×10',
+            description: 'Add 50 credits at checkout — best mid-tier value (₹1.40/credit).',
+            card_subtitle: '50 credits · ₹70'
+        }),
+        soDefaultCreditAddon('addon_100', 100, 170, {
+            order: 3,
+            offer_badges: ['Best value', '15% off', '+100'],
+            save: 'Save ₹30 vs pack rate',
+            best: true,
+            description: 'Largest add-on pack — lowest ₹/credit for subscription checkout top-ups.',
+            card_subtitle: '100 credits · best value'
+        })
+    ];
+
+    function soCloneDefaultPlanAddons() {
+        return soDeepClone(DEFAULT_ADDON_CATALOG);
+    }
+
     function soBuildDefaultPlans() {
         const mk = (plan) => Object.assign({ active: true, show_whatsapp_icon: true, show_details_icon: true, cta_text: 'Buy via WhatsApp', card_hint: 'Tap ℹ️ for details · Tap card for WhatsApp' }, plan);
         const qPrice = soCalcDefaultPlanPrice('quarterly', 90);
@@ -347,8 +381,18 @@
             return soBuildDefaultPlans();
         } catch (err) {
             console.error('[Shipping Optimizer] Default plans init failed:', err);
-            return [];
+            return [
+                { id: 'monthly', name: 'Monthly', price: SO_DEFAULT_MONTHLY_PRICE, days: 30, duration: '1 Month', included_credits: SO_CREDIT_MONTHLY_GRANT, active: true, order: 0 },
+                { id: 'quarterly', name: '3 Months', price: 549, days: 90, duration: '3 Months', included_credits: 600, active: true, order: 1 },
+                { id: 'halfyearly', name: '6 Months', price: 1045, days: 180, duration: '6 Months', included_credits: 1200, active: true, order: 2 },
+                { id: 'yearly', name: 'Yearly', price: 1980, days: 365, duration: '1 Year', included_credits: 2400, best: true, active: true, order: 3 }
+            ];
         }
+    }
+
+    function soGetDefaultPlansCopy() {
+        const src = DEFAULT_PLANS.length ? DEFAULT_PLANS : soSafeBuildDefaultPlans();
+        return soDeepClone(src);
     }
 
     const DEFAULT_PLANS = soSafeBuildDefaultPlans();
@@ -382,40 +426,6 @@
         min_purchase: 10,
         cost_per_operation: 1
     };
-
-    const DEFAULT_ADDON_CATALOG = [
-        soDefaultCreditAddon('addon_10', 10, 20, {
-            order: 0,
-            offer_badges: ['+10'],
-            description: 'Quick boost — 10 extra generation runs added at checkout. Stacks on plan included credits.',
-            card_subtitle: '10 credits · ₹20'
-        }),
-        soDefaultCreditAddon('addon_25', 25, 40, {
-            order: 1,
-            offer_badges: ['Popular', '20% off', '+25'],
-            description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 base).',
-            card_subtitle: '25 credits · ₹40'
-        }),
-        soDefaultCreditAddon('addon_50', 50, 70, {
-            order: 2,
-            offer_badges: ['30% off', '+50'],
-            save: 'Save ₹30 vs 5×10',
-            description: 'Add 50 credits at checkout — best mid-tier value (₹1.40/credit).',
-            card_subtitle: '50 credits · ₹70'
-        }),
-        soDefaultCreditAddon('addon_100', 100, 170, {
-            order: 3,
-            offer_badges: ['Best value', '15% off', '+100'],
-            save: 'Save ₹30 vs pack rate',
-            best: true,
-            description: 'Largest add-on pack — lowest ₹/credit for subscription checkout top-ups.',
-            card_subtitle: '100 credits · best value'
-        })
-    ];
-
-    function soCloneDefaultPlanAddons() {
-        return soDeepClone(DEFAULT_ADDON_CATALOG);
-    }
 
     const DEFAULT_IMAGE_GENERATION = {
         enabled: true,
@@ -3855,7 +3865,7 @@
         if (soActiveTab === 'config') {
             const rawPlans = Array.isArray(soConfig?.plans) && soConfig.plans.length
                 ? soConfig.plans
-                : DEFAULT_PLANS.slice();
+                : soGetDefaultPlansCopy();
             soPlans = soSortPlans(rawPlans.map(soNormalizePlan));
             soPlans.forEach((p, i) => { p.order = i; });
             if (soConfig?.demo_keys && typeof soConfig.demo_keys === 'object') {
@@ -4037,7 +4047,10 @@
         }
         const rawPlans = Array.isArray(soConfig.plans) && soConfig.plans.length
             ? soConfig.plans
-            : DEFAULT_PLANS.slice();
+            : soGetDefaultPlansCopy();
+        if (Array.isArray(soConfig.plans) && soConfig.plans.length === 0) {
+            console.warn('[Shipping Optimizer] Firebase plans[] is empty — using built-in ₹199 defaults');
+        }
         soPlans = soSortPlans(rawPlans.map(soNormalizePlan));
         soPlans.forEach((p, i) => { p.order = i; });
         soPopulateLicensePlanSelect();
@@ -4078,6 +4091,8 @@
         soHydrating = false;
         if (configWasEmpty) {
             soToast('Config doc empty — forms pre-filled with recommended defaults. Tap Save to Firebase when ready.');
+        } else if (Array.isArray(soConfig.plans) && soConfig.plans.length === 0 && soPlans.length) {
+            soToast('Firebase plans[] was empty — showing built-in ₹199 defaults. Save to Firebase to restore.');
         }
     }
 
