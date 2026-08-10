@@ -28,6 +28,8 @@
     const SO_CREDIT_VOLUME_RATE = 200;
     /** Included credits on the monthly plan (= SO_CREDIT_VOLUME_RATE). */
     const SO_CREDIT_MONTHLY_GRANT = 200;
+    /** Base ₹/credit for add-on % off badges and standalone credit packs (must be defined before default plan builders). */
+    const SO_BASE_CREDIT_PRICE = 2;
 
     /**
      * Price discounts per tier (credits stay at 200×months unless creditsPct is set).
@@ -185,7 +187,7 @@
     function soAddonPctOffLabel(credits, price, basePpc) {
         const cr = Math.max(1, parseInt(credits, 10) || 1);
         const pr = Math.max(0, parseInt(price, 10) || 0);
-        const base = Number(basePpc) || DEFAULT_CREDITS.price_per_credit || 2;
+        const base = Number(basePpc) || SO_BASE_CREDIT_PRICE;
         if (!pr || !cr) return '';
         const ppc = pr / cr;
         if (ppc < base * 0.99) {
@@ -375,7 +377,16 @@
         ];
     }
 
-    const DEFAULT_PLANS = soBuildDefaultPlans();
+    function soSafeBuildDefaultPlans() {
+        try {
+            return soBuildDefaultPlans();
+        } catch (err) {
+            console.error('[Shipping Optimizer] Default plans init failed:', err);
+            return [];
+        }
+    }
+
+    const DEFAULT_PLANS = soSafeBuildDefaultPlans();
 
     const SO_DEFAULT_LICENSE_PLAN_ID = 'monthly';
 
@@ -402,7 +413,7 @@
 
     const DEFAULT_CREDITS = {
         enabled: true,
-        price_per_credit: 2,
+        price_per_credit: SO_BASE_CREDIT_PRICE,
         min_purchase: 10,
         cost_per_operation: 1
     };
