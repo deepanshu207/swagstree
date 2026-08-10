@@ -28,6 +28,8 @@
     const SO_CREDIT_VOLUME_RATE = 200;
     /** Included credits on the monthly plan (= SO_CREDIT_VOLUME_RATE). */
     const SO_CREDIT_MONTHLY_GRANT = 200;
+    /** Base ₹/credit for add-on % off badges and standalone credit packs (must be defined before default plan builders). */
+    const SO_BASE_CREDIT_PRICE = 2;
 
     /**
      * Price discounts per tier (credits stay at 200×months unless creditsPct is set).
@@ -181,12 +183,31 @@
             : `Save ₹${roundedSave.toLocaleString('en-IN')}`;
     }
 
+    /** % off vs ₹2/credit base for add-on badge defaults. */
+    function soAddonPctOffLabel(credits, price, basePpc) {
+        const cr = Math.max(1, parseInt(credits, 10) || 1);
+        const pr = Math.max(0, parseInt(price, 10) || 0);
+        const base = Number(basePpc) || SO_BASE_CREDIT_PRICE;
+        if (!pr || !cr) return '';
+        const ppc = pr / cr;
+        if (ppc < base * 0.99) {
+            const pct = Math.round((1 - ppc / base) * 100);
+            if (pct > 0) return `${pct}% off`;
+        }
+        return '';
+    }
+
     /** Built-in credit add-on with customer-facing subtitle (shown under plan in extension). */
     function soDefaultCreditAddon(id, credits, price, extra) {
         const ex = extra || {};
         const cr = Math.max(1, parseInt(credits, 10) || 1);
         const pr = Math.max(0, parseInt(price, 10) || 0);
         const perCredit = pr > 0 && cr > 0 ? (pr / cr).toFixed(2) : '';
+        const pctBadge = soAddonPctOffLabel(cr, pr);
+        const defaultBadges = ex.offer_badges || [
+            ...(pctBadge ? [pctBadge] : []),
+            `+${cr}`
+        ].filter(Boolean);
         return soNormalizeCreditAddon({
             id,
             credits: cr,
@@ -196,6 +217,10 @@
             description: ex.description || (perCredit
                 ? `Add ${cr} credits at checkout — ₹${pr} total (₹${perCredit}/credit). Stacks on your plan included credits.`
                 : `Add ${cr} credits at checkout — stacks on plan included credits.`),
+            offer_badges: defaultBadges,
+            save: ex.save,
+            best: ex.best,
+            name: ex.name,
             active: ex.active !== false,
             default_selected: ex.default_selected === true,
             order: ex.order != null ? ex.order : 0
@@ -220,24 +245,14 @@
                 included_credits: soCalcDefaultPlanCredits('monthly', 30),
                 allow_credit_addons: true,
                 max_addon_selections: 0,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_10', 10, 20, {
-                        order: 0,
-                        description: 'Quick boost — 10 extra generation runs added to your monthly plan at checkout.'
-                    }),
-                    soDefaultCreditAddon('addon_25', 25, 40, {
-                        order: 1,
-                        description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 for 10-pack).'
-                    })
-                ],
+                credit_addons: soCloneDefaultPlanAddons(),
                 offer_badges: ['Starter'],
                 description: 'Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.',
                 detail_subtitle: soPlanDetailSubtitle(30, soCalcDefaultPlanCredits('monthly', 30)),
-                highlights: ['200 credits included', '30 days access', 'Add-on credits at checkout'],
+                highlights: ['200 credits included', '30 days access', 'Smart Mode on Meesho'],
                 features: [
                     { icon: '📅', title: '30 days access', text: 'Renews every month' },
                     { icon: '⚡', title: '200 credits', text: 'One credit = one AI generation run' },
-                    { icon: '➕', title: 'Optional add-ons', text: '+10 or +25 credits when you buy via WhatsApp' },
                     { icon: '🚚', title: 'Smart Mode', text: 'Preview up to 200 variants per run' }
                 ],
                 detail_sections: [{
@@ -246,7 +261,7 @@
                 }, {
                     title: 'Already on Monthly?',
                     body: 'Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.',
-                    items: ['Credit packs stack on your license', 'Add-ons apply when purchasing a new monthly plan']
+                    items: ['Credit packs stack on your license', 'Optional add-ons are in the section below the plans']
                 }],
                 card_subtitle: soPlanCardSubtitle(SO_DEFAULT_MONTHLY_PRICE, 30, soCalcDefaultPlanCredits('monthly', 30)),
                 detail_footer: 'Credits deduct per generation run. Buy credit packs anytime from the popup while your plan is active.',
@@ -259,16 +274,7 @@
                 included_credits: qCredits,
                 allow_credit_addons: true,
                 max_addon_selections: 0,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_25', 25, 40, {
-                        order: 0,
-                        description: 'Add 25 credits when buying the 3-month plan — stacks on 600 included credits.'
-                    }),
-                    soDefaultCreditAddon('addon_50', 50, 70, {
-                        order: 1,
-                        description: 'Add 50 credits at checkout — best add-on value for quarterly plan (₹1.40/credit).'
-                    })
-                ],
+                credit_addons: soCloneDefaultPlanAddons(),
                 description: 'Three months of Smart Mode — 600 credits with a lower price than paying monthly three times.',
                 detail_subtitle: soPlanDetailSubtitle(90, qCredits),
                 highlights: [`${qCredits.toLocaleString('en-IN')} credits`, '90 days access', 'Lower price vs monthly'],
@@ -293,12 +299,7 @@
                 included_credits: hCredits,
                 allow_credit_addons: true,
                 max_addon_selections: 1,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_50', 50, 70, {
-                        order: 0,
-                        description: 'Optional +50 credits when buying the 6-month plan — pick one add-on at checkout.'
-                    })
-                ],
+                credit_addons: soCloneDefaultPlanAddons(),
                 description: `Half-year access for serious Meesho sellers — ${hCredits.toLocaleString('en-IN')} credits with 12.5% price discount.`,
                 detail_subtitle: soPlanDetailSubtitle(180, hCredits),
                 highlights: [`${hCredits.toLocaleString('en-IN')} credits`, '180 days access', '12.5% off price'],
@@ -321,21 +322,13 @@
                 unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
                 included_credits: yCredits,
                 allow_credit_addons: true, max_addon_selections: 2,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_25', 25, 40, { order: 0, default_selected: false }),
-                    soDefaultCreditAddon('addon_50', 50, 70, {
-                        order: 1,
-                        default_selected: false,
-                        description: 'Optional +50 credits — pick up to 2 add-ons when buying the yearly plan.'
-                    })
-                ],
-                description: `Best for full-time Meesho sellers — one year access with ${yCredits.toLocaleString('en-IN')} credits and optional add-ons at checkout.`,
+                credit_addons: soCloneDefaultPlanAddons(),
+                description: `Best for full-time Meesho sellers — one year access with ${yCredits.toLocaleString('en-IN')} credits.`,
                 detail_subtitle: soPlanDetailSubtitle(365, yCredits),
                 highlights: [`${yCredits.toLocaleString('en-IN')} credits`, '1 year access', 'BEST VALUE'],
                 features: [
                     { icon: '📅', title: '1 year access', text: 'Single annual payment' },
                     { icon: '⚡', title: `${yCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
-                    { icon: '➕', title: 'Credit add-ons', text: 'Pick +25 or +50 credits in popup' },
                     { icon: '🚚', title: 'Smart Mode', text: 'Use credits across the full year' }
                 ],
                 detail_sections: [
@@ -343,13 +336,22 @@
                     { title: 'Plan summary', body: `₹${yPrice.toLocaleString('en-IN')} for 1 year · ${yCredits.toLocaleString('en-IN')} credits included.${yDisc ? ` ${yDisc}.` : ''}`, items: [] }
                 ],
                 card_subtitle: soPlanCardSubtitle(yPrice, 365, yCredits),
-                detail_footer: 'Add-on credits included in WhatsApp purchase message when selected.',
+                detail_footer: 'Optional add-ons are selected in the section below the plans before WhatsApp checkout.',
                 order: 3
             })
         ];
     }
 
-    const DEFAULT_PLANS = soBuildDefaultPlans();
+    function soSafeBuildDefaultPlans() {
+        try {
+            return soBuildDefaultPlans();
+        } catch (err) {
+            console.error('[Shipping Optimizer] Default plans init failed:', err);
+            return [];
+        }
+    }
+
+    const DEFAULT_PLANS = soSafeBuildDefaultPlans();
 
     const SO_DEFAULT_LICENSE_PLAN_ID = 'monthly';
 
@@ -376,10 +378,44 @@
 
     const DEFAULT_CREDITS = {
         enabled: true,
-        price_per_credit: 2,
+        price_per_credit: SO_BASE_CREDIT_PRICE,
         min_purchase: 10,
         cost_per_operation: 1
     };
+
+    const DEFAULT_ADDON_CATALOG = [
+        soDefaultCreditAddon('addon_10', 10, 20, {
+            order: 0,
+            offer_badges: ['+10'],
+            description: 'Quick boost — 10 extra generation runs added at checkout. Stacks on plan included credits.',
+            card_subtitle: '10 credits · ₹20'
+        }),
+        soDefaultCreditAddon('addon_25', 25, 40, {
+            order: 1,
+            offer_badges: ['Popular', '20% off', '+25'],
+            description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 base).',
+            card_subtitle: '25 credits · ₹40'
+        }),
+        soDefaultCreditAddon('addon_50', 50, 70, {
+            order: 2,
+            offer_badges: ['30% off', '+50'],
+            save: 'Save ₹30 vs 5×10',
+            description: 'Add 50 credits at checkout — best mid-tier value (₹1.40/credit).',
+            card_subtitle: '50 credits · ₹70'
+        }),
+        soDefaultCreditAddon('addon_100', 100, 170, {
+            order: 3,
+            offer_badges: ['Best value', '15% off', '+100'],
+            save: 'Save ₹30 vs pack rate',
+            best: true,
+            description: 'Largest add-on pack — lowest ₹/credit for subscription checkout top-ups.',
+            card_subtitle: '100 credits · best value'
+        })
+    ];
+
+    function soCloneDefaultPlanAddons() {
+        return soDeepClone(DEFAULT_ADDON_CATALOG);
+    }
 
     const DEFAULT_IMAGE_GENERATION = {
         enabled: true,
@@ -474,6 +510,8 @@
         }
     ];
 
+    const SO_EXPORT_VERSION = 1;
+
     function soDeepClone(obj) {
         return JSON.parse(JSON.stringify(obj));
     }
@@ -490,6 +528,7 @@
             demo_keys: soDeepClone(DEFAULT_INLINE_DEMO_KEYS),
             credits: Object.assign({}, DEFAULT_CREDITS, {
                 packs: soDeepClone(DEFAULT_CREDIT_PACKS),
+                addon_catalog: soDeepClone(DEFAULT_ADDON_CATALOG),
                 image_generation: soDeepClone(DEFAULT_IMAGE_GENERATION)
             }),
             smart_mode: soDeepClone(DEFAULT_SMART_MODE),
@@ -607,6 +646,10 @@
         if (section === 'credits' || section === 'all') {
             const rawCredits = s.credits && typeof s.credits === 'object' ? s.credits : {};
             soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
+            const rawCatalog = Array.isArray(rawCredits.addon_catalog) && rawCredits.addon_catalog.length
+                ? rawCredits.addon_catalog
+                : DEFAULT_ADDON_CATALOG.slice();
+            soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
             const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
                 ? rawCredits.packs
                 : DEFAULT_CREDIT_PACKS.slice();
@@ -614,7 +657,7 @@
             soCreditPacks.forEach((p, i) => { p.order = i; });
             soSmartMode = soNormalizeSmartMode(s.smart_mode || DEFAULT_SMART_MODE);
             soConfig = Object.assign({}, soConfig || {}, {
-                credits: soCredits,
+                credits: Object.assign({}, soCredits, { packs: soCreditPacks.slice() }),
                 smart_mode: soSmartMode
             });
         }
@@ -638,6 +681,7 @@
             soBindImageGenerationForm();
             soBindSmartModeForm();
             renderSoCreditPacksEditor();
+            renderSoAddonCatalogEditor();
             soUpdateCustomCreditCalc();
         }
         if (section === 'google-trial' || section === 'all') {
@@ -717,6 +761,7 @@
         const seed = soGetDefaultAppSeed();
         const plans = (seed.plans || []).map((p, i) => soNormalizePlan(p, i));
         const packs = (seed.credits?.packs || []).map((p, i) => soNormalizeCreditPack(p, i));
+        const addonCatalog = (seed.credits?.addon_catalog || DEFAULT_ADDON_CATALOG).map((a, i) => soNormalizeCreditAddon(a, i));
         const trial = soNormalizeGoogleTrial(seed.google_trial || DEFAULT_GOOGLE_TRIAL);
 
         const plansHtml = plans.map(p => {
@@ -726,10 +771,6 @@
                 : '';
             const featCount = (p.features || []).length;
             const secCount = (p.detail_sections || []).length;
-            const addons = (p.credit_addons || []).filter(a => a.active !== false);
-            const addonsHtml = addons.length
-                ? `<div class="so-defaults-addon-list">${addons.map(a => `<div class="so-defaults-addon-row"><strong>${soEsc(a.label)}</strong> · ${soEsc(a.card_subtitle || `${a.credits} credits · ₹${a.price}`)}${a.description ? `<span class="so-admin-muted"> — ${soEsc(a.description)}</span>` : ''}</div>`).join('')}</div>`
-                : '';
             return `<div class="so-defaults-plan-card">
                 <div class="so-defaults-plan-head">
                     <strong>${soEsc(p.name)}</strong>
@@ -743,17 +784,23 @@
                 </div>
                 <div class="so-defaults-credits-formula"><strong>₹${(p.price || 0).toLocaleString('en-IN')}</strong> · <strong>${p.included_credits || 0} credits</strong> — ${soEsc(soExplainPlanPriceFormula(p.id, p.days))} · ${soEsc(soExplainPlanCreditsFormula(p.id, p.days))}${p.days > 30 ? ` · ${soEsc(soExplainPlanDiscount(p.id, p.days, p.price) || '')}` : ''}</div>
                 <div class="so-defaults-mini"><strong>Card:</strong> ${soEsc(p.card_subtitle || '')}</div>
-                ${addonsHtml}
                 <p class="so-admin-muted">${soEsc(p.description || '')}</p>
-                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections · ${addons.length} add-on(s)</div>
+                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections</div>
             </div>`;
         }).join('');
 
-        const planAddonsSummary = plans.map(p => {
-            const addons = (p.credit_addons || []).filter(a => a.active !== false);
-            if (!addons.length) return '';
-            return `<div class="so-defaults-addon-plan"><strong>${soEsc(p.name)}</strong>${addons.map(a => `<div class="so-defaults-addon-row">${soEsc(a.label)} · ${soEsc(a.card_subtitle)} · maps to license <code>addon_credits</code> on activation</div>`).join('')}</div>`;
-        }).filter(Boolean).join('');
+        const catalogHtml = addonCatalog.map(a => {
+            const badges = (a.offer_badges || []).map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join(' ');
+            return `<div class="so-defaults-addon-row"><strong>${soEsc(a.label)}</strong> · ${soEsc(a.card_subtitle || `${a.credits} credits · ₹${a.price}`)}${badges ? ` · ${badges}` : ''}</div>`;
+        }).join('');
+
+        const planAddonsSummary = addonCatalog.length
+            ? `<div class="so-defaults-section">
+                <h5><i class="fa fa-plus-circle"></i> Shared add-on catalog (<code>credits.addon_catalog</code>)</h5>
+                <p class="so-admin-muted">Per-plan <code>credit_addons[]</code> shown in plan detail (ℹ️). If empty, extension falls back to <code>credits.addon_catalog</code>. Bottom add-ons section uses the same resolved list.</p>
+                <div class="so-defaults-addon-list">${catalogHtml}</div>
+            </div>`
+            : '';
 
         const packsHtml = packs.map(p => `
             <div class="so-defaults-pack-row">
@@ -776,7 +823,7 @@
                     <div><strong>6 months:</strong> ${soExplainPlanPriceFormula('halfyearly', 180)} · <strong>${soExplainPlanCreditsFormula('halfyearly', 180)}</strong></div>
                     <div><strong>Yearly:</strong> ${soExplainPlanPriceFormula('yearly', 365)} · <strong>${soExplainPlanCreditsFormula('yearly', 365)}</strong></div>
                     <div class="so-admin-muted" style="margin-top:6px;">Price discounts are % off (monthly price × months). Credits = ${SO_CREDIT_VOLUME_RATE}×months unless you set <code>creditsPct</code> in tier config. Quarterly example: ₹549 vs ₹597 = ${soPlanPriceDiscount('quarterly', 90, soCalcDefaultPlanPrice('quarterly', 90)).pct}% off.</div>
-                    <div class="so-admin-muted">Monthly plan includes optional credit add-ons (+10/+25) at purchase. Existing customers on any plan can buy credit packs in the extension popup.</div>
+                    <div class="so-admin-muted">Plans ship with per-plan add-ons (same as catalog by default). Customize each plan or use <strong>Copy from shared catalog</strong> on Config tab. Bottom add-ons section uses plan add-ons, then catalog fallback.</div>
                 </div>
             </div>
 
@@ -833,6 +880,293 @@
             navigator.clipboard.writeText(text).then(() => soToast('Default seed JSON copied.')).catch(() => soToast('Copy failed.'));
         } else {
             soToast('Clipboard not available.');
+        }
+    };
+
+    function soGetAddonCatalogState() {
+        const raw = (soCredits && soCredits.addon_catalog) || (soConfig?.credits && soConfig.credits.addon_catalog);
+        if (Array.isArray(raw) && raw.length) {
+            return soSortCreditAddons(raw.map((a, i) => soNormalizeCreditAddon(a, i)));
+        }
+        return soDeepClone(DEFAULT_ADDON_CATALOG);
+    }
+
+    function soSerializeAddonCatalog(fromDom) {
+        const source = fromDom ? soReadAddonCatalogFromDom() : soGetAddonCatalogState();
+        return source.map((a, i) => soCreditAddonToFirestore(a, i));
+    }
+
+    function soBuildCreditsPayloadFromDom(packOverrides) {
+        const packsSource = packOverrides != null
+            ? packOverrides
+            : (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks);
+        return Object.assign({}, soCredits || DEFAULT_CREDITS, {
+            enabled: !!document.getElementById('so-credits-enabled')?.checked,
+            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
+            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
+            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+            image_generation: soReadImageGenerationFromDom(),
+            packs: packsSource.map((p, i) => soCreditPackToFirestore(p, i)),
+            addon_catalog: soSerializeAddonCatalog(true)
+        });
+    }
+
+    function soCreditAddonToFirestore(addon, index) {
+        const a = soNormalizeCreditAddon(addon, index);
+        const row = {
+            id: a.id,
+            credits: a.credits,
+            price: a.price,
+            label: a.label,
+            active: a.active !== false,
+            order: a.order != null ? a.order : index
+        };
+        if (a.card_subtitle) row.card_subtitle = a.card_subtitle;
+        if (a.description) row.description = a.description;
+        if (a.offer_badges && a.offer_badges.length) row.offer_badges = a.offer_badges.slice();
+        if (a.save) row.save = a.save;
+        if (a.best) row.best = true;
+        if (a.name) row.name = a.name;
+        if (a.default_selected) row.default_selected = true;
+        return row;
+    }
+
+    function soBuildConfigExportData(fromDom) {
+        return {
+            whatsapp_number: fromDom
+                ? String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, '')
+                : String(soConfig?.whatsapp_number || '').replace(/\D/g, ''),
+            whatsapp_message: fromDom
+                ? String(document.getElementById('so-whatsapp-message')?.value || '').trim()
+                : String(soConfig?.whatsapp_message || '').trim(),
+            extension_enabled: fromDom
+                ? !!document.getElementById('so-extension-enabled')?.checked
+                : soConfig?.extension_enabled !== false,
+            min_extension_version: fromDom
+                ? String(document.getElementById('so-min-version')?.value || DEFAULT_MIN_VERSION).trim()
+                : String(soConfig?.min_extension_version || DEFAULT_MIN_VERSION).trim(),
+            announcement: fromDom
+                ? String(document.getElementById('so-announcement')?.value || '').trim()
+                : String(soConfig?.announcement || '').trim(),
+            plans: soBuildPlansCanonical(fromDom),
+            support: soBuildSupportCanonical(fromDom),
+            demo_keys: soBuildInlineDemoCanonical(fromDom)
+        };
+    }
+
+    function soBuildCreditsExportData(fromDom) {
+        const canonical = soBuildCreditsCanonicalObject(fromDom);
+        return {
+            credits: Object.assign({}, canonical, {
+                addon_catalog: soSerializeAddonCatalog(fromDom)
+            }),
+            smart_mode: fromDom
+                ? soSmartModeToFirestore(soReadSmartModeFromDom())
+                : soSmartModeToFirestore(soSmartMode || soConfig?.smart_mode || DEFAULT_SMART_MODE)
+        };
+    }
+
+    function soBuildFullExportData(fromDom) {
+        const cfg = soBuildConfigExportData(fromDom);
+        const cred = soBuildCreditsExportData(fromDom);
+        return Object.assign({}, cfg, {
+            credits: cred.credits,
+            smart_mode: cred.smart_mode,
+            google_trial: soGoogleTrialToFirestore(
+                fromDom ? soReadGoogleTrialFromDom() : soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL)
+            )
+        });
+    }
+
+    function soWrapExportEnvelope(scope, data) {
+        return {
+            so_export_version: SO_EXPORT_VERSION,
+            scope,
+            exported_at: new Date().toISOString(),
+            exported_by: soAuthEmail() || 'unknown',
+            project: 'extension-e6e32',
+            collection: `${SO_CONFIG_DOC}/${SO_CONFIG_ID}`,
+            note: 'Shipping Optimizer admin backup — does not include licenses, Google users, or demo_keys collection docs.',
+            data
+        };
+    }
+
+    function soDownloadJsonFile(filename, obj) {
+        const text = JSON.stringify(obj, null, 2);
+        const blob = new Blob([text], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            a.remove();
+        }, 0);
+    }
+
+    function soExportFilename(scope) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        return `shipping-optimizer-${scope}-${stamp}.json`;
+    }
+
+    window.soExportShippingOptimizer = function(scope, fromDom) {
+        if (!soRequireSuperAdmin()) return;
+        const useDom = fromDom !== false;
+        let data;
+        let fileScope = scope;
+        if (scope === 'config') {
+            data = soBuildConfigExportData(useDom);
+        } else if (scope === 'credits') {
+            data = soBuildCreditsExportData(useDom);
+        } else if (scope === 'full') {
+            data = soBuildFullExportData(useDom);
+            fileScope = 'full-app-config';
+        } else {
+            return soToast('Unknown export scope.');
+        }
+        const envelope = soWrapExportEnvelope(scope, data);
+        soDownloadJsonFile(soExportFilename(fileScope), envelope);
+        soToast(`Exported ${scope} backup (${useDom ? 'current forms' : 'loaded state'}).`);
+    };
+
+    function soUnwrapImportPayload(parsed, expectedScope) {
+        if (!parsed || typeof parsed !== 'object') {
+            throw new Error('Invalid JSON — expected an object.');
+        }
+        let scope = String(parsed.scope || parsed.so_scope || '').toLowerCase();
+        let data = parsed.data;
+        if (!data && (parsed.plans || parsed.credits || parsed.whatsapp_number)) {
+            data = parsed;
+            if (!scope) {
+                if (expectedScope) scope = expectedScope;
+                else if (parsed.credits || parsed.smart_mode) scope = 'credits';
+                else scope = 'config';
+            }
+        }
+        if (!data || typeof data !== 'object') {
+            throw new Error('Backup file has no data object.');
+        }
+        if (expectedScope && scope && scope !== expectedScope && scope !== 'full') {
+            throw new Error(`This file is for "${scope}" but you chose "${expectedScope}".`);
+        }
+        return { scope: scope || expectedScope || 'config', data };
+    }
+
+    function soApplyImportedConfigData(data) {
+        const seed = Object.assign({}, soGetDefaultAppSeed(), {
+            whatsapp_number: data.whatsapp_number,
+            whatsapp_message: data.whatsapp_message,
+            extension_enabled: data.extension_enabled,
+            min_extension_version: data.min_extension_version,
+            announcement: data.announcement,
+            plans: data.plans,
+            support: data.support,
+            demo_keys: data.demo_keys
+        });
+        soApplySeedSectionToState(seed, 'config');
+        soRefreshFormsAfterSeed('config');
+    }
+
+    function soApplyImportedCreditsData(data) {
+        const credits = data.credits && typeof data.credits === 'object' ? data.credits : data;
+        const seed = Object.assign({}, soGetDefaultAppSeed(), {
+            credits,
+            smart_mode: data.smart_mode || credits.smart_mode || DEFAULT_SMART_MODE
+        });
+        soApplySeedSectionToState(seed, 'credits');
+        soRefreshFormsAfterSeed('credits');
+    }
+
+    function soApplyImportedFullData(data) {
+        const seed = Object.assign({}, soGetDefaultAppSeed(), data);
+        soApplySeedSectionToState(seed, 'all');
+        if (data.google_trial) {
+            soConfig = Object.assign({}, soConfig || {}, {
+                google_trial: soGoogleTrialToFirestore(soNormalizeGoogleTrial(data.google_trial))
+            });
+        }
+        soRefreshFormsAfterSeed('all');
+        soBindGoogleTrialForm();
+    }
+
+    window.soTriggerImportShippingOptimizer = function(scope, mode) {
+        if (!soRequireSuperAdmin()) return;
+        const input = document.getElementById('so-import-backup-file');
+        if (!input) return soToast('Import input not found.');
+        input.dataset.soImportScope = scope || 'full';
+        input.dataset.soImportMode = mode || 'form';
+        input.value = '';
+        input.click();
+    };
+
+    window.soHandleImportShippingOptimizerFile = async function(input) {
+        if (!input || !input.files || !input.files[0]) return;
+        if (!soRequireSuperAdmin()) return;
+        const scope = input.dataset.soImportScope || 'full';
+        const mode = input.dataset.soImportMode || 'form';
+        const file = input.files[0];
+        let parsed;
+        try {
+            const text = await file.text();
+            parsed = JSON.parse(text);
+        } catch (e) {
+            return soToast('Import failed: ' + (e.message || 'Invalid JSON file.'));
+        }
+        let unwrapped;
+        try {
+            unwrapped = soUnwrapImportPayload(parsed, scope === 'full' ? '' : scope);
+        } catch (e) {
+            return soToast(e.message || 'Invalid backup file.');
+        }
+        const importScope = unwrapped.scope;
+        const label = importScope === 'full' ? 'full app config' : importScope;
+        const modeLabel = mode === 'firebase'
+            ? 'write directly to Firebase (merge)'
+            : 'load into admin forms only (review before Save)';
+        if (!confirm(
+            `Import ${label} backup from "${file.name}"?\n\n` +
+            `Mode: ${modeLabel}\n\n` +
+            'Licenses, Google users, and demo_keys collection are never changed by import.\n' +
+            'Unsaved form changes on affected tabs will be replaced.'
+        )) return;
+
+        try {
+            if (importScope === 'config') {
+                soApplyImportedConfigData(unwrapped.data);
+            } else if (importScope === 'credits') {
+                soApplyImportedCreditsData(unwrapped.data);
+            } else if (importScope === 'full') {
+                soApplyImportedFullData(unwrapped.data);
+            } else {
+                throw new Error('Unknown import scope: ' + importScope);
+            }
+
+            if (mode === 'firebase') {
+                if (!soRequireExtensionWrite()) return;
+                if (importScope === 'config') {
+                    await saveShippingOptimizerConfig();
+                } else if (importScope === 'credits') {
+                    await saveShippingOptimizerCredits();
+                } else if (importScope === 'full') {
+                    await soSaveAllCurrentAsDefaults();
+                }
+                soToast('Import applied and saved to Firebase.');
+            } else {
+                if (importScope === 'full') {
+                    soMarkTabDirty('config');
+                    soMarkTabDirty('credits');
+                } else {
+                    soMarkTabDirty(importScope);
+                }
+                soToast('Import loaded into forms — review, then Save to Firebase.');
+            }
+        } catch (e) {
+            soToast('Import failed: ' + (e.message || 'Unknown error'));
+        } finally {
+            input.value = '';
         }
     };
 
@@ -913,14 +1247,7 @@
         soCreditPacks = soReadCreditPacksFromDom();
         const general = soReadGeneralConfigFromDom();
         const demoKeysPayload = soReadInlineDemoKeysFromDom();
-        const creditsPayload = {
-            enabled: !!document.getElementById('so-credits-enabled')?.checked,
-            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
-            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
-            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
-            image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
-        };
+        const creditsPayload = soBuildCreditsPayloadFromDom(soCreditPacks);
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const googleTrialPayload = soGoogleTrialToFirestore(soReadGoogleTrialFromDom());
         return {
@@ -1132,6 +1459,7 @@
     const SO_DRAFT_SAVE_MS = 800;
     let soExpandedPlanIds = new Set();
     let soExpandedPackIds = new Set();
+    let soExpandedAddonCatalogIds = new Set();
     let soExpandedSmartOptionIdxs = new Set();
     let soExpandedLicenseKeys = new Set();
     let soOpenSections = new Set(['config-general', 'license-list', 'credits-smart-mode']);
@@ -1431,8 +1759,16 @@
         a.card_subtitle = String(a.card_subtitle || a.cardSubtitle || '').trim();
         if (!a.card_subtitle) a.card_subtitle = `${a.credits} credits · ₹${a.price}`;
         a.description = String(a.description || '').trim();
+        a.offer_badges = Array.isArray(a.offer_badges)
+            ? a.offer_badges.map(b => String(b || '').trim()).filter(Boolean)
+            : (typeof a.offer_badges === 'string' && a.offer_badges.trim()
+                ? a.offer_badges.split(/[\n,]+/).map(b => b.trim()).filter(Boolean)
+                : []);
         a.active = a.active !== false;
         a.default_selected = a.default_selected === true;
+        a.best = a.best === true;
+        if (a.save) a.save = String(a.save).trim();
+        if (a.name) a.name = String(a.name).trim();
         a.order = Number.isFinite(Number(a.order)) ? Number(a.order) : index;
         return a;
     }
@@ -1443,7 +1779,9 @@
 
     function soGetActivePlanCreditAddons(plan) {
         if (!plan || !plan.allow_credit_addons) return [];
-        return soSortCreditAddons((plan.credit_addons || []).filter(a => a.active !== false));
+        const planAddons = soSortCreditAddons((plan.credit_addons || []).filter(a => a.active !== false));
+        if (planAddons.length) return planAddons;
+        return soGetAddonCatalogState().filter(a => a.active !== false);
     }
 
     function soGetPlanIncludedCredits(plan) {
@@ -1492,6 +1830,7 @@
                 label: get('label'),
                 card_subtitle: get('card_subtitle'),
                 description: get('description'),
+                offer_badges: soParsePlanFeaturesText(get('offer_badges_text')),
                 active: get('active'),
                 default_selected: get('default_selected'),
                 order: idx
@@ -1508,6 +1847,7 @@
                 <label><span>Button label</span><input type="text" data-addon-field="label" value="${soAttr(addon.label || '')}" placeholder="+50 credits" oninput="soMarkTabDirty('config')"></label>
                 <label class="so-field-full"><span>Card subtitle (extension)</span><input type="text" data-addon-field="card_subtitle" value="${soAttr(addon.card_subtitle || '')}" placeholder="25 credits · ₹40" oninput="soMarkTabDirty('config')"></label>
                 <label class="so-field-full"><span>Description (detail / admin)</span><input type="text" data-addon-field="description" value="${soAttr(addon.description || '')}" placeholder="Add 25 credits at checkout…" oninput="soMarkTabDirty('config')"></label>
+                <label class="so-field-full"><span>Offer badges (extension — one per line)</span><textarea rows="2" data-addon-field="offer_badges_text" placeholder="20% off&#10;+25" oninput="soMarkTabDirty('config')">${soEsc((addon.offer_badges || []).join('\n'))}</textarea></label>
                 <label class="so-plan-check"><input type="checkbox" data-addon-field="active" ${addon.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Active</label>
                 <label class="so-plan-check"><input type="checkbox" data-addon-field="default_selected" ${addon.default_selected ? 'checked' : ''} onchange="soMarkTabDirty('config')"> Pre-select on new license</label>
                 <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoPlanCreditAddon(${planIdx}, ${addonIdx})">Remove</button>
@@ -1554,6 +1894,10 @@
                 };
                 if (a.card_subtitle) row.card_subtitle = a.card_subtitle;
                 if (a.description) row.description = a.description;
+                if (a.offer_badges && a.offer_badges.length) row.offer_badges = a.offer_badges.slice();
+                if (a.save) row.save = a.save;
+                if (a.best) row.best = true;
+                if (a.name) row.name = a.name;
                 return row;
             });
         }
@@ -1967,7 +2311,32 @@
         };
     }
 
+    let soLicenseCreditsTotalDirty = false;
+
+    function soReadLicenseGrantTotal(plan, selectedIds, lic) {
+        const totalEl = document.getElementById('so-license-total-credits');
+        const manual = Math.max(0, parseInt(totalEl?.value, 10) || 0);
+        const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        if (soLicenseCreditsTotalDirty && manual > 0) return manual;
+        if (manual > 0 && manual !== breakdown.total) return manual;
+        return breakdown.total > 0 ? breakdown.total : manual;
+    }
+
+    window.soOnLicenseTotalCreditsChange = function() {
+        soLicenseCreditsTotalDirty = true;
+        const totalEl = document.getElementById('so-license-total-credits');
+        const balEl = document.getElementById('so-license-credits-balance');
+        const usedEl = document.getElementById('so-license-credits-used');
+        const total = Math.max(0, parseInt(totalEl?.value, 10) || 0);
+        const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
+        if (balEl && (!soEditingLicenseKey || total >= used)) {
+            balEl.value = Math.max(0, total - used);
+        }
+        soUpdateLicenseCreditsBreakdown();
+    };
+
     function soPrefillLicenseCreditsFromPlan(plan, selectedIds) {
+        soLicenseCreditsTotalDirty = false;
         const prefill = soCalculateLicenseCreditPrefill(plan, selectedIds);
         const includedEl = document.getElementById('so-license-included-credits');
         const addonEl = document.getElementById('so-license-addon-credits');
@@ -2031,28 +2400,32 @@
             return;
         }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        const grantTotal = soReadLicenseGrantTotal(plan, selectedIds, lic);
         const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
         const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
-        const grantTotal = breakdown.total > 0 ? breakdown.total : (bal + used);
-        const unused = Math.max(0, bal);
+        const planGrant = breakdown.total;
+        const bonus = grantTotal > planGrant ? grantTotal - planGrant : 0;
         if (!plan) {
             panel.textContent = '';
             return;
         }
         const billing = plan.billing_mode || 'subscription';
-        const grantLine = breakdown.total > 0
-            ? `<strong>Plan grant:</strong> ${breakdown.included} included + ${breakdown.addon} addon = <strong>${breakdown.total} total</strong>`
-            : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
-        const balanceLine = `<strong>Unused (balance):</strong> ${unused} · <strong>Used:</strong> ${used}` +
-            (grantTotal > 0 ? ` · <strong>Granted total:</strong> ${grantTotal}` : '');
-        const consistencyWarn = grantTotal > 0 && (unused + used) !== grantTotal
-            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${unused + used}) ≠ grant total (${grantTotal}). Adjust balance or used.</span>`
+        const grantLine = planGrant > 0
+            ? `<strong>Plan grant:</strong> ${breakdown.included} included + ${breakdown.addon} addon = <strong>${planGrant}</strong>`
+            + (bonus > 0 ? ` + <strong>${bonus} manual bonus</strong> = <strong>${grantTotal} total</strong>` : ` = <strong>${grantTotal} total</strong>`)
+            : grantTotal > 0
+                ? `<strong>Manual grant:</strong> <strong>${grantTotal} credits</strong> (no plan credits — customer support top-up)`
+                : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
+        const balanceLine = `<strong>Unused (balance):</strong> ${bal} · <strong>Used:</strong> ${used}` +
+            (grantTotal > 0 ? ` · <strong>Grant total:</strong> ${grantTotal}` : '');
+        const consistencyWarn = grantTotal > 0 && (bal + used) !== grantTotal
+            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${bal + used}) ≠ grant total (${grantTotal}). Adjust balance, used, or total.</span>`
             : '';
-        const activationHint = !soEditingLicenseKey && breakdown.total > 0
-            ? '<br><span class="so-admin-muted">New license: balance prefilled with full grant — customer starts with all credits unused.</span>'
+        const activationHint = !soEditingLicenseKey && grantTotal > 0
+            ? '<br><span class="so-admin-muted">New license: balance prefilled from grant total — edit <strong>Total</strong> for manual credit requests.</span>'
             : '';
-        const planHint = breakdown.total === 0 && (billing === 'hybrid' || billing === 'credits')
-            ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing so customers get credits on activation.</span>'
+        const planHint = planGrant === 0 && grantTotal === 0 && (billing === 'hybrid' || billing === 'credits')
+            ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing, or enter a manual <strong>Total</strong> for credit-only keys.</span>'
             : '';
         panel.innerHTML = `${grantLine}<br>${balanceLine}${consistencyWarn}${activationHint}${planHint}`;
         const includedEl = document.getElementById('so-license-included-credits');
@@ -2060,7 +2433,7 @@
         const totalEl = document.getElementById('so-license-total-credits');
         if (includedEl) includedEl.value = breakdown.included;
         if (addonEl) addonEl.value = breakdown.addon;
-        if (totalEl) totalEl.value = breakdown.total;
+        if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal > 0 ? grantTotal : planGrant;
     };
 
     function soValidatePlans(plans) {
@@ -2877,10 +3250,7 @@
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const err = soValidateSmartMode(smartModePayload);
         if (err) return soToast(err);
-        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
-            image_generation: soReadImageGenerationFromDom(),
-            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => soCreditPackToFirestore(p, i))
-        });
+        const creditsPayload = soBuildCreditsPayloadFromDom();
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 smart_mode: smartModePayload,
@@ -2963,7 +3333,8 @@
                 : Math.max(1, parseInt(c.cost_per_operation, 10) || DEFAULT_CREDITS.cost_per_operation),
             image_generation: fromDom ? soReadImageGenerationFromDom() : soNormalizeImageGeneration(c.image_generation),
             smart_mode: fromDom ? soReadSmartModeFromDom() : soSmartModeToFirestore(soSmartMode || soConfig?.smart_mode || DEFAULT_SMART_MODE),
-            packs: packs.map((p, i) => soCreditPackToFirestore(p, i))
+            packs: packs.map((p, i) => soCreditPackToFirestore(p, i)),
+            addon_catalog: soSerializeAddonCatalog(fromDom)
         };
     }
 
@@ -3516,6 +3887,7 @@
             soBindImageGenerationForm();
             soBindSmartModeForm();
             renderSoCreditPacksEditor();
+            renderSoAddonCatalogEditor();
             soUpdateCustomCreditCalc();
         }
         soHydrating = false;
@@ -3671,6 +4043,10 @@
         soPopulateLicensePlanSelect();
         const rawCredits = soConfig.credits && typeof soConfig.credits === 'object' ? soConfig.credits : {};
         soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
+        const rawCatalog = Array.isArray(rawCredits.addon_catalog) && rawCredits.addon_catalog.length
+            ? rawCredits.addon_catalog
+            : DEFAULT_ADDON_CATALOG.slice();
+        soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
         const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
             ? rawCredits.packs
             : DEFAULT_CREDIT_PACKS.slice();
@@ -3696,6 +4072,7 @@
         soBindImageGenerationForm();
         soBindSmartModeForm();
         renderSoCreditPacksEditor();
+        renderSoAddonCatalogEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
         soHydrating = false;
@@ -4279,6 +4656,55 @@
         if (reactBtn) reactBtn.style.display = isActive ? 'none' : '';
     }
 
+    function soGoogleTrialRowViewModel(r, maxDevices) {
+        const used = soGoogleTrialImagesUsed(r);
+        const limit = soGoogleTrialImagesLimit(r);
+        const remaining = soGoogleTrialCreditsRemaining(r);
+        const active = r.active !== false;
+        const devices = soGoogleTrialDeviceCount(r);
+        const unlimitedTime = soGoogleTrialHasUnlimitedTimeRow(r);
+        const linkedKey = r.license_key || r.licenseKey || '';
+        const legacyCol = r._trialCollection === SO_GOOGLE_TRIALS_LEGACY_COL
+            ? '<span class="so-badge so-badge--meta">legacy collection</span>'
+            : '';
+        const accessLabel = unlimitedTime
+            ? '<span class="so-badge so-badge--on">No expiry</span>'
+            : soEsc(soFormatGoogleTrialExpiry(r));
+        const statusBadge = active
+            ? '<span class="so-badge so-badge--on">Active</span>'
+            : '<span class="so-badge so-badge--off">Revoked</span>';
+        const uid = r.uid || '';
+        const email = r.email || '—';
+        return {
+            uid,
+            email,
+            linkedKey,
+            legacyCol,
+            used,
+            limit,
+            remaining,
+            active,
+            devices,
+            maxDevices,
+            unlimitedTime,
+            accessLabel,
+            statusBadge,
+            created: soFormatGoogleTrialCreated(r),
+            balanceLabel: `${remaining} / ${limit || '—'}`,
+            devicesLabel: `${devices}/${maxDevices}`
+        };
+    }
+
+    function soRenderGoogleTrialActionsHtml(uid, active, email) {
+        return `
+            <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoGoogleTrialManage('${soAttr(uid)}')">Manage</button>
+            ${active
+                ? `<button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(uid)}')">Revoke</button>`
+                : ''}
+            <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevices('${soAttr(uid)}')">Reset devices</button>
+            <button type="button" class="so-btn-sm so-btn-touch" onclick="soLinkGoogleTrialToLicense('${soAttr(uid)}', '${soAttr(email || '')}')">Link license</button>`;
+    }
+
     function renderSoGoogleTrialsRegistry() {
         const container = document.getElementById('so-google-trials-list');
         const countEl = document.getElementById('so-google-trials-count');
@@ -4305,7 +4731,32 @@
             return;
         }
         container.innerHTML = `
-            <div class="so-google-trials-table-wrap">
+            <div class="so-google-trials-cards" role="list">
+                ${filtered.map(r => {
+                    const v = soGoogleTrialRowViewModel(r, maxDevices);
+                    const linked = v.linkedKey ? `<div class="so-google-trial-card-linked"><code>${soEsc(v.linkedKey)}</code></div>` : '';
+                    return `
+                    <article class="so-google-trial-card ${v.active ? '' : 'so-google-trial-card--revoked'}" role="listitem" onclick="openSoGoogleTrialManage('${soAttr(v.uid)}')" title="Tap to manage credits and access">
+                        <div class="so-google-trial-card-head">
+                            <div class="so-google-trial-card-email">${soEsc(v.email)}</div>
+                            <div class="so-google-trial-card-badges">${v.statusBadge}${v.legacyCol ? ` ${v.legacyCol}` : ''}</div>
+                        </div>
+                        ${linked}
+                        <dl class="so-google-trial-card-grid">
+                            <div><dt>Balance</dt><dd><strong>${soEsc(v.balanceLabel)}</strong></dd></div>
+                            <div><dt>Used</dt><dd>${soEsc(String(v.used))}</dd></div>
+                            <div><dt>Created</dt><dd>${soEsc(v.created)}</dd></div>
+                            <div><dt>Access</dt><dd>${v.accessLabel}</dd></div>
+                            <div><dt>Devices</dt><dd>${soEsc(v.devicesLabel)}</dd></div>
+                            <div class="so-google-trial-card-uid"><dt>UID</dt><dd><code>${soEsc(v.uid)}</code></dd></div>
+                        </dl>
+                        <div class="so-google-trial-card-actions" onclick="event.stopPropagation()">
+                            ${soRenderGoogleTrialActionsHtml(v.uid, v.active, v.email)}
+                        </div>
+                    </article>`;
+                }).join('')}
+            </div>
+            <div class="so-google-trials-table-wrap so-google-trials-table-wrap--desktop">
                 <table class="so-google-trials-table">
                     <thead>
                         <tr>
@@ -4322,36 +4773,20 @@
                     </thead>
                     <tbody>
                         ${filtered.map(r => {
-                            const used = soGoogleTrialImagesUsed(r);
-                            const limit = soGoogleTrialImagesLimit(r);
-                            const remaining = soGoogleTrialCreditsRemaining(r);
-                            const active = r.active !== false;
-                            const devices = soGoogleTrialDeviceCount(r);
-                            const unlimitedTime = soGoogleTrialHasUnlimitedTimeRow(r);
-                            const linkedKey = r.license_key || r.licenseKey || '';
-                            const legacyCol = r._trialCollection === SO_GOOGLE_TRIALS_LEGACY_COL
-                                ? '<br><span class="so-badge so-badge--meta">legacy collection</span>'
-                                : '';
-                            const accessLabel = unlimitedTime
-                                ? '<span class="so-badge so-badge--on">No expiry</span>'
-                                : soEsc(soFormatGoogleTrialExpiry(r));
+                            const v = soGoogleTrialRowViewModel(r, maxDevices);
+                            const legacyCol = v.legacyCol ? `<br>${v.legacyCol}` : '';
                             return `
-                            <tr class="so-google-trial-row ${active ? '' : 'so-google-trial-row--revoked'}" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')" title="Click to manage credits and access time">
-                                <td>${soEsc(r.email || '—')}${linkedKey ? `<br><code class="so-admin-muted">${soEsc(linkedKey)}</code>` : ''}${legacyCol}</td>
-                                <td><strong>${soEsc(String(remaining))}</strong> / ${soEsc(String(limit || '—'))}</td>
-                                <td>${soEsc(String(used))}</td>
-                                <td>${soEsc(soFormatGoogleTrialCreated(r))}</td>
-                                <td>${accessLabel}</td>
-                                <td>${soEsc(`${devices}/${maxDevices}`)}</td>
-                                <td>${active ? '<span class="so-badge so-badge--on">Active</span>' : '<span class="so-badge so-badge--off">Revoked</span>'}</td>
-                                <td><code class="so-admin-muted">${soEsc(r.uid || '')}</code></td>
-                                <td class="so-google-trials-actions" onclick="event.stopPropagation()">
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="openSoGoogleTrialManage('${soAttr(r.uid || '')}')">Manage</button>
-                                    ${active
-                                        ? `<button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soRevokeGoogleTrial('${soAttr(r.uid || '')}')">Revoke</button>`
-                                        : ''}
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevices('${soAttr(r.uid || '')}')">Reset devices</button>
-                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soLinkGoogleTrialToLicense('${soAttr(r.uid || '')}', '${soAttr(r.email || '')}')">Link license</button>
+                            <tr class="so-google-trial-row ${v.active ? '' : 'so-google-trial-row--revoked'}" onclick="openSoGoogleTrialManage('${soAttr(v.uid)}')" title="Click to manage credits and access time">
+                                <td data-label="Email">${soEsc(v.email)}${v.linkedKey ? `<br><code class="so-admin-muted">${soEsc(v.linkedKey)}</code>` : ''}${legacyCol}</td>
+                                <td data-label="Balance"><strong>${soEsc(String(v.remaining))}</strong> / ${soEsc(String(v.limit || '—'))}</td>
+                                <td data-label="Used">${soEsc(String(v.used))}</td>
+                                <td data-label="Created">${soEsc(v.created)}</td>
+                                <td data-label="Access">${v.accessLabel}</td>
+                                <td data-label="Devices">${soEsc(v.devicesLabel)}</td>
+                                <td data-label="Status">${v.statusBadge}</td>
+                                <td data-label="UID"><code class="so-admin-muted">${soEsc(v.uid)}</code></td>
+                                <td class="so-google-trials-actions" data-label="Actions" onclick="event.stopPropagation()">
+                                    ${soRenderGoogleTrialActionsHtml(v.uid, v.active, v.email)}
                                 </td>
                             </tr>`;
                         }).join('')}
@@ -4803,6 +5238,180 @@
     window.collapseAllSoCreditPacks = function() {
         soExpandedPackIds.clear();
         renderSoCreditPacksEditor();
+    };
+
+    function soGetAddonCatalogEditorList() {
+        const fromDom = soReadAddonCatalogFromDom();
+        if (fromDom.length) return fromDom;
+        return soGetAddonCatalogState();
+    }
+
+    function soReadAddonCatalogFromDom() {
+        const container = document.getElementById('so-addon-catalog-editor');
+        if (!container) return [];
+        const rows = container.querySelectorAll('.so-addon-catalog-row');
+        return Array.from(rows).map((row, idx) => {
+            const get = (field) => {
+                const el = row.querySelector(`[data-field="${field}"]`);
+                if (!el) return '';
+                if (el.type === 'checkbox') return el.checked;
+                return el.value;
+            };
+            return soNormalizeCreditAddon({
+                id: get('id'),
+                credits: get('credits'),
+                price: get('price'),
+                label: get('label'),
+                name: get('name'),
+                card_subtitle: get('card_subtitle'),
+                description: get('description'),
+                save: get('save'),
+                offer_badges: soParsePlanFeaturesText(get('offer_badges_text')),
+                active: get('active'),
+                best: get('best'),
+                default_selected: get('default_selected'),
+                order: idx
+            }, idx);
+        });
+    }
+
+    function soRenderAddonCatalogRowHtml(addon, idx) {
+        const open = soExpandedAddonCatalogIds.has(addon.id);
+        const priceLabel = '₹' + (addon.price || 0).toLocaleString('en-IN');
+        return `
+            <div class="so-plan-card so-addon-catalog-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-addon-catalog-idx="${idx}">
+                <div class="so-plan-card-head-wrap">
+                    <button type="button" class="so-plan-card-head" onclick="toggleSoAddonCatalogRow(${idx})" aria-expanded="${open ? 'true' : 'false'}">
+                        <span class="so-plan-order" aria-hidden="true">${idx + 1}</span>
+                        <div class="so-plan-card-summary">
+                            <div class="so-plan-card-title-row">
+                                <strong class="so-plan-card-name">${soEsc(addon.label || addon.id)}</strong>
+                                <span class="so-plan-card-price">${soEsc(priceLabel)}</span>
+                            </div>
+                            <div class="so-plan-card-meta">
+                                <code class="so-plan-id-tag">${soEsc(addon.id)}</code>
+                                <span class="so-meta-chip">${addon.credits} credits</span>
+                                ${addon.best ? '<span class="so-badge so-badge--on">Best</span>' : ''}
+                            </div>
+                            <div class="so-plan-card-badges">
+                                ${addon.active !== false ? '<span class="so-badge so-badge--on">Active</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                            </div>
+                        </div>
+                        <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="so-plan-reorder" onclick="event.stopPropagation()">
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoAddonCatalogItem(${idx}, -1)" title="Move up" aria-label="Move add-on up">▲</button>
+                        <button type="button" class="so-btn-icon so-btn-touch" onclick="moveSoAddonCatalogItem(${idx}, 1)" title="Move down" aria-label="Move add-on down">▼</button>
+                    </div>
+                </div>
+                <div class="so-plan-card-body" onclick="event.stopPropagation()">
+                    <div class="so-field-group">
+                        <div class="so-field-group-title"><i class="fa fa-plus-circle"></i> Add-on details</div>
+                        <div class="so-plan-fields so-plan-fields--basic">
+                            <label><span>Id (slug)</span><input type="text" data-field="id" value="${soAttr(addon.id)}" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Credits</span><input type="number" min="1" step="1" data-field="credits" value="${addon.credits}" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Price (INR)</span><input type="number" min="0" step="1" data-field="price" value="${addon.price}" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Button label</span><input type="text" data-field="label" value="${soAttr(addon.label || '')}" placeholder="+25 credits" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Name (optional)</span><input type="text" data-field="name" value="${soAttr(addon.name || '')}" placeholder="+25 Credits" oninput="soMarkTabDirty('credits')"></label>
+                            <label class="so-field-full"><span>Card subtitle (extension)</span><input type="text" data-field="card_subtitle" value="${soAttr(addon.card_subtitle || '')}" placeholder="25 credits · ₹40" oninput="soMarkTabDirty('credits')"></label>
+                            <label class="so-field-full"><span>Save line (optional)</span><input type="text" data-field="save" value="${soAttr(addon.save || '')}" placeholder="Save ₹30 vs 5×10" oninput="soMarkTabDirty('credits')"></label>
+                            <label class="so-field-full"><span>Description</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('credits')">${soEsc(addon.description || '')}</textarea></label>
+                            <label class="so-field-full"><span>Offer badges (one per line)</span><textarea rows="2" data-field="offer_badges_text" placeholder="Popular&#10;20% off" oninput="soMarkTabDirty('credits')">${soEsc((addon.offer_badges || []).join('\n'))}</textarea></label>
+                        </div>
+                        <div class="so-plan-flags so-plan-flags--simple">
+                            <label class="so-plan-check"><input type="checkbox" data-field="active" ${addon.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Active (shown in extension)</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="best" ${addon.best ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Best value badge</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="default_selected" ${addon.default_selected ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Pre-select on new license</label>
+                        </div>
+                    </div>
+                    <div class="so-plan-actions-bar">
+                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="removeSoAddonCatalogItem(${idx})"><i class="fa fa-trash"></i> Remove add-on</button>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function renderSoAddonCatalogEditor() {
+        const container = document.getElementById('so-addon-catalog-editor');
+        const countEl = document.getElementById('so-addon-catalog-count');
+        const catalog = soGetAddonCatalogState();
+        if (countEl) {
+            countEl.textContent = catalog.length === 1 ? '1 add-on' : `${catalog.length} add-ons`;
+        }
+        if (!container) return;
+        if (!catalog.length) {
+            container.innerHTML = '<p class="so-admin-muted">No add-ons in catalog yet. Tap + Add catalog item or Load defaults.</p>';
+            return;
+        }
+        container.innerHTML = catalog.map((addon, idx) => soRenderAddonCatalogRowHtml(addon, idx)).join('');
+    }
+
+    window.toggleSoAddonCatalogRow = function(idx) {
+        const catalog = soGetAddonCatalogEditorList();
+        const addon = catalog[idx];
+        if (!addon) return;
+        if (soExpandedAddonCatalogIds.has(addon.id)) soExpandedAddonCatalogIds.delete(addon.id);
+        else soExpandedAddonCatalogIds.add(addon.id);
+        renderSoAddonCatalogEditor();
+    };
+
+    window.expandAllSoAddonCatalog = function() {
+        soGetAddonCatalogEditorList().forEach(a => soExpandedAddonCatalogIds.add(a.id));
+        renderSoAddonCatalogEditor();
+    };
+
+    window.collapseAllSoAddonCatalog = function() {
+        soExpandedAddonCatalogIds.clear();
+        renderSoAddonCatalogEditor();
+    };
+
+    window.addSoAddonCatalogItem = function() {
+        const catalog = soReadAddonCatalogFromDom();
+        const next = catalog.length + 1;
+        const added = soNormalizeCreditAddon({
+            id: `addon_${next * 10}`,
+            credits: next * 10,
+            price: next * 20,
+            label: `+${next * 10} credits`,
+            active: true,
+            order: catalog.length
+        }, catalog.length);
+        if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+        soCredits.addon_catalog = catalog.concat([added]);
+        soExpandedAddonCatalogIds.add(added.id);
+        renderSoAddonCatalogEditor();
+        soMarkTabDirty('credits');
+    };
+
+    window.removeSoAddonCatalogItem = function(idx) {
+        const catalog = soReadAddonCatalogFromDom();
+        if (!catalog[idx]) return;
+        if (!confirm(`Remove add-on "${catalog[idx].label || catalog[idx].id}" from catalog?`)) return;
+        catalog.splice(idx, 1);
+        if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+        soCredits.addon_catalog = catalog;
+        renderSoAddonCatalogEditor();
+        soMarkTabDirty('credits');
+    };
+
+    window.moveSoAddonCatalogItem = function(idx, delta) {
+        const catalog = soReadAddonCatalogFromDom();
+        const next = idx + delta;
+        if (next < 0 || next >= catalog.length) return;
+        const tmp = catalog[idx];
+        catalog[idx] = catalog[next];
+        catalog[next] = tmp;
+        if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+        soCredits.addon_catalog = catalog;
+        renderSoAddonCatalogEditor();
+        soMarkTabDirty('credits');
+    };
+
+    window.saveShippingOptimizerAddonCatalog = async function() {
+        const catalog = soReadAddonCatalogFromDom();
+        if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+        soCredits.addon_catalog = catalog;
+        await soSaveTabToFirebase('credits');
     };
 
     function renderSoCreditPacksEditor() {
@@ -5317,14 +5926,7 @@
 
     window.saveShippingOptimizerCreditSettings = async function() {
         if (!soRequireExtensionWrite()) return;
-        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
-            enabled: !!document.getElementById('so-credits-enabled')?.checked,
-            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
-            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
-            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
-            image_generation: soReadImageGenerationFromDom(),
-            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => soCreditPackToFirestore(p, i))
-        });
+        const creditsPayload = soBuildCreditsPayloadFromDom();
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
@@ -5351,10 +5953,7 @@
         soCreditPacks = soReadCreditPacksFromDom();
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
-        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
-            image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
-        });
+        const creditsPayload = soBuildCreditsPayloadFromDom(soCreditPacks);
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
@@ -5542,7 +6141,7 @@
                     </div>
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-coins"></i> Credit add-ons (per plan)</div>
-                        <p class="so-field-group-hint">Optional extra credit bundles customers can buy with this plan. Extension shows these under the plan card.</p>
+                        <p class="so-field-group-hint">Optional extra credit bundles for this plan. Extension shows these in plan detail (ℹ️) and the bottom add-ons section. Leave empty to use the shared catalog from Credits tab.</p>
                         <div class="so-plan-flags so-plan-flags--simple">
                             ${soCheckboxInfoHtml('Allow credit add-ons', 'plan-allow-addons', 'allow_credit_addons', plan.allow_credit_addons, idx)}
                         </div>
@@ -5551,7 +6150,10 @@
                         <div class="so-plan-addon-list">
                             ${(plan.credit_addons || []).map((addon, aidx) => soRenderPlanCreditAddonRowHtml(addon, idx, aidx)).join('')}
                         </div>
-                        <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoPlanCreditAddon(${idx})">+ Add credit add-on</button>
+                        <div class="so-plan-addon-toolbar">
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoPlanCreditAddon(${idx})">+ Add credit add-on</button>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="soCopyPlanAddonsFromCatalog(${idx})" title="Copy credits.addon_catalog into this plan">Copy from shared catalog</button>
+                        </div>
                     </div>
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-infinity"></i> Unlimited overrides</div>
@@ -5620,6 +6222,17 @@
         });
         return plans;
     }
+
+    window.soCopyPlanAddonsFromCatalog = function(planIdx) {
+        soPlans = soReadPlansFromDom();
+        const plan = soPlans[planIdx];
+        if (!plan) return;
+        plan.credit_addons = soDeepClone(soGetAddonCatalogState());
+        plan.allow_credit_addons = true;
+        renderSoPlansEditor();
+        soMarkTabDirty('config');
+        soToast('Copied shared catalog to this plan — edit per plan if needed.');
+    };
 
     window.addSoPlanCreditAddon = function(planIdx) {
         soPlans = soReadPlansFromDom();
@@ -5907,14 +6520,7 @@
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
 
-        const creditsPayload = {
-            enabled: !!document.getElementById('so-credits-enabled')?.checked,
-            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
-            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
-            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
-            image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
-        };
+        const creditsPayload = soBuildCreditsPayloadFromDom(soCreditPacks);
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
@@ -6322,14 +6928,21 @@
 
     function soBuildLicenseCreditFields(plan, formFields) {
         const selectedIds = formFields.addon_credit_ids || [];
-        const calc = plan ? soCalculatePlanCredits(plan, selectedIds) : { included: 0, addon: 0, total: formFields.credits_balance };
+        const calc = plan ? soCalculatePlanCredits(plan, selectedIds) : { included: 0, addon: 0, total: 0 };
+        const grantTotal = Math.max(0, parseInt(document.getElementById('so-license-total-credits')?.value, 10) || 0);
+        const planTotal = calc.total;
+        const effectiveTotal = grantTotal > 0 ? grantTotal : planTotal;
         const out = {
             included_credits: calc.included,
             addon_credits: calc.addon,
             addon_credit_ids: selectedIds
         };
-        if (!soIsUnlimitedCredits(plan) && !soIsUnlimitedCredits(formFields)) {
-            out.credits_balance = formFields.credits_balance != null ? formFields.credits_balance : calc.total;
+        if (effectiveTotal > planTotal) out.bonus_credits = effectiveTotal - planTotal;
+        if (!soIsUnlimitedCredits(plan) && !formFields.unlimited_credits) {
+            const used = Math.max(0, parseInt(formFields.credits_used, 10) || 0);
+            out.credits_balance = formFields.credits_balance != null
+                ? Math.max(0, parseInt(formFields.credits_balance, 10) || 0)
+                : Math.max(0, effectiveTotal - used);
         }
         return out;
     }
@@ -6404,6 +7017,7 @@
         if (locEl) locEl.value = soGuessAdminLocation();
         const ipEl = document.getElementById('so-license-customer-ip');
         if (ipEl) ipEl.value = '';
+        soLicenseCreditsTotalDirty = false;
         document.getElementById('so-license-support-notes').value = '';
         document.getElementById('so-license-max-devices').value = '';
         document.getElementById('so-license-credits-balance').value = '0';
@@ -6435,8 +7049,15 @@
         const totalEl = document.getElementById('so-license-total-credits');
         if (includedEl) includedEl.value = lic.included_credits != null ? lic.included_credits : 0;
         if (addonEl) addonEl.value = lic.addon_credits != null ? lic.addon_credits : 0;
-        const grantTotal = (parseInt(lic.included_credits, 10) || 0) + (parseInt(lic.addon_credits, 10) || 0);
-        if (totalEl) totalEl.value = grantTotal > 0 ? grantTotal : ((parseInt(lic.credits_balance, 10) || 0) + (parseInt(lic.credits_used, 10) || 0));
+        const grantTotal = (parseInt(lic.included_credits, 10) || 0)
+            + (parseInt(lic.addon_credits, 10) || 0)
+            + (parseInt(lic.bonus_credits, 10) || 0);
+        soLicenseCreditsTotalDirty = false;
+        if (totalEl) {
+            totalEl.value = grantTotal > 0
+                ? grantTotal
+                : ((parseInt(lic.credits_balance, 10) || 0) + (parseInt(lic.credits_used, 10) || 0));
+        }
         soSetLicenseUnlimitedCheckboxes(lic);
         const addonIds = Array.isArray(lic.addon_credit_ids) ? lic.addon_credit_ids
             : (Array.isArray(lic.addonCreditIds) ? lic.addonCreditIds : []);

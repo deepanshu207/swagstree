@@ -1,8 +1,28 @@
-# Meesho extension v1.7.8 — sync from Swagstree workspace
+# Meesho extension — sync from Swagstree (latest: v1.8.2)
 
-Copy these changes into `deepanshu207/meesho-shipping-optimizer-extension`:
+**Full release bundle:** `scripts/meesho-extension-v182/`  
+**Release notes + prompt:** `scripts/MEESHO_EXTENSION_RELEASE_v1.8.2.md`
 
-## Critical fix: credit packs for active Monthly (and any) plan
+Copy into `deepanshu207/meesho-shipping-optimizer-extension`:
+
+## v1.8.2 (current)
+
+```
+manifest.json          → 1.8.2
+config.js              → VERSION, CHROME_EXTENSION_ID, OAuth IDs
+popup.html
+popup.js
+js/firebaseLicense.js  — add-ons bottom, google_trials collection fix
+js/firebaseAuth.js     — ensureSignedIn, Kiwi OAuth
+js/license.js          — credit top-up for subscription, no device labels
+firestore.rules
+```
+
+See also:
+- `scripts/MEESHO_EXTENSION_V18_ADDONS_LAYOUT.md`
+- `scripts/MEESHO_EXTENSION_GOOGLE_TRIALS_FIX.md`
+
+## v1.7.8 — credit packs for active subscribers
 
 **Problem:** `popup-credits-section` lived inside `#activation-section`, which is hidden when the user already has an active license. Monthly subscribers could not see **BUY CREDITS** packs.
 

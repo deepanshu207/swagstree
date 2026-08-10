@@ -2074,6 +2074,21 @@
                                             <span>Button</span><span>What it does</span><span>Writes Firebase?</span>
                                         </div>
                                         <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Load → Config / Credits form</span>
+                                            <span>Copies <strong>built-in recommended values from code</strong> into the Config or Credits tab forms only. Does <strong>not</strong> read Firebase and does <strong>not</strong> write Firebase. Use to preview factory settings before Save.</span>
+                                            <span>No</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Export backup JSON</span>
+                                            <span>Downloads your <strong>current form values</strong> (config, credits, or full app config) as a dated <code>.json</code> file. Keep offline for disaster recovery. Never includes licenses or Google users.</span>
+                                            <span>No</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
+                                            <span class="admin-guide-tag">Import backup JSON</span>
+                                            <span><strong>Import to form</strong> = load file into admin forms (review → Save). <strong>Import &amp; save</strong> = write to Firebase after confirm. Wrong-scope files are rejected.</span>
+                                            <span>Optional</span>
+                                        </div>
+                                        <div class="admin-guide-matrix-row">
                                             <span class="admin-guide-tag">Load defaults</span>
                                             <span>Resets <strong>this tab’s form</strong> to built-in recommended values from code (<code>soGetDefaultAppSeed()</code>). Does not touch live config until you save.</span>
                                             <span>No</span>
@@ -2216,7 +2231,10 @@
                     <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshExtensionPreview()" title="Refresh extension preview"><i class="fa fa-rotate"></i> Refresh preview</button>
                     <button type="button" class="so-btn-sm so-btn-touch" onclick="collapseAllSoSections()" title="Collapse all accordion sections"><i class="fa fa-compress"></i> Collapse all</button>
                     <button type="button" class="so-btn-sm so-btn-touch" onclick="copySoDeployChecklist()" title="Copy deploy steps"><i class="fa fa-copy"></i> Copy checklist</button>
+                    <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('full')" title="Download backup JSON"><i class="fa fa-download"></i> Export backup</button>
+                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('full','form')" title="Load backup into forms"><i class="fa fa-upload"></i> Import</button>
                 </div>
+                <p class="so-admin-muted so-admin-tip" style="margin:0 0 8px;">Import / Export: top toolbar above, or sticky bars on <strong>Built-in defaults</strong>, <strong>Config</strong>, and <strong>Credits</strong> tabs.</p>
 
                 <div class="so-tab-chips so-section-nav-chips" aria-label="Quick jump" hidden>
                     <button type="button" class="so-tab-chip so-tab-chip--active" data-so-tab-chip="config" onclick="switchShippingOptimizerTab('config')">Config</button>
@@ -2253,14 +2271,18 @@
                 <!-- Tab: Built-in defaults (read-only preview before Load / Seed) -->
                 <div id="so-tab-defaults" class="so-admin-tab-panel" style="display:none;">
                     <p class="so-admin-muted so-admin-tip" style="margin-bottom:12px;">
-                        <strong>Read-only preview</strong> of values in code (<code>soGetDefaultAppSeed()</code>). Open this tab <em>before</em> Load defaults or Seed all defaults so you know exactly what will change. Nothing here writes Firebase until you use buttons on other tabs.
+                        <strong>Read-only preview</strong> of built-in values in code (<code>soGetDefaultAppSeed()</code>). Use <strong>Load → Config form</strong> / <strong>Load → Credits form</strong> to copy these into admin forms <em>without touching Firebase</em>. Use <strong>Export</strong> / <strong>Import</strong> to back up or restore your live settings safely offline.
                     </p>
                     <div class="so-defaults-toolbar">
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Loads defaults into Config form only — does not write Firebase">Load → Config form</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Loads defaults into Credits form only">Load → Credits form</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy JSON</button>
-                        <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soSeedAllDefaults()" title="Writes full seed to Firebase immediately">Seed all to Firebase</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Built-in values → Config &amp; Pricing form only (no Firebase)">Load → Config form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Built-in values → Credits &amp; Packs form only (no Firebase)">Load → Credits form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy built-in JSON</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('full')" title="Download current forms as backup JSON"><i class="fa fa-download"></i> Export full backup</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('full','form')" title="Load backup JSON into forms — review before Save"><i class="fa fa-upload"></i> Import to forms</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('full','firebase')" title="Import backup and write Firebase (merge)"><i class="fa fa-cloud-upload-alt"></i> Import &amp; save</button>
+                        <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soSeedAllDefaults()" title="Writes full built-in seed to Firebase immediately">Seed all to Firebase</button>
                     </div>
+                    <input type="file" id="so-import-backup-file" accept=".json,application/json" style="display:none;" onchange="soHandleImportShippingOptimizerFile(this)">
                     <div id="so-defaults-summary-root" class="so-defaults-summary-root"></div>
                 </div>
 
@@ -2394,7 +2416,9 @@
                         <span class="so-admin-muted">Save everything on this tab · <button type="button" class="so-link-btn" onclick="switchShippingOptimizerTab('defaults')">Preview built-in defaults first ⓘ</button></span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soViewAllDefaults()">View all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy defaults JSON</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Resets this tab's form to built-in values — does not write Firebase">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Built-in values → this tab's form only (no Firebase)">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('config')"><i class="fa fa-download"></i> Export</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('config','form')"><i class="fa fa-upload"></i> Import</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()">Save all as defaults</button>
@@ -2496,6 +2520,28 @@
                         </div>
                     </div>
 
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="credits-addon-catalog">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-addon-catalog')">
+                            <span><i class="fa fa-plus-circle"></i> Shared add-on catalog</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Master list at <code>credits.addon_catalog[]</code>. Used when a plan has no <code>credit_addons[]</code>. Edit per plan on Config tab — or tap <strong>Copy from shared catalog</strong>.</p>
+                            <div class="so-plans-toolbar">
+                                <span id="so-addon-catalog-count" class="so-plans-count">0 add-ons</span>
+                                <div class="so-plans-toolbar-actions">
+                                    <button type="button" class="so-btn-sm" onclick="expandAllSoAddonCatalog()">Expand all</button>
+                                    <button type="button" class="so-btn-sm" onclick="collapseAllSoAddonCatalog()">Collapse all</button>
+                                </div>
+                            </div>
+                            <div id="so-addon-catalog-editor"></div>
+                            <button type="button" class="so-btn-sm so-btn-touch" onclick="addSoAddonCatalogItem()">+ Add catalog item</button>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveShippingOptimizerAddonCatalog()">Save add-on catalog</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="so-section-accordion" data-so-section="credits-packs">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-packs')">
                             <span><i class="fa fa-box"></i> Credit packs</span>
@@ -2520,7 +2566,9 @@
 
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Built-in values → this tab's form only (no Firebase)">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('credits')"><i class="fa fa-download"></i> Export</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('credits','form')"><i class="fa fa-upload"></i> Import</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('credits')">Save as defaults</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('credits')">Save to Firebase</button>
                     </div>
@@ -2642,7 +2690,7 @@
 
                 <!-- Tab: Google Users (signed-in accounts) -->
                 <div id="so-tab-google-users" class="so-admin-tab-panel" style="display:none;">
-                    <p class="so-admin-muted so-admin-tip">One row per Google account. <strong>Click any row</strong> (or <strong>Manage</strong>) to adjust credits, extend access time, or reset devices — for manual support requests. Uses collection <code>shipping_optimizer_google_trials</code> (extension v1.8.1+).</p>
+                    <p class="so-admin-muted so-admin-tip">One card per Google account. <strong>Tap a card</strong> (or <strong>Manage</strong>) to open the support form — adjust credits, extend access, reset devices. Uses <code>shipping_optimizer_google_trials</code> (extension v1.8.1+).</p>
                     <div class="so-inline-demo-toolbar">
                         <span id="so-google-trials-count" class="so-plans-count">0 Google users</span>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshGoogleTrials()"><i class="fa fa-rotate"></i> Refresh</button>
@@ -2684,13 +2732,14 @@
                                 <label><span class="admin-settings-field-label">Addon credits</span>
                                     <input id="so-license-addon-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
                                 <label><span class="admin-settings-field-label">Total credits (plan grant)</span>
-                                    <input id="so-license-total-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
+                                    <input id="so-license-total-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseTotalCreditsChange()" title="Editable — increase for manual credit requests (e.g. customer support top-up)"></label>
                                 <label><span class="admin-settings-field-label">Credits balance (remaining)</span>
                                     <input id="so-license-credits-balance" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                                 <label><span class="admin-settings-field-label">Credits used</span>
                                     <input id="so-license-credits-used" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                             </div>
                             <div id="so-license-credits-breakdown" class="so-license-credits-breakdown so-admin-muted so-admin-tip"></div>
+                            <p class="so-admin-muted so-admin-tip" style="margin-top:6px;">Edit <strong>Total credits</strong> to grant extra credits beyond the plan (manual support requests). Balance auto-adjusts when you change total on new licenses.</p>
                             <div class="so-checkbox-group">
                                 <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox" onchange="soOnLicenseUnlimitedTimeToggle()"> Never expires (unlimited time)</label>
                                 <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox" checked> Unlimited devices</label>
@@ -4716,8 +4765,8 @@
     <script src="js/admin.js?v=17.0"></script>
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-firebase.js?v=1.2"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.10"></script>
+    <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.15"></script>
     <script src="js/bind-globals.js?v=9.89"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

@@ -51,6 +51,23 @@
             && String(soAuth.currentUser.email || '').toLowerCase() === SO_SUPERADMIN_EMAIL);
     };
 
+    function soFormatExtensionAuthError(e) {
+        const code = e && e.code ? String(e.code) : '';
+        if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
+            return 'Wrong password — use the same password as your Swagstree login.';
+        }
+        if (code === 'auth/user-not-found') {
+            return 'Extension Firebase user not found — create superadmin@swagstree.com in extension-e6e32 Auth.';
+        }
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+            return 'Sign-in cancelled.';
+        }
+        if (code === 'auth/network-request-failed') {
+            return 'Network error — check connection and try again.';
+        }
+        return (e && e.message) ? e.message : 'Unknown error';
+    }
+
     function soSafeLoadShippingOptimizerAdmin() {
         if (typeof loadShippingOptimizerAdmin !== 'function') return;
         const panel = document.getElementById('shipping-optimizer-accordion-content');
@@ -224,7 +241,7 @@
             if (typeof showToast === 'function') showToast('Extension Firebase connected.');
             soSafeLoadShippingOptimizerAdmin();
         } catch (e) {
-            if (typeof showToast === 'function') showToast('Extension sign-in failed: ' + (e.message || 'Unknown error'));
+            if (typeof showToast === 'function') showToast('Extension sign-in failed: ' + soFormatExtensionAuthError(e));
         }
     };
 
@@ -249,7 +266,7 @@
             }
             await soFinishExtensionAuthSuccess(false);
         } catch (e) {
-            if (typeof showToast === 'function') showToast('Extension sign-in failed: ' + (e.message || 'Unknown error'));
+            if (typeof showToast === 'function') showToast('Extension sign-in failed: ' + soFormatExtensionAuthError(e));
         }
     };
 
