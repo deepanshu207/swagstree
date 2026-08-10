@@ -734,6 +734,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
+    if (!cachedAddonCatalog.length && typeof FirebaseLicense !== "undefined") {
+      const creditsCfg = await FirebaseLicense.getCreditsConfig(true);
+      cachedCreditsPricePerCredit = creditsCfg?.price_per_credit || 2;
+      cachedAddonCatalog = FirebaseLicense.resolveAddonCatalog(creditsCfg);
+    }
+
     body.innerHTML = FirebaseLicense.renderPlanDetailHtml(plan, {
       productName,
       addonCatalog: cachedAddonCatalog,

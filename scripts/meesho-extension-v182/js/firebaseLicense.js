@@ -441,10 +441,27 @@ const FirebaseLicense = {
       "name",
     ].forEach(fillStr);
     ["features", "highlights", "detail_sections", "offer_badges"].forEach(fillArr);
-    if (plan.allow_credit_addons != null) out.allow_credit_addons = plan.allow_credit_addons;
-    else if (tpl.allow_credit_addons) out.allow_credit_addons = true;
+    if (plan.allow_credit_addons === false || plan.allowCreditAddons === false) {
+      out.allow_credit_addons = false;
+    } else if (
+      plan.allow_credit_addons === true ||
+      plan.allowCreditAddons === true ||
+      tpl.allow_credit_addons
+    ) {
+      out.allow_credit_addons = true;
+    }
+    if (out.allow_credit_addons !== false) {
+      const activeAddons = (out.credit_addons || []).filter(
+        (a) => a && a.active !== false,
+      );
+      if (!activeAddons.length) {
+        out.credit_addons = this.defaultAddonCatalog().map((a, i) =>
+          this.normalizeCreditAddon(a, a.id, i),
+        );
+      }
+    }
     const days = Number(out.days) || 0;
-    if (!credits && days > 0) {
+    if (!out.included_credits && days > 0) {
       out.included_credits = Math.max(1, Math.round((days / 30) * 200));
     }
     if (!out.card_subtitle) out.card_subtitle = this.formatPlanCardSubtitle(out);
@@ -848,6 +865,38 @@ const FirebaseLicense = {
         .join("")}</div>`;
     }
 
+    const resolvedCatalog =
+      options.addonCatalog ??
+      (options.creditsConfig
+        ? this.resolveAddonCatalog(options.creditsConfig)
+        : undefined);
+    const addons =
+      plan.allow_credit_addons !== false && !plan.unlimited_credits
+        ? this.getPlanCreditAddons(plan, resolvedCatalog)
+        : [];
+    const basePpc = Number(options.pricePerCredit) || 2;
+    if (addons.length) {
+      const maxSel = Number(plan.max_addon_selections) || 0;
+      const limitNote =
+        maxSel === 1
+          ? "Pick one add-on (optional)."
+          : maxSel > 1
+            ? `Pick up to ${maxSel} add-ons (optional).`
+            : "Pick any add-ons (optional).";
+      html += `<div class="plan-detail-section plan-detail-section--addons">
+        <div class="plan-detail-section-title">⚡ OPTIONAL CREDIT ADD-ONS</div>
+        <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Tap cards to select, then buy via WhatsApp below.</p>
+        <div class="plan-grid plan-detail-addon-cards" style="grid-template-columns:${this.planGridColumns(addons.length)};">`;
+      addons.forEach((a) => {
+        html += this.renderAddonCreditCard(a, plan, {
+          enabled: true,
+          selected: !!a.default_selected,
+          pricePerCredit: basePpc,
+        });
+      });
+      html += `</div></div>`;
+    }
+
     sections.forEach((sec) => {
       html += `<div class="plan-detail-section">
         <div class="plan-detail-section-title">${this.escapeHtml(sec.title)}</div>`;
@@ -861,33 +910,6 @@ const FirebaseLicense = {
       }
       html += `</div>`;
     });
-
-    if (plan.allow_credit_addons !== false) {
-      const catalog = options.addonCatalog;
-      const addons = this.getPlanCreditAddons(plan, catalog);
-      const basePpc = Number(options.pricePerCredit) || 2;
-      if (addons.length) {
-        const maxSel = Number(plan.max_addon_selections) || 0;
-        const limitNote =
-          maxSel === 1
-            ? "Pick one add-on (optional)."
-            : maxSel > 1
-              ? `Pick up to ${maxSel} add-ons (optional).`
-              : "Pick any add-ons (optional).";
-        html += `<div class="plan-detail-section">
-          <div class="plan-detail-section-title">⚡ OPTIONAL CREDIT ADD-ONS</div>
-          <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Tap cards to select, then buy via WhatsApp below.</p>
-          <div class="plan-grid plan-detail-addon-cards" style="grid-template-columns:${this.planGridColumns(addons.length)};">`;
-        addons.forEach((a) => {
-          html += this.renderAddonCreditCard(a, plan, {
-            enabled: true,
-            selected: !!a.default_selected,
-            pricePerCredit: basePpc,
-          });
-        });
-        html += `</div></div>`;
-      }
-    }
 
     const durationLabel = this.formatPlanDurationLabel(plan);
     html += this.planDetailWhatsAppBtnHtml(
@@ -1088,7 +1110,10 @@ Please share payment details.`;
     const planAddons = (plan.credit_addons || []).filter((a) => a.active !== false);
     if (planAddons.length) return this.sortPlans(planAddons);
     if (Array.isArray(catalog) && catalog.length) {
-      return this.sortPlans(catalog.filter((a) => a.active !== false));
+      const fromCatalog = this.sortPlans(
+        catalog.filter((a) => a.active !== false),
+      );
+      if (fromCatalog.length) return fromCatalog;
     }
     return this.sortPlans(
       this.defaultAddonCatalog().map((a, i) =>
