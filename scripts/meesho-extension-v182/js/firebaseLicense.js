@@ -282,7 +282,7 @@ const FirebaseLicense = {
             body: "Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.",
             items: [
               "Credit packs stack on your license",
-              "Optional credit add-ons are in each plan's details (ℹ️)",
+              "Optional credit add-ons appear above — tap to select before WhatsApp",
             ],
           },
         ],
@@ -414,10 +414,29 @@ const FirebaseLicense = {
     };
   },
 
+  resolvePlanTemplateId(plan) {
+    const id = this.slugifyPlanId(plan?.id);
+    if (this.richPlanTemplates()[id]) return id;
+    const days = Number(plan?.days) || 0;
+    if (days === 30) return "monthly";
+    if (days === 90) return "quarterly";
+    if (days === 180) return "halfyearly";
+    if (days === 365 || days === 360) return "yearly";
+    const name = String(plan?.name || "").toLowerCase();
+    if (name.includes("month") && !name.includes("3") && !name.includes("6")) {
+      return "monthly";
+    }
+    if (name.includes("3 month") || name.includes("quarter")) return "quarterly";
+    if (name.includes("6 month") || name.includes("half")) return "halfyearly";
+    if (name.includes("year") || name.includes("annual")) return "yearly";
+    return id;
+  },
+
   enrichPlan(plan) {
     if (!plan || typeof plan !== "object") return plan;
-    const tpl = this.richPlanTemplates()[plan.id] || {};
-    const out = Object.assign({}, tpl, plan);
+    const tplId = this.resolvePlanTemplateId(plan);
+    const tpl = this.richPlanTemplates()[tplId] || {};
+    const out = Object.assign({}, tpl, plan, { id: plan.id || tplId });
     const fillStr = (key) => {
       const v = plan[key];
       const t = tpl[key];
@@ -441,16 +460,20 @@ const FirebaseLicense = {
       "name",
     ].forEach(fillStr);
     ["features", "highlights", "detail_sections", "offer_badges"].forEach(fillArr);
-    if (plan.allow_credit_addons === false || plan.allowCreditAddons === false) {
+    if (tpl.allow_credit_addons) {
+      out.allow_credit_addons = true;
+    } else if (
+      plan.allow_credit_addons === false ||
+      plan.allowCreditAddons === false
+    ) {
       out.allow_credit_addons = false;
     } else if (
       plan.allow_credit_addons === true ||
-      plan.allowCreditAddons === true ||
-      tpl.allow_credit_addons
+      plan.allowCreditAddons === true
     ) {
       out.allow_credit_addons = true;
     }
-    if (out.allow_credit_addons !== false) {
+    if (out.allow_credit_addons !== false && !out.unlimited_credits) {
       const activeAddons = (out.credit_addons || []).filter(
         (a) => a && a.active !== false,
       );
@@ -870,10 +893,9 @@ const FirebaseLicense = {
       (options.creditsConfig
         ? this.resolveAddonCatalog(options.creditsConfig)
         : undefined);
-    const addons =
-      plan.allow_credit_addons !== false && !plan.unlimited_credits
-        ? this.getPlanCreditAddons(plan, resolvedCatalog)
-        : [];
+    const addons = !plan.unlimited_credits
+      ? this.getPlanCreditAddons(plan, resolvedCatalog)
+      : [];
     const basePpc = Number(options.pricePerCredit) || 2;
     if (addons.length) {
       const maxSel = Number(plan.max_addon_selections) || 0;
