@@ -68,6 +68,7 @@
         return (e && e.message) ? e.message : 'Unknown error';
     }
 
+    function soSafeLoadShippingOptimizerAdmin() {
         if (typeof loadShippingOptimizerAdmin !== 'function') return;
         const panel = document.getElementById('shipping-optimizer-accordion-content');
         if (!panel || panel.style.display === 'none') return;
