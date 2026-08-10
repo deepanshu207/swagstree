@@ -1,4 +1,4 @@
-# Meesho Extension — Per-plan add-ons + shared catalog (v1.8.4)
+# Meesho Extension — Plan + add-on rich data (v1.8.7)
 
 Apply these changes to `meesho-shipping-optimizer-extension` (merge from `swagstree/scripts/meesho-extension-v182/`).
 
