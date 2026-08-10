@@ -498,8 +498,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           FirebaseLicense?.slugifyPlanId?.(planId) === p.id,
       ) || null;
     const addon =
-      plan && typeof FirebaseLicense !== "undefined"
-        ? FirebaseLicense.getAddonCreditById(plan, addonId)
+      typeof FirebaseLicense !== "undefined"
+        ? FirebaseLicense.getAddonCreditById(plan, addonId, cachedAddonCatalog)
         : null;
     if (!addon) {
       body.innerHTML =
@@ -554,10 +554,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let selectedPurchasePlanId = null;
   let cachedCreditsPricePerCredit = 2;
+  let cachedAddonCatalog = [];
 
   function setSelectedPurchasePlan(planId) {
     selectedPurchasePlanId = planId || null;
     document.querySelectorAll(".plan-buy-btn.plan-card-main").forEach((btn) => {
+      if (btn.classList.contains("plan-addon-card")) return;
       btn.classList.toggle(
         "plan-btn--selected",
         !!planId && btn.dataset.plan === String(planId),
@@ -572,6 +574,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         selectedPlanId: selectedPurchasePlanId,
         enabled: !!selectedPurchasePlanId,
         pricePerCredit: cachedCreditsPricePerCredit,
+        addonCatalog: cachedAddonCatalog,
       });
     }
     bindPlanAddonButtons();
@@ -620,8 +623,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const plan = cachedPlans.find((p) => p.id === planId);
         const hasAddons =
           plan &&
-          typeof FirebaseLicense !== "undefined" &&
-          FirebaseLicense.getPlanCreditAddons(plan).length > 0;
+          plan.allow_credit_addons !== false &&
+          cachedAddonCatalog.length > 0;
         if (hasAddons) {
           setSelectedPurchasePlan(planId);
           showMessage(
@@ -665,6 +668,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       cachedCreditPacks = creditPacks;
       cachedSupportConfig = supportCfg;
       cachedCreditsPricePerCredit = creditsCfg?.price_per_credit || 2;
+      cachedAddonCatalog =
+        typeof FirebaseLicense.resolveAddonCatalog === "function"
+          ? FirebaseLicense.resolveAddonCatalog(creditsCfg)
+          : [];
       selectedPurchasePlanId = null;
       FirebaseLicense.renderPlanButtons(grid, plans, "popup");
       const addonsGrid = document.getElementById("plan-addons-grid");
@@ -672,6 +679,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         selectedPlanId: null,
         enabled: false,
         pricePerCredit: cachedCreditsPricePerCredit,
+        addonCatalog: cachedAddonCatalog,
       });
       bindPlanPurchaseButton();
       await refreshCreditsTopUpSection(
@@ -764,7 +772,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     body.innerHTML = FirebaseLicense.renderPlanDetailHtml(plan, {
       productName,
     });
-    FirebaseLicense.wirePlanAddonSelection(body);
     bindPlanDetailBuy(body, plan.id);
   }
 

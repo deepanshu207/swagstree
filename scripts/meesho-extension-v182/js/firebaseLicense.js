@@ -519,7 +519,6 @@ const FirebaseLicense = {
       (h) => h !== duration && h !== credits,
     );
     const sections = plan.detail_sections || [];
-    const addons = this.getPlanCreditAddons(plan);
     const bestTag = plan.best
       ? '<span class="plan-detail-badge">BEST VALUE</span>'
       : "";
@@ -580,25 +579,8 @@ const FirebaseLicense = {
       html += `</div>`;
     });
 
-    if (addons.length) {
-      const max = Number(plan.max_addon_selections) || 0;
-      const hint =
-        max === 1
-          ? "Pick one add-on"
-          : max > 1
-            ? `Pick up to ${max}`
-            : "Optional credit add-ons";
-      html += `<div class="plan-detail-addons" data-plan="${this.escapeAttr(plan.id)}">
-        <div class="plan-detail-section-title">⚡ ${hint}</div>
-        <div class="plan-addons-chips" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px;">
-          ${addons
-            .map((a) => {
-              const sel = !!a.default_selected;
-              return `<button type="button" class="plan-addon-btn" data-plan="${this.escapeAttr(plan.id)}" data-addon-id="${this.escapeAttr(a.id)}" data-addon-credits="${a.credits}" data-addon-price="${a.price}" data-addon-label="${this.escapeAttr(a.label)}" data-addon-max="${max}" aria-pressed="${sel ? "true" : "false"}" title="${this.escapeAttr(a.card_subtitle || a.description || a.label)}" style="font-size:10px;padding:6px 10px;border-radius:8px;cursor:pointer;background:${sel ? "linear-gradient(135deg,#ffd700,#e67e22)" : "#fff"};color:${sel ? "#3d2914" : "#c45f12"};border:1px solid ${sel ? "#e67e22" : "#f0e0c8"};font-weight:${sel ? "700" : "600"};">${this.escapeHtml(a.card_subtitle || `+${a.credits} · ₹${a.price}`)}</button>`;
-            })
-            .join("")}
-        </div>
-      </div>`;
+    if (plan.allow_credit_addons !== false) {
+      html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);margin-top:8px;">Optional credit add-ons are in the section below the plans — select a plan first, then pick add-ons before WhatsApp checkout.</p>`;
     }
 
     html += this.planDetailWhatsAppBtnHtml(
@@ -793,12 +775,19 @@ Please share payment details.`;
   },
 
   /** Active add-ons for a plan (empty when unlimited credits or not allowed). */
-  getPlanCreditAddons(plan) {
+  getPlanCreditAddons(plan, catalog) {
     if (!plan || plan.unlimited_credits) return [];
     if (plan.allow_credit_addons === false) return [];
-    const list = (plan.credit_addons || []).filter((a) => a.active !== false);
-    if (!list.length) return [];
-    return this.sortPlans(list);
+    if (Array.isArray(catalog) && catalog.length) {
+      return this.sortPlans(catalog.filter((a) => a.active !== false));
+    }
+    const legacy = (plan.credit_addons || []).filter((a) => a.active !== false);
+    if (legacy.length) return this.sortPlans(legacy);
+    return this.sortPlans(
+      this.defaultAddonCatalog().map((a, i) =>
+        this.normalizeCreditAddon(a, a.id, i),
+      ),
+    );
   },
 
   /** Credits + price for a plan given selected add-on ids. */
@@ -886,12 +875,90 @@ Please share payment details.`;
     });
   },
 
+  defaultAddonCatalog() {
+    return [
+      {
+        id: "addon_10",
+        credits: 10,
+        price: 20,
+        label: "+10 credits",
+        card_subtitle: "10 credits · ₹20",
+        offer_badges: ["+10"],
+        description:
+          "Quick boost — 10 extra generation runs added at checkout. Stacks on your plan included credits.",
+        active: true,
+        order: 0,
+        card_hint: "Tap ℹ️ for details · Tap card to select",
+        show_details_icon: true,
+      },
+      {
+        id: "addon_25",
+        credits: 25,
+        price: 40,
+        label: "+25 credits",
+        card_subtitle: "25 credits · ₹40",
+        offer_badges: ["Popular", "20% off", "+25"],
+        description:
+          "Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 base).",
+        active: true,
+        order: 1,
+        card_hint: "Tap ℹ️ for details · Tap card to select",
+        show_details_icon: true,
+      },
+      {
+        id: "addon_50",
+        credits: 50,
+        price: 70,
+        label: "+50 credits",
+        card_subtitle: "50 credits · ₹70",
+        offer_badges: ["30% off", "+50"],
+        description:
+          "Add 50 credits at checkout — best mid-tier add-on value (₹1.40/credit).",
+        active: true,
+        order: 2,
+        card_hint: "Tap ℹ️ for details · Tap card to select",
+        show_details_icon: true,
+      },
+      {
+        id: "addon_100",
+        credits: 100,
+        price: 170,
+        label: "+100 credits",
+        card_subtitle: "100 credits · best value",
+        offer_badges: ["Best value", "15% off", "+100"],
+        description:
+          "Largest add-on pack — lowest ₹/credit for subscription checkout top-ups.",
+        active: true,
+        order: 3,
+        card_hint: "Tap ℹ️ for details · Tap card to select",
+        show_details_icon: true,
+      },
+    ];
+  },
+
+  resolveAddonCatalog(creditsConfig) {
+    const raw =
+      creditsConfig?.addon_catalog ??
+      creditsConfig?.addonCatalog ??
+      null;
+    const parsed = this.parseCreditAddons(raw);
+    if (parsed?.length) {
+      return this.sortPlans(parsed.filter((a) => a.active !== false));
+    }
+    return this.sortPlans(
+      this.defaultAddonCatalog().map((a, i) =>
+        this.normalizeCreditAddon(a, a.id, i),
+      ),
+    );
+  },
+
   defaultCreditsConfig() {
     return {
       enabled: true,
       price_per_credit: 2,
       min_purchase: 10,
       cost_per_operation: 1,
+      addon_catalog: this.defaultAddonCatalog(),
       packs: [
         {
           id: "pack_10",
@@ -1090,6 +1157,7 @@ Please share payment details.`;
       this.parseCreditPacks(raw.packs) ||
       this.parseCreditPacks(defaults.packs) ||
       defaults.packs;
+    const addonCatalog = this.resolveAddonCatalog({ addon_catalog: raw.addon_catalog ?? raw.addonCatalog });
     return {
       ...defaults,
       ...raw,
@@ -1099,6 +1167,7 @@ Please share payment details.`;
       cost_per_operation:
         Number(raw.cost_per_operation ?? raw.costPerOperation ?? 1) || 1,
       packs: this.sortPlans(packs.filter((p) => p.active !== false)),
+      addon_catalog: addonCatalog,
       image_generation: this.normalizeImageGenConfig(
         raw.image_generation ?? raw.imageGeneration,
       ),
@@ -2299,16 +2368,23 @@ Please share payment details.`;
       </ul>
     </div>`;
 
-    html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);">Select this add-on on the plan screen, then tap Buy on WhatsApp.</p>`;
+    html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);">Select this add-on on the plan screen below, then tap Buy on WhatsApp.</p>`;
     html += `</div>`;
     return html;
   },
 
-  getAddonCreditById(plan, addonId) {
-    if (!plan || !addonId) return null;
+  getAddonCreditById(plan, addonId, catalog) {
+    if (!addonId) return null;
     const id = this.slugifyPlanId(addonId);
+    const list = Array.isArray(catalog) && catalog.length
+      ? catalog
+      : plan
+        ? this.getPlanCreditAddons(plan, catalog)
+        : this.defaultAddonCatalog().map((a, i) =>
+            this.normalizeCreditAddon(a, a.id, i),
+          );
     return (
-      this.getPlanCreditAddons(plan).find(
+      list.find(
         (a) => a.id === id || this.slugifyPlanId(a.id) === id,
       ) || null
     );
@@ -2324,10 +2400,14 @@ Please share payment details.`;
     const saveHtml = save
       ? `<div class="plan-note" style="color:var(--mso-success);font-weight:700;">${this.escapeHtml(save)}</div>`
       : "";
-    const parentLabel = parentPlan?.name ? `with ${parentPlan.name}` : "";
     const disabledAttr = enabled ? "" : " disabled";
     const pressed = selected ? ' aria-pressed="true"' : ' aria-pressed="false"';
-    const btn = `<button type="button" class="plan-btn plan-addon-card plan-addon-btn${enabled ? "" : " plan-addon-card--disabled"}"${disabledAttr}${pressed}
+    const selectedClass = selected ? " plan-btn--selected" : "";
+    const cardHint =
+      addon.card_hint ||
+      addon.cardHint ||
+      "Tap ℹ️ for details · Tap card to select";
+    const btn = `<button type="button" class="plan-btn plan-addon-card plan-addon-btn plan-buy-btn plan-card-main${selectedClass}${enabled ? "" : " plan-addon-card--disabled"}"${disabledAttr}${pressed}
       data-plan="${this.escapeAttr(parentPlan?.id || "")}"
       data-addon-id="${this.escapeAttr(addon.id)}"
       data-addon-credits="${addon.credits}"
@@ -2340,8 +2420,7 @@ Please share payment details.`;
       <div class="plan-price">₹${addon.price}</div>
       <div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitle)}</div>
       ${saveHtml}
-      ${parentLabel ? `<div class="plan-note" style="font-size:9px;">${this.escapeHtml(parentLabel)}</div>` : ""}
-      <div class="plan-card-foot">Tap ℹ️ for details · Tap card to select</div>
+      ${this.planCardFooterHtml({ card_hint: cardHint })}
     </button>`;
     const shellItem = Object.assign({}, addon, {
       parent_plan_id: parentPlan?.id || "",
@@ -2354,7 +2433,7 @@ Please share payment details.`;
    * Bottom add-on section — disabled until a subscription plan is selected.
    * @param {HTMLElement} container
    * @param {object[]} plans
-   * @param {{ selectedPlanId?: string, enabled?: boolean, pricePerCredit?: number }} options
+   * @param {{ selectedPlanId?: string, enabled?: boolean, pricePerCredit?: number, addonCatalog?: object[] }} options
    */
   renderPlanAddonsSection(container, plans, options = {}) {
     const section = document.getElementById("plan-addons-section");
@@ -2363,6 +2442,7 @@ Please share payment details.`;
     const selectedId = options.selectedPlanId || "";
     const enabled = !!options.enabled && !!selectedId;
     const list = plans?.length ? plans : [];
+    const catalog = Array.isArray(options.addonCatalog) ? options.addonCatalog : [];
 
     if (section) {
       section.classList.toggle("plan-addons-section--locked", !enabled);
@@ -2373,23 +2453,23 @@ Please share payment details.`;
     if (!container) return;
 
     const plan = list.find((p) => p.id === selectedId);
-    const addons = plan ? this.getPlanCreditAddons(plan) : [];
+    const addons = plan ? this.getPlanCreditAddons(plan, catalog) : [];
 
     if (contextEl) {
       if (!enabled) {
         contextEl.textContent =
-          "Add-ons unlock after you select a subscription plan above.";
+          "Same add-ons with every plan — select a subscription plan above to unlock.";
       } else if (!addons.length) {
-        contextEl.textContent = `${plan?.name || "Plan"} has no add-ons — tap Buy below or the plan card.`;
+        contextEl.textContent = `${plan?.name || "Plan"} does not support add-ons — tap Buy below.`;
       } else {
         const max = Number(plan.max_addon_selections) || 0;
-        const hint =
+        const limitHint =
           max === 1
-            ? "Pick one add-on (optional), then tap Buy on WhatsApp."
+            ? "Pick one add-on (optional)."
             : max > 1
               ? `Pick up to ${max} add-ons (optional).`
-              : "Optional extra credits at checkout.";
-        contextEl.textContent = `${plan.name} · ${hint}`;
+              : "Pick any add-ons (optional).";
+        contextEl.textContent = `${plan.name} · ${limitHint} Same catalog for all plans.`;
       }
     }
 

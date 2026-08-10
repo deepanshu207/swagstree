@@ -289,6 +289,12 @@
     .plan-card-shell {
       position: relative;
     }
+    .plan-card-shell .plan-card-main,
+    .plan-card-shell .plan-addon-card {
+      min-height: 112px;
+      width: 100%;
+      box-sizing: border-box;
+    }
 
     .plan-card-shell .plan-card-main {
       width: 100%;
@@ -837,10 +843,10 @@
 
       <div id="plan-addons-section" class="status-card plan-addons-section plan-addons-section--locked" style="padding:12px;">
         <div style="text-align:center;margin-bottom:8px;">
-          <span style="font-size:11px;color:#c45f12;font-weight:700;">➕ ADD-ON CREDITS — optional at checkout</span>
+          <span style="font-size:11px;color:#c45f12;font-weight:700;">⚡ ALL CREDIT ADD-ONS</span>
         </div>
         <p class="plan-addons-unlock-hint">Select Monthly, 3 Months, or another subscription plan above to unlock add-ons.</p>
-        <p id="plan-addons-context" class="hint" style="margin:0 0 8px;text-align:center;font-size:10px;color:var(--mso-muted);"></p>
+        <p id="plan-addons-context" class="hint" style="margin:0 0 8px;text-align:center;font-size:10px;color:var(--mso-muted);">Same add-ons with every plan — tap to select.</p>
         <div class="plan-grid" id="plan-addons-grid"></div>
         <button type="button" class="btn btn-whatsapp" id="plan-purchase-whatsapp-btn" style="margin-top:10px;width:100%;" disabled>
           Buy selected plan on WhatsApp

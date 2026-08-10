@@ -242,26 +242,13 @@
                 included_credits: soCalcDefaultPlanCredits('monthly', 30),
                 allow_credit_addons: true,
                 max_addon_selections: 0,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_10', 10, 20, {
-                        order: 0,
-                        offer_badges: ['+10'],
-                        description: 'Quick boost — 10 extra generation runs added to your monthly plan at checkout.'
-                    }),
-                    soDefaultCreditAddon('addon_25', 25, 40, {
-                        order: 1,
-                        offer_badges: ['Popular', '20% off', '+25'],
-                        description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 for 10-pack).'
-                    })
-                ],
                 offer_badges: ['Starter'],
                 description: 'Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.',
                 detail_subtitle: soPlanDetailSubtitle(30, soCalcDefaultPlanCredits('monthly', 30)),
-                highlights: ['200 credits included', '30 days access', 'Add-on credits at checkout'],
+                highlights: ['200 credits included', '30 days access', 'Smart Mode on Meesho'],
                 features: [
                     { icon: '📅', title: '30 days access', text: 'Renews every month' },
                     { icon: '⚡', title: '200 credits', text: 'One credit = one AI generation run' },
-                    { icon: '➕', title: 'Optional add-ons', text: '+10 or +25 credits when you buy via WhatsApp' },
                     { icon: '🚚', title: 'Smart Mode', text: 'Preview up to 200 variants per run' }
                 ],
                 detail_sections: [{
@@ -270,7 +257,7 @@
                 }, {
                     title: 'Already on Monthly?',
                     body: 'Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.',
-                    items: ['Credit packs stack on your license', 'Add-ons apply when purchasing a new monthly plan']
+                    items: ['Credit packs stack on your license', 'Optional add-ons are in the section below the plans']
                 }],
                 card_subtitle: soPlanCardSubtitle(SO_DEFAULT_MONTHLY_PRICE, 30, soCalcDefaultPlanCredits('monthly', 30)),
                 detail_footer: 'Credits deduct per generation run. Buy credit packs anytime from the popup while your plan is active.',
@@ -283,18 +270,6 @@
                 included_credits: qCredits,
                 allow_credit_addons: true,
                 max_addon_selections: 0,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_25', 25, 40, {
-                        order: 0,
-                        offer_badges: ['20% off', '+25'],
-                        description: 'Add 25 credits when buying the 3-month plan — stacks on 600 included credits.'
-                    }),
-                    soDefaultCreditAddon('addon_50', 50, 70, {
-                        order: 1,
-                        offer_badges: ['30% off', '+50'],
-                        description: 'Add 50 credits at checkout — best add-on value for quarterly plan (₹1.40/credit).'
-                    })
-                ],
                 description: 'Three months of Smart Mode — 600 credits with a lower price than paying monthly three times.',
                 detail_subtitle: soPlanDetailSubtitle(90, qCredits),
                 highlights: [`${qCredits.toLocaleString('en-IN')} credits`, '90 days access', 'Lower price vs monthly'],
@@ -318,14 +293,7 @@
                 unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
                 included_credits: hCredits,
                 allow_credit_addons: true,
-                max_addon_selections: 1,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_50', 50, 70, {
-                        order: 0,
-                        offer_badges: ['30% off', '+50'],
-                        description: 'Optional +50 credits when buying the 6-month plan — pick one add-on at checkout.'
-                    })
-                ],
+                max_addon_selections: 0,
                 description: `Half-year access for serious Meesho sellers — ${hCredits.toLocaleString('en-IN')} credits with 12.5% price discount.`,
                 detail_subtitle: soPlanDetailSubtitle(180, hCredits),
                 highlights: [`${hCredits.toLocaleString('en-IN')} credits`, '180 days access', '12.5% off price'],
@@ -347,23 +315,13 @@
                 save: soFormatSaveBadge('yearly', 365, yPrice), best: true, offer_badges: ['Best deal', '17% off'],
                 unlimited_devices: true, max_devices: 0, device_tier: 'standard', billing_mode: 'hybrid',
                 included_credits: yCredits,
-                allow_credit_addons: true, max_addon_selections: 2,
-                credit_addons: [
-                    soDefaultCreditAddon('addon_25', 25, 40, { order: 0, default_selected: false, offer_badges: ['20% off', '+25'] }),
-                    soDefaultCreditAddon('addon_50', 50, 70, {
-                        order: 1,
-                        offer_badges: ['30% off', '+50'],
-                        default_selected: false,
-                        description: 'Optional +50 credits — pick up to 2 add-ons when buying the yearly plan.'
-                    })
-                ],
-                description: `Best for full-time Meesho sellers — one year access with ${yCredits.toLocaleString('en-IN')} credits and optional add-ons at checkout.`,
+                allow_credit_addons: true, max_addon_selections: 0,
+                description: `Best for full-time Meesho sellers — one year access with ${yCredits.toLocaleString('en-IN')} credits.`,
                 detail_subtitle: soPlanDetailSubtitle(365, yCredits),
                 highlights: [`${yCredits.toLocaleString('en-IN')} credits`, '1 year access', 'BEST VALUE'],
                 features: [
                     { icon: '📅', title: '1 year access', text: 'Single annual payment' },
                     { icon: '⚡', title: `${yCredits.toLocaleString('en-IN')} credits`, text: '200 credits per month equivalent' },
-                    { icon: '➕', title: 'Credit add-ons', text: 'Pick +25 or +50 credits in popup' },
                     { icon: '🚚', title: 'Smart Mode', text: 'Use credits across the full year' }
                 ],
                 detail_sections: [
@@ -371,7 +329,7 @@
                     { title: 'Plan summary', body: `₹${yPrice.toLocaleString('en-IN')} for 1 year · ${yCredits.toLocaleString('en-IN')} credits included.${yDisc ? ` ${yDisc}.` : ''}`, items: [] }
                 ],
                 card_subtitle: soPlanCardSubtitle(yPrice, 365, yCredits),
-                detail_footer: 'Add-on credits included in WhatsApp purchase message when selected.',
+                detail_footer: 'Optional add-ons are selected in the section below the plans before WhatsApp checkout.',
                 order: 3
             })
         ];
@@ -419,10 +377,30 @@
     };
 
     const DEFAULT_ADDON_CATALOG = [
-        { id: 'addon_10', credits: 10, price: 20, name: '+10 Credits', label: '+10 credits', card_subtitle: '10 credits · ₹20', offer_badges: ['+10'], active: true, order: 0 },
-        { id: 'addon_25', credits: 25, price: 40, name: '+25 Credits', label: '+25 credits', card_subtitle: '25 credits · ₹40', offer_badges: ['Popular', '20% off', '+25'], active: true, order: 1 },
-        { id: 'addon_50', credits: 50, price: 70, name: '+50 Credits', label: '+50 credits', card_subtitle: '50 credits · ₹70', offer_badges: ['30% off', '+50'], active: true, order: 2 },
-        { id: 'addon_100', credits: 100, price: 170, name: '+100 Credits', label: '+100 credits', card_subtitle: '100 credits · best value', offer_badges: ['Best value', '15% off', '+100'], active: true, order: 3 }
+        soDefaultCreditAddon('addon_10', 10, 20, {
+            order: 0,
+            offer_badges: ['+10'],
+            description: 'Quick boost — 10 extra generation runs added at checkout. Stacks on plan included credits.',
+            card_subtitle: '10 credits · ₹20'
+        }),
+        soDefaultCreditAddon('addon_25', 25, 40, {
+            order: 1,
+            offer_badges: ['Popular', '20% off', '+25'],
+            description: 'Better value — 25 extra credits at checkout (₹1.60/credit vs ₹2 base).',
+            card_subtitle: '25 credits · ₹40'
+        }),
+        soDefaultCreditAddon('addon_50', 50, 70, {
+            order: 2,
+            offer_badges: ['30% off', '+50'],
+            description: 'Add 50 credits at checkout — best mid-tier value (₹1.40/credit).',
+            card_subtitle: '50 credits · ₹70'
+        }),
+        soDefaultCreditAddon('addon_100', 100, 170, {
+            order: 3,
+            offer_badges: ['Best value', '15% off', '+100'],
+            description: 'Largest add-on pack — lowest ₹/credit for subscription checkout top-ups.',
+            card_subtitle: '100 credits · best value'
+        })
     ];
 
     const DEFAULT_IMAGE_GENERATION = {
@@ -827,7 +805,7 @@
                     <div><strong>6 months:</strong> ${soExplainPlanPriceFormula('halfyearly', 180)} · <strong>${soExplainPlanCreditsFormula('halfyearly', 180)}</strong></div>
                     <div><strong>Yearly:</strong> ${soExplainPlanPriceFormula('yearly', 365)} · <strong>${soExplainPlanCreditsFormula('yearly', 365)}</strong></div>
                     <div class="so-admin-muted" style="margin-top:6px;">Price discounts are % off (monthly price × months). Credits = ${SO_CREDIT_VOLUME_RATE}×months unless you set <code>creditsPct</code> in tier config. Quarterly example: ₹549 vs ₹597 = ${soPlanPriceDiscount('quarterly', 90, soCalcDefaultPlanPrice('quarterly', 90)).pct}% off.</div>
-                    <div class="so-admin-muted">Monthly plan includes optional credit add-ons (+10/+25) at purchase. Existing customers on any plan can buy credit packs in the extension popup.</div>
+                    <div class="so-admin-muted">Subscription plans use the shared <code>credits.addon_catalog</code> in the extension add-ons section (not on plan cards). Existing subscribers buy credit packs via ⚡ BUY CREDITS.</div>
                 </div>
             </div>
 
