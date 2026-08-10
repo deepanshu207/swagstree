@@ -237,12 +237,253 @@ const FirebaseLicense = {
   },
 
   defaultPlans() {
-    return [
-      { id: "monthly", name: "Monthly", price: 599, days: 30, duration: "1 Month", save: "", best: false, active: true, order: 0 },
-      { id: "quarterly", name: "3 Months", price: 1399, days: 90, duration: "3 Months", save: "Save ₹1000", best: false, active: true, order: 1 },
-      { id: "halfyearly", name: "6 Months", price: 2299, days: 180, duration: "6 Months", save: "Save ₹3000", best: false, active: true, order: 2 },
-      { id: "yearly", name: "Yearly", price: 3099, days: 365, duration: "1 Year", save: "Save ₹8000", best: true, active: true, order: 3 },
-    ];
+    return this.sortPlans(
+      Object.entries(this.richPlanTemplates()).map(([id, tpl], i) =>
+        this.normalizePlanEntry({ id, ...tpl }, id, i),
+      ),
+    );
+  },
+
+  /** Rich metadata templates — Firebase price/name/save override; missing fields are filled in enrichPlan(). */
+  richPlanTemplates() {
+    return {
+      monthly: {
+        name: "Monthly",
+        price: 199,
+        days: 30,
+        duration: "1 Month",
+        included_credits: 200,
+        allow_credit_addons: true,
+        offer_badges: ["Starter"],
+        card_subtitle: "30 days · 200 credits",
+        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        description:
+          "Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.",
+        detail_subtitle: "30 days · 200 credits",
+        detail_footer:
+          "Credits deduct per generation run. Buy credit packs anytime from the popup while your plan is active.",
+        highlights: ["200 credits included", "30 days access", "Smart Mode on Meesho"],
+        features: [
+          { icon: "📅", title: "30 days access", text: "Renews every month" },
+          { icon: "⚡", title: "200 credits", text: "One credit = one AI generation run" },
+          { icon: "🚚", title: "Smart Mode", text: "Preview up to 200 variants per run" },
+        ],
+        detail_sections: [
+          {
+            title: "What's included",
+            items: [
+              "Smart Mode on Meesho catalog",
+              "Apply lowest-shipping variant to listing",
+              "Top up anytime with credit packs while your plan is active",
+            ],
+          },
+        ],
+        active: true,
+        order: 0,
+      },
+      quarterly: {
+        name: "3 Months",
+        price: 549,
+        days: 90,
+        duration: "3 Months",
+        save: "Save ₹48 (8% off)",
+        included_credits: 600,
+        allow_credit_addons: true,
+        offer_badges: ["Popular", "8% off"],
+        card_subtitle: "90 days · 600 credits",
+        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        description:
+          "Three months of Smart Mode — 600 credits with a lower price than paying monthly three times.",
+        detail_subtitle: "90 days · 600 credits",
+        detail_footer:
+          "Full 600-credit pack. Price discount applies to rupees only — credits stay at 200/month × 3.",
+        highlights: ["600 credits", "90 days access", "Lower price vs monthly"],
+        features: [
+          { icon: "📅", title: "90 days access", text: "One payment, three months" },
+          { icon: "⚡", title: "600 credits", text: "200 credits per month equivalent" },
+          { icon: "💰", title: "8% off price", text: "vs paying monthly three times" },
+        ],
+        detail_sections: [
+          {
+            title: "Plan summary",
+            body: "₹549 for 90 days · 600 credits included.",
+            items: ["Unused credits stay until used", "Credit packs available anytime"],
+          },
+        ],
+        active: true,
+        order: 1,
+      },
+      halfyearly: {
+        name: "6 Months",
+        price: 1045,
+        days: 180,
+        duration: "6 Months",
+        save: "Save ₹149 (12.5% off)",
+        included_credits: 1200,
+        allow_credit_addons: true,
+        max_addon_selections: 1,
+        offer_badges: ["12.5% off"],
+        card_subtitle: "180 days · 1,200 credits",
+        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        description:
+          "Half-year access for serious Meesho sellers — 1,200 credits with 12.5% price discount.",
+        detail_subtitle: "180 days · 1,200 credits",
+        highlights: ["1,200 credits", "180 days access", "12.5% off price"],
+        features: [
+          { icon: "📅", title: "180 days access", text: "Six months in one payment" },
+          { icon: "⚡", title: "1,200 credits", text: "200 credits per month equivalent" },
+          { icon: "📈", title: "Volume pricing", text: "Lower cost than quarterly" },
+        ],
+        detail_sections: [
+          {
+            title: "Plan summary",
+            body: "₹1,045 for 180 days · 1,200 credits included.",
+            items: ["Smart Mode up to 200 variants per run", "Credit top-ups available"],
+          },
+        ],
+        active: true,
+        order: 2,
+      },
+      yearly: {
+        name: "Yearly",
+        price: 1980,
+        days: 365,
+        duration: "1 Year",
+        save: "Save ₹408 (17% off)",
+        best: true,
+        included_credits: 2400,
+        allow_credit_addons: true,
+        max_addon_selections: 2,
+        offer_badges: ["Best deal", "17% off"],
+        card_subtitle: "1 year · 2,400 credits",
+        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        description:
+          "Best for full-time Meesho sellers — one year access with 2,400 credits.",
+        detail_subtitle: "1 year · 2,400 credits",
+        detail_footer:
+          "Optional add-ons are selected in the section below the plans before WhatsApp checkout.",
+        highlights: ["2,400 credits", "1 year access", "BEST VALUE"],
+        features: [
+          { icon: "📅", title: "1 year access", text: "Single annual payment" },
+          { icon: "⚡", title: "2,400 credits", text: "200 credits per month equivalent" },
+          { icon: "🚚", title: "Smart Mode", text: "Use credits across the full year" },
+        ],
+        detail_sections: [
+          {
+            title: "What's included",
+            items: [
+              "Live Meesho shipping on all variants",
+              "Apply best image to catalog",
+              "Credit packs anytime",
+            ],
+          },
+        ],
+        active: true,
+        order: 3,
+      },
+    };
+  },
+
+  enrichPlan(plan) {
+    if (!plan || typeof plan !== "object") return plan;
+    const tpl = this.richPlanTemplates()[plan.id] || {};
+    const out = Object.assign({}, tpl, plan);
+    const fillStr = (key) => {
+      const v = plan[key];
+      const t = tpl[key];
+      if ((v == null || v === "") && t != null && t !== "") out[key] = t;
+    };
+    const fillArr = (key) => {
+      const v = plan[key];
+      const t = tpl[key];
+      if ((!Array.isArray(v) || !v.length) && Array.isArray(t) && t.length) {
+        out[key] = t.slice();
+      }
+    };
+    [
+      "description",
+      "detail_subtitle",
+      "detail_footer",
+      "card_hint",
+      "card_subtitle",
+      "save",
+      "duration",
+      "name",
+    ].forEach(fillStr);
+    ["features", "highlights", "detail_sections", "offer_badges"].forEach(fillArr);
+    if (plan.allow_credit_addons != null) out.allow_credit_addons = plan.allow_credit_addons;
+    else if (tpl.allow_credit_addons) out.allow_credit_addons = true;
+    const days = Number(out.days) || 0;
+    if (!credits && days > 0) {
+      out.included_credits = Math.max(1, Math.round((days / 30) * 200));
+    }
+    if (!out.card_subtitle) out.card_subtitle = this.formatPlanCardSubtitle(out);
+    if (!out.detail_subtitle) out.detail_subtitle = out.card_subtitle;
+    if (!out.highlights?.length && out.included_credits > 0) {
+      out.highlights = [
+        `${Number(out.included_credits).toLocaleString("en-IN")} credits`,
+        this.formatPlanDurationLabel(out),
+        out.best ? "BEST VALUE" : "Smart Mode on Meesho",
+      ].filter(Boolean);
+    }
+    return out;
+  },
+
+  planDetailFeaturesFallback(plan) {
+    const credits = Number(plan?.included_credits ?? 0) || 0;
+    const duration = this.formatPlanDurationLabel(plan);
+    const feats = [];
+    if (duration) {
+      feats.push({
+        icon: "📅",
+        title: `${duration} access`,
+        text: plan.days === 30 ? "Renews every month" : "One payment for full term",
+      });
+    }
+    if (credits > 0) {
+      feats.push({
+        icon: "⚡",
+        title: `${credits.toLocaleString("en-IN")} credits`,
+        text: "One credit = one AI generation run",
+      });
+    }
+    feats.push({
+      icon: "🚚",
+      title: "Smart Mode",
+      text: "Live Meesho shipping checks on variants",
+    });
+    return feats;
+  },
+
+  planOfferBadgesSlotHtml(planOrAddon, basePricePerCredit) {
+    const explicit = this.parseOfferBadges(
+      planOrAddon?.offer_badges ?? planOrAddon?.offerBadges,
+    );
+    const badges = explicit.length
+      ? explicit
+      : planOrAddon?.credits != null
+        ? (() => {
+            const computed = this.formatAddonValueBadge(
+              planOrAddon,
+              basePricePerCredit,
+            );
+            return computed && computed !== "Add-on" ? [computed] : [];
+          })()
+        : [];
+    const inner = badges.length
+      ? badges
+          .map((b) => `<span class="plan-offer-badge">${this.escapeHtml(b)}</span>`)
+          .join("")
+      : '<span class="plan-offer-badge plan-offer-badge--spacer" aria-hidden="true">&nbsp;</span>';
+    return `<div class="plan-offer-badges">${inner}</div>`;
+  },
+
+  planSaveSlotHtml(saveLabel, muted) {
+    const text = saveLabel ? this.escapeHtml(saveLabel) : "&nbsp;";
+    const spacer = saveLabel ? "" : " plan-note--spacer";
+    const color = muted ? "var(--mso-muted)" : "var(--mso-success)";
+    const weight = muted ? "400" : "700";
+    return `<div class="plan-note plan-save-slot${spacer}" style="color:${color};font-weight:${weight};">${text}</div>`;
   },
 
   slugifyPlanId(id) {
@@ -274,7 +515,7 @@ const FirebaseLicense = {
     const planKind = String(
       p?.plan_kind || p?.planKind || p?.type || "subscription",
     ).toLowerCase();
-    return {
+    const normalized = {
       id: id || `plan_${index}`,
       name: p?.name || p?.title || "Plan",
       price: Number(p?.price) || 0,
@@ -307,9 +548,10 @@ const FirebaseLicense = {
       plan_kind: planKind,
       included_credits:
         Number(p?.included_credits ?? p?.includedCredits ?? 0) || 0,
-      allow_credit_addons: !!(
-        p?.allow_credit_addons ?? p?.allowCreditAddons
-      ),
+      allow_credit_addons:
+        p?.allow_credit_addons != null || p?.allowCreditAddons != null
+          ? !!(p?.allow_credit_addons ?? p?.allowCreditAddons)
+          : undefined,
       max_addon_selections:
         Number(p?.max_addon_selections ?? p?.maxAddonSelections ?? 0) || 0,
       credit_addons: this.parseCreditAddons(
@@ -332,6 +574,7 @@ const FirebaseLicense = {
         p?.show_details_icon !== false && p?.showDetailsIcon !== false,
       card_icon: p?.card_icon || p?.cardIcon || "",
     };
+    return this.enrichPlan(normalized);
   },
 
   normalizePlanFeature(item, index) {
@@ -512,9 +755,13 @@ const FirebaseLicense = {
     if (!plan) {
       return '<p style="font-size:12px;color:#6b7280;">Plan not found.</p>';
     }
+    plan = this.enrichPlan(plan);
     const duration = this.formatPlanDurationLabel(plan);
     const credits = this.formatPlanCreditsLabel(plan);
-    const features = (plan.features || []).length > 0 ? plan.features : [];
+    const features =
+      (plan.features || []).length > 0
+        ? plan.features
+        : this.planDetailFeaturesFallback(plan);
     const highlights = (plan.highlights || []).filter(
       (h) => h !== duration && h !== credits,
     );
@@ -522,17 +769,23 @@ const FirebaseLicense = {
     const bestTag = plan.best
       ? '<span class="plan-detail-badge">BEST VALUE</span>'
       : "";
+    const offerBadges = this.planOfferBadgesSlotHtml(plan);
     const save = plan.save
       ? `<div class="plan-detail-save">${this.escapeHtml(this.formatPlanSaveLabel(plan))}</div>`
       : "";
     const cta = plan.cta_text || "Buy via WhatsApp";
     const metaParts = [duration, credits].filter(Boolean);
+    const subtitle =
+      plan.detail_subtitle ||
+      plan.card_subtitle ||
+      this.formatPlanCardSubtitle(plan);
 
     let html = `<div class="plan-detail-card">
       <div class="plan-detail-header">
       ${bestTag}
+      ${offerBadges}
       <h2 class="plan-detail-name">${this.escapeHtml(plan.name)}</h2>
-      ${plan.detail_subtitle ? `<p class="plan-detail-subtitle">${this.escapeHtml(plan.detail_subtitle)}</p>` : ""}
+      ${subtitle ? `<p class="plan-detail-subtitle">${this.escapeHtml(subtitle)}</p>` : ""}
       <div class="plan-detail-price">₹${plan.price}</div>
       ${save}
       ${metaParts.length ? `<p class="plan-detail-meta">${this.escapeHtml(metaParts.join(" · "))}</p>` : ""}
@@ -2261,15 +2514,13 @@ Please share payment details.`;
           const tag = p.best
             ? `<span class="plan-best-tag">BEST VALUE</span>`
             : "";
-          const offerBadges = this.planOfferBadgesHtml(p);
+          const offerBadges = this.planOfferBadgesSlotHtml(p);
           const durationLabel = this.formatPlanDurationLabel(p);
           const subtitleText = this.formatPlanCardSubtitle(p);
-          const subtitle = subtitleText
-            ? `<div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitleText)}</div>`
-            : "";
-          const save = p.save
-            ? `<div class="plan-note" style="color:var(--mso-success);font-weight:700;">${this.escapeHtml(this.formatPlanSaveLabel(p))}</div>`
-            : "";
+          const subtitle = `<div class="plan-note plan-subtitle-slot" style="color:var(--mso-muted);">${subtitleText ? this.escapeHtml(subtitleText) : "&nbsp;"}</div>`;
+          const save = this.planSaveSlotHtml(
+            p.save ? this.formatPlanSaveLabel(p) : "",
+          );
           const nameStyle = p.best ? ' style="margin-top:4px;"' : "";
           const priceStyle = p.best
             ? ' style="color:var(--mso-success);"'
@@ -2298,7 +2549,7 @@ Please share payment details.`;
         const tag = p.best
           ? `<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ffd700,#e67e22);color:#fff;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:700;">BEST VALUE</div>`
           : "";
-        const offerBadges = this.planOfferBadgesHtml(p);
+        const offerBadges = this.planOfferBadgesSlotHtml(p);
         const durationLabel = this.formatPlanDurationLabel(p);
         const subtitleText = this.formatPlanCardSubtitle(p);
         const subtitle = subtitleText
@@ -2427,12 +2678,10 @@ Please share payment details.`;
     const enabled = options.enabled !== false;
     const selected = !!options.selected;
     const basePpc = options.pricePerCredit || 2;
-    const offerBadges = this.addonOfferBadgesHtml(addon, basePpc);
+    const offerBadges = this.planOfferBadgesSlotHtml(addon, basePpc);
     const subtitle = addon.card_subtitle || `${addon.credits} credits · ₹${addon.price}`;
-    const save = this.formatAddonSaveLabel(addon, basePpc);
-    const saveHtml = save
-      ? `<div class="plan-note" style="color:var(--mso-success);font-weight:700;">${this.escapeHtml(save)}</div>`
-      : "";
+    const saveLabel = addon.save || this.formatAddonSaveLabel(addon, basePpc);
+    const saveHtml = this.planSaveSlotHtml(saveLabel || "");
     const disabledAttr = enabled ? "" : " disabled";
     const pressed = selected ? ' aria-pressed="true"' : ' aria-pressed="false"';
     const selectedClass = selected ? " plan-btn--selected" : "";
