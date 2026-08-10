@@ -496,6 +496,8 @@
         }
     ];
 
+    const SO_EXPORT_VERSION = 1;
+
     function soDeepClone(obj) {
         return JSON.parse(JSON.stringify(obj));
     }
@@ -630,6 +632,10 @@
         if (section === 'credits' || section === 'all') {
             const rawCredits = s.credits && typeof s.credits === 'object' ? s.credits : {};
             soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
+            const rawCatalog = Array.isArray(rawCredits.addon_catalog) && rawCredits.addon_catalog.length
+                ? rawCredits.addon_catalog
+                : DEFAULT_ADDON_CATALOG.slice();
+            soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
             const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
                 ? rawCredits.packs
                 : DEFAULT_CREDIT_PACKS.slice();
@@ -637,7 +643,7 @@
             soCreditPacks.forEach((p, i) => { p.order = i; });
             soSmartMode = soNormalizeSmartMode(s.smart_mode || DEFAULT_SMART_MODE);
             soConfig = Object.assign({}, soConfig || {}, {
-                credits: soCredits,
+                credits: Object.assign({}, soCredits, { packs: soCreditPacks.slice() }),
                 smart_mode: soSmartMode
             });
         }
@@ -740,6 +746,7 @@
         const seed = soGetDefaultAppSeed();
         const plans = (seed.plans || []).map((p, i) => soNormalizePlan(p, i));
         const packs = (seed.credits?.packs || []).map((p, i) => soNormalizeCreditPack(p, i));
+        const addonCatalog = (seed.credits?.addon_catalog || DEFAULT_ADDON_CATALOG).map((a, i) => soNormalizeCreditAddon(a, i));
         const trial = soNormalizeGoogleTrial(seed.google_trial || DEFAULT_GOOGLE_TRIAL);
 
         const plansHtml = plans.map(p => {
@@ -749,13 +756,6 @@
                 : '';
             const featCount = (p.features || []).length;
             const secCount = (p.detail_sections || []).length;
-            const addons = (p.credit_addons || []).filter(a => a.active !== false);
-            const addonsHtml = addons.length
-                ? `<div class="so-defaults-addon-list">${addons.map(a => {
-                    const ab = (a.offer_badges || []).map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join('');
-                    return `<div class="so-defaults-addon-row"><strong>${soEsc(a.label)}</strong> · ${soEsc(a.card_subtitle || `${a.credits} credits · ₹${a.price}`)}${ab ? ` ${ab}` : ''}${a.description ? `<span class="so-admin-muted"> — ${soEsc(a.description)}</span>` : ''}</div>`;
-                }).join('')}</div>`
-                : '';
             return `<div class="so-defaults-plan-card">
                 <div class="so-defaults-plan-head">
                     <strong>${soEsc(p.name)}</strong>
@@ -769,20 +769,23 @@
                 </div>
                 <div class="so-defaults-credits-formula"><strong>₹${(p.price || 0).toLocaleString('en-IN')}</strong> · <strong>${p.included_credits || 0} credits</strong> — ${soEsc(soExplainPlanPriceFormula(p.id, p.days))} · ${soEsc(soExplainPlanCreditsFormula(p.id, p.days))}${p.days > 30 ? ` · ${soEsc(soExplainPlanDiscount(p.id, p.days, p.price) || '')}` : ''}</div>
                 <div class="so-defaults-mini"><strong>Card:</strong> ${soEsc(p.card_subtitle || '')}</div>
-                ${addonsHtml}
                 <p class="so-admin-muted">${soEsc(p.description || '')}</p>
-                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections · ${addons.length} add-on(s)</div>
+                <div class="so-defaults-field-counts">${featCount} features · ${(p.highlights || []).length} highlights · ${secCount} detail sections</div>
             </div>`;
         }).join('');
 
-        const planAddonsSummary = plans.map(p => {
-            const addons = (p.credit_addons || []).filter(a => a.active !== false);
-            if (!addons.length) return '';
-            return `<div class="so-defaults-addon-plan"><strong>${soEsc(p.name)}</strong>${addons.map(a => {
-                const badges = (a.offer_badges || []).map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join(' ');
-                return `<div class="so-defaults-addon-row">${soEsc(a.label)} · ${soEsc(a.card_subtitle)}${badges ? ` · ${badges}` : ''} · maps to <code>addon_credits</code></div>`;
-            }).join('')}</div>`;
-        }).filter(Boolean).join('');
+        const catalogHtml = addonCatalog.map(a => {
+            const badges = (a.offer_badges || []).map(b => `<span class="so-defaults-badge">${soEsc(b)}</span>`).join(' ');
+            return `<div class="so-defaults-addon-row"><strong>${soEsc(a.label)}</strong> · ${soEsc(a.card_subtitle || `${a.credits} credits · ₹${a.price}`)}${badges ? ` · ${badges}` : ''}</div>`;
+        }).join('');
+
+        const planAddonsSummary = addonCatalog.length
+            ? `<div class="so-defaults-section">
+                <h5><i class="fa fa-plus-circle"></i> Shared add-on catalog (<code>credits.addon_catalog</code>)</h5>
+                <p class="so-admin-muted">Same add-ons for every subscription plan — shown in extension bottom section only.</p>
+                <div class="so-defaults-addon-list">${catalogHtml}</div>
+            </div>`
+            : '';
 
         const packsHtml = packs.map(p => `
             <div class="so-defaults-pack-row">
@@ -865,6 +868,293 @@
         }
     };
 
+    function soGetAddonCatalogState() {
+        const raw = (soCredits && soCredits.addon_catalog) || (soConfig?.credits && soConfig.credits.addon_catalog);
+        if (Array.isArray(raw) && raw.length) {
+            return soSortCreditAddons(raw.map((a, i) => soNormalizeCreditAddon(a, i)));
+        }
+        return soDeepClone(DEFAULT_ADDON_CATALOG);
+    }
+
+    function soSerializeAddonCatalog(fromDom) {
+        if (fromDom) return soGetAddonCatalogState().map((a, i) => {
+            const row = soCreditAddonToFirestore(a, i);
+            return row;
+        });
+        return soGetAddonCatalogState().map((a, i) => soCreditAddonToFirestore(a, i));
+    }
+
+    function soBuildCreditsPayloadFromDom(packOverrides) {
+        const packsSource = packOverrides != null
+            ? packOverrides
+            : (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks);
+        return Object.assign({}, soCredits || DEFAULT_CREDITS, {
+            enabled: !!document.getElementById('so-credits-enabled')?.checked,
+            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
+            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
+            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
+            image_generation: soReadImageGenerationFromDom(),
+            packs: packsSource.map((p, i) => soCreditPackToFirestore(p, i)),
+            addon_catalog: soSerializeAddonCatalog(true)
+        });
+    }
+
+    function soCreditAddonToFirestore(addon, index) {
+        const a = soNormalizeCreditAddon(addon, index);
+        const row = {
+            id: a.id,
+            credits: a.credits,
+            price: a.price,
+            label: a.label,
+            active: a.active !== false,
+            order: a.order != null ? a.order : index
+        };
+        if (a.card_subtitle) row.card_subtitle = a.card_subtitle;
+        if (a.description) row.description = a.description;
+        if (a.offer_badges && a.offer_badges.length) row.offer_badges = a.offer_badges.slice();
+        if (a.default_selected) row.default_selected = true;
+        return row;
+    }
+
+    function soBuildConfigExportData(fromDom) {
+        return {
+            whatsapp_number: fromDom
+                ? String(document.getElementById('so-whatsapp-number')?.value || '').replace(/\D/g, '')
+                : String(soConfig?.whatsapp_number || '').replace(/\D/g, ''),
+            whatsapp_message: fromDom
+                ? String(document.getElementById('so-whatsapp-message')?.value || '').trim()
+                : String(soConfig?.whatsapp_message || '').trim(),
+            extension_enabled: fromDom
+                ? !!document.getElementById('so-extension-enabled')?.checked
+                : soConfig?.extension_enabled !== false,
+            min_extension_version: fromDom
+                ? String(document.getElementById('so-min-version')?.value || DEFAULT_MIN_VERSION).trim()
+                : String(soConfig?.min_extension_version || DEFAULT_MIN_VERSION).trim(),
+            announcement: fromDom
+                ? String(document.getElementById('so-announcement')?.value || '').trim()
+                : String(soConfig?.announcement || '').trim(),
+            plans: soBuildPlansCanonical(fromDom),
+            support: soBuildSupportCanonical(fromDom),
+            demo_keys: soBuildInlineDemoCanonical(fromDom)
+        };
+    }
+
+    function soBuildCreditsExportData(fromDom) {
+        const canonical = soBuildCreditsCanonicalObject(fromDom);
+        return {
+            credits: Object.assign({}, canonical, {
+                addon_catalog: soSerializeAddonCatalog(fromDom)
+            }),
+            smart_mode: fromDom
+                ? soSmartModeToFirestore(soReadSmartModeFromDom())
+                : soSmartModeToFirestore(soSmartMode || soConfig?.smart_mode || DEFAULT_SMART_MODE)
+        };
+    }
+
+    function soBuildFullExportData(fromDom) {
+        const cfg = soBuildConfigExportData(fromDom);
+        const cred = soBuildCreditsExportData(fromDom);
+        return Object.assign({}, cfg, {
+            credits: cred.credits,
+            smart_mode: cred.smart_mode,
+            google_trial: soGoogleTrialToFirestore(
+                fromDom ? soReadGoogleTrialFromDom() : soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL)
+            )
+        });
+    }
+
+    function soWrapExportEnvelope(scope, data) {
+        return {
+            so_export_version: SO_EXPORT_VERSION,
+            scope,
+            exported_at: new Date().toISOString(),
+            exported_by: soAuthEmail() || 'unknown',
+            project: 'extension-e6e32',
+            collection: `${SO_CONFIG_DOC}/${SO_CONFIG_ID}`,
+            note: 'Shipping Optimizer admin backup — does not include licenses, Google users, or demo_keys collection docs.',
+            data
+        };
+    }
+
+    function soDownloadJsonFile(filename, obj) {
+        const text = JSON.stringify(obj, null, 2);
+        const blob = new Blob([text], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            a.remove();
+        }, 0);
+    }
+
+    function soExportFilename(scope) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        return `shipping-optimizer-${scope}-${stamp}.json`;
+    }
+
+    window.soExportShippingOptimizer = function(scope, fromDom) {
+        if (!soRequireSuperAdmin()) return;
+        const useDom = fromDom !== false;
+        let data;
+        let fileScope = scope;
+        if (scope === 'config') {
+            data = soBuildConfigExportData(useDom);
+        } else if (scope === 'credits') {
+            data = soBuildCreditsExportData(useDom);
+        } else if (scope === 'full') {
+            data = soBuildFullExportData(useDom);
+            fileScope = 'full-app-config';
+        } else {
+            return soToast('Unknown export scope.');
+        }
+        const envelope = soWrapExportEnvelope(scope, data);
+        soDownloadJsonFile(soExportFilename(fileScope), envelope);
+        soToast(`Exported ${scope} backup (${useDom ? 'current forms' : 'loaded state'}).`);
+    };
+
+    function soUnwrapImportPayload(parsed, expectedScope) {
+        if (!parsed || typeof parsed !== 'object') {
+            throw new Error('Invalid JSON — expected an object.');
+        }
+        let scope = String(parsed.scope || parsed.so_scope || '').toLowerCase();
+        let data = parsed.data;
+        if (!data && (parsed.plans || parsed.credits || parsed.whatsapp_number)) {
+            data = parsed;
+            if (!scope) {
+                if (expectedScope) scope = expectedScope;
+                else if (parsed.credits || parsed.smart_mode) scope = 'credits';
+                else scope = 'config';
+            }
+        }
+        if (!data || typeof data !== 'object') {
+            throw new Error('Backup file has no data object.');
+        }
+        if (expectedScope && scope && scope !== expectedScope && scope !== 'full') {
+            throw new Error(`This file is for "${scope}" but you chose "${expectedScope}".`);
+        }
+        return { scope: scope || expectedScope || 'config', data };
+    }
+
+    function soApplyImportedConfigData(data) {
+        const seed = Object.assign({}, soGetDefaultAppSeed(), {
+            whatsapp_number: data.whatsapp_number,
+            whatsapp_message: data.whatsapp_message,
+            extension_enabled: data.extension_enabled,
+            min_extension_version: data.min_extension_version,
+            announcement: data.announcement,
+            plans: data.plans,
+            support: data.support,
+            demo_keys: data.demo_keys
+        });
+        soApplySeedSectionToState(seed, 'config');
+        soRefreshFormsAfterSeed('config');
+    }
+
+    function soApplyImportedCreditsData(data) {
+        const credits = data.credits && typeof data.credits === 'object' ? data.credits : data;
+        const seed = Object.assign({}, soGetDefaultAppSeed(), {
+            credits,
+            smart_mode: data.smart_mode || credits.smart_mode || DEFAULT_SMART_MODE
+        });
+        soApplySeedSectionToState(seed, 'credits');
+        soRefreshFormsAfterSeed('credits');
+    }
+
+    function soApplyImportedFullData(data) {
+        const seed = Object.assign({}, soGetDefaultAppSeed(), data);
+        soApplySeedSectionToState(seed, 'all');
+        if (data.google_trial) {
+            soConfig = Object.assign({}, soConfig || {}, {
+                google_trial: soGoogleTrialToFirestore(soNormalizeGoogleTrial(data.google_trial))
+            });
+        }
+        soRefreshFormsAfterSeed('all');
+        soBindGoogleTrialForm();
+    }
+
+    window.soTriggerImportShippingOptimizer = function(scope, mode) {
+        if (!soRequireSuperAdmin()) return;
+        const input = document.getElementById('so-import-backup-file');
+        if (!input) return soToast('Import input not found.');
+        input.dataset.soImportScope = scope || 'full';
+        input.dataset.soImportMode = mode || 'form';
+        input.value = '';
+        input.click();
+    };
+
+    window.soHandleImportShippingOptimizerFile = async function(input) {
+        if (!input || !input.files || !input.files[0]) return;
+        if (!soRequireSuperAdmin()) return;
+        const scope = input.dataset.soImportScope || 'full';
+        const mode = input.dataset.soImportMode || 'form';
+        const file = input.files[0];
+        let parsed;
+        try {
+            const text = await file.text();
+            parsed = JSON.parse(text);
+        } catch (e) {
+            return soToast('Import failed: ' + (e.message || 'Invalid JSON file.'));
+        }
+        let unwrapped;
+        try {
+            unwrapped = soUnwrapImportPayload(parsed, scope === 'full' ? '' : scope);
+        } catch (e) {
+            return soToast(e.message || 'Invalid backup file.');
+        }
+        const importScope = unwrapped.scope;
+        const label = importScope === 'full' ? 'full app config' : importScope;
+        const modeLabel = mode === 'firebase'
+            ? 'write directly to Firebase (merge)'
+            : 'load into admin forms only (review before Save)';
+        if (!confirm(
+            `Import ${label} backup from "${file.name}"?\n\n` +
+            `Mode: ${modeLabel}\n\n` +
+            'Licenses, Google users, and demo_keys collection are never changed by import.\n' +
+            'Unsaved form changes on affected tabs will be replaced.'
+        )) return;
+
+        try {
+            if (importScope === 'config') {
+                soApplyImportedConfigData(unwrapped.data);
+            } else if (importScope === 'credits') {
+                soApplyImportedCreditsData(unwrapped.data);
+            } else if (importScope === 'full') {
+                soApplyImportedFullData(unwrapped.data);
+            } else {
+                throw new Error('Unknown import scope: ' + importScope);
+            }
+
+            if (mode === 'firebase') {
+                if (!soRequireExtensionWrite()) return;
+                if (importScope === 'config') {
+                    await saveShippingOptimizerConfig();
+                } else if (importScope === 'credits') {
+                    await saveShippingOptimizerCredits();
+                } else if (importScope === 'full') {
+                    await soSaveAllCurrentAsDefaults();
+                }
+                soToast('Import applied and saved to Firebase.');
+            } else {
+                if (importScope === 'full') {
+                    soMarkTabDirty('config');
+                    soMarkTabDirty('credits');
+                } else {
+                    soMarkTabDirty(importScope);
+                }
+                soToast('Import loaded into forms — review, then Save to Firebase.');
+            }
+        } catch (e) {
+            soToast('Import failed: ' + (e.message || 'Unknown error'));
+        } finally {
+            input.value = '';
+        }
+    };
+
     window.soSeedAllDefaults = async function() {
         if (!confirm('Write the full recommended app config to Firebase (shipping_optimizer_config/app)? Existing fields will be merged/overwritten with seed values.')) return;
         if (!soRequireExtensionWrite()) return;
@@ -942,14 +1232,7 @@
         soCreditPacks = soReadCreditPacksFromDom();
         const general = soReadGeneralConfigFromDom();
         const demoKeysPayload = soReadInlineDemoKeysFromDom();
-        const creditsPayload = {
-            enabled: !!document.getElementById('so-credits-enabled')?.checked,
-            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
-            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
-            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
-            image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
-        };
+        const creditsPayload = soBuildCreditsPayloadFromDom(soCreditPacks);
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const googleTrialPayload = soGoogleTrialToFirestore(soReadGoogleTrialFromDom());
         return {
@@ -2943,10 +3226,7 @@
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const err = soValidateSmartMode(smartModePayload);
         if (err) return soToast(err);
-        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
-            image_generation: soReadImageGenerationFromDom(),
-            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => soCreditPackToFirestore(p, i))
-        });
+        const creditsPayload = soBuildCreditsPayloadFromDom();
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 smart_mode: smartModePayload,
@@ -3029,7 +3309,8 @@
                 : Math.max(1, parseInt(c.cost_per_operation, 10) || DEFAULT_CREDITS.cost_per_operation),
             image_generation: fromDom ? soReadImageGenerationFromDom() : soNormalizeImageGeneration(c.image_generation),
             smart_mode: fromDom ? soReadSmartModeFromDom() : soSmartModeToFirestore(soSmartMode || soConfig?.smart_mode || DEFAULT_SMART_MODE),
-            packs: packs.map((p, i) => soCreditPackToFirestore(p, i))
+            packs: packs.map((p, i) => soCreditPackToFirestore(p, i)),
+            addon_catalog: soSerializeAddonCatalog(fromDom)
         };
     }
 
@@ -3737,6 +4018,10 @@
         soPopulateLicensePlanSelect();
         const rawCredits = soConfig.credits && typeof soConfig.credits === 'object' ? soConfig.credits : {};
         soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
+        const rawCatalog = Array.isArray(rawCredits.addon_catalog) && rawCredits.addon_catalog.length
+            ? rawCredits.addon_catalog
+            : DEFAULT_ADDON_CATALOG.slice();
+        soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
         const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
             ? rawCredits.packs
             : DEFAULT_CREDIT_PACKS.slice();
@@ -5383,14 +5668,7 @@
 
     window.saveShippingOptimizerCreditSettings = async function() {
         if (!soRequireExtensionWrite()) return;
-        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
-            enabled: !!document.getElementById('so-credits-enabled')?.checked,
-            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
-            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
-            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
-            image_generation: soReadImageGenerationFromDom(),
-            packs: (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).map((p, i) => soCreditPackToFirestore(p, i))
-        });
+        const creditsPayload = soBuildCreditsPayloadFromDom();
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
@@ -5417,10 +5695,7 @@
         soCreditPacks = soReadCreditPacksFromDom();
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
-        const creditsPayload = Object.assign({}, soCredits || DEFAULT_CREDITS, {
-            image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
-        });
+        const creditsPayload = soBuildCreditsPayloadFromDom(soCreditPacks);
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
@@ -5973,14 +6248,7 @@
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
 
-        const creditsPayload = {
-            enabled: !!document.getElementById('so-credits-enabled')?.checked,
-            price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
-            min_purchase: Math.max(1, parseInt(document.getElementById('so-credits-min-purchase')?.value, 10) || DEFAULT_CREDITS.min_purchase),
-            cost_per_operation: Math.max(1, parseInt(document.getElementById('so-credits-cost-op')?.value, 10) || DEFAULT_CREDITS.cost_per_operation),
-            image_generation: soReadImageGenerationFromDom(),
-            packs: soCreditPacks.map((p, i) => soCreditPackToFirestore(p, i))
-        };
+        const creditsPayload = soBuildCreditsPayloadFromDom(soCreditPacks);
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
