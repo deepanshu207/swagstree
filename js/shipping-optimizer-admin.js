@@ -347,6 +347,7 @@
                     body: `₹${hPrice.toLocaleString('en-IN')} for 180 days · ${hCredits.toLocaleString('en-IN')} credits included.${hDisc ? ` ${hDisc}.` : ''}`,
                     items: ['Smart Mode up to 200 variants per run', 'Credit top-ups available']
                 }],
+                detail_footer: 'Price discount applies to rupees only — credits stay at 200/month × 6.',
                 card_subtitle: soPlanCardSubtitle(hPrice, 180, hCredits),
                 order: 2
             }),

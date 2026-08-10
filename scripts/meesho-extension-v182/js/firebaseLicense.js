@@ -277,6 +277,14 @@ const FirebaseLicense = {
               "Top up anytime with credit packs while your plan is active",
             ],
           },
+          {
+            title: "Already on Monthly?",
+            body: "Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.",
+            items: [
+              "Credit packs stack on your license",
+              "Optional add-ons are in the section below the plans",
+            ],
+          },
         ],
         active: true,
         order: 0,
@@ -309,6 +317,11 @@ const FirebaseLicense = {
             body: "₹549 for 90 days · 600 credits included.",
             items: ["Unused credits stay until used", "Credit packs available anytime"],
           },
+          {
+            title: "Why 3 months?",
+            body: "Lower ₹/month than paying monthly three times — same 200 credits/month volume.",
+            items: ["Optional credit add-ons at checkout", "Smart Mode on all Meesho listings"],
+          },
         ],
         active: true,
         order: 1,
@@ -328,6 +341,8 @@ const FirebaseLicense = {
         description:
           "Half-year access for serious Meesho sellers — 1,200 credits with 12.5% price discount.",
         detail_subtitle: "180 days · 1,200 credits",
+        detail_footer:
+          "Price discount applies to rupees only — credits stay at 200/month × 6.",
         highlights: ["1,200 credits", "180 days access", "12.5% off price"],
         features: [
           { icon: "📅", title: "180 days access", text: "Six months in one payment" },
@@ -339,6 +354,11 @@ const FirebaseLicense = {
             title: "Plan summary",
             body: "₹1,045 for 180 days · 1,200 credits included.",
             items: ["Smart Mode up to 200 variants per run", "Credit top-ups available"],
+          },
+          {
+            title: "Add-ons",
+            body: "This plan allows one optional credit add-on at checkout.",
+            items: ["Pick add-ons on the plan screen before WhatsApp", "Stacks on included credits"],
           },
         ],
         active: true,
@@ -376,6 +396,16 @@ const FirebaseLicense = {
               "Apply best image to catalog",
               "Credit packs anytime",
             ],
+          },
+          {
+            title: "Plan summary",
+            body: "₹1,980 for 1 year · 2,400 credits included.",
+            items: ["Best long-term value for full-time sellers"],
+          },
+          {
+            title: "Add-ons",
+            body: "Yearly plan allows up to two optional credit add-ons at checkout.",
+            items: ["Select on plan screen before WhatsApp", "Same add-on catalog as other plans"],
           },
         ],
         active: true,
@@ -845,8 +875,8 @@ const FirebaseLicense = {
               ? `Pick up to ${maxSel} add-ons (optional).`
               : "Pick any add-ons (optional).";
         html += `<div class="plan-detail-section">
-          <div class="plan-detail-section-title">Credit add-ons</div>
-          <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Select on the plan screen before WhatsApp checkout.</p>
+          <div class="plan-detail-section-title">⚡ OPTIONAL CREDIT ADD-ONS</div>
+          <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Same add-ons with every plan — select on the plan screen before WhatsApp checkout.</p>
           <div class="plan-detail-addon-cards">`;
         addons.forEach((a) => {
           const badges = this.addonOfferBadgesHtml(a, basePpc);

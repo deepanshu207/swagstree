@@ -2274,13 +2274,14 @@
                         <strong>Read-only preview</strong> of built-in values in code (<code>soGetDefaultAppSeed()</code>). Use <strong>Load → Config form</strong> / <strong>Load → Credits form</strong> to copy these into admin forms <em>without touching Firebase</em>. Use <strong>Export</strong> / <strong>Import</strong> to back up or restore your live settings safely offline.
                     </p>
                     <div class="so-admin-muted so-admin-tip" style="margin-bottom:12px;padding:10px 12px;border:1px solid rgba(255,215,0,0.2);border-radius:10px;background:rgba(255,215,0,0.05);">
-                        <strong>When does the extension see updated plan data?</strong>
+                        <strong>How to load rich plan data (₹199 Monthly + ℹ️ detail like your screenshot)</strong>
                         <ol style="margin:8px 0 0 18px;line-height:1.6;">
-                            <li><strong>Load → Config/Credits form</strong> — fills admin forms only. Extension unchanged until you save Firebase.</li>
-                            <li><strong>Save to Firebase</strong> (Config or Credits tab) — writes your edited forms to <code>shipping_optimizer_config/app</code>. Extension picks this up on next popup open (cached ~5 min).</li>
-                            <li><strong>Seed all to Firebase</strong> — immediately overwrites config with full built-in defaults (plans with subtitles, features, add-ons, catalog). Fastest way to fix bare plan cards in the extension.</li>
+                            <li><strong>Seed all to Firebase</strong> (button below) — fastest. Writes all 4 plans with Starter badge, subtitles, features, highlights, detail sections, add-ons.</li>
+                            <li><strong>Load → Config form</strong> — copies defaults into forms only. Review → <em>Save to Firebase</em> on Config tab when ready.</li>
+                            <li><strong>Edit per plan:</strong> Config → Pricing plans → expand Monthly → Plan detail screen fields.</li>
+                            <li><strong>Extension:</strong> After Firebase save, reload at <code>chrome://extensions</code> or reopen popup.</li>
                         </ol>
-                        <p style="margin:8px 0 0;">After any Firebase save: reload extension at <code>chrome://extensions</code> or close/reopen the popup. Plan cards show <code>card_subtitle</code>, badges, save line; ℹ️ detail shows features, highlights, and add-ons.</p>
+                        <p style="margin:8px 0 0;"><strong>Built-in prices:</strong> Monthly ₹199 · 3 Months ₹549 · 6 Months ₹1,045 · Yearly ₹1,980. Does not delete licenses or Google users.</p>
                     </div>
                     <div class="so-defaults-toolbar">
                         <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Built-in values → Config &amp; Pricing form only (no Firebase)">Load → Config form</button>
