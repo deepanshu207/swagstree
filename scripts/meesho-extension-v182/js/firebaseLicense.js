@@ -256,7 +256,7 @@ const FirebaseLicense = {
         allow_credit_addons: true,
         offer_badges: ["Starter"],
         card_subtitle: "30 days · 200 credits",
-        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        card_hint: "Tap for plan details · Add-ons inside ℹ️",
         description:
           "Try Smart Mode with live Meesho shipping checks — ideal for new sellers testing AI variant previews.",
         detail_subtitle: "30 days · 200 credits",
@@ -282,7 +282,7 @@ const FirebaseLicense = {
             body: "Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.",
             items: [
               "Credit packs stack on your license",
-              "Optional add-ons are in the section below the plans",
+              "Optional credit add-ons are in each plan's details (ℹ️)",
             ],
           },
         ],
@@ -299,7 +299,7 @@ const FirebaseLicense = {
         allow_credit_addons: true,
         offer_badges: ["Popular", "8% off"],
         card_subtitle: "90 days · 600 credits",
-        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        card_hint: "Tap for plan details · Add-ons inside ℹ️",
         description:
           "Three months of Smart Mode — 600 credits with a lower price than paying monthly three times.",
         detail_subtitle: "90 days · 600 credits",
@@ -337,7 +337,7 @@ const FirebaseLicense = {
         max_addon_selections: 1,
         offer_badges: ["12.5% off"],
         card_subtitle: "180 days · 1,200 credits",
-        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        card_hint: "Tap for plan details · Add-ons inside ℹ️",
         description:
           "Half-year access for serious Meesho sellers — 1,200 credits with 12.5% price discount.",
         detail_subtitle: "180 days · 1,200 credits",
@@ -358,7 +358,7 @@ const FirebaseLicense = {
           {
             title: "Add-ons",
             body: "This plan allows one optional credit add-on at checkout.",
-            items: ["Pick add-ons on the plan screen before WhatsApp", "Stacks on included credits"],
+            items: ["Pick add-ons in plan details before WhatsApp", "Stacks on included credits"],
           },
         ],
         active: true,
@@ -376,12 +376,12 @@ const FirebaseLicense = {
         max_addon_selections: 2,
         offer_badges: ["Best deal", "17% off"],
         card_subtitle: "1 year · 2,400 credits",
-        card_hint: "Tap ℹ️ for details · Tap card for WhatsApp",
+        card_hint: "Tap for plan details · Add-ons inside ℹ️",
         description:
           "Best for full-time Meesho sellers — one year access with 2,400 credits.",
         detail_subtitle: "1 year · 2,400 credits",
         detail_footer:
-          "Optional add-ons are selected in the section below the plans before WhatsApp checkout.",
+          "Optional add-ons are selected in this plan detail before WhatsApp checkout.",
         highlights: ["2,400 credits", "1 year access", "BEST VALUE"],
         features: [
           { icon: "📅", title: "1 year access", text: "Single annual payment" },
@@ -405,7 +405,7 @@ const FirebaseLicense = {
           {
             title: "Add-ons",
             body: "Yearly plan allows up to two optional credit add-ons at checkout.",
-            items: ["Select on plan screen before WhatsApp", "Same add-on catalog as other plans"],
+            items: ["Select add-ons below before WhatsApp", "Same add-on catalog as other plans"],
           },
         ],
         active: true,
@@ -876,32 +876,23 @@ const FirebaseLicense = {
               : "Pick any add-ons (optional).";
         html += `<div class="plan-detail-section">
           <div class="plan-detail-section-title">⚡ OPTIONAL CREDIT ADD-ONS</div>
-          <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Same add-ons with every plan — select on the plan screen before WhatsApp checkout.</p>
-          <div class="plan-detail-addon-cards">`;
+          <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Tap cards to select, then buy via WhatsApp below.</p>
+          <div class="plan-grid plan-detail-addon-cards" style="grid-template-columns:${this.planGridColumns(addons.length)};">`;
         addons.forEach((a) => {
-          const badges = this.addonOfferBadgesHtml(a, basePpc);
-          const subtitle =
-            a.card_subtitle || `${a.credits} credits · ₹${a.price}`;
-          const save =
-            a.save || this.formatAddonSaveLabel(a, basePpc);
-          html += `<div class="plan-detail-addon-card">
-            ${badges}
-            <div class="plan-detail-addon-name">${this.escapeHtml(a.label || `+${a.credits} credits`)}</div>
-            <div class="plan-detail-addon-price">₹${a.price}</div>
-            <div class="plan-detail-addon-meta">${this.escapeHtml(subtitle)}</div>
-            ${save ? `<div class="plan-detail-save">${this.escapeHtml(save)}</div>` : ""}
-            ${a.description ? `<p class="plan-detail-addon-desc">${this.escapeHtml(a.description)}</p>` : ""}
-          </div>`;
+          html += this.renderAddonCreditCard(a, plan, {
+            enabled: true,
+            selected: !!a.default_selected,
+            pricePerCredit: basePpc,
+          });
         });
         html += `</div></div>`;
-      } else {
-        html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);margin-top:8px;">Optional credit add-ons appear in the section below the plans when available.</p>`;
       }
     }
 
+    const durationLabel = this.formatPlanDurationLabel(plan);
     html += this.planDetailWhatsAppBtnHtml(
       cta,
-      `data-plan="${this.escapeAttr(plan.id)}"`,
+      this.planDataAttrs(plan, durationLabel),
     );
     if (plan.detail_footer) {
       html += `<p class="plan-detail-footer">${this.escapeHtml(plan.detail_footer)}</p>`;
@@ -2682,7 +2673,7 @@ Please share payment details.`;
       </ul>
     </div>`;
 
-    html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);">Select this add-on on the plan screen below, then tap Buy on WhatsApp.</p>`;
+    html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);">Select this add-on in the plan details, then tap Buy on WhatsApp.</p>`;
     html += `</div>`;
     return html;
   },
@@ -2813,7 +2804,7 @@ Please share payment details.`;
     this.wirePlanAddonSelection(container);
   },
 
-  /** @deprecated Inline add-ons removed — use renderPlanAddonsSection at bottom. */
+  /** @deprecated Add-ons render inside plan detail — renderPlanAddonsSection kept for legacy UIs. */
   planCellWrap(buttonHtml, _p) {
     return buttonHtml;
   },
@@ -2905,9 +2896,12 @@ Please share payment details.`;
   /** Build a WhatsApp purchase message from the selected plan + add-ons. */
   buildPlanPurchaseMessage(planId, productName, root) {
     const scope = root || document;
-    const btn = Array.from(scope.querySelectorAll(".plan-buy-btn")).find(
-      (b) => b.dataset.plan === String(planId),
-    );
+    const planKey = String(planId);
+    const btn =
+      scope.querySelector(`.plan-detail-buy-btn[data-plan="${planKey}"]`) ||
+      Array.from(
+        scope.querySelectorAll(".plan-buy-btn.plan-card-main:not(.plan-addon-card)"),
+      ).find((b) => b.dataset.plan === planKey);
     const name =
       btn?.dataset.planName || btn?.dataset.duration || "Plan";
     const price = Number(btn?.dataset.price) || 0;

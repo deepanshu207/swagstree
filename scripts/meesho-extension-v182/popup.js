@@ -565,32 +565,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         !!planId && btn.dataset.plan === String(planId),
       );
     });
-    const addonsGrid = document.getElementById("plan-addons-grid");
-    if (
-      typeof FirebaseLicense !== "undefined" &&
-      FirebaseLicense.renderPlanAddonsSection
-    ) {
-      FirebaseLicense.renderPlanAddonsSection(addonsGrid, cachedPlans, {
-        selectedPlanId: selectedPurchasePlanId,
-        enabled: !!selectedPurchasePlanId,
-        pricePerCredit: cachedCreditsPricePerCredit,
-        addonCatalog: cachedAddonCatalog,
-      });
-    }
-    bindPlanAddonButtons();
-  }
-
-  function bindPlanPurchaseButton() {
-    const buyBtn = document.getElementById("plan-purchase-whatsapp-btn");
-    if (!buyBtn || buyBtn.dataset.wired === "1") return;
-    buyBtn.dataset.wired = "1";
-    PA.bindTap(buyBtn, () => {
-      if (!selectedPurchasePlanId) {
-        showMessage("Select a subscription plan first.", "error");
-        return;
-      }
-      void openWhatsAppForPlan(selectedPurchasePlanId);
-    });
   }
 
   function bindPlanAddonButtons() {
@@ -621,16 +595,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         const planId = btn.dataset.plan;
         if (!planId) return;
         const plan = cachedPlans.find((p) => p.id === planId);
-        const hasAddons =
+        const addons =
           plan &&
           plan.allow_credit_addons !== false &&
-          cachedAddonCatalog.length > 0;
-        if (hasAddons) {
+          typeof FirebaseLicense !== "undefined"
+            ? FirebaseLicense.getPlanCreditAddons(plan, cachedAddonCatalog)
+            : [];
+        if (addons.length) {
           setSelectedPurchasePlan(planId);
-          showMessage(
-            `Selected ${plan.name} — pick add-ons below, then Buy on WhatsApp.`,
-            "success",
-          );
+          showPlanDetail(planId);
           return;
         }
         if (selectedPurchasePlanId === planId) {
@@ -674,14 +647,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           : [];
       selectedPurchasePlanId = null;
       FirebaseLicense.renderPlanButtons(grid, plans, "popup");
-      const addonsGrid = document.getElementById("plan-addons-grid");
-      FirebaseLicense.renderPlanAddonsSection(addonsGrid, plans, {
-        selectedPlanId: null,
-        enabled: false,
-        pricePerCredit: cachedCreditsPricePerCredit,
-        addonCatalog: cachedAddonCatalog,
-      });
-      bindPlanPurchaseButton();
       await refreshCreditsTopUpSection(
         await LicenseManager.getActiveLicenses().catch(() => []),
       );
@@ -729,7 +694,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     return ok;
   }
 
-  async function openWhatsAppForPlan(planId) {
+  async function openWhatsAppForPlan(planId, root) {
     let message;
     if (
       planId &&
@@ -739,7 +704,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       message = FirebaseLicense.buildPlanPurchaseMessage(
         planId,
         productName,
-        document,
+        root || document,
       );
     } else {
       message = getWhatsAppMessage();
@@ -778,10 +743,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function bindPlanDetailBuy(root, planId) {
+    if (
+      typeof FirebaseLicense !== "undefined" &&
+      FirebaseLicense.wirePlanAddonSelection
+    ) {
+      FirebaseLicense.wirePlanAddonSelection(root);
+    }
+    root.querySelectorAll(".plan-addon-detail-corner-btn").forEach((btn) => {
+      if (btn.dataset.wired === "1") return;
+      btn.dataset.wired = "1";
+      PA.bindTap(btn, (e) => {
+        e?.stopPropagation?.();
+        const pid = btn.dataset.plan;
+        const addonId = btn.dataset.addonId;
+        if (pid && addonId) void showAddonCreditDetail(pid, addonId);
+      });
+    });
     const buyBtn = root.querySelector(".plan-detail-buy-btn");
     if (!buyBtn) return;
     PA.bindTap(buyBtn, async () => {
-      await openWhatsAppForPlan(planId);
+      await openWhatsAppForPlan(planId, root);
     });
   }
 

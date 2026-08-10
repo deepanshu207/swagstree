@@ -752,20 +752,17 @@
     .plan-detail-section-title { font-size: 11px; font-weight: 700; color: #c45f12; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
     .plan-detail-section-body { font-size: 12px; color: var(--mso-text); line-height: 1.5; }
     .plan-detail-list { margin: 6px 0 0 18px; font-size: 12px; color: var(--mso-text); line-height: 1.5; }
-    .plan-detail-addon-cards { display: grid; gap: 8px; margin-top: 8px; }
-    .plan-detail-addon-card {
-      border: 1px solid rgba(230, 126, 34, 0.25);
-      border-radius: 10px;
-      padding: 10px;
-      background: rgba(255, 215, 0, 0.05);
-      text-align: center;
-      min-height: 120px;
-      box-sizing: border-box;
+    .plan-detail-addon-cards {
+      gap: 8px;
+      margin-top: 8px;
     }
-    .plan-detail-addon-name { font-size: 13px; font-weight: 700; color: var(--mso-ink); margin-top: 4px; }
-    .plan-detail-addon-price { font-size: 18px; font-weight: 800; color: var(--mso-orange); margin-top: 2px; }
-    .plan-detail-addon-meta { font-size: 10px; color: var(--mso-muted); margin-top: 2px; }
-    .plan-detail-addon-desc { font-size: 10px; color: var(--mso-text); margin: 6px 0 0; line-height: 1.4; }
+    .plan-detail-addon-cards .plan-card-shell {
+      min-height: 0;
+    }
+    .plan-detail-addon-cards .plan-card-shell .plan-card-main,
+    .plan-detail-addon-cards .plan-card-shell .plan-addon-card {
+      min-height: 136px;
+    }
 
     .support-users-intro { font-size: 11px; color: var(--mso-muted); text-align: center; margin-bottom: 10px; }
     .support-users-list { display: grid; gap: 8px; }
@@ -868,19 +865,7 @@
         <div class="plan-grid" id="license-plans-grid">
           <div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--mso-muted);font-size:11px;">Loading plans…</div>
         </div>
-        <p class="hint" style="margin:8px 0 0;text-align:center;font-size:10px;">Tap a plan to unlock add-on credits below, then buy via WhatsApp</p>
-      </div>
-
-      <div id="plan-addons-section" class="status-card plan-addons-section plan-addons-section--locked" style="padding:12px;">
-        <div style="text-align:center;margin-bottom:8px;">
-          <span style="font-size:11px;color:#c45f12;font-weight:700;">⚡ ALL CREDIT ADD-ONS</span>
-        </div>
-        <p class="plan-addons-unlock-hint">Select Monthly, 3 Months, or another subscription plan above to unlock add-ons.</p>
-        <p id="plan-addons-context" class="hint" style="margin:0 0 8px;text-align:center;font-size:10px;color:var(--mso-muted);">Same add-ons with every plan — tap to select.</p>
-        <div class="plan-grid" id="plan-addons-grid"></div>
-        <button type="button" class="btn btn-whatsapp" id="plan-purchase-whatsapp-btn" style="margin-top:10px;width:100%;" disabled>
-          Buy selected plan on WhatsApp
-        </button>
+        <p class="hint" style="margin:8px 0 0;text-align:center;font-size:10px;">Tap ℹ️ on any plan for full details and optional credit add-ons</p>
       </div>
 
       <div id="popup-message" class="message"></div>

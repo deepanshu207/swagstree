@@ -295,7 +295,7 @@
                 }, {
                     title: 'Already on Monthly?',
                     body: 'Existing monthly customers can buy credit packs (⚡ BUY CREDITS) in the extension popup without changing plan.',
-                    items: ['Credit packs stack on your license', 'Optional add-ons are in the section below the plans']
+                    items: ['Credit packs stack on your license', 'Optional credit add-ons are in each plan\'s details (ℹ️)']
                 }],
                 card_subtitle: soPlanCardSubtitle(SO_DEFAULT_MONTHLY_PRICE, 30, soCalcDefaultPlanCredits('monthly', 30)),
                 detail_footer: 'Credits deduct per generation run. Buy credit packs anytime from the popup while your plan is active.',
@@ -371,7 +371,7 @@
                     { title: 'Plan summary', body: `₹${yPrice.toLocaleString('en-IN')} for 1 year · ${yCredits.toLocaleString('en-IN')} credits included.${yDisc ? ` ${yDisc}.` : ''}`, items: [] }
                 ],
                 card_subtitle: soPlanCardSubtitle(yPrice, 365, yCredits),
-                detail_footer: 'Optional add-ons are selected in the section below the plans before WhatsApp checkout.',
+                detail_footer: 'Optional add-ons are selected in plan details before WhatsApp checkout.',
                 order: 3
             })
         ];
