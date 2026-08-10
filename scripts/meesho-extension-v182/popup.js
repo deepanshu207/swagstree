@@ -771,6 +771,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     body.innerHTML = FirebaseLicense.renderPlanDetailHtml(plan, {
       productName,
+      addonCatalog: cachedAddonCatalog,
+      pricePerCredit: cachedCreditsPricePerCredit,
     });
     bindPlanDetailBuy(body, plan.id);
   }

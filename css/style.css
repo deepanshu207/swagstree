@@ -11260,6 +11260,107 @@ body.so-save-review-open {
     overflow-x: auto;
     margin-top: 8px;
 }
+.so-google-trials-table-wrap--desktop {
+    display: none;
+}
+.so-google-trials-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+.so-google-trial-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.so-google-trial-card:hover {
+    border-color: rgba(255, 215, 0, 0.35);
+    background: rgba(255, 215, 0, 0.04);
+}
+.so-google-trial-card--revoked {
+    opacity: 0.78;
+}
+.so-google-trial-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.so-google-trial-card-email {
+    font-weight: 700;
+    font-size: 13px;
+    word-break: break-word;
+}
+.so-google-trial-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+.so-google-trial-card-linked {
+    margin: -2px 0 8px;
+    font-size: 10px;
+}
+.so-google-trial-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    margin: 0;
+}
+.so-google-trial-card-grid > div {
+    min-width: 0;
+}
+.so-google-trial-card-grid dt {
+    margin: 0;
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.so-google-trial-card-grid dd {
+    margin: 2px 0 0;
+    font-size: 12px;
+    word-break: break-word;
+}
+.so-google-trial-card-uid {
+    grid-column: 1 / -1;
+}
+.so-google-trial-card-uid code {
+    font-size: 10px;
+    word-break: break-all;
+}
+.so-google-trial-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.so-plan-addon-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+@media (min-width: 900px) {
+    .so-google-trials-cards {
+        display: none;
+    }
+    .so-google-trials-table-wrap--desktop {
+        display: block;
+    }
+}
+@media (max-width: 899px) {
+    .so-google-trials-table-wrap--desktop {
+        display: none !important;
+    }
+}
 .so-google-trials-table {
     width: 100%;
     border-collapse: collapse;

@@ -580,7 +580,40 @@ const FirebaseLicense = {
     });
 
     if (plan.allow_credit_addons !== false) {
-      html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);margin-top:8px;">Optional credit add-ons are in the section below the plans — select a plan first, then pick add-ons before WhatsApp checkout.</p>`;
+      const catalog = options.addonCatalog;
+      const addons = this.getPlanCreditAddons(plan, catalog);
+      const basePpc = Number(options.pricePerCredit) || 2;
+      if (addons.length) {
+        const maxSel = Number(plan.max_addon_selections) || 0;
+        const limitNote =
+          maxSel === 1
+            ? "Pick one add-on (optional)."
+            : maxSel > 1
+              ? `Pick up to ${maxSel} add-ons (optional).`
+              : "Pick any add-ons (optional).";
+        html += `<div class="plan-detail-section">
+          <div class="plan-detail-section-title">Credit add-ons</div>
+          <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Select on the plan screen before WhatsApp checkout.</p>
+          <div class="plan-detail-addon-cards">`;
+        addons.forEach((a) => {
+          const badges = this.addonOfferBadgesHtml(a, basePpc);
+          const subtitle =
+            a.card_subtitle || `${a.credits} credits · ₹${a.price}`;
+          const save =
+            a.save || this.formatAddonSaveLabel(a, basePpc);
+          html += `<div class="plan-detail-addon-card">
+            ${badges}
+            <div class="plan-detail-addon-name">${this.escapeHtml(a.label || `+${a.credits} credits`)}</div>
+            <div class="plan-detail-addon-price">₹${a.price}</div>
+            <div class="plan-detail-addon-meta">${this.escapeHtml(subtitle)}</div>
+            ${save ? `<div class="plan-detail-save">${this.escapeHtml(save)}</div>` : ""}
+            ${a.description ? `<p class="plan-detail-addon-desc">${this.escapeHtml(a.description)}</p>` : ""}
+          </div>`;
+        });
+        html += `</div></div>`;
+      } else {
+        html += `<p class="plan-detail-footer" style="font-size:11px;color:var(--mso-muted);margin-top:8px;">Optional credit add-ons appear in the section below the plans when available.</p>`;
+      }
     }
 
     html += this.planDetailWhatsAppBtnHtml(
@@ -774,15 +807,15 @@ Please share payment details.`;
     return this.sortPlans(list);
   },
 
-  /** Active add-ons for a plan (empty when unlimited credits or not allowed). */
+  /** Active add-ons for a plan: per-plan list first, then shared catalog, then built-in defaults. */
   getPlanCreditAddons(plan, catalog) {
     if (!plan || plan.unlimited_credits) return [];
     if (plan.allow_credit_addons === false) return [];
+    const planAddons = (plan.credit_addons || []).filter((a) => a.active !== false);
+    if (planAddons.length) return this.sortPlans(planAddons);
     if (Array.isArray(catalog) && catalog.length) {
       return this.sortPlans(catalog.filter((a) => a.active !== false));
     }
-    const legacy = (plan.credit_addons || []).filter((a) => a.active !== false);
-    if (legacy.length) return this.sortPlans(legacy);
     return this.sortPlans(
       this.defaultAddonCatalog().map((a, i) =>
         this.normalizeCreditAddon(a, a.id, i),
@@ -791,9 +824,9 @@ Please share payment details.`;
   },
 
   /** Credits + price for a plan given selected add-on ids. */
-  calculatePlanCredits(plan, selectedAddonIds) {
+  calculatePlanCredits(plan, selectedAddonIds, catalog) {
     const included = Number(plan?.included_credits || 0) || 0;
-    const addons = this.getPlanCreditAddons(plan);
+    const addons = this.getPlanCreditAddons(plan, catalog);
     const selected = new Set((selectedAddonIds || []).map((x) => String(x)));
     let addon = 0;
     let addonPrice = 0;
@@ -2469,7 +2502,8 @@ Please share payment details.`;
             : max > 1
               ? `Pick up to ${max} add-ons (optional).`
               : "Pick any add-ons (optional).";
-        contextEl.textContent = `${plan.name} · ${limitHint} Same catalog for all plans.`;
+        const usesCatalog = !((plan.credit_addons || []).filter((a) => a.active !== false).length);
+        contextEl.textContent = `${plan.name} · ${limitHint}${usesCatalog ? " Uses shared catalog." : " Per-plan add-ons."}`;
       }
     }
 
