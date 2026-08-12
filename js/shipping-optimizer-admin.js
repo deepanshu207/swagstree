@@ -2046,6 +2046,138 @@
         return ['monthly', 'quarterly', 'halfyearly', 'yearly', 'credits_starter', 'lifetime'];
     }
 
+    /** Plan options for pack/add-on mapping — Config tab plans + any saved ids not in list. */
+    function soGetPlanMappingOptions(selectedIds) {
+        const options = [];
+        const seen = new Set();
+        (soPlans || []).forEach(p => {
+            if (!p || !p.id) return;
+            const slug = soSlugifyId(p.id);
+            if (!slug || seen.has(slug)) return;
+            seen.add(slug);
+            const name = String(p.name || '').trim();
+            options.push({
+                id: slug,
+                label: name ? `${name} (${slug})` : slug
+            });
+        });
+        (selectedIds || []).forEach(id => {
+            const slug = soSlugifyId(id);
+            if (!slug || seen.has(slug)) return;
+            seen.add(slug);
+            options.push({
+                id: slug,
+                label: `${slug} (saved — add on Config tab to rename)`
+            });
+        });
+        if (!options.length) {
+            return soGetConfiguredPlanIdList().map(id => ({ id: soSlugifyId(id), label: id }));
+        }
+        return options;
+    }
+
+    function soReadPlanIdsFromRow(row) {
+        if (!row) return [];
+        const fromChecks = Array.from(row.querySelectorAll('[data-field="plan_id"]:checked'))
+            .map(el => soSlugifyId(el.getAttribute('data-plan-id') || ''))
+            .filter(Boolean);
+        if (fromChecks.length) return fromChecks;
+        const legacy = row.querySelector('[data-field="plan_ids_text"]');
+        if (legacy && String(legacy.value || '').trim()) {
+            return String(legacy.value).split(/[\s,]+/)
+                .map(x => soSlugifyId(x.trim())).filter(Boolean);
+        }
+        return [];
+    }
+
+    function soRenderPlanIdsPickerHtml(selectedIds, changeHandler) {
+        const handler = changeHandler || 'soOnCreditPackPlanIdsChange(this)';
+        const options = soGetPlanMappingOptions(selectedIds);
+        const selected = new Set((selectedIds || []).map(id => soSlugifyId(id)));
+        if (!options.length) {
+            return '<p class="so-admin-muted so-field-group-hint">Add subscription plans on the <strong>Config</strong> tab first, then map packs here.</p>';
+        }
+        return `<div class="so-plan-id-picker" role="group" aria-label="Subscription plans">
+            ${options.map(opt => {
+                const checked = selected.has(soSlugifyId(opt.id));
+                return `<label class="so-plan-check so-plan-id-pick"><input type="checkbox" data-field="plan_id" data-plan-id="${soAttr(opt.id)}" ${checked ? 'checked' : ''} onchange="${handler}"> <span>${soEsc(opt.label)}</span></label>`;
+            }).join('')}
+        </div>`;
+    }
+
+    function soScopePlanBadgeHtml(scope, planIds) {
+        if (scope === 'plan') {
+            return (planIds && planIds.length)
+                ? `<span class="so-meta-chip so-scope-plan-badge">${soEsc(planIds.join(', '))}</span>`
+                : '<span class="so-badge so-badge--off so-scope-plan-badge">Plan (pick plans)</span>';
+        }
+        return '<span class="so-meta-chip so-scope-plan-badge">Global</span>';
+    }
+
+    function soUpdateScopePlanBadge(row, scope, planIds) {
+        if (!row) return;
+        const existing = row.querySelector('.so-scope-plan-badge');
+        const html = soScopePlanBadgeHtml(scope, planIds);
+        if (existing) {
+            existing.outerHTML = html;
+        } else {
+            const badges = row.querySelector('.so-plan-card-badges');
+            if (badges) badges.insertAdjacentHTML('beforeend', html);
+        }
+    }
+
+    function soTogglePlanIdsWrap(row, scope) {
+        if (!row) return;
+        const wrap = row.querySelector('[data-so-plan-ids-wrap]');
+        if (wrap) wrap.style.display = scope === 'plan' ? '' : 'none';
+    }
+
+    window.soOnCreditPackScopeChange = function(selectEl) {
+        const row = selectEl && selectEl.closest('.so-credit-pack-row');
+        if (!row) return;
+        const scope = selectEl.value === 'plan' ? 'plan' : 'global';
+        soMarkTabDirty('credits');
+        soTogglePlanIdsWrap(row, scope);
+        soSyncCreditPacksFromDom();
+        const idx = parseInt(row.getAttribute('data-pack-idx'), 10);
+        const pack = Number.isFinite(idx) ? soCreditPacks[idx] : null;
+        soUpdateScopePlanBadge(row, scope, pack ? pack.plan_ids : soReadPlanIdsFromRow(row));
+        renderSoExtensionPreview();
+    };
+
+    window.soOnCreditPackPlanIdsChange = function(el) {
+        const row = el && el.closest('.so-credit-pack-row');
+        if (!row) return;
+        soMarkTabDirty('credits');
+        soSyncCreditPacksFromDom();
+        const scopeEl = row.querySelector('[data-field="scope"]');
+        const scope = scopeEl && scopeEl.value === 'plan' ? 'plan' : 'global';
+        soUpdateScopePlanBadge(row, scope, soReadPlanIdsFromRow(row));
+        renderSoExtensionPreview();
+    };
+
+    window.soOnAddonCatalogScopeChange = function(selectEl) {
+        const row = selectEl && selectEl.closest('.so-addon-catalog-row');
+        if (!row) return;
+        const scope = selectEl.value === 'plan' ? 'plan' : 'global';
+        soMarkTabDirty('credits');
+        soTogglePlanIdsWrap(row, scope);
+        soSyncAddonCatalogFromDom();
+        soUpdateScopePlanBadge(row, scope, soReadPlanIdsFromRow(row));
+        renderSoExtensionPreview();
+    };
+
+    window.soOnAddonCatalogPlanIdsChange = function(el) {
+        const row = el && el.closest('.so-addon-catalog-row');
+        if (!row) return;
+        soMarkTabDirty('credits');
+        soSyncAddonCatalogFromDom();
+        const scopeEl = row.querySelector('[data-field="scope"]');
+        const scope = scopeEl && scopeEl.value === 'plan' ? 'plan' : 'global';
+        soUpdateScopePlanBadge(row, scope, soReadPlanIdsFromRow(row));
+        renderSoExtensionPreview();
+    };
+
     function soPackAppliesToPlan(pack, planId, scopesEnabled) {
         if (!pack || pack.active === false) return false;
         if (!scopesEnabled) return true;
@@ -2136,6 +2268,13 @@
         }
     }
 
+    function soSyncAddonCatalogFromDom() {
+        const container = document.getElementById('so-addon-catalog-editor');
+        if (!container || !container.querySelector('.so-addon-catalog-row')) return;
+        if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+        soCredits.addon_catalog = soReadAddonCatalogFromDom();
+    }
+
     function soReadCreditPacksForSave(packOverrides) {
         if (packOverrides != null) return packOverrides;
         soSyncCreditPacksFromDom();
@@ -2143,6 +2282,7 @@
     }
 
     function soValidateCreditPacks(packs) {
+        const scopesOn = !!document.getElementById('so-pack-scopes-enabled')?.checked;
         const ids = new Set();
         for (let i = 0; i < packs.length; i++) {
             const p = packs[i];
@@ -2151,6 +2291,9 @@
             ids.add(p.id);
             if (p.credits < 1) return `Pack "${p.id}": credits must be ≥ 1.`;
             if (p.price < 0) return `Pack "${p.id}": price must be ≥ 0.`;
+            if (scopesOn && p.scope === 'plan' && !(p.plan_ids || []).length) {
+                return `Pack "${p.id}": pick at least one subscription plan when scope is plan-specific.`;
+            }
         }
         return '';
     }
@@ -6025,7 +6168,7 @@
                 best: get('best'),
                 default_selected: get('default_selected'),
                 scope: get('scope'),
-                plan_ids: String(get('plan_ids_text') || '').split(/[\s,]+/).map(x => x.trim()).filter(Boolean),
+                plan_ids: soReadPlanIdsFromRow(row),
                 hide: get('hide'),
                 disabled: get('disabled'),
                 order: idx
@@ -6075,8 +6218,11 @@
                             <label class="so-field-full"><span>Save line (optional)</span><input type="text" data-field="save" value="${soAttr(addon.save || '')}" placeholder="Save ₹30 vs 5×10" oninput="soMarkTabDirty('credits')"></label>
                             <label class="so-field-full"><span>Description</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('credits')">${soEsc(addon.description || '')}</textarea></label>
                             <label class="so-field-full"><span>Offer badges (one per line)</span><textarea rows="2" data-field="offer_badges_text" placeholder="Popular&#10;20% off" oninput="soMarkTabDirty('credits')">${soEsc((addon.offer_badges || []).join('\n'))}</textarea></label>
-                            <label><span>Scope</span><select data-field="scope" onchange="soMarkTabDirty('credits')"><option value="global" ${(addon.scope || 'global') !== 'plan' ? 'selected' : ''}>Global (main screen)</option><option value="plan" ${addon.scope === 'plan' ? 'selected' : ''}>Plan-only (detail)</option></select></label>
-                            <label class="so-field-full"><span>Plan IDs (when scope=plan, comma-separated)</span><input type="text" data-field="plan_ids_text" value="${soAttr((addon.plan_ids || []).join(', '))}" placeholder="yearly, halfyearly" oninput="soMarkTabDirty('credits')"></label>
+                            <label><span>Scope</span><select data-field="scope" onchange="soOnAddonCatalogScopeChange(this)"><option value="global" ${(addon.scope || 'global') !== 'plan' ? 'selected' : ''}>Global (main screen)</option><option value="plan" ${addon.scope === 'plan' ? 'selected' : ''}>Plan-only (detail)</option></select></label>
+                            <div class="so-field-full" data-so-plan-ids-wrap style="${addon.scope === 'plan' ? '' : 'display:none;'}">
+                                <span>Subscription plans (when scope = plan)</span>
+                                ${soRenderPlanIdsPickerHtml(addon.plan_ids, 'soOnAddonCatalogPlanIdsChange(this)')}
+                            </div>
                         </div>
                         <div class="so-plan-flags so-plan-flags--simple">
                             <label class="so-plan-check"><input type="checkbox" data-field="active" ${addon.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Active (shown in extension)</label>
@@ -6177,6 +6323,7 @@
     };
 
     function renderSoCreditPacksEditor() {
+        soSyncCreditPacksFromDom();
         const container = document.getElementById('so-credit-packs-editor');
         if (!container) return;
         if (!soCreditPacks.length) {
@@ -6186,12 +6333,8 @@
         container.innerHTML = soCreditPacks.map((pack, idx) => {
             const open = soExpandedPackIds.has(pack.id);
             const priceLabel = '₹' + (pack.price || 0).toLocaleString('en-IN');
-            const planIdsPlaceholder = soGetConfiguredPlanIdList().join(', ');
-            const scopeBadge = pack.scope === 'plan' && (pack.plan_ids || []).length
-                ? `<span class="so-meta-chip">${soEsc((pack.plan_ids || []).join(', '))}</span>`
-                : (pack.scope === 'plan'
-                    ? '<span class="so-badge so-badge--off">Plan (no ids)</span>'
-                    : '<span class="so-meta-chip">Global</span>');
+            const scopeBadge = soScopePlanBadgeHtml(pack.scope, pack.plan_ids);
+            const planScope = pack.scope === 'plan';
             return `
             <div class="so-plan-card so-credit-pack-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-pack-idx="${idx}">
                 <div class="so-plan-card-head-wrap">
@@ -6226,9 +6369,12 @@
                             <label><span>Credits</span><input type="number" min="1" step="1" data-field="credits" value="${pack.credits}" oninput="soMarkTabDirty('credits')"></label>
                             <label><span>Price (INR)</span><input type="number" min="0" step="1" data-field="price" value="${pack.price}" oninput="soMarkTabDirty('credits')"></label>
                             <label><span>Label (shown in extension)</span><input type="text" data-field="label" value="${soAttr(pack.label || '')}" oninput="soMarkTabDirty('credits')"></label>
-                            <label><span>Scope</span><select data-field="scope" onchange="soMarkTabDirty('credits'); renderSoCreditPacksEditor()"><option value="global" ${(pack.scope || 'global') !== 'plan' ? 'selected' : ''}>Global — main ⚡ BUY CREDITS section</option><option value="plan" ${pack.scope === 'plan' ? 'selected' : ''}>Plan-specific — map to subscription plans</option></select></label>
-                            <label class="so-field-full"><span>Plan IDs (when scope=plan, comma-separated)</span><input type="text" data-field="plan_ids_text" value="${soAttr((pack.plan_ids || []).join(', '))}" placeholder="${soAttr(planIdsPlaceholder)}" oninput="soMarkTabDirty('credits')"></label>
-                            <p class="so-field-group-hint">Map packs to plans like <code>monthly</code>, <code>yearly</code>, or <code>credits_starter</code> for custom/credits-only. Enable <strong>Pack plan mapping</strong> in Credit settings so the extension filters by active license plan. Plan-mapped packs also appear on that plan's detail screen (ℹ️).</p>
+                            <label><span>Scope</span><select data-field="scope" onchange="soOnCreditPackScopeChange(this)"><option value="global" ${(pack.scope || 'global') !== 'plan' ? 'selected' : ''}>Global — main ⚡ BUY CREDITS section</option><option value="plan" ${pack.scope === 'plan' ? 'selected' : ''}>Plan-specific — map to subscription plans</option></select></label>
+                            <div class="so-field-full" data-so-plan-ids-wrap style="${planScope ? '' : 'display:none;'}">
+                                <span>Subscription plans (pick one or more)</span>
+                                ${soRenderPlanIdsPickerHtml(pack.plan_ids, 'soOnCreditPackPlanIdsChange(this)')}
+                            </div>
+                            <p class="so-field-group-hint">Plans come from the <strong>Config</strong> tab. Map custom/credits-only packs to <code>credits_starter</code> or your credits plan id. Enable <strong>Pack plan mapping</strong> in Credit settings so the extension filters by active license.</p>
                         </div>
                         <div class="so-plan-flags so-plan-flags--simple">
                             <label class="so-plan-check"><input type="checkbox" data-field="active" ${pack.active ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Show in extension</label>
@@ -6296,7 +6442,7 @@
                 show_whatsapp_icon: get('show_whatsapp_icon'),
                 show_details_icon: get('show_details_icon'),
                 scope: get('scope'),
-                plan_ids: String(get('plan_ids_text') || '').split(/[\s,]+/).map(x => x.trim()).filter(Boolean),
+                plan_ids: soReadPlanIdsFromRow(row),
                 highlights: soParsePlanFeaturesText(get('highlights_text')),
                 features: soParsePlanFeaturesFromText(get('features_text')),
                 detail_sections: soParsePlanDetailSectionsFromDom(row),
