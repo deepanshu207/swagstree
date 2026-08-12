@@ -8445,7 +8445,7 @@
             const open = soExpandedLicenseKeys.has(lic.key);
             const summaryPhone = lic.customer_phone ? soEsc(lic.customer_phone) : '';
             const summaryName = lic.customer_name ? soEsc(lic.customer_name) : '';
-            return `<div class="so-license-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}">
+            return `<div class="so-license-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-license-key="${soAttr(lic.key)}">
                 <div class="so-license-head" onclick="toggleSoLicenseRow('${soAttr(lic.key)}')" style="cursor:pointer;">
                     <code>${soEsc(lic.key)}</code>
                     <span class="so-badge ${active ? 'so-badge--on' : 'so-badge--off'}">${active ? 'Active' : 'Revoked'}</span>
