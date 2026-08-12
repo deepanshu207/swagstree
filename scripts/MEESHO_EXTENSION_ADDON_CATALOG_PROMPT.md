@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.39)
+# Meesho Extension — Admin sync prompt (v1.8.40)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -15,8 +15,8 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 |------|---------|
 | `js/firebaseLicense.js` | Subscription-first `deductCredits`, pool counters (`included_credits_used` / `addon_credits_used` / `custom_credits_used`), per-license custom credits, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
 | `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate, custom credits line (license-only) |
-| `config.js` | `VERSION: "1.8.39"` |
-| `manifest.json` | `"version": "1.8.39"` |
+| `config.js` | `VERSION: "1.8.40"` |
+| `manifest.json` | `"version": "1.8.40"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -108,9 +108,16 @@ Set in Swagstree admin → Super → Licenses → create/edit license:
 
 1. Super → Shipping Optimizer → **Built-in defaults** tab → preview cards.
 2. Tap **Seed built-in → Firebase** → confirm preview → write.
-3. Reload extension at `chrome://extensions` (v1.8.39+).
+3. Reload extension at `chrome://extensions` (v1.8.40+).
 
-## Credits tab — Save to Firebase (v1.8.39 fix)
+## Credit packs — admin save & extension sync (v1.8.40)
+
+- **Subscription plans** live under Config tab → save via **Save plans** or **Save to Firebase** on Config tab.
+- **Credit packs** live under Credits tab → save via **Save credit packs** or **Save to Firebase** on Credits tab (both write `credits.packs[]` on `shipping_optimizer_config/app`).
+- Admin always reads pack rows from the DOM before Firebase write (avoids stale in-memory list dropping new packs like `pack_5`).
+- Extension reads `credits.packs` from Firebase when the field exists (no silent fallback to built-in defaults).
+- **⚡ BUY CREDITS** section shows when credits are enabled and packs exist — including on the activation screen (no license yet) for preview.
+- After saving packs in admin, **close and reopen** the extension popup to refresh.
 
 - Review modal always shows **Write to Firebase** (sticky footer on mobile).
 - If form is dirty but field-level diff is empty (e.g. add-on catalog reorder), admin falls back to action preview with current form summary — no more stuck "No changes" with only Cancel.

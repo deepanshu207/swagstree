@@ -2206,6 +2206,11 @@ Please share payment details.`;
 
   async getCreditPacks(forceFresh = false) {
     const cfg = await this.getCreditsConfig(forceFresh);
+    const app = await this.getAppConfig(forceFresh);
+    const rawCredits = app?.credits || app?.credits_config || {};
+    if (Object.prototype.hasOwnProperty.call(rawCredits, "packs")) {
+      return cfg.packs || [];
+    }
     return cfg.packs?.length ? cfg.packs : this.defaultCreditsConfig().packs;
   },
 

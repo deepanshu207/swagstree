@@ -190,6 +190,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       creditsSection.classList.add("hidden");
       return;
     }
+    if (!creditPacks.length) {
+      creditsSection.classList.add("hidden");
+      return;
+    }
     const list = licenses || [];
     const hasActiveLicense = list.some(
       (e) =>
@@ -198,6 +202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     const wantsCredits =
       hasActiveLicense ||
+      !list.length ||
       list.some((e) => {
         const info = LicenseManager.normalizeLicenseInfo(e.licenseInfo || {});
         const mode = info.billingMode || "subscription";

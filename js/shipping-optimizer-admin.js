@@ -661,9 +661,7 @@
                 ? rawCredits.addon_catalog
                 : DEFAULT_ADDON_CATALOG.slice();
             soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
-            const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
-                ? rawCredits.packs
-                : DEFAULT_CREDIT_PACKS.slice();
+            const rawPacks = soResolveCreditPacksFromConfig(rawCredits, DEFAULT_CREDIT_PACKS);
             soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
             soCreditPacks.forEach((p, i) => { p.order = i; });
             soSmartMode = soNormalizeSmartMode(s.smart_mode || DEFAULT_SMART_MODE);
@@ -869,9 +867,7 @@
     }
 
     function soBuildCreditsPayloadFromDom(packOverrides) {
-        const packsSource = packOverrides != null
-            ? packOverrides
-            : (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks);
+        const packsSource = soReadCreditPacksForSave(packOverrides);
         return Object.assign({}, soCredits || DEFAULT_CREDITS, {
             enabled: !!document.getElementById('so-credits-enabled')?.checked,
             price_per_credit: Math.max(0, parseInt(document.getElementById('so-credits-price-per')?.value, 10) || DEFAULT_CREDITS.price_per_credit),
@@ -2052,6 +2048,40 @@
 
     function soSortCreditPacks(packs) {
         return packs.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
+
+    /** Parse credits.packs from Firebase — array or legacy object map. */
+    function soParseCreditPacksFromConfig(raw) {
+        if (Array.isArray(raw)) return raw.slice();
+        if (raw && typeof raw === 'object') {
+            return Object.entries(raw).map(([id, p], i) => {
+                const row = p && typeof p === 'object' ? Object.assign({}, p) : {};
+                if (!row.id) row.id = id;
+                row.order = row.order != null ? row.order : i;
+                return row;
+            });
+        }
+        return null;
+    }
+
+    function soResolveCreditPacksFromConfig(rawCredits, fallback) {
+        const parsed = soParseCreditPacksFromConfig(rawCredits && rawCredits.packs);
+        if (parsed && parsed.length) return parsed;
+        if (parsed && Array.isArray(rawCredits?.packs)) return parsed;
+        return (fallback || DEFAULT_CREDIT_PACKS).slice();
+    }
+
+    function soSyncCreditPacksFromDom() {
+        const container = document.getElementById('so-credit-packs-editor');
+        if (container && container.querySelector('.so-credit-pack-row')) {
+            soCreditPacks = soReadCreditPacksFromDom();
+        }
+    }
+
+    function soReadCreditPacksForSave(packOverrides) {
+        if (packOverrides != null) return packOverrides;
+        soSyncCreditPacksFromDom();
+        return soCreditPacks.slice();
     }
 
     function soValidateCreditPacks(packs) {
@@ -4306,9 +4336,7 @@
             soExpandedSmartOptionIdxs.clear();
             const rawCredits = soConfig?.credits && typeof soConfig.credits === 'object' ? soConfig.credits : {};
             soCredits = Object.assign({}, DEFAULT_CREDITS, rawCredits);
-            const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
-                ? rawCredits.packs
-                : DEFAULT_CREDIT_PACKS.slice();
+            const rawPacks = soResolveCreditPacksFromConfig(rawCredits, DEFAULT_CREDIT_PACKS);
             soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
             soCreditPacks.forEach((p, i) => { p.order = i; });
             soSmartMode = soNormalizeSmartMode(
@@ -4483,9 +4511,7 @@
             ? rawCredits.addon_catalog
             : DEFAULT_ADDON_CATALOG.slice();
         soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
-        const rawPacks = Array.isArray(rawCredits.packs) && rawCredits.packs.length
-            ? rawCredits.packs
-            : DEFAULT_CREDIT_PACKS.slice();
+        const rawPacks = soResolveCreditPacksFromConfig(rawCredits, DEFAULT_CREDIT_PACKS);
         soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
         soCreditPacks.forEach((p, i) => { p.order = i; });
         if (soConfig.demo_keys && typeof soConfig.demo_keys === 'object') {
@@ -6292,7 +6318,10 @@
 
         const activePlans = soGetExtensionActivePlans();
         const credits = soCredits || DEFAULT_CREDITS;
-        const packs = (soCreditPacks.length ? soReadCreditPacksFromDom() : soCreditPacks).filter(p => p.active !== false);
+        const packs = (() => {
+            soSyncCreditPacksFromDom();
+            return soCreditPacks.filter(p => p.active !== false);
+        })();
         let inlineDemo = {};
         try {
             inlineDemo = soReadInlineDemoKeysFromDom();
@@ -6557,6 +6586,7 @@
 
     window.saveShippingOptimizerCreditSettings = async function() {
         if (!soRequireExtensionWrite()) return;
+        soSyncCreditPacksFromDom();
         const creditsPayload = soBuildCreditsPayloadFromDom();
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
@@ -6581,13 +6611,14 @@
 
     window.saveShippingOptimizerCreditPacks = async function() {
         if (!soRequireExtensionWrite()) return;
-        soCreditPacks = soReadCreditPacksFromDom();
+        soSyncCreditPacksFromDom();
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
         const creditsPayload = soBuildCreditsPayloadFromDom(soCreditPacks);
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
+        const packCount = (creditsPayload.packs || []).length;
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
                 credits: creditsPayload,
@@ -6600,7 +6631,7 @@
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload, smart_mode: smartModePayload });
             soAfterTabSaved('credits');
             renderSoExtensionPreview();
-            soToast('Credit packs saved.');
+            soToast(`Saved ${packCount} credit pack${packCount === 1 ? '' : 's'} to Firebase. Close and reopen the extension popup to refresh.`);
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
@@ -7159,7 +7190,7 @@
     window.saveShippingOptimizerCredits = async function() {
         if (!soRequireExtensionWrite()) return;
         await soConfirmSaveWithReview('credits', async () => {
-        soCreditPacks = soReadCreditPacksFromDom();
+        soSyncCreditPacksFromDom();
         const packErr = soValidateCreditPacks(soCreditPacks);
         if (packErr) return soToast(packErr);
 
@@ -7167,6 +7198,7 @@
         const smartModePayload = soSmartModeToFirestore(soReadSmartModeFromDom());
         const smartErr = soValidateSmartMode(smartModePayload);
         if (smartErr) return soToast(smartErr);
+        const packCount = (creditsPayload.packs || []).length;
 
         try {
             await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set({
@@ -7180,7 +7212,7 @@
             soConfig = Object.assign({}, soConfig, { credits: creditsPayload, smart_mode: smartModePayload });
             soAfterTabSaved('credits');
             renderSoExtensionPreview();
-            soToast('Credits & packs saved.');
+            soToast(`Credits & ${packCount} pack${packCount === 1 ? '' : 's'} saved. Reopen extension popup to refresh.`);
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
