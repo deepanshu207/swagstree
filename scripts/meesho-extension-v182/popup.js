@@ -339,6 +339,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const creditsSection = document.getElementById("popup-credits-section");
         await refreshCreditsTopUpSection(licenses);
+        await refreshGlobalAddonsSection(licenses);
 
         if (!LicenseManager.licenseEntryHasAccess(primary)) {
           statusBadge.textContent = "Inactive";
@@ -396,6 +397,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const creditsSection = document.getElementById("popup-credits-section");
         await refreshCreditsTopUpSection([]);
+        await refreshGlobalAddonsSection([]);
         await setupGoogleTrialUi();
         setSelectedPurchasePlan(null);
       }
@@ -555,6 +557,77 @@ document.addEventListener("DOMContentLoaded", async () => {
   let selectedPurchasePlanId = null;
   let cachedCreditsPricePerCredit = 2;
   let cachedAddonCatalog = [];
+  let cachedCreditsConfig = null;
+  let cachedActivePlan = null;
+
+  function pickActiveSubscriptionPlan(licenses) {
+    const list = licenses || [];
+    for (const entry of list) {
+      if (!LicenseManager.licenseEntryHasAccess(entry)) continue;
+      const info = LicenseManager.normalizeLicenseInfo(entry.licenseInfo || {});
+      if (info.planType === "demo") continue;
+      const planId = info.planId || info.planType;
+      const plan = cachedPlans.find((p) => p.id === planId);
+      if (plan) return plan;
+      if (planId) return { id: planId, name: info.planName || planId };
+    }
+    return null;
+  }
+
+  async function refreshGlobalAddonsSection(licenses) {
+    const section = document.getElementById("global-addons-section");
+    const grid = document.getElementById("global-addons-grid");
+    if (!section || !grid || typeof FirebaseLicense === "undefined") return;
+
+    if (!cachedCreditsConfig) {
+      cachedCreditsConfig = await FirebaseLicense.getCreditsConfig(true);
+      cachedCreditsPricePerCredit = cachedCreditsConfig?.price_per_credit || 2;
+      cachedAddonCatalog = cachedCreditsConfig?.addon_catalog || [];
+    }
+
+    const cfg = cachedCreditsConfig || {};
+    const addonsCfg = FirebaseLicense.normalizeAddonsConfig(cfg);
+    if (!addonsCfg.addons_enabled || !addonsCfg.global_addons_enabled) {
+      section.classList.add("hidden");
+      return;
+    }
+
+    section.classList.remove("hidden");
+    const hasActiveLicense = (licenses || []).some(
+      (e) =>
+        LicenseManager.licenseEntryHasAccess(e) &&
+        e.licenseInfo?.planType !== "demo",
+    );
+    cachedActivePlan = pickActiveSubscriptionPlan(licenses);
+
+    FirebaseLicense.renderGlobalAddonsSection(grid, {
+      creditsConfig: cfg,
+      allPlans: cachedPlans,
+      hasActiveLicense,
+      activePlan: cachedActivePlan,
+      pricePerCredit: cachedCreditsPricePerCredit,
+    });
+    bindGlobalAddonButtons();
+  }
+
+  function bindGlobalAddonButtons() {
+    document.querySelectorAll(".plan-global-addon-btn").forEach((btn) => {
+      if (btn.dataset.wired === "1") return;
+      btn.dataset.wired = "1";
+      PA.bindTap(btn, () => {
+        const addonId = btn.dataset.addonId;
+        if (!addonId) return;
+        const message = FirebaseLicense.buildGlobalAddonPurchaseMessage(
+          addonId,
+          productName,
+          document,
+          cachedActivePlan,
+          cachedCreditsConfig,
+        );
+        void openWhatsApp(message);
+      });
+    });
+  }
 
   function setSelectedPurchasePlan(planId) {
     selectedPurchasePlanId = planId || null;
@@ -597,9 +670,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         const plan = cachedPlans.find((p) => p.id === planId);
         const addons =
           plan &&
-          plan.allow_credit_addons !== false &&
-          typeof FirebaseLicense !== "undefined"
-            ? FirebaseLicense.getPlanCreditAddons(plan, cachedAddonCatalog)
+          typeof FirebaseLicense !== "undefined" &&
+          FirebaseLicense.planAllowsDetailAddons(plan)
+            ? FirebaseLicense.getPlanDetailCreditAddons(
+                plan,
+                cachedCreditsConfig || { addon_catalog: cachedAddonCatalog },
+                cachedPlans,
+              )
             : [];
         if (addons.length) {
           setSelectedPurchasePlan(planId);
@@ -640,16 +717,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       cachedPlans = plans;
       cachedCreditPacks = creditPacks;
       cachedSupportConfig = supportCfg;
+      cachedCreditsConfig = creditsCfg;
       cachedCreditsPricePerCredit = creditsCfg?.price_per_credit || 2;
-      cachedAddonCatalog =
-        typeof FirebaseLicense.resolveAddonCatalog === "function"
-          ? FirebaseLicense.resolveAddonCatalog(creditsCfg)
-          : [];
+      cachedAddonCatalog = creditsCfg?.addon_catalog || [];
       selectedPurchasePlanId = null;
       FirebaseLicense.renderPlanButtons(grid, plans, "popup");
-      await refreshCreditsTopUpSection(
-        await LicenseManager.getActiveLicenses().catch(() => []),
-      );
+      const licenses = await LicenseManager.getActiveLicenses().catch(() => []);
+      await refreshGlobalAddonsSection(licenses);
+      await refreshCreditsTopUpSection(licenses);
       const deviceHint = document.getElementById("license-device-hint");
       if (deviceHint) {
         deviceHint.style.display = "none";
@@ -734,15 +809,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    if (!cachedAddonCatalog.length && typeof FirebaseLicense !== "undefined") {
-      const creditsCfg = await FirebaseLicense.getCreditsConfig(true);
-      cachedCreditsPricePerCredit = creditsCfg?.price_per_credit || 2;
-      cachedAddonCatalog = FirebaseLicense.resolveAddonCatalog(creditsCfg);
+    if (!cachedCreditsConfig && typeof FirebaseLicense !== "undefined") {
+      cachedCreditsConfig = await FirebaseLicense.getCreditsConfig(true);
+      cachedCreditsPricePerCredit = cachedCreditsConfig?.price_per_credit || 2;
+      cachedAddonCatalog = cachedCreditsConfig?.addon_catalog || [];
     }
 
     body.innerHTML = FirebaseLicense.renderPlanDetailHtml(plan, {
       productName,
       addonCatalog: cachedAddonCatalog,
+      creditsConfig: cachedCreditsConfig,
+      allPlans: cachedPlans,
       pricePerCredit: cachedCreditsPricePerCredit,
     });
     bindPlanDetailBuy(body, plan.id);
@@ -765,6 +842,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (pid && addonId) void showAddonCreditDetail(pid, addonId);
       });
     });
+    const customBtn = root.querySelector(".plan-detail-custom-plan-btn");
+    if (customBtn && customBtn.dataset.wired !== "1") {
+      customBtn.dataset.wired = "1";
+      PA.bindTap(customBtn, async () => {
+        const message = FirebaseLicense.buildCustomPlanPurchaseMessage(
+          planId,
+          productName,
+          root,
+          cachedCreditsConfig,
+        );
+        await openWhatsApp(message);
+      });
+    }
     const buyBtn = root.querySelector(".plan-detail-buy-btn");
     if (!buyBtn) return;
     PA.bindTap(buyBtn, async () => {
