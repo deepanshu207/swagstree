@@ -460,8 +460,13 @@ const FirebaseLicense = {
       "name",
     ].forEach(fillStr);
     ["features", "highlights", "detail_sections", "offer_badges"].forEach(fillArr);
+    if (out.allow_plan_addons == null && out.allow_credit_addons != null) {
+      out.allow_plan_addons = out.allow_credit_addons;
+    }
+    if (out.allow_custom_plan == null) out.allow_custom_plan = true;
     if (tpl.allow_credit_addons) {
       out.allow_credit_addons = true;
+      if (out.allow_plan_addons == null) out.allow_plan_addons = true;
     } else if (
       plan.allow_credit_addons === false ||
       plan.allowCreditAddons === false
@@ -474,10 +479,11 @@ const FirebaseLicense = {
       out.allow_credit_addons = true;
     }
     if (out.allow_credit_addons !== false && !out.unlimited_credits) {
-      const activeAddons = (out.credit_addons || []).filter(
-        (a) => a && a.active !== false,
+      const fullEntries = (out.credit_addons || []).filter(
+        (a) => a && a.active !== false && !a._ref,
       );
-      if (!activeAddons.length) {
+      const refEntries = (out.credit_addons || []).filter((a) => a && a._ref);
+      if (!fullEntries.length && !refEntries.length) {
         out.credit_addons = this.defaultAddonCatalog().map((a, i) =>
           this.normalizeCreditAddon(a, a.id, i),
         );
@@ -618,13 +624,28 @@ const FirebaseLicense = {
       plan_kind: planKind,
       included_credits:
         Number(p?.included_credits ?? p?.includedCredits ?? 0) || 0,
+      hide: p?.hide === true,
+      disabled: p?.disabled === true,
       allow_credit_addons:
         p?.allow_credit_addons != null || p?.allowCreditAddons != null
           ? !!(p?.allow_credit_addons ?? p?.allowCreditAddons)
           : undefined,
+      allow_plan_addons:
+        p?.allow_plan_addons != null || p?.allowPlanAddons != null
+          ? !!(p?.allow_plan_addons ?? p?.allowPlanAddons)
+          : undefined,
+      hide_plan_addons_in_detail:
+        p?.hide_plan_addons_in_detail === true ||
+        p?.hidePlanAddonsInDetail === true,
+      allow_custom_plan:
+        p?.allow_custom_plan != null || p?.allowCustomPlan != null
+          ? !!(p?.allow_custom_plan ?? p?.allowCustomPlan)
+          : undefined,
+      custom_plan_enabled:
+        p?.custom_plan_enabled !== false && p?.customPlanEnabled !== false,
       max_addon_selections:
         Number(p?.max_addon_selections ?? p?.maxAddonSelections ?? 0) || 0,
-      credit_addons: this.parseCreditAddons(
+      credit_addons: this.parsePlanCreditAddonRefs(
         p?.credit_addons ?? p?.creditAddons,
       ),
       features: this.parsePlanFeatures(p?.features ?? p?.plan_features),
@@ -888,15 +909,23 @@ const FirebaseLicense = {
         .join("")}</div>`;
     }
 
+    const creditsConfig = options.creditsConfig || null;
+    const allPlans = options.allPlans || null;
     const resolvedCatalog =
       options.addonCatalog ??
-      (options.creditsConfig
-        ? this.resolveAddonCatalog(options.creditsConfig)
+      (creditsConfig
+        ? creditsConfig.addon_catalog ||
+          this.resolveFullAddonCatalog(creditsConfig, allPlans)
         : undefined);
-    const addons = !plan.unlimited_credits
-      ? this.getPlanCreditAddons(plan, resolvedCatalog)
-      : [];
+    const addons = creditsConfig
+      ? this.getPlanDetailCreditAddons(plan, creditsConfig, allPlans)
+      : !plan.unlimited_credits
+        ? this.getPlanCreditAddonsLegacy(plan, resolvedCatalog)
+        : [];
     const basePpc = Number(options.pricePerCredit) || 2;
+    const customCfg = creditsConfig
+      ? this.normalizeCustomPlanConfig(creditsConfig.custom_plan)
+      : this.normalizeCustomPlanConfig(null);
     if (addons.length) {
       const maxSel = Number(plan.max_addon_selections) || 0;
       const limitNote =
@@ -917,6 +946,16 @@ const FirebaseLicense = {
         });
       });
       html += `</div></div>`;
+    }
+
+    if (this.planShowsCustomPlan(plan, creditsConfig)) {
+      html += `<div class="plan-detail-section plan-detail-section--custom">
+        <div class="plan-detail-section-title">🛠 CUSTOM PLAN</div>
+        ${customCfg.description ? `<p class="plan-detail-section-body">${this.escapeHtml(customCfg.description)}</p>` : ""}
+        <button type="button" class="plan-detail-custom-plan-btn btn btn-secondary" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;">
+          ${this.escapeHtml(customCfg.label)}
+        </button>
+      </div>`;
     }
 
     sections.forEach((sec) => {
@@ -1094,20 +1133,306 @@ Please share payment details.`;
       a?.card_subtitle ||
       a?.cardSubtitle ||
       (credits > 0 ? `${credits} credits · ₹${price}` : "");
+    const scopeRaw = String(a?.scope || "global").trim().toLowerCase();
+    const scope = scopeRaw === "plan" || scopeRaw === "plan_detail" ? "plan" : "global";
+    let visibleIn = a?.visible_in ?? a?.visibleIn ?? null;
+    if (typeof visibleIn === "string") {
+      visibleIn = visibleIn.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+    }
+    const planIdsRaw = a?.plan_ids ?? a?.planIds ?? [];
+    const plan_ids = (Array.isArray(planIdsRaw) ? planIdsRaw : [planIdsRaw])
+      .filter(Boolean)
+      .map((x) => this.slugifyPlanId(x));
     return {
       id: id || `addon_${index}`,
       credits,
       price,
       label: a?.label || a?.name || `+${credits} credits`,
+      name: a?.name || a?.label || `+${credits} credits`,
       card_subtitle: cardSubtitle,
       description: a?.description || "",
+      save: a?.save || a?.saveLabel || "",
+      best: !!a?.best,
+      scope,
+      plan_ids,
+      visible_in: Array.isArray(visibleIn) ? visibleIn : null,
+      hide: a?.hide === true,
+      disabled: a?.disabled === true,
+      show_on_main:
+        a?.show_on_main !== false && a?.showOnMain !== false && a?.hide !== true,
+      show_in_detail:
+        a?.show_in_detail !== false &&
+        a?.showInDetail !== false &&
+        a?.hide !== true,
       offer_badges: this.parseOfferBadges(a?.offer_badges ?? a?.offerBadges),
-      active: a?.active !== false,
+      active: a?.active !== false && a?.hide !== true && a?.disabled !== true,
       default_selected: this.isUnlimitedFlag(
         a?.default_selected ?? a?.defaultSelected,
       ),
       order: a?.order != null ? Number(a.order) : index,
     };
+  },
+
+  parsePlanCreditAddonRefs(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+      return raw
+        .map((entry, i) => {
+          if (typeof entry === "string") {
+            const id = this.slugifyPlanId(entry);
+            return id ? { id, active: true, order: i, _ref: true } : null;
+          }
+          if (entry && typeof entry === "object") {
+            return this.normalizeCreditAddon(entry, entry.id || `addon_${i}`, i);
+          }
+          return null;
+        })
+        .filter(Boolean);
+    }
+    if (typeof raw === "object") {
+      return Object.entries(raw).map(([id, a], i) =>
+        typeof a === "string"
+          ? { id: this.slugifyPlanId(a), active: true, order: i, _ref: true }
+          : this.normalizeCreditAddon({ ...a, id: a?.id || id }, id, i),
+      );
+    }
+    return [];
+  },
+
+  normalizeAddonsConfig(creditsConfig) {
+    const raw = creditsConfig && typeof creditsConfig === "object" ? creditsConfig : {};
+    return {
+      addons_enabled: raw.addons_enabled !== false && raw.addonsEnabled !== false,
+      addons_require_license:
+        raw.addons_require_license !== false &&
+        raw.addonsRequireLicense !== false,
+      global_addons_enabled:
+        raw.global_addons_enabled !== false &&
+        raw.globalAddonsEnabled !== false,
+      plan_addons_enabled:
+        raw.plan_addons_enabled !== false && raw.planAddonsEnabled !== false,
+      addon_scopes_enabled:
+        raw.addon_scopes_enabled === true || raw.addonScopesEnabled === true,
+      custom_plan: this.normalizeCustomPlanConfig(
+        raw.custom_plan ?? raw.customPlan,
+      ),
+    };
+  },
+
+  normalizeCustomPlanConfig(raw) {
+    const c = raw && typeof raw === "object" ? raw : {};
+    const hidden = c.hide === true || c.disabled === true;
+    return {
+      enabled: c.enabled !== false && !hidden,
+      label: c.label || "Request Custom Plan via WhatsApp",
+      whatsapp_title: c.whatsapp_title || c.whatsappTitle || "Custom Plan",
+      description:
+        c.description ||
+        "Pick add-ons and send — we will confirm pricing and assign your license.",
+      allow_addon_selection:
+        c.allow_addon_selection !== false && c.allowAddonSelection !== false,
+      assign_on_whatsapp:
+        c.assign_on_whatsapp !== false && c.assignOnWhatsapp !== false,
+    };
+  },
+
+  isPlanVisible(plan) {
+    if (!plan) return false;
+    if (plan.active === false) return false;
+    if (plan.hide === true || plan.disabled === true) return false;
+    return true;
+  },
+
+  planAllowsDetailAddons(plan) {
+    if (!plan || plan.unlimited_credits) return false;
+    if (plan.hide_plan_addons_in_detail) return false;
+    const allowPlan = plan.allow_plan_addons;
+    const allowLegacy = plan.allow_credit_addons;
+    if (allowPlan === false) return false;
+    if (allowLegacy === false && allowPlan == null) return false;
+    return true;
+  },
+
+  planShowsCustomPlan(plan, creditsConfig) {
+    const cfg = this.normalizeAddonsConfig(creditsConfig);
+    if (!cfg.custom_plan.enabled) return false;
+    if (plan.allow_custom_plan === false) return false;
+    if (plan.custom_plan_enabled === false) return false;
+    return true;
+  },
+
+  catalogById(catalog) {
+    const byId = {};
+    (catalog || []).forEach((a) => {
+      byId[a.id] = a;
+      byId[this.slugifyPlanId(a.id)] = a;
+    });
+    return byId;
+  },
+
+  resolvePlanAddonEntries(plan, catalog) {
+    const byId = this.catalogById(catalog);
+    const out = [];
+    (plan?.credit_addons || []).forEach((entry, i) => {
+      if (typeof entry === "string") {
+        const id = this.slugifyPlanId(entry);
+        if (byId[id]) out.push(byId[id]);
+        return;
+      }
+      if (entry?._ref) {
+        const id = this.slugifyPlanId(entry.id);
+        if (byId[id]) out.push(byId[id]);
+        return;
+      }
+      if (entry && typeof entry === "object" && entry.active !== false) {
+        out.push(this.normalizeCreditAddon(entry, entry.id, i));
+      }
+    });
+    return out;
+  },
+
+  mergeAddonCatalogFromPlans(plans, catalog) {
+    const byId = this.catalogById(catalog);
+    (plans || []).forEach((plan) => {
+      this.resolvePlanAddonEntries(plan, catalog).forEach((a) => {
+        if (a?.id && !byId[a.id]) byId[a.id] = a;
+      });
+      (plan?.credit_addons || []).forEach((entry, i) => {
+        if (entry && typeof entry === "object" && !entry._ref && entry.id) {
+          const norm = this.normalizeCreditAddon(entry, entry.id, i);
+          if (!byId[norm.id]) byId[norm.id] = norm;
+        }
+      });
+    });
+    return this.sortPlans(Object.values(byId));
+  },
+
+  resolveFullAddonCatalog(creditsConfig, plans) {
+    const raw =
+      creditsConfig?.addon_catalog ??
+      creditsConfig?.addonCatalog ??
+      null;
+    let catalog = this.parseCreditAddons(raw);
+    if (!catalog.length) {
+      catalog = this.defaultAddonCatalog().map((a, i) =>
+        this.normalizeCreditAddon(a, a.id, i),
+      );
+    }
+    if (Array.isArray(plans) && plans.length) {
+      catalog = this.mergeAddonCatalogFromPlans(plans, catalog);
+    }
+    return this.sortPlans(catalog.filter((a) => a.active !== false));
+  },
+
+  addonAppliesToPlan(addon, planId, scopesEnabled) {
+    if (!addon || addon.active === false || addon.hide || addon.disabled) {
+      return false;
+    }
+    if (!scopesEnabled) return true;
+    const scope = addon.scope || "global";
+    if (scope !== "plan") return scope === "global";
+    const ids = addon.plan_ids || [];
+    if (!ids.length) return false;
+    const key = this.slugifyPlanId(planId);
+    return ids.some((id) => this.slugifyPlanId(id) === key);
+  },
+
+  addonVisibleOnSurface(addon, surface, scopesEnabled) {
+    if (!addon || addon.active === false || addon.hide || addon.disabled) {
+      return false;
+    }
+    const vis = addon.visible_in;
+    if (Array.isArray(vis) && vis.length) {
+      const norm = vis.map((v) => String(v).toLowerCase());
+      if (surface === "main") {
+        return norm.some((v) => v === "main" || v === "global");
+      }
+      return norm.some(
+        (v) => v === "plan_detail" || v === "detail" || v === "plan",
+      );
+    }
+    if (scopesEnabled) {
+      if (surface === "main") {
+        return (
+          (addon.scope === "global" || !addon.scope) && addon.show_on_main !== false
+        );
+      }
+      return addon.scope === "plan" && addon.show_in_detail !== false;
+    }
+    if (surface === "main") return addon.show_on_main !== false;
+    return addon.show_in_detail !== false;
+  },
+
+  getPlanDetailCreditAddons(plan, creditsConfig, allPlans) {
+    const cfg = this.normalizeAddonsConfig(creditsConfig);
+    if (!cfg.addons_enabled || !cfg.plan_addons_enabled) return [];
+    if (!this.planAllowsDetailAddons(plan)) return [];
+    const catalog = this.resolveFullAddonCatalog(creditsConfig, allPlans);
+    const planEntries = this.resolvePlanAddonEntries(plan, catalog);
+    if (cfg.addon_scopes_enabled) {
+      if (planEntries.length) {
+        return this.sortPlans(
+          planEntries.filter(
+            (a) =>
+              a.active !== false &&
+              !a.hide &&
+              this.addonAppliesToPlan(a, plan.id, true),
+          ),
+        );
+      }
+      return this.sortPlans(
+        catalog.filter(
+          (a) =>
+            a.scope === "plan" &&
+            this.addonAppliesToPlan(a, plan.id, true) &&
+            this.addonVisibleOnSurface(a, "plan_detail", true),
+        ),
+      );
+    }
+    if (planEntries.length) {
+      return this.sortPlans(planEntries.filter((a) => a.active !== false));
+    }
+    return this.getPlanCreditAddonsLegacy(plan, catalog);
+  },
+
+  getGlobalCreditAddons(creditsConfig, allPlans) {
+    const cfg = this.normalizeAddonsConfig(creditsConfig);
+    if (!cfg.addons_enabled || !cfg.global_addons_enabled) return [];
+    const catalog = this.resolveFullAddonCatalog(creditsConfig, allPlans);
+    if (cfg.addon_scopes_enabled) {
+      return this.sortPlans(
+        catalog.filter(
+          (a) =>
+            (a.scope === "global" || !a.scope) &&
+            this.addonVisibleOnSurface(a, "main", true),
+        ),
+      );
+    }
+    return this.sortPlans(
+      catalog.filter((a) => this.addonVisibleOnSurface(a, "main", false)),
+    );
+  },
+
+  getPlanCreditAddonsLegacy(plan, catalog) {
+    if (!plan || plan.unlimited_credits) return [];
+    if (plan.allow_credit_addons === false && plan.allow_plan_addons !== true) {
+      return [];
+    }
+    const planAddons = (plan.credit_addons || []).filter(
+      (a) => a && a.active !== false && !a._ref,
+    );
+    if (planAddons.length) return this.sortPlans(planAddons);
+    if (Array.isArray(catalog) && catalog.length) {
+      const fromCatalog = this.sortPlans(
+        catalog.filter((a) => a.active !== false),
+      );
+      if (fromCatalog.length) return fromCatalog;
+    }
+    return this.sortPlans(
+      this.defaultAddonCatalog().map((a, i) =>
+        this.normalizeCreditAddon(a, a.id, i),
+      ),
+    );
   },
 
   parseCreditAddons(raw) {
@@ -1126,22 +1451,15 @@ Please share payment details.`;
   },
 
   /** Active add-ons for a plan: per-plan list first, then shared catalog, then built-in defaults. */
-  getPlanCreditAddons(plan, catalog) {
-    if (!plan || plan.unlimited_credits) return [];
-    if (plan.allow_credit_addons === false) return [];
-    const planAddons = (plan.credit_addons || []).filter((a) => a.active !== false);
-    if (planAddons.length) return this.sortPlans(planAddons);
-    if (Array.isArray(catalog) && catalog.length) {
-      const fromCatalog = this.sortPlans(
-        catalog.filter((a) => a.active !== false),
+  getPlanCreditAddons(plan, catalog, creditsConfig, allPlans) {
+    if (creditsConfig) {
+      return this.getPlanDetailCreditAddons(
+        plan,
+        creditsConfig,
+        allPlans || (catalog ? null : null),
       );
-      if (fromCatalog.length) return fromCatalog;
     }
-    return this.sortPlans(
-      this.defaultAddonCatalog().map((a, i) =>
-        this.normalizeCreditAddon(a, a.id, i),
-      ),
-    );
+    return this.getPlanCreditAddonsLegacy(plan, catalog);
   },
 
   /** Credits + price for a plan given selected add-on ids. */
@@ -1291,19 +1609,7 @@ Please share payment details.`;
   },
 
   resolveAddonCatalog(creditsConfig) {
-    const raw =
-      creditsConfig?.addon_catalog ??
-      creditsConfig?.addonCatalog ??
-      null;
-    const parsed = this.parseCreditAddons(raw);
-    if (parsed?.length) {
-      return this.sortPlans(parsed.filter((a) => a.active !== false));
-    }
-    return this.sortPlans(
-      this.defaultAddonCatalog().map((a, i) =>
-        this.normalizeCreditAddon(a, a.id, i),
-      ),
-    );
+    return this.resolveFullAddonCatalog(creditsConfig, null);
   },
 
   defaultCreditsConfig() {
@@ -1511,7 +1817,8 @@ Please share payment details.`;
       this.parseCreditPacks(raw.packs) ||
       this.parseCreditPacks(defaults.packs) ||
       defaults.packs;
-    const addonCatalog = this.resolveAddonCatalog({ addon_catalog: raw.addon_catalog ?? raw.addonCatalog });
+    const addonCatalog = this.resolveFullAddonCatalog(raw, null);
+    const addonsCfg = this.normalizeAddonsConfig(raw);
     return {
       ...defaults,
       ...raw,
@@ -1522,6 +1829,12 @@ Please share payment details.`;
         Number(raw.cost_per_operation ?? raw.costPerOperation ?? 1) || 1,
       packs: this.sortPlans(packs.filter((p) => p.active !== false)),
       addon_catalog: addonCatalog,
+      addons_enabled: addonsCfg.addons_enabled,
+      addons_require_license: addonsCfg.addons_require_license,
+      global_addons_enabled: addonsCfg.global_addons_enabled,
+      plan_addons_enabled: addonsCfg.plan_addons_enabled,
+      addon_scopes_enabled: addonsCfg.addon_scopes_enabled,
+      custom_plan: addonsCfg.custom_plan,
       image_generation: this.normalizeImageGenConfig(
         raw.image_generation ?? raw.imageGeneration,
       ),
@@ -2132,9 +2445,9 @@ Please share payment details.`;
 
   async getPricingPlans(forceFresh = false) {
     const all = await this.getAllPlans(forceFresh);
-    const active = all.filter((p) => p.active !== false);
+    const active = all.filter((p) => this.isPlanVisible(p));
     const plans = this.ensureSingleBestPlan(active);
-    return plans.length ? plans : this.defaultPlans();
+    return plans.length ? plans : this.defaultPlans().filter((p) => this.isPlanVisible(p));
   },
 
   async resolvePlanDays(lic) {
@@ -2961,18 +3274,23 @@ Please share payment details.`;
     let addonCredits = 0;
     let addonPrice = 0;
     const labels = [];
+    const addonIds = [];
     selChips.forEach((c) => {
       addonCredits += Number(c.dataset.addonCredits) || 0;
       addonPrice += Number(c.dataset.addonPrice) || 0;
       labels.push(
         c.dataset.addonLabel || `${c.dataset.addonCredits} credits`,
       );
+      if (c.dataset.addonId) addonIds.push(c.dataset.addonId);
     });
     const total = price + addonPrice;
 
     let msg = `Hi! I want to purchase ${productName || "Shipping Optimizer"}.\n\n📦 *Plan:* ${name} — ₹${price}`;
     if (labels.length) {
       msg += `\n⚡ *Add-ons:* ${labels.join(", ")} — +₹${addonPrice}`;
+      if (addonIds.length) {
+        msg += `\n🆔 *Add-on IDs:* ${addonIds.join(", ")}`;
+      }
     }
     msg += `\n💳 *Total:* ₹${total}`;
     if (!unlimitedCredits && (included > 0 || addonCredits > 0)) {
@@ -2983,6 +3301,141 @@ Please share payment details.`;
     }
     msg += `\n\nPlease share payment details and license key.`;
     return msg;
+  },
+
+  buildCustomPlanPurchaseMessage(planId, productName, root, creditsConfig) {
+    const scope = root || document;
+    const planKey = String(planId);
+    let plan = null;
+    const btn =
+      scope.querySelector(`.plan-detail-buy-btn[data-plan="${planKey}"]`) ||
+      scope.querySelector(`.plan-detail-custom-plan-btn[data-plan="${planKey}"]`);
+    const name = btn?.dataset?.planName || btn?.dataset?.duration || "Plan";
+    const price = Number(btn?.dataset?.price) || 0;
+    const included = Number(btn?.dataset?.includedCredits) || 0;
+    const cfg = this.normalizeCustomPlanConfig(creditsConfig?.custom_plan);
+    const selChips = this.addonChipsForPlan(planId, root).filter(
+      (c) => c.getAttribute("aria-pressed") === "true",
+    );
+    let addonPrice = 0;
+    const labels = [];
+    const addonIds = [];
+    selChips.forEach((c) => {
+      addonPrice += Number(c.dataset.addonPrice) || 0;
+      labels.push(c.dataset.addonLabel || `${c.dataset.addonCredits} credits`);
+      if (c.dataset.addonId) addonIds.push(c.dataset.addonId);
+    });
+    const total = price + addonPrice;
+    let msg = `Hi! I want a custom ${productName || "Shipping Optimizer"} package.\n\n🛠 *${cfg.whatsapp_title}*\n📦 *Base subscription:* ${name} — ₹${price}`;
+    if (labels.length && cfg.allow_addon_selection) {
+      msg += `\n⚡ *Custom add-ons:* ${labels.join(", ")} — +₹${addonPrice}`;
+      if (addonIds.length) {
+        msg += `\n🆔 *Add-on IDs:* ${addonIds.join(", ")}`;
+      }
+    }
+    msg += `\n💳 *Estimated total:* ₹${total}`;
+    if (included > 0) msg += `\n🎫 *Included credits:* ${included}`;
+    msg += `\n\nPlease confirm my custom package and assign/update my license.`;
+    return msg;
+  },
+
+  buildGlobalAddonPurchaseMessage(
+    addonId,
+    productName,
+    root,
+    activePlan,
+    creditsConfig,
+  ) {
+    const scope = root || document;
+    const catalog = this.resolveFullAddonCatalog(creditsConfig, null);
+    const addon = catalog.find(
+      (a) => a.id === addonId || this.slugifyPlanId(a.id) === this.slugifyPlanId(addonId),
+    );
+    if (!addon) {
+      return `Hi! I want to purchase a credit add-on for ${productName || "Shipping Optimizer"}.`;
+    }
+    const planName = activePlan?.name || "My plan";
+    const planId = activePlan?.id || "";
+    let msg = `Hi! I want to top up ${productName || "Shipping Optimizer"}.\n\n⚡ *Credit add-on:* ${addon.label || addon.name} — ₹${addon.price} (${addon.credits} credits)`;
+    msg += `\n🆔 *Add-on ID:* ${addon.id}`;
+    if (planName) msg += `\n📦 *Current plan:* ${planName}${planId ? ` (${planId})` : ""}`;
+    msg += `\n\nPlease share payment details and add these credits to my license.`;
+    return msg;
+  },
+
+  renderGlobalAddonsSection(container, options = {}) {
+    const section = document.getElementById("global-addons-section");
+    const contextEl = document.getElementById("global-addons-context");
+    const creditsConfig = options.creditsConfig || {};
+    const cfg = this.normalizeAddonsConfig(creditsConfig);
+    const hasLicense = !!options.hasActiveLicense;
+    const locked = cfg.addons_require_license && !hasLicense;
+    const addons = locked
+      ? []
+      : this.getGlobalCreditAddons(creditsConfig, options.allPlans || []);
+
+    if (section) {
+      section.classList.toggle("global-addons-section--locked", locked);
+      section.style.display = cfg.addons_enabled && cfg.global_addons_enabled ? "" : "none";
+    }
+    if (!container) return;
+
+    if (!cfg.addons_enabled || !cfg.global_addons_enabled) {
+      container.innerHTML = "";
+      return;
+    }
+
+    if (contextEl) {
+      contextEl.textContent = locked
+        ? "Activate a license to unlock credit add-ons."
+        : addons.length
+          ? "Tap an add-on to buy via WhatsApp — stacks on your license."
+          : "No global add-ons configured.";
+    }
+
+    if (locked || !addons.length) {
+      container.innerHTML = locked
+        ? '<div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--mso-muted);font-size:10px;">Activate a license to see add-ons</div>'
+        : '<div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--mso-muted);font-size:10px;">No global add-ons available</div>';
+      return;
+    }
+
+    const parentPlan = options.activePlan || { id: "global", name: "License top-up" };
+    container.style.display = "grid";
+    container.style.gridTemplateColumns = this.planGridColumns(addons.length);
+    container.style.gap = container.style.gap || "8px";
+    container.innerHTML = addons
+      .map((a) =>
+        this.renderGlobalAddonCreditCard(a, parentPlan, {
+          pricePerCredit: options.pricePerCredit,
+        }),
+      )
+      .join("");
+  },
+
+  renderGlobalAddonCreditCard(addon, parentPlan, options = {}) {
+    const basePpc = options.pricePerCredit || 2;
+    const offerBadges = this.planOfferBadgesSlotHtml(addon, basePpc);
+    const subtitle = addon.card_subtitle || `${addon.credits} credits · ₹${addon.price}`;
+    const saveLabel = addon.save || this.formatAddonSaveLabel(addon, basePpc);
+    const saveHtml = this.planSaveSlotHtml(saveLabel || "");
+    const cardHint = addon.card_hint || "Tap to buy via WhatsApp";
+    const btn = `<button type="button" class="plan-btn plan-addon-card plan-global-addon-btn plan-buy-btn plan-card-main"
+      data-addon-id="${this.escapeAttr(addon.id)}"
+      data-addon-credits="${addon.credits}"
+      data-addon-price="${addon.price}"
+      data-addon-label="${this.escapeAttr(addon.label || addon.name)}"
+      data-plan-id="${this.escapeAttr(parentPlan?.id || "")}"
+      data-plan-name="${this.escapeAttr(parentPlan?.name || "")}"
+      title="${this.escapeAttr(addon.description || subtitle)}">
+      ${offerBadges}
+      <div class="plan-name">${this.escapeHtml(addon.label || addon.name)}</div>
+      <div class="plan-price">₹${addon.price}</div>
+      <div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitle)}</div>
+      ${saveHtml}
+      ${this.planCardFooterHtml({ card_hint: cardHint })}
+    </button>`;
+    return this.planCardShell(btn, addon, "addon");
   },
 
   renderCreditPacks(container, packs, variant = "popup") {

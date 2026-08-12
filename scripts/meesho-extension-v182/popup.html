@@ -265,6 +265,14 @@
     .plan-addons-section--locked .plan-addons-unlock-hint {
       display: block;
     }
+    .global-addons-section--locked {
+      opacity: 0.55;
+      pointer-events: none;
+      filter: grayscale(0.15);
+    }
+    .global-addons-section.hidden {
+      display: none !important;
+    }
     .plan-addons-unlock-hint {
       display: none;
       font-size: 10px;
@@ -876,6 +884,14 @@
           <div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--mso-muted);font-size:11px;">Loading plans…</div>
         </div>
         <p class="hint" style="margin:8px 0 0;text-align:center;font-size:10px;">Tap ℹ️ on any plan for full details and optional credit add-ons</p>
+      </div>
+
+      <div id="global-addons-section" class="status-card global-addons-section global-addons-section--locked hidden" style="padding:12px;margin-top:10px;">
+        <div style="text-align:center;margin-bottom:8px;">
+          <span style="font-size:11px;color:#c45f12;font-weight:700;">⚡ CREDIT ADD-ONS — global top-ups</span>
+        </div>
+        <p id="global-addons-context" class="hint" style="margin:0 0 8px;text-align:center;font-size:10px;color:var(--mso-muted);">Activate a license to unlock add-ons.</p>
+        <div class="plan-grid" id="global-addons-grid"></div>
       </div>
 
       <div id="popup-message" class="message"></div>

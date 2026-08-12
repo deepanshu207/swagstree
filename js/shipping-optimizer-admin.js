@@ -1742,6 +1742,10 @@
             p.billing_mode = 'hybrid';
         }
         p.allow_credit_addons = p.allow_credit_addons === true;
+        p.allow_plan_addons = p.allow_plan_addons === true;
+        p.hide_plan_addons_in_detail = p.hide_plan_addons_in_detail === true;
+        if (p.allow_custom_plan === false) p.allow_custom_plan = false;
+        else p.allow_custom_plan = true;
         p.max_addon_selections = Math.max(0, parseInt(p.max_addon_selections, 10) || 0);
         const rawAddons = Array.isArray(p.credit_addons) ? p.credit_addons : [];
         p.credit_addons = soSortCreditAddons(rawAddons.map(soNormalizeCreditAddon));
@@ -1781,6 +1785,13 @@
         if (a.save) a.save = String(a.save).trim();
         if (a.name) a.name = String(a.name).trim();
         a.order = Number.isFinite(Number(a.order)) ? Number(a.order) : index;
+        a.scope = String(a.scope || 'global').trim().toLowerCase() === 'plan' ? 'plan' : 'global';
+        const planIdsRaw = a.plan_ids ?? a.planIds ?? [];
+        a.plan_ids = (Array.isArray(planIdsRaw) ? planIdsRaw : String(planIdsRaw || '').split(/[\s,]+/))
+            .map(x => soSlugifyId(String(x || '').trim())).filter(Boolean);
+        a.hide = a.hide === true;
+        a.disabled = a.disabled === true;
+        if (a.hide || a.disabled) a.active = false;
         return a;
     }
 
@@ -5286,6 +5297,10 @@
                 active: get('active'),
                 best: get('best'),
                 default_selected: get('default_selected'),
+                scope: get('scope'),
+                plan_ids: String(get('plan_ids_text') || '').split(/[\s,]+/).map(x => x.trim()).filter(Boolean),
+                hide: get('hide'),
+                disabled: get('disabled'),
                 order: idx
             }, idx);
         });
@@ -5333,9 +5348,13 @@
                             <label class="so-field-full"><span>Save line (optional)</span><input type="text" data-field="save" value="${soAttr(addon.save || '')}" placeholder="Save ₹30 vs 5×10" oninput="soMarkTabDirty('credits')"></label>
                             <label class="so-field-full"><span>Description</span><textarea rows="2" data-field="description" oninput="soMarkTabDirty('credits')">${soEsc(addon.description || '')}</textarea></label>
                             <label class="so-field-full"><span>Offer badges (one per line)</span><textarea rows="2" data-field="offer_badges_text" placeholder="Popular&#10;20% off" oninput="soMarkTabDirty('credits')">${soEsc((addon.offer_badges || []).join('\n'))}</textarea></label>
+                            <label><span>Scope</span><select data-field="scope" onchange="soMarkTabDirty('credits')"><option value="global" ${(addon.scope || 'global') !== 'plan' ? 'selected' : ''}>Global (main screen)</option><option value="plan" ${addon.scope === 'plan' ? 'selected' : ''}>Plan-only (detail)</option></select></label>
+                            <label class="so-field-full"><span>Plan IDs (when scope=plan, comma-separated)</span><input type="text" data-field="plan_ids_text" value="${soAttr((addon.plan_ids || []).join(', '))}" placeholder="yearly, halfyearly" oninput="soMarkTabDirty('credits')"></label>
                         </div>
                         <div class="so-plan-flags so-plan-flags--simple">
                             <label class="so-plan-check"><input type="checkbox" data-field="active" ${addon.active !== false ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Active (shown in extension)</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="hide" ${addon.hide ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Hide (admin only)</label>
+                            <label class="so-plan-check"><input type="checkbox" data-field="disabled" ${addon.disabled ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Disabled</label>
                             <label class="so-plan-check"><input type="checkbox" data-field="best" ${addon.best ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Best value badge</label>
                             <label class="so-plan-check"><input type="checkbox" data-field="default_selected" ${addon.default_selected ? 'checked' : ''} onchange="soMarkTabDirty('credits')"> Pre-select on new license</label>
                         </div>
@@ -6157,9 +6176,12 @@
                     </div>
                     <div class="so-field-group">
                         <div class="so-field-group-title"><i class="fa fa-coins"></i> Credit add-ons (per plan)</div>
-                        <p class="so-field-group-hint">Optional extra credit bundles for this plan. Extension shows these in plan detail (ℹ️) and the bottom add-ons section. Leave empty to use the shared catalog from Credits tab.</p>
+                        <p class="so-field-group-hint">Optional extra credit bundles for this plan. Extension shows these in plan detail (ℹ️). Set <code>scope: plan</code> + <code>plan_ids</code> on catalog items when <code>addon_scopes_enabled</code> is on. Leave empty to use the shared catalog from Credits tab.</p>
                         <div class="so-plan-flags so-plan-flags--simple">
                             ${soCheckboxInfoHtml('Allow credit add-ons', 'plan-allow-addons', 'allow_credit_addons', plan.allow_credit_addons, idx)}
+                            ${soCheckboxInfoHtml('Allow plan add-ons in detail', 'plan-allow-plan-addons', 'allow_plan_addons', plan.allow_plan_addons != null ? plan.allow_plan_addons : plan.allow_credit_addons, idx)}
+                            ${soCheckboxInfoHtml('Hide add-ons in plan detail', 'plan-hide-plan-addons', 'hide_plan_addons_in_detail', plan.hide_plan_addons_in_detail, idx)}
+                            ${soCheckboxInfoHtml('Show custom plan block', 'plan-allow-custom-plan', 'allow_custom_plan', plan.allow_custom_plan != null ? plan.allow_custom_plan : true, idx)}
                         </div>
                         <label>${soFieldLabelHtml('Max add-on selections (0 = unlimited)', 'plan-max-addon-selections', idx)}
                             <input type="number" min="0" step="1" data-field="max_addon_selections" value="${plan.max_addon_selections || 0}" oninput="soMarkTabDirty('config')"></label>
@@ -6226,6 +6248,9 @@
                 billing_mode: get('billing_mode'),
                 included_credits: get('included_credits'),
                 allow_credit_addons: get('allow_credit_addons'),
+                allow_plan_addons: get('allow_plan_addons'),
+                hide_plan_addons_in_detail: get('hide_plan_addons_in_detail'),
+                allow_custom_plan: get('allow_custom_plan'),
                 max_addon_selections: get('max_addon_selections'),
                 credit_addons: soReadPlanCreditAddonsFromRow(row),
                 unlimited_time: get('unlimited_time'),
