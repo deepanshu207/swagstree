@@ -1,43 +1,180 @@
-# Meesho Extension — Plan + add-on rich data (v1.8.7)
+# Meesho Extension — Admin sync prompt (v1.8.41)
 
-Apply these changes to `meesho-shipping-optimizer-extension` (merge from `swagstree/scripts/meesho-extension-v182/`).
+Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
 ## Goal
 
-- **Plan cards** (Monthly / 3 Months / 6 Months / Yearly): plan info only — no add-on chips (consistent card height).
-- **Plan detail (ℹ️)**: show full **credit add-on cards** for that plan (badges, price, subtitle, save, description).
-- **Bottom section** `⚡ ALL CREDIT ADD-ONS`: selectable add-on cards — unlocked after a plan is selected.
-- **Data resolution** (`getPlanCreditAddons`):
-  1. `plan.credit_addons[]` when non-empty (per-plan, editable in Swagstree Config tab)
-  2. else `credits.addon_catalog[]` (shared master list on Credits tab)
-  3. else built-in `defaultAddonCatalog()`
+- **Safe admin:** Swagstree superadmin uses preview modals before any Firebase write (load/seed/import/license).
+- **Clear credits:** Subscription (`included_credits`) vs add-on (`addon_credits`) pools; extension **always consumes subscription credits first**.
+- **Flexible add-ons:** Per-plan and per-license hide/disable for plan add-ons and custom plan block.
+- **Device limits:** Subscription plans default `max_devices: 0` (unlimited). Google trial default `max_devices: 1` (editable in admin).
 
-## Files to sync (from swagstree `scripts/meesho-extension-v182/`)
+## Files to sync
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | `getPlanCreditAddons(plan, catalog)` priority fix, add-ons in `renderPlanDetailHtml`, `renderPlanAddonsSection` context text |
-| `popup.js` | Pass `addonCatalog` + `pricePerCredit` into `renderPlanDetailHtml` |
-| `popup.html` | `.plan-detail-addon-cards` CSS |
-| `config.js` | `VERSION: "1.8.4"` |
-| `manifest.json` | `"version": "1.8.4"` |
+| `js/firebaseLicense.js` | Subscription-first `deductCredits`, pool counters (`included_credits_used` / `addon_credits_used` / `custom_credits_used`), per-license custom credits, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
+| `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate, custom credits line (license-only) |
+| `config.js` | `VERSION: "1.8.41"` |
+| `manifest.json` | `"version": "1.8.41"` |
 
-## Firebase seed (Swagstree admin)
+## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
-1. Super → Shipping Optimizer → **Built-in defaults** → **Seed all defaults** (or save Credits + Config tabs).
-2. Confirm `credits.addon_catalog` has 4 items with `offer_badges`, `save`, `description`.
-3. Each plan should have `allow_credit_addons: true` and `credit_addons[]` (defaults copy catalog; customize per plan on Config tab).
+| Field | Purpose |
+|-------|---------|
+| `active: false` or `hide: true` | Hide plan from extension popup |
+| `max_devices: 0` | Unlimited devices (default for Monthly/Quarterly/Half-yearly/Yearly seed) |
+| `allow_credit_addons` / `allow_plan_addons` | Enable add-ons in plan detail |
+| `hide_plan_addons_in_detail` | Hide add-on cards in ℹ️ detail |
+| `disable_plan_addons` | Show add-ons grayed / not selectable |
+| `allow_custom_plan: false` | Hide custom plan block |
+| `hide_custom_plan` | Hide custom plan block |
+| `disable_custom_plan` | Show custom plan button disabled |
 
-## Extension behaviour
+## Firebase — license fields (`shipping_optimizer_licenses/{KEY}`)
 
-1. User taps a subscription plan → plan card highlights; add-on section unlocks.
-2. User taps ℹ️ on a plan → detail screen lists included features **and** credit add-on cards for that plan.
-3. User selects add-ons in bottom section → WhatsApp checkout includes plan + selected add-on credits.
-4. Existing subscribers use **⚡ BUY CREDITS** for credit packs (not add-ons).
+| Field | Purpose |
+|-------|---------|
+| `included_credits` | Subscription/base grant (consumed first) |
+| `addon_credits` | Add-on grant (consumed after base exhausted) |
+| `addon_credit_ids[]` | Which catalog add-ons were granted |
+| `credits_balance` | Total remaining |
+| `credits_used` | Total consumed |
+| `included_credits_used` | Base pool consumed (extension maintains) |
+| `addon_credits_used` | Add-on pool consumed (extension maintains) |
+| `custom_credits` | Per-license bonus grant (admin-only field; shown only for that license in extension) |
+| `custom_credits_label` | Optional display label in extension popup (e.g. "VIP support bonus") |
+| `custom_credits_used` | Custom pool consumed (extension maintains) |
+| `bonus_credits` | Legacy alias — read as fallback for `custom_credits` |
+| `hide_plan_addons` | Hide plan add-ons in extension for this license |
+| `disable_plan_addons` | Show plan add-ons disabled |
+| `hide_custom_plan` | Hide custom plan block |
+| `disable_custom_plan` | Disable custom plan button |
 
-## Swagstree admin (v5.15+)
+## Credit consumption order
 
-- **Import / Export**: top toolbar (Export backup / Import), or sticky bars on Built-in defaults, Config, Credits tabs.
-- **Shared catalog editor**: Credits tab → **Shared add-on catalog** accordion.
-- **Per-plan add-ons**: Config tab → expand plan → **Credit add-ons** → **Copy from shared catalog**.
-- **Google Users**: mobile card layout; tap card → manage form modal.
+1. On each operation, extension deducts from `included_credits` pool until `included_credits_used >= included_credits`.
+2. Then deducts from `addon_credits` pool until `addon_credits_used >= addon_credits`.
+3. Then deducts from `custom_credits` pool until `custom_credits_used >= custom_credits`.
+4. `credits_balance` and `credits_used` stay the single source of truth for access checks.
+
+Legacy licenses without pool counters are migrated on first deduction using subscription → add-on → custom inference.
+
+## Per-license custom credits (v1.8.39)
+
+Set in Swagstree admin → Super → Licenses → create/edit license:
+
+| Admin field | Firebase | Extension popup |
+|-------------|----------|-----------------|
+| Custom credits (this license only) | `custom_credits` | Remaining + used for this pool |
+| Custom credits label | `custom_credits_label` | Shown next to custom line (if set) |
+
+- Custom credits are **not** part of the plan catalog — they apply only to the license key you edit.
+- Total grant = `included_credits + addon_credits + custom_credits`.
+- Admin edit view shows a **Consumed breakdown** panel (subscription / add-on / custom used vs remaining) from stored `*_credits_used` fields.
+- Customer fields (email, location, IP) auto-prefill on create from admin session; empty fields only on edit.
+
+## Firebase — credits config
+
+```json
+{
+  "credits": {
+    "pack_scopes_enabled": true,
+    "addon_scopes_enabled": true,
+    "addons_enabled": true,
+    "plan_addons_enabled": true,
+    "global_addons_enabled": true,
+    "packs": [
+      { "id": "pack_10", "scope": "global", "credits": 10, "price": 20, "label": "10 Credits", "active": true },
+      { "id": "pack_50", "scope": "plan", "plan_ids": ["monthly", "yearly"], "credits": 50, "price": 90, "label": "50 Credits", "active": true },
+      { "id": "pack_custom", "scope": "plan", "plan_ids": ["credits_starter"], "credits": 60, "price": 70, "label": "60 credits", "active": true }
+    ],
+    "addon_catalog": [
+      { "id": "addon_10", "scope": "plan", "plan_ids": ["monthly"], "credits": 10, "price": 20 },
+      { "id": "addon_25", "scope": "global", "credits": 25, "price": 40 }
+    ]
+  }
+}
+```
+
+- `scope: "plan"` + `plan_ids[]` on **add-ons** → add-on in plan detail only (when `addon_scopes_enabled: true`).
+- `scope: "global"` on add-ons → licensed users see it in popup global add-ons grid.
+- `scope: "plan"` + `plan_ids[]` on **credit packs** → pack shown in ⚡ BUY CREDITS when user's active license plan matches, and on that plan's detail screen (when `pack_scopes_enabled: true`).
+- `scope: "global"` on credit packs → always in main ⚡ BUY CREDITS section (all eligible users).
+- Map custom/credits-only packs to plan id `credits_starter` (or your credits-only plan slug).
+
+## Credit pack plan mapping — extension (v1.8.43+)
+
+Admin: Credits tab → enable **Pack plan mapping** → set each pack **Scope** + **Plan IDs** → Save to Firebase.
+
+Extension behavior when `credits.pack_scopes_enabled === true`:
+
+| Surface | What shows |
+|---------|------------|
+| Main popup ⚡ BUY CREDITS | `scope: global` packs + `scope: plan` packs matching active license `plan_id` |
+| Plan detail (ℹ️) | `scope: plan` packs where `plan_ids` includes that plan's id |
+| No license yet | Global packs only (plan-mapped packs hidden until activated) |
+
+Implementation (`firebaseLicense.js` v1.8.43):
+
+- `normalizeCreditPack()` reads `scope` + `plan_ids[]`
+- `packAppliesToPlan(pack, planId, scopesEnabled)` — same rules as add-ons
+- `filterCreditPacksForMain(packs, activePlanIds, scopesEnabled)` — popup grid
+- `getPlanDetailCreditPacks(plan, creditsConfig)` — plan detail section **⚡ CREDIT PACKS FOR THIS PLAN**
+- `popup.js` → `refreshCreditsTopUpSection()` passes active license plan ids into filter
+
+After admin save: close/reopen extension popup (config cache ~5 min or bust on `updatedAt`).
+
+## Swagstree admin button guide
+
+| Button | Writes Firebase? | What it does |
+|--------|------------------|--------------|
+| **Load built-in → form** | No | Copies code defaults into the current tab form. Review, then **Save to Firebase** separately. |
+| **Seed built-in → Firebase** | Yes (merge) | Factory reset of app config from built-in seed. Preview modal required. Does not delete licenses. |
+| **Save form → Firebase** | Yes | Saves current tab form after preview modal. |
+| **Save all forms → Firebase** | Yes | Saves all tabs from forms after preview. |
+| **Review** (unsaved banner) | No | Before/after diff for Config or Credits tab saves. |
+
+## First-time Firebase seed
+
+1. Super → Shipping Optimizer → **Built-in defaults** tab → preview cards.
+2. Tap **Seed built-in → Firebase** → confirm preview → write.
+3. Reload extension at `chrome://extensions` (v1.8.41+).
+
+## Credit packs — admin save & extension sync (v1.8.43+)
+
+- **Pack plan mapping** (Credits tab checkbox) writes `credits.pack_scopes_enabled` — extension filters packs by active license plan.
+- Each pack row has **Scope** (`global` | `plan`) and **Plan IDs** (comma-separated slugs like `monthly`, `yearly`, `credits_starter`).
+- Plan-mapped packs appear on that plan's detail page (ℹ️) under **CREDIT PACKS FOR THIS PLAN**.
+
+## Credit packs — admin save & extension sync (v1.8.40+)
+
+- **No seed required** if your export already has `credits.packs[]` and `credits.addon_catalog[]` in Firebase — seed only resets to factory defaults.
+- **Subscription plans** live under Config tab → save via **Save plans** or **Save to Firebase** on Config tab.
+- **Credit packs** (⚡ BUY CREDITS) live under Credits tab → **Save credit packs** or **Save to Firebase** on Credits tab.
+- **Plan add-ons** (`addon_50`, etc.) are in each plan's `credit_addons[]` and/or `credits.addon_catalog[]` — extension plan detail (ℹ️) reads both.
+- Admin always reads pack rows from the DOM before Firebase write.
+- Extension busts config cache when Firebase `updatedAt` changes.
+- **License update modal** (v1.8.41): sticky footer so **Update license in Firebase** is always visible on mobile.
+- **Custom credits** on edit: increasing custom credits auto-adds the same amount to balance + total.
+
+- **Subscription plans** live under Config tab → save via **Save plans** or **Save to Firebase** on Config tab.
+- **Credit packs** live under Credits tab → save via **Save credit packs** or **Save to Firebase** on Credits tab (both write `credits.packs[]` on `shipping_optimizer_config/app`).
+- Admin always reads pack rows from the DOM before Firebase write (avoids stale in-memory list dropping new packs like `pack_5`).
+- Extension reads `credits.packs` from Firebase when the field exists (no silent fallback to built-in defaults).
+- **⚡ BUY CREDITS** section shows when credits are enabled and packs exist — including on the activation screen (no license yet) for preview.
+- After saving packs in admin, **close and reopen** the extension popup to refresh.
+
+- Review modal always shows **Write to Firebase** (sticky footer on mobile).
+- If form is dirty but field-level diff is empty (e.g. add-on catalog reorder), admin falls back to action preview with current form summary — no more stuck "No changes" with only Cancel.
+
+## Google trial device limits (v1.8.38)
+
+| Scope | Field | Default | Notes |
+|-------|-------|---------|-------|
+| Global config | `google_trial.max_devices` | `1` | New sign-ins · `0` = unlimited |
+| Per user | `shipping_optimizer_google_trials/{uid}.max_devices` | inherits global | Admin → Google Users → Manage → Devices |
+
+Extension resolves: per-user `max_devices` if set, else `google_trial.max_devices`. `0` skips device cap checks.
+
+Admin **Manage Google user** modal sections each support **Save → Firebase** with preview. Credits and Devices also offer **Save as global default** (updates `google_trial` config only).

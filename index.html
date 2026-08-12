@@ -111,11 +111,30 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=9.96">
+    <link rel="stylesheet" href="css/style.css?v=9.99">
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.gstatic.com">
     <link rel="dns-prefetch" href="https://firestore.googleapis.com">
+    <script>
+    /* Earliest safe stubs — inline onclick / slow script load must never throw ReferenceError */
+    window.toggleAdminCategoryAccordion = window.toggleAdminCategoryAccordion || async function () {
+        var content = document.getElementById('admin-category-accordion-content');
+        if (!content) return;
+        var opening = content.style.display === 'none' || !content.style.display;
+        if (opening && typeof window.openAdminCategoryAccordion === 'function') {
+            window.openAdminCategoryAccordion();
+            return;
+        }
+        if (!opening && typeof window.tryCloseAdminCategoryAccordion === 'function') {
+            await window.tryCloseAdminCategoryAccordion();
+            return;
+        }
+        content.style.display = opening ? 'flex' : 'none';
+        var icon = document.getElementById('admin-category-accordion-icon');
+        if (icon) icon.style.transform = opening ? 'rotate(0deg)' : 'rotate(-90deg)';
+    };
+    </script>
 </head>
 
 <body class="footer-hidden catalog-controls-pending body-footer-layout-auto body-footer-pos-scroll">
@@ -815,8 +834,8 @@
 
         <!-- Product Categories -->
         <div id="admin-category-section" class="admin-primary-section admin-panel-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
-                onclick="toggleAdminCategoryAccordion()">
+            <div id="admin-category-accordion-head" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; gap:12px;"
+                role="button" tabindex="0" aria-expanded="false" aria-controls="admin-category-accordion-content">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <i class="fa fa-tags" style="color:var(--gold); font-size:15px;"></i>
                     <div style="min-width:0;">
@@ -2426,12 +2445,12 @@
                         <span class="so-admin-muted">Save everything on this tab · <button type="button" class="so-link-btn" onclick="switchShippingOptimizerTab('defaults')">Preview built-in defaults first ⓘ</button></span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soViewAllDefaults()">View all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy defaults JSON</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Built-in values → this tab's form only (no Firebase)">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Built-in values → this tab's form only (no Firebase)">Load built-in → form</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('config')"><i class="fa fa-download"></i> Export</button>
-                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('config','form')"><i class="fa fa-upload"></i> Import</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')">Save as defaults</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()">Save all as defaults</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('config','form')"><i class="fa fa-upload"></i> Import to form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')" title="Save current form to Firebase">Save form → Firebase</button>
+                        <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soSeedAllDefaults()" title="Writes full built-in seed to Firebase">Seed built-in → Firebase</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()" title="Save all tabs from forms to Firebase">Save all forms → Firebase</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('config')">Save to Firebase</button>
                     </div>
                 </div>
@@ -2446,6 +2465,8 @@
                         <div class="so-section-accordion-body">
                             <p class="so-admin-muted so-admin-tip">Rates and toggles — saved separately from pack list.</p>
                             <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-credits-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Credits enabled in extension</label>
+                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-pack-scopes-enabled" type="checkbox" onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> <strong>Pack plan mapping</strong> — filter credit packs by subscription plan (<code>scope</code> + <code>plan_ids</code> on each pack)</label>
+                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-addon-scopes-enabled" type="checkbox" onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> <strong>Add-on plan mapping</strong> — filter shared add-on catalog by plan (<code>addon_scopes_enabled</code>)</label>
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Price per credit (₹)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('price-per-credit', event)" aria-expanded="false" aria-controls="so-hint-price-per-credit" title="More info">ⓘ</button></span>
                                     <div id="so-hint-price-per-credit" class="so-field-info-panel" hidden role="note">Used for custom credit top-ups in the extension (not plan price). Example: 10 credits × ₹2 = ₹20.</div>
@@ -2558,7 +2579,7 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Tap a pack row to expand. Hidden packs are not shown in the extension.</p>
+                            <p class="so-admin-muted so-admin-tip">Tap a pack row to expand. Set <strong>Scope</strong> to map packs to subscription plans (Monthly, Yearly, credits_starter, etc.). Enable <strong>Pack plan mapping</strong> above so the extension filters by active license plan. Hidden packs are not shown in the extension.</p>
                             <div class="so-plans-toolbar">
                                 <span class="so-plans-count">Credit packs</span>
                                 <div class="so-plans-toolbar-actions">
@@ -2576,7 +2597,7 @@
 
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Built-in values → this tab's form only (no Firebase)">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Built-in values → this tab's form only (no Firebase)">Load built-in → form</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('credits')"><i class="fa fa-download"></i> Export</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('credits','form')"><i class="fa fa-upload"></i> Import</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('credits')">Save as defaults</button>
@@ -2649,8 +2670,8 @@
                                     <input id="so-google-trial-credits" type="number" min="0" step="1" value="3"></label>
                                 <label><span class="admin-settings-field-label">max_increment_per_run</span>
                                     <input id="so-google-trial-max-increment" type="number" min="1" step="1" value="10"></label>
-                                <label><span class="admin-settings-field-label">max_devices</span>
-                                    <input id="so-google-trial-max-devices" type="number" min="1" step="1" value="1"></label>
+                                <label><span class="admin-settings-field-label">max_devices (0 = unlimited, default 1)</span>
+                                    <input id="so-google-trial-max-devices" type="number" min="0" step="1" value="1"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">label</span>
                                     <input id="so-google-trial-label" type="text" placeholder="Google free trial" value="Google free trial"></label>
                             </div>
@@ -2717,16 +2738,17 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip" style="margin-bottom:10px;">Tap <strong>Open form</strong> below if this section is collapsed. Generate a key, pick plan &amp; credits, then <strong>Create license</strong>.</p>
                             <div class="so-admin-grid">
                                 <label style="grid-column:1/-1;">
                                     <span class="admin-settings-field-label">License key</span>
                                     <div class="so-input-with-btn">
                                         <input id="so-license-key-input" type="text" placeholder="MEESHO-XXXX-XXXX-XXXX" style="text-transform:uppercase;">
-                                        <button type="button" class="so-btn-sm so-btn-touch" onclick="generateSoLicenseKey()" title="Generate">🎲 Generate</button>
+                                        <button type="button" id="so-license-generate-btn" class="so-btn-sm so-btn-touch" onclick="generateSoLicenseKey()" title="Generate a unique MEESHO-XXXX-XXXX-XXXX key">🎲 Generate</button>
                                     </div>
                                 </label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Plan</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('license-plan', event)" aria-expanded="false" aria-controls="so-hint-license-plan" title="More info">ⓘ</button></span>
-                                    <div id="so-hint-license-plan" class="so-field-info-panel" hidden role="note">Links license to a pricing plan. Changing plan updates defaults (devices, credits, billing mode).</div>
+                                    <div id="so-hint-license-plan" class="so-field-info-panel" hidden role="note">Links license to a pricing plan. On edit you can switch plans (e.g. Monthly → Yearly) — credits recalculate from the new plan while preserving credits already used.</div>
                                     <select id="so-license-plan" onchange="soUpdateLicensePlanHint()"></select></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Billing mode</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('billing-mode', event)" aria-expanded="false" aria-controls="so-hint-billing-mode" title="More info">ⓘ</button></span>
                                     <div id="so-hint-billing-mode" class="so-field-info-panel" hidden role="note"><code>subscription</code> = time-based access · <code>credits</code> = pay per use · <code>hybrid</code> = subscription plus credits.</div>
@@ -2737,10 +2759,14 @@
                                     </select></label>
                                 <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
                                     <input id="so-license-max-devices" type="number" min="0" step="1" placeholder="From plan"></label>
-                                <label><span class="admin-settings-field-label">Included credits (from plan)</span>
+                                <label><span class="admin-settings-field-label">Subscription credits (from plan, used first)</span>
                                     <input id="so-license-included-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
-                                <label><span class="admin-settings-field-label">Addon credits</span>
+                                <label><span class="admin-settings-field-label">Add-on credits (used after subscription pool)</span>
                                     <input id="so-license-addon-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
+                                <label><span class="admin-settings-field-label">Custom credits (this license only — shown in extension)</span>
+                                    <input id="so-license-custom-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseCustomCreditsChange()" title="Per-license bonus pool — consumed after subscription and add-on credits"></label>
+                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Custom credits label (extension display)</span>
+                                    <input id="so-license-custom-credits-label" type="text" placeholder="e.g. VIP support bonus" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                                 <label><span class="admin-settings-field-label">Total credits (plan grant)</span>
                                     <input id="so-license-total-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseTotalCreditsChange()" title="Editable — increase for manual credit requests (e.g. customer support top-up)"></label>
                                 <label><span class="admin-settings-field-label">Credits balance (remaining)</span>
@@ -2749,7 +2775,8 @@
                                     <input id="so-license-credits-used" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                             </div>
                             <div id="so-license-credits-breakdown" class="so-license-credits-breakdown so-admin-muted so-admin-tip"></div>
-                            <p class="so-admin-muted so-admin-tip" style="margin-top:6px;">Edit <strong>Total credits</strong> to grant extra credits beyond the plan (manual support requests). Balance auto-adjusts when you change total on new licenses.</p>
+                            <div id="so-license-consumed-panel" class="so-license-consumed-panel" hidden></div>
+                            <p class="so-admin-muted so-admin-tip" style="margin-top:6px;">After saving an edit, this form collapses and returns you to the license list. Edit <strong>Total credits</strong> for manual support top-ups beyond the plan grant.</p>
                             <div class="so-checkbox-group">
                                 <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox" onchange="soOnLicenseUnlimitedTimeToggle()"> Never expires (unlimited time)</label>
                                 <label class="so-plan-check"><input id="so-license-unlimited-devices" type="checkbox" checked> Unlimited devices</label>
@@ -2766,9 +2793,17 @@
                                 <input id="so-license-expires-at" type="date"></label>
                             <p id="so-license-plan-hint" class="so-admin-muted so-admin-tip"></p>
                             <div id="so-license-addon-section" class="so-license-addon-section" style="display:none;">
-                                <div class="so-admin-subhead">Credit add-ons for this plan</div>
+                                <div class="so-admin-subhead">Credit add-ons for this plan (admin grant)</div>
                                 <div id="so-license-addon-picks" class="so-license-addon-picks"></div>
                                 <p id="so-license-credits-summary" class="so-admin-muted so-admin-tip"></p>
+                            </div>
+                            <div class="so-admin-subhead" style="margin-top:10px;">Extension purchase UI (this license)</div>
+                            <p class="so-admin-muted so-admin-tip">Hide or disable plan add-ons / custom plan block in the extension for customers using this license key.</p>
+                            <div class="so-checkbox-group">
+                                <label class="so-plan-check"><input id="so-license-hide-plan-addons" type="checkbox"> Hide plan add-ons in extension</label>
+                                <label class="so-plan-check"><input id="so-license-disable-plan-addons" type="checkbox"> Disable plan add-ons (visible but not selectable)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox"> Hide custom plan block</label>
+                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox"> Disable custom plan block</label>
                             </div>
                             <details class="so-details-block">
                                 <summary>Customer details (optional — add anytime)</summary>
@@ -2827,7 +2862,8 @@
                     </div>
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Create / edit license</span>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('licenses')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm so-btn-touch" onclick="openSoLicenseCreateForm()">Open form</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soLoadDefaultsForTab('licenses')" title="Clear form only — no Firebase">Reset form</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('licenses')">Save to Firebase</button>
                     </div>
                 </div>
@@ -2894,8 +2930,9 @@
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('add-balance')">+ Add to balance</button>
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('reset-used')">Reset used → 0</button>
                             </div>
-                            <div class="so-section-save-bar" style="margin-top:10px;">
-                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserCredits()">Save credits</button>
+                            <div class="so-section-save-bar so-section-save-bar--stack" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserCredits()">Save credits → Firebase</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="saveSoGoogleUserCreditsAsDefault()" title="Updates google_trial.trial_credits for new sign-ins">Save as global default</button>
                             </div>
                         </div>
 
@@ -2915,14 +2952,25 @@
                                     <input id="so-google-user-expires-at" type="datetime-local"></label>
                             </div>
                             <div class="so-section-save-bar" style="margin-top:10px;">
-                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserAccessTime()">Save access time</button>
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserAccessTime()">Save access time → Firebase</button>
                             </div>
                         </div>
 
                         <div class="so-google-user-modal-section">
                             <h5>Devices</h5>
+                            <p class="so-admin-muted so-admin-tip"><strong>0 = unlimited</strong> · default for new Google trials is <strong>1 device</strong> (global config). Per-user override below applies to this account only.</p>
                             <p id="so-google-user-devices-label" class="so-admin-muted"></p>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevicesFromModal()">Reset device bindings</button>
+                            <label><span class="admin-settings-field-label">Device limit for this user</span>
+                                <input id="so-google-user-max-devices" type="number" min="0" step="1" placeholder="1" oninput="soOnGoogleUserMaxDevicesInput()"></label>
+                            <div id="so-google-user-devices-preview" class="so-admin-muted so-admin-tip" style="margin-top:6px;"></div>
+                            <div class="so-google-user-quick-btns" style="margin-top:8px;">
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserApplyGlobalDeviceDefault()">Use global default</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevicesFromModal()">Reset device bindings</button>
+                            </div>
+                            <div class="so-section-save-bar so-section-save-bar--stack" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserDevices()">Save device limit → Firebase</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="saveSoGoogleUserDevicesAsDefault()" title="Updates google_trial.max_devices for all new sign-ins">Save as global default</button>
+                            </div>
                         </div>
 
                         <div class="so-google-user-modal-section">
@@ -2945,42 +2993,52 @@
                 <div id="so-google-credits-modal" class="so-modal-overlay" style="display:none;" hidden aria-hidden="true"></div>
 
                 <!-- Add credits modal (mobile-safe, no prompt) -->
-                <div id="so-add-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
-                    <div class="so-modal-panel">
-                        <h4 class="so-modal-title">Add credits</h4>
-                        <p id="so-add-credits-key-label" class="so-admin-muted"></p>
-                        <p id="so-add-credits-balance-label" class="so-admin-muted"></p>
-                        <div id="so-add-credits-packs" class="so-pack-quick-btns"></div>
-                        <label style="margin-top:12px;"><span class="admin-settings-field-label">Custom amount</span>
-                            <input id="so-add-credits-amount" type="number" min="1" step="1" placeholder="Credits to add"></label>
-                        <div class="so-modal-actions">
-                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoAddCredits()">Add credits</button>
+                <div id="so-add-credits-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
+                    <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+                        <div class="so-modal-header so-modal-header--sticky">
+                            <h4 class="so-modal-title" style="margin:0;">Add credits</h4>
+                            <button type="button" class="so-modal-close-btn" onclick="closeSoAddCreditsModal()" aria-label="Close">×</button>
+                        </div>
+                        <div class="so-save-review-body">
+                            <p id="so-add-credits-key-label" class="so-admin-muted"></p>
+                            <p id="so-add-credits-balance-label" class="so-admin-muted"></p>
+                            <div id="so-add-credits-packs" class="so-pack-quick-btns"></div>
+                            <label style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"><span class="admin-settings-field-label">Custom amount</span>
+                                <input id="so-add-credits-amount" type="number" min="1" step="1" placeholder="Credits to add"></label>
+                        </div>
+                        <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
                             <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoAddCreditsModal()">Cancel</button>
+                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoAddCredits()">Add credits</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- License overrides modal -->
-                <div id="so-license-overrides-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoLicenseOverrides()">
-                    <div class="so-modal-panel">
-                        <h4 class="so-modal-title">Edit license overrides</h4>
-                        <p id="so-overrides-key-label" class="so-admin-muted"></p>
-                        <div class="so-admin-grid">
-                            <label><span class="admin-settings-field-label">Billing mode</span>
-                                <select id="so-overrides-billing-mode">
-                                    <option value="subscription">subscription</option>
-                                    <option value="credits">credits</option>
-                                    <option value="hybrid">hybrid</option>
-                                </select></label>
-                            <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
-                                <input id="so-overrides-max-devices" type="number" min="0" step="1"></label>
-                            <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-time" type="checkbox"> Unlimited time</label>
-                            <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-devices" type="checkbox"> Unlimited devices</label>
-                            <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-credits" type="checkbox"> Unlimited credits</label>
+                <div id="so-license-overrides-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" onclick="if(event.target===this)closeSoLicenseOverrides()">
+                    <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+                        <div class="so-modal-header so-modal-header--sticky">
+                            <h4 class="so-modal-title" style="margin:0;">Edit license overrides</h4>
+                            <button type="button" class="so-modal-close-btn" onclick="closeSoLicenseOverrides()" aria-label="Close">×</button>
                         </div>
-                        <div class="so-modal-actions">
-                            <button type="button" class="btn-gold so-btn-save" onclick="saveSoLicenseOverrides()">Save overrides</button>
+                        <div class="so-save-review-body">
+                            <p id="so-overrides-key-label" class="so-admin-muted"></p>
+                            <div class="so-admin-grid">
+                                <label><span class="admin-settings-field-label">Billing mode</span>
+                                    <select id="so-overrides-billing-mode">
+                                        <option value="subscription">subscription</option>
+                                        <option value="credits">credits</option>
+                                        <option value="hybrid">hybrid</option>
+                                    </select></label>
+                                <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
+                                    <input id="so-overrides-max-devices" type="number" min="0" step="1"></label>
+                                <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-time" type="checkbox"> Unlimited time</label>
+                                <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-devices" type="checkbox"> Unlimited devices</label>
+                                <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-credits" type="checkbox"> Unlimited credits</label>
+                            </div>
+                        </div>
+                        <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
                             <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoLicenseOverrides()">Cancel</button>
+                            <button type="button" class="btn-gold so-btn-save" onclick="saveSoLicenseOverrides()">Save overrides</button>
                         </div>
                     </div>
                 </div>
@@ -4764,7 +4822,7 @@
     <script src="js/admin-draft-compare.js?v=1.7"></script>
     <script src="js/admin-favorites.js?v=4.9"></script>
     <script src="js/admin-analytics.js?v=1.6"></script>
-    <script src="js/categories.js?v=12.5"></script>
+    <script src="js/categories.js?v=12.6"></script>
     <script src="js/store.js?v=10.41"></script>
     <script src="js/checkout.js?v=10.13"></script>
     <script src="js/auth.js?v=10.21"></script>
@@ -4776,8 +4834,8 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.17"></script>
-    <script src="js/bind-globals.js?v=9.89"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.21"></script>
+    <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
         id="whatsapp-float-btn">
@@ -4841,14 +4899,32 @@
         })();
     </script>
 
+    <!-- Action preview modal (load/seed/import/license — review before destructive or Firebase writes) -->
+    <div id="so-action-preview-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" role="dialog" aria-labelledby="so-action-preview-title" aria-modal="true" onclick="if(event.target===this)soCancelActionPreview()">
+        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+            <div class="so-modal-header so-modal-header--sticky">
+                <h4 id="so-action-preview-title" class="so-modal-title" style="margin:0;">Review action</h4>
+                <button type="button" class="so-modal-close-btn" onclick="soCancelActionPreview()" aria-label="Close">×</button>
+            </div>
+            <div id="so-action-preview-body" class="so-save-review-body"></div>
+            <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
+                <button type="button" class="so-btn-sm so-btn-touch" onclick="soCancelActionPreview()">Cancel</button>
+                <button type="button" id="so-action-preview-confirm" class="btn-gold so-btn-sm" onclick="soConfirmActionPreview()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Save review modal (portaled to body — full-screen overlay, not inside accordion) -->
     <div id="so-save-review-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" role="dialog" aria-labelledby="so-save-review-title" aria-modal="true" onclick="if(event.target===this)soCancelSaveReview()">
-        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel">
-            <h4 id="so-save-review-title" class="so-modal-title">Review changes</h4>
+        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+            <div class="so-modal-header so-modal-header--sticky">
+                <h4 id="so-save-review-title" class="so-modal-title" style="margin:0;">Review changes</h4>
+                <button type="button" class="so-modal-close-btn" onclick="soCancelSaveReview()" aria-label="Close">×</button>
+            </div>
             <div id="so-save-review-body" class="so-save-review-body"></div>
-            <div class="so-modal-actions">
+            <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soCancelSaveReview()">Cancel</button>
-                <button type="button" class="btn-gold so-btn-sm" onclick="soConfirmSaveReview()">Write to Firebase</button>
+                <button type="button" id="so-save-review-confirm" class="btn-gold so-btn-sm" onclick="soConfirmSaveReview()">Write to Firebase</button>
             </div>
         </div>
     </div>

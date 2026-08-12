@@ -11103,6 +11103,21 @@ body.seo-indexing-off #seo-primary-nav {
         border-radius: 14px !important;
     }
 }
+@media (max-width: 1024px), (pointer: coarse) {
+    /* Sticky tab save bar must sit above fixed bottom nav, not behind it */
+    #shipping-optimizer-admin-section .so-sticky-save {
+        bottom: calc(var(--storefront-bottom-nav-h, 58px) + env(safe-area-inset-bottom, 0px));
+        padding-bottom: 10px;
+        z-index: 20;
+    }
+    #shipping-optimizer-admin-section .so-admin-tab-panel {
+        padding-bottom: calc(var(--storefront-bottom-nav-h, 58px) + env(safe-area-inset-bottom, 0px) + 12px);
+        scroll-padding-bottom: calc(var(--storefront-bottom-nav-h, 58px) + 72px);
+    }
+    #super-view {
+        padding-bottom: calc(var(--storefront-bottom-nav-h, 58px) + env(safe-area-inset-bottom, 0px));
+    }
+}
 .so-admin-workflow-hint {
     margin: 0;
     font-size: 11px;
@@ -11192,13 +11207,23 @@ body.seo-indexing-off #seo-primary-nav {
     gap: 6px;
 }
 .so-save-review-overlay {
-    z-index: 12050;
+    /* Must sit above .bottom-nav (2147483647) so modal footers stay tappable on mobile */
+    z-index: 2147483647;
 }
 .so-save-review-overlay[hidden] {
     display: none !important;
 }
-body.so-save-review-open {
+body.so-save-review-open,
+body.so-action-preview-open,
+body.so-google-user-modal-open {
     overflow: hidden;
+}
+/* Hide bottom nav while SO confirmation modals are open (full sheet visible) */
+body.so-save-review-open .bottom-nav,
+body.so-action-preview-open .bottom-nav,
+body.so-google-user-modal-open .bottom-nav,
+body:has(.so-save-review-overlay[style*="flex"]) .bottom-nav {
+    display: none !important;
 }
 .so-save-review-panel {
     display: flex;
@@ -11220,9 +11245,99 @@ body.so-save-review-open {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
-.so-save-review-list {
+.so-save-review-panel--flex {
+    max-height: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px));
+    padding: 0;
+    overflow: hidden !important;
+    overflow-y: hidden !important;
+    display: flex;
+    flex-direction: column;
+}
+@media (max-width: 1024px), (pointer: coarse) {
+    .so-save-review-panel--flex {
+        max-height: min(
+            86dvh,
+            calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)
+        );
+    }
+}
+.so-save-review-overlay .so-modal-panel.so-save-review-panel--flex {
+    padding: 0 !important;
+    overflow: hidden !important;
+    overflow-y: hidden !important;
+}
+.so-save-review-panel--flex .so-modal-header--sticky,
+.so-save-review-panel--flex .so-modal-footer--sticky {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    flex-shrink: 0;
+}
+.so-save-review-panel--flex .so-save-review-body {
     margin: 0;
-    padding-left: 18px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 0 18px 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: stretch;
+    width: 100%;
+    box-sizing: border-box;
+}
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions .btn-gold,
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-sm,
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-touch {
+    width: 100%;
+    min-height: 48px;
+    flex: 0 0 auto;
+    margin: 0;
+}
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-action-preview-confirm,
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-save-review-confirm {
+    order: -1;
+}
+@media (min-width: 520px) {
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions {
+        flex-direction: row;
+        justify-content: flex-end;
+    }
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions .btn-gold,
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-sm {
+        width: auto;
+        min-height: 44px;
+        flex: 1 1 auto;
+    }
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-action-preview-confirm,
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-save-review-confirm {
+        order: 0;
+    }
+}
+.so-license-consumed-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+}
+.so-license-consumed-card {
+    padding: 8px 10px;
+    border: 1px solid #333;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 11px;
+    line-height: 1.45;
+}
+.so-license-consumed-card strong {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--gold, #ffd700);
 }
 .so-save-review-list li {
     margin-bottom: 8px;
@@ -11505,6 +11620,19 @@ body.so-save-review-open {
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
+    }
+}
+.so-sticky-save--muted .so-btn-sm,
+.so-sticky-save--muted .so-btn-save,
+.so-sticky-save--muted .so-btn-touch {
+    min-height: 44px;
+    width: 100%;
+}
+@media (min-width: 520px) {
+    .so-sticky-save--muted .so-btn-sm,
+    .so-sticky-save--muted .so-btn-save,
+    .so-sticky-save--muted .so-btn-touch {
+        width: auto;
     }
 }
 .so-ext-preview-root {
@@ -12471,6 +12599,41 @@ body.so-save-review-open {
     font-size: 11px;
     color: #ccc;
 }
+.so-plan-id-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: min(240px, 40dvh);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    background: #1a1a1a;
+}
+.so-plan-id-pick {
+    min-height: 40px;
+    align-items: flex-start;
+}
+.so-plan-id-pick span {
+    line-height: 1.4;
+    flex: 1;
+}
+.so-plan-id-pick input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    margin: 2px 0 0;
+    flex-shrink: 0;
+}
+[data-so-plan-ids-wrap] > span {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #ccc;
+    margin-bottom: 4px;
+}
 .so-plan-actions,
 .so-list-actions {
     display: flex;
@@ -12628,42 +12791,60 @@ body.so-save-review-open {
     background: rgba(0, 0, 0, 0.85);
     z-index: 10000;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    padding: 0;
-}
-@media (min-width: 640px) {
-    .so-modal-overlay {
-        align-items: center;
-        padding: 16px;
-    }
+    padding: max(12px, env(safe-area-inset-top, 0px))
+             max(12px, env(safe-area-inset-right, 0px))
+             max(12px, env(safe-area-inset-bottom, 0px))
+             max(12px, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
 }
 .so-modal-panel {
     background: #111;
     border: 1px solid #333;
-    border-radius: 16px 16px 0 0;
+    border-radius: 16px;
     padding: 18px;
     width: 100%;
     max-width: 420px;
-    max-height: 92vh;
+    max-height: min(92dvh, calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-}
-@media (min-width: 640px) {
-    .so-modal-panel {
-        border-radius: 16px;
-        max-height: 90vh;
-    }
+    flex-shrink: 1;
 }
 .so-modal-panel--wide {
     max-width: 520px;
 }
-.so-google-user-modal-panel {
+.so-google-user-modal-overlay {
+    overflow: hidden;
+    overscroll-behavior: contain;
+}
+.so-google-user-modal-panel.so-modal-panel {
     display: flex;
     flex-direction: column;
-    max-height: 92vh;
     padding: 0;
-    overflow: hidden;
+    overflow: hidden !important;
+    overflow-y: hidden !important;
+    max-height: min(92dvh, calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+    width: 100%;
+}
+.so-google-user-modal-panel .so-modal-header--sticky {
+    position: relative;
+    top: auto;
+    z-index: 3;
+}
+.so-google-user-modal-panel .so-modal-footer--sticky {
+    position: relative;
+    bottom: auto;
+    z-index: 3;
+}
+.so-section-save-bar--stack {
+    flex-direction: column;
+    align-items: stretch;
+}
+.so-section-save-bar--stack .so-btn-save,
+.so-section-save-bar--stack .so-btn-sm {
+    width: 100%;
+    min-height: 44px;
 }
 .so-google-user-modal-body {
     flex: 1 1 auto;
@@ -12718,9 +12899,6 @@ body.so-save-review-open {
     width: 100%;
     min-height: 44px;
     font-weight: 700;
-}
-body.so-google-user-modal-open {
-    overflow: hidden;
 }
 .so-google-user-modal-overlay[hidden] {
     display: none !important;

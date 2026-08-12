@@ -637,10 +637,16 @@ const FirebaseLicense = {
       hide_plan_addons_in_detail:
         p?.hide_plan_addons_in_detail === true ||
         p?.hidePlanAddonsInDetail === true,
+      disable_plan_addons:
+        p?.disable_plan_addons === true || p?.disablePlanAddons === true,
       allow_custom_plan:
         p?.allow_custom_plan != null || p?.allowCustomPlan != null
           ? !!(p?.allow_custom_plan ?? p?.allowCustomPlan)
           : undefined,
+      hide_custom_plan:
+        p?.hide_custom_plan === true || p?.hideCustomPlan === true,
+      disable_custom_plan:
+        p?.disable_custom_plan === true || p?.disableCustomPlan === true,
       custom_plan_enabled:
         p?.custom_plan_enabled !== false && p?.customPlanEnabled !== false,
       max_addon_selections:
@@ -911,6 +917,7 @@ const FirebaseLicense = {
 
     const creditsConfig = options.creditsConfig || null;
     const allPlans = options.allPlans || null;
+    const licenseContext = options.licenseContext || options.license || null;
     const resolvedCatalog =
       options.addonCatalog ??
       (creditsConfig
@@ -918,7 +925,7 @@ const FirebaseLicense = {
           this.resolveFullAddonCatalog(creditsConfig, allPlans)
         : undefined);
     const addons = creditsConfig
-      ? this.getPlanDetailCreditAddons(plan, creditsConfig, allPlans)
+      ? this.getPlanDetailCreditAddons(plan, creditsConfig, allPlans, licenseContext)
       : !plan.unlimited_credits
         ? this.getPlanCreditAddonsLegacy(plan, resolvedCatalog)
         : [];
@@ -926,34 +933,51 @@ const FirebaseLicense = {
     const customCfg = creditsConfig
       ? this.normalizeCustomPlanConfig(creditsConfig.custom_plan)
       : this.normalizeCustomPlanConfig(null);
+    const addonsInteractive = !this.planAddonsDisabled(plan, licenseContext);
     if (addons.length) {
       const maxSel = Number(plan.max_addon_selections) || 0;
-      const limitNote =
-        maxSel === 1
-          ? "Pick one add-on (optional)."
-          : maxSel > 1
-            ? `Pick up to ${maxSel} add-ons (optional).`
-            : "Pick any add-ons (optional).";
+      const limitNote = addonsInteractive
+        ? (maxSel === 1
+            ? "Pick one add-on (optional)."
+            : maxSel > 1
+              ? `Pick up to ${maxSel} add-ons (optional).`
+              : "Pick any add-ons (optional).")
+        : "Add-ons are visible but disabled for this plan/license.";
       html += `<div class="plan-detail-section plan-detail-section--addons">
         <div class="plan-detail-section-title">⚡ OPTIONAL CREDIT ADD-ONS</div>
         <p class="plan-detail-section-body">${this.escapeHtml(limitNote)} Tap cards to select, then buy via WhatsApp below.</p>
         <div class="plan-grid plan-detail-addon-cards" style="grid-template-columns:${this.planGridColumns(addons.length)};">`;
       addons.forEach((a) => {
         html += this.renderAddonCreditCard(a, plan, {
-          enabled: true,
-          selected: !!a.default_selected,
+          enabled: addonsInteractive,
+          selected: addonsInteractive ? !!a.default_selected : false,
           pricePerCredit: basePpc,
         });
       });
       html += `</div></div>`;
     }
 
-    if (this.planShowsCustomPlan(plan, creditsConfig)) {
+    const planCreditPacks = creditsConfig
+      ? this.getPlanDetailCreditPacks(plan, creditsConfig)
+      : [];
+    if (planCreditPacks.length) {
+      html += `<div class="plan-detail-section plan-detail-section--packs">
+        <div class="plan-detail-section-title">⚡ CREDIT PACKS FOR THIS PLAN</div>
+        <p class="plan-detail-section-body">Top-up bundles mapped to <strong>${this.escapeHtml(plan.name || plan.id)}</strong>. Tap a pack for details or buy via WhatsApp.</p>
+        <div class="plan-grid plan-detail-pack-cards" style="grid-template-columns:${this.planGridColumns(planCreditPacks.length)};">`;
+      planCreditPacks.forEach((p) => {
+        html += this.renderCreditPackCardHtml(p, "plan_detail");
+      });
+      html += `</div></div>`;
+    }
+
+    if (this.planShowsCustomPlan(plan, creditsConfig, licenseContext)) {
+      const customDisabled = this.planCustomPlanDisabled(plan, licenseContext);
       html += `<div class="plan-detail-section plan-detail-section--custom">
         <div class="plan-detail-section-title">🛠 CUSTOM PLAN</div>
         ${customCfg.description ? `<p class="plan-detail-section-body">${this.escapeHtml(customCfg.description)}</p>` : ""}
-        <button type="button" class="plan-detail-custom-plan-btn btn btn-secondary" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;">
-          ${this.escapeHtml(customCfg.label)}
+        <button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
+          ${this.escapeHtml(customCfg.label)}${customDisabled ? " (disabled)" : ""}
         </button>
       </div>`;
     }
@@ -1213,6 +1237,8 @@ Please share payment details.`;
         raw.plan_addons_enabled !== false && raw.planAddonsEnabled !== false,
       addon_scopes_enabled:
         raw.addon_scopes_enabled === true || raw.addonScopesEnabled === true,
+      pack_scopes_enabled:
+        raw.pack_scopes_enabled === true || raw.packScopesEnabled === true,
       custom_plan: this.normalizeCustomPlanConfig(
         raw.custom_plan ?? raw.customPlan,
       ),
@@ -1243,8 +1269,10 @@ Please share payment details.`;
     return true;
   },
 
-  planAllowsDetailAddons(plan) {
+  planAllowsDetailAddons(plan, licenseContext) {
     if (!plan || plan.unlimited_credits) return false;
+    const lic = licenseContext || null;
+    if (lic?.hide_plan_addons || lic?.hidePlanAddons) return false;
     if (plan.hide_plan_addons_in_detail) return false;
     const allowPlan = plan.allow_plan_addons;
     const allowLegacy = plan.allow_credit_addons;
@@ -1253,12 +1281,34 @@ Please share payment details.`;
     return true;
   },
 
-  planShowsCustomPlan(plan, creditsConfig) {
+  planAddonsDisabled(plan, licenseContext) {
+    const lic = licenseContext || null;
+    return !!(
+      plan?.disable_plan_addons ||
+      lic?.disable_plan_addons ||
+      lic?.disablePlanAddons
+    );
+  },
+
+  planShowsCustomPlan(plan, creditsConfig, licenseContext) {
     const cfg = this.normalizeAddonsConfig(creditsConfig);
+    const lic = licenseContext || null;
+    if (lic?.hide_custom_plan || lic?.hideCustomPlan) return false;
+    if (plan?.hide_custom_plan || plan?.hideCustomPlan) return false;
     if (!cfg.custom_plan.enabled) return false;
     if (plan.allow_custom_plan === false) return false;
     if (plan.custom_plan_enabled === false) return false;
     return true;
+  },
+
+  planCustomPlanDisabled(plan, licenseContext) {
+    const lic = licenseContext || null;
+    return !!(
+      plan?.disable_custom_plan ||
+      plan?.disableCustomPlan ||
+      lic?.disable_custom_plan ||
+      lic?.disableCustomPlan
+    );
   },
 
   catalogById(catalog) {
@@ -1363,10 +1413,13 @@ Please share payment details.`;
     return addon.show_in_detail !== false;
   },
 
-  getPlanDetailCreditAddons(plan, creditsConfig, allPlans) {
+  getPlanDetailCreditAddons(plan, creditsConfig, allPlans, licenseContext) {
     const cfg = this.normalizeAddonsConfig(creditsConfig);
+    const lic = licenseContext || null;
+    if (lic?.hide_plan_addons || lic?.hidePlanAddons) return [];
+    if (plan?.hide_plan_addons_in_detail) return [];
     if (!cfg.addons_enabled || !cfg.plan_addons_enabled) return [];
-    if (!this.planAllowsDetailAddons(plan)) return [];
+    if (!this.planAllowsDetailAddons(plan, lic)) return [];
     const catalog = this.resolveFullAddonCatalog(creditsConfig, allPlans);
     const planEntries = this.resolvePlanAddonEntries(plan, catalog);
     if (cfg.addon_scopes_enabled) {
@@ -1498,8 +1551,15 @@ Please share payment details.`;
     const addon = hasLicAddon
       ? Number(lic.addon_credits ?? lic.addonCredits) || 0
       : this.calculatePlanCredits(plan, addonIds).addon;
-    const total = existingBalance > 0 ? existingBalance : included + addon;
-    return { included, addon, total, addonIds, existingBalance };
+    const custom = Math.max(
+      0,
+      Number(lic?.custom_credits ?? lic?.customCredits ?? lic?.bonus_credits ?? lic?.bonusCredits ?? 0) || 0,
+    );
+    const grantSum = included + addon + custom;
+    const used = Number(lic?.credits_used ?? lic?.creditsUsed ?? 0) || 0;
+    const balance = this.resolveCreditsBalance(lic);
+    const total = balance + used > 0 ? balance + used : grantSum;
+    return { included, addon, custom, total, addonIds, existingBalance: balance };
   },
 
   escapeAttr(value) {
@@ -1680,7 +1740,60 @@ Please share payment details.`;
         p?.show_details_icon !== false && p?.showDetailsIcon !== false,
       card_subtitle: p?.card_subtitle || p?.cardSubtitle || "",
       offer_badges: this.parseOfferBadges(p?.offer_badges ?? p?.offerBadges),
+      scope:
+        String(p?.scope || "global").trim().toLowerCase() === "plan"
+          ? "plan"
+          : "global",
+      plan_ids: (Array.isArray(p?.plan_ids ?? p?.planIds)
+        ? p.plan_ids ?? p.planIds
+        : String(p?.plan_ids ?? p?.planIds ?? "")
+            .split(/[\s,]+/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+      ).map((id) => this.slugifyPlanId(id)),
     };
+  },
+
+  packAppliesToPlan(pack, planId, scopesEnabled) {
+    if (!pack || pack.active === false) return false;
+    if (!scopesEnabled) return true;
+    const scope = pack.scope || "global";
+    if (scope !== "plan") return scope === "global";
+    const ids = pack.plan_ids || [];
+    if (!ids.length) return false;
+    const key = this.slugifyPlanId(planId);
+    return ids.some((id) => this.slugifyPlanId(id) === key);
+  },
+
+  filterCreditPacksForMain(packs, activePlanIds, scopesEnabled) {
+    const list = Array.isArray(packs) ? packs : [];
+    if (!scopesEnabled) return list;
+    const planKeys = new Set(
+      (activePlanIds || [])
+        .map((id) => this.slugifyPlanId(id))
+        .filter(Boolean),
+    );
+    return list.filter((p) => {
+      if ((p.scope || "global") !== "plan") return true;
+      if (!planKeys.size) return false;
+      return (p.plan_ids || []).some((id) =>
+        planKeys.has(this.slugifyPlanId(id)),
+      );
+    });
+  },
+
+  getPlanDetailCreditPacks(plan, creditsConfig) {
+    const cfg = creditsConfig || {};
+    const scopesEnabled =
+      cfg.pack_scopes_enabled === true || cfg.packScopesEnabled === true;
+    const packs = (cfg.packs || []).filter((p) => p.active !== false);
+    if (!scopesEnabled || !plan) return [];
+    return this.sortPlans(
+      packs.filter(
+        (p) =>
+          p.scope === "plan" && this.packAppliesToPlan(p, plan.id, true),
+      ),
+    );
   },
 
   parseCreditPacks(raw) {
@@ -1834,6 +1947,7 @@ Please share payment details.`;
       global_addons_enabled: addonsCfg.global_addons_enabled,
       plan_addons_enabled: addonsCfg.plan_addons_enabled,
       addon_scopes_enabled: addonsCfg.addon_scopes_enabled,
+      pack_scopes_enabled: addonsCfg.pack_scopes_enabled,
       custom_plan: addonsCfg.custom_plan,
       image_generation: this.normalizeImageGenConfig(
         raw.image_generation ?? raw.imageGeneration,
@@ -2162,6 +2276,11 @@ Please share payment details.`;
 
   async getCreditPacks(forceFresh = false) {
     const cfg = await this.getCreditsConfig(forceFresh);
+    const app = await this.getAppConfig(forceFresh);
+    const rawCredits = app?.credits || app?.credits_config || {};
+    if (Object.prototype.hasOwnProperty.call(rawCredits, "packs")) {
+      return cfg.packs || [];
+    }
     return cfg.packs?.length ? cfg.packs : this.defaultCreditsConfig().packs;
   },
 
@@ -2174,11 +2293,14 @@ Please share payment details.`;
 
   resolveMaxDevices(lic, plan) {
     if (this.resolveUnlimitedDevices(lic, plan)) return 0;
-    if (lic?.max_devices != null) return Math.max(1, Number(lic.max_devices) || 1);
-    if (lic?.maxDevices != null) return Math.max(1, Number(lic.maxDevices) || 1);
-    if (plan?.max_devices != null) return Math.max(1, Number(plan.max_devices) || 1);
-    if (plan?.maxDevices != null) return Math.max(1, Number(plan.maxDevices) || 1);
-    return 1;
+    const raw =
+      lic?.max_devices ??
+      lic?.maxDevices ??
+      plan?.max_devices ??
+      plan?.maxDevices;
+    if (raw === 0 || raw === "0") return 0;
+    if (raw != null) return Math.max(1, Number(raw) || 1);
+    return 0;
   },
 
   resolveBillingMode(lic, plan) {
@@ -2193,6 +2315,58 @@ Please share payment details.`;
 
   resolveCreditsBalance(lic) {
     return Number(lic?.credits_balance ?? lic?.creditsBalance ?? 0) || 0;
+  },
+
+  resolveCreditGrantPools(lic, plan) {
+    const creditInfo = this.resolveLicenseCredits(lic, plan);
+    const includedGrant = Number(creditInfo.included) || 0;
+    const addonGrant = Number(creditInfo.addon) || 0;
+    const customGrant = Number(creditInfo.custom) || 0;
+    const totalUsed = Number(lic?.credits_used ?? lic?.creditsUsed ?? 0) || 0;
+    let includedUsed = Number(
+      lic?.included_credits_used ?? lic?.includedCreditsUsed,
+    );
+    let addonUsed = Number(lic?.addon_credits_used ?? lic?.addonCreditsUsed);
+    let customUsed = Number(lic?.custom_credits_used ?? lic?.customCreditsUsed);
+    if (!Number.isFinite(includedUsed) || !Number.isFinite(addonUsed) || !Number.isFinite(customUsed)) {
+      includedUsed = Math.min(totalUsed, includedGrant);
+      addonUsed = Math.max(0, Math.min(totalUsed - includedUsed, addonGrant));
+      customUsed = Math.max(0, totalUsed - includedUsed - addonUsed);
+    }
+    includedUsed = Math.max(0, Math.min(includedUsed, includedGrant));
+    addonUsed = Math.max(0, Math.min(addonUsed, addonGrant));
+    customUsed = Math.max(0, Math.min(customUsed, customGrant));
+    return {
+      includedGrant,
+      addonGrant,
+      customGrant,
+      includedUsed,
+      addonUsed,
+      customUsed,
+      includedRemaining: Math.max(0, includedGrant - includedUsed),
+      addonRemaining: Math.max(0, addonGrant - addonUsed),
+      customRemaining: Math.max(0, customGrant - customUsed),
+      totalUsed,
+    };
+  },
+
+  splitCreditDeduction(lic, plan, amount) {
+    const cost = Math.max(1, Number(amount) || 1);
+    const pools = this.resolveCreditGrantPools(lic, plan);
+    const fromIncluded = Math.min(cost, pools.includedRemaining);
+    const afterIncluded = cost - fromIncluded;
+    const fromAddon = Math.min(afterIncluded, pools.addonRemaining);
+    const fromCustom = afterIncluded - fromAddon;
+    return {
+      cost,
+      fromIncluded,
+      fromAddon,
+      fromCustom,
+      includedUsed: pools.includedUsed + fromIncluded,
+      addonUsed: pools.addonUsed + fromAddon,
+      customUsed: pools.customUsed + fromCustom,
+      totalUsed: pools.totalUsed + cost,
+    };
   },
 
   isCreditsBilling(mode) {
@@ -2360,8 +2534,32 @@ Please share payment details.`;
       addonCredits:
         extras.addonCredits ??
         (Number(lic.addon_credits ?? lic.addonCredits ?? 0) || 0),
+      customCredits:
+        extras.customCredits ??
+        (Number(lic.custom_credits ?? lic.customCredits ?? lic.bonus_credits ?? lic.bonusCredits ?? 0) || 0),
+      customCreditsLabel:
+        extras.customCreditsLabel ??
+        String(lic.custom_credits_label ?? lic.customCreditsLabel ?? "").trim(),
       addonCreditIds: extras.addonCreditIds ?? this.getLicenseAddonIds(lic),
       creditsUsed: Number(lic.credits_used ?? lic.creditsUsed ?? 0) || 0,
+      includedCreditsUsed:
+        extras.includedCreditsUsed ??
+        this.resolveCreditGrantPools(lic, plan).includedUsed,
+      addonCreditsUsed:
+        extras.addonCreditsUsed ??
+        this.resolveCreditGrantPools(lic, plan).addonUsed,
+      customCreditsUsed:
+        extras.customCreditsUsed ??
+        this.resolveCreditGrantPools(lic, plan).customUsed,
+      includedCreditsRemaining:
+        extras.includedCreditsRemaining ??
+        this.resolveCreditGrantPools(lic, plan).includedRemaining,
+      addonCreditsRemaining:
+        extras.addonCreditsRemaining ??
+        this.resolveCreditGrantPools(lic, plan).addonRemaining,
+      customCreditsRemaining:
+        extras.customCreditsRemaining ??
+        this.resolveCreditGrantPools(lic, plan).customRemaining,
       imagesGeneratedTotal:
         Number(lic.images_generated_total ?? lic.imagesGeneratedTotal ?? 0) || 0,
       imagesGeneratedToday:
@@ -2840,18 +3038,34 @@ Please share payment details.`;
       };
     }
 
+    const split = this.splitCreditDeduction(lic, plan, cost);
     const newBalance = balance - cost;
-    const used =
-      (Number(lic.credits_used ?? lic.creditsUsed ?? 0) || 0) + cost;
     const ok = await this.patchDoc(
       "licenses",
       key,
-      { credits_balance: newBalance, credits_used: used },
-      ["credits_balance", "credits_used"],
+      {
+        credits_balance: newBalance,
+        credits_used: split.totalUsed,
+        included_credits_used: split.includedUsed,
+        addon_credits_used: split.addonUsed,
+        custom_credits_used: split.customUsed,
+      },
+      ["credits_balance", "credits_used", "included_credits_used", "addon_credits_used", "custom_credits_used"],
     );
     if (!ok) return { ok: false, reason: "Could not update credits" };
 
-    return { ok: true, balance: newBalance, used, deducted: cost };
+    return {
+      ok: true,
+      balance: newBalance,
+      used: split.totalUsed,
+      deducted: cost,
+      fromIncluded: split.fromIncluded,
+      fromAddon: split.fromAddon,
+      fromCustom: split.fromCustom,
+      includedCreditsUsed: split.includedUsed,
+      addonCreditsUsed: split.addonUsed,
+      customCreditsUsed: split.customUsed,
+    };
   },
 
   async unbindDevice(licenseKey, machineId) {
@@ -3438,6 +3652,25 @@ Please share payment details.`;
     return this.planCardShell(btn, addon, "addon");
   },
 
+  renderCreditPackCardHtml(pack, variant = "popup") {
+    const p = pack || {};
+    const offerBadges = this.planOfferBadgesHtml(p);
+    const subtitle = p.card_subtitle || `${p.credits} credits · ₹${p.price}`;
+    const cardHint = p.card_hint || "Tap for details · WhatsApp to buy";
+    const btnClass =
+      variant === "plan_detail"
+        ? "plan-btn credit-pack-open-btn plan-card-main"
+        : "plan-btn credit-pack-open-btn plan-card-main";
+    const btn = `<button type="button" class="${btnClass}" data-pack="${this.escapeAttr(p.id)}" data-credits="${p.credits}" data-price="${p.price}" data-label="${this.escapeAttr(p.label)}">
+      ${offerBadges}
+      <div class="plan-name">${this.escapeHtml(p.label || p.credits + " Credits")}</div>
+      <div class="plan-price">₹${p.price}</div>
+      <div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitle)}</div>
+      ${this.planCardFooterHtml({ card_hint: cardHint })}
+    </button>`;
+    return this.planCardShell(btn, p, "pack");
+  },
+
   renderCreditPacks(container, packs, variant = "popup") {
     if (!container) return;
     const list = packs?.length ? packs : this.defaultCreditsConfig().packs;
@@ -3453,18 +3686,7 @@ Please share payment details.`;
 
     if (variant === "popup") {
       container.innerHTML = list
-        .map((p) => {
-          const offerBadges = this.planOfferBadgesHtml(p);
-          const subtitle =
-            p.card_subtitle || `${p.credits} credits · ₹${p.price}`;
-          const btn = `<button type="button" class="plan-btn credit-pack-open-btn plan-card-main" data-pack="${this.escapeAttr(p.id)}" data-credits="${p.credits}" data-price="${p.price}" data-label="${this.escapeAttr(p.label)}">
-            ${offerBadges}
-            <div class="plan-name">${this.escapeHtml(p.label || p.credits + " Credits")}</div>
-            <div class="plan-price">₹${p.price}</div>
-            <div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitle)}</div>
-          </button>`;
-          return this.planCardShell(btn, p, "pack");
-        })
+        .map((p) => this.renderCreditPackCardHtml(p, "popup"))
         .join("");
       return;
     }
@@ -3577,6 +3799,10 @@ Please share payment details.`;
         : doc.machineId
           ? [doc.machineId]
           : [],
+      maxDevices:
+        doc.max_devices != null || doc.maxDevices != null
+          ? Number(doc.max_devices ?? doc.maxDevices)
+          : null,
       daysGranted: Number(doc.days_granted ?? doc.daysGranted) || 0,
       label: doc.label || "Google free trial",
       unlimitedTime: this.isUnlimitedFlag(
@@ -3596,9 +3822,21 @@ Please share payment details.`;
     return days === 0;
   },
 
+  resolveGoogleTrialMaxDevices(trialDoc, cfg) {
+    const trial = this.normalizeGoogleTrialDoc(trialDoc);
+    const userRaw = trial?.maxDevices;
+    if (userRaw != null && Number.isFinite(Number(userRaw)) && Number(userRaw) >= 0) {
+      return Math.floor(Number(userRaw));
+    }
+    const cfgRaw = Number(cfg?.max_devices ?? cfg?.maxDevices);
+    if (Number.isFinite(cfgRaw) && cfgRaw >= 0) return Math.floor(cfgRaw);
+    return 1;
+  },
+
   buildGoogleTrialLicensePayload(uid, trialDoc, cfg) {
     const trial = this.normalizeGoogleTrialDoc(trialDoc);
     const unlimitedTime = this.googleTrialHasUnlimitedTime(trial, cfg);
+    const maxDevices = this.resolveGoogleTrialMaxDevices(trialDoc, cfg);
     const key = this.buildGoogleTrialLicenseKey(uid);
     const now = new Date();
     const expired =
@@ -3625,7 +3863,8 @@ Please share payment details.`;
       expiresAt: unlimitedTime ? null : trial.expiresAt,
       activatedAt: trial.createdAt || now.toISOString(),
       deviceCount: trial.machineIds.length || 1,
-      maxDevices: cfg?.max_devices || 1,
+      maxDevices,
+      unlimitedDevices: maxDevices === 0,
       accessStatus,
       unlimitedTime,
       unlimitedCredits: false,
@@ -3649,7 +3888,10 @@ Please share payment details.`;
       ? 0
       : Math.max(1, Number(src.days) || 7);
     const imageRunLimit = this.resolveGoogleTrialImageRunLimit(src);
-    const maxDevices = Math.max(1, Number(src.max_devices ?? src.maxDevices) || 1);
+    const maxDevicesRaw = Number(src.max_devices ?? src.maxDevices);
+    const maxDevices = Number.isFinite(maxDevicesRaw) && maxDevicesRaw >= 0
+      ? Math.floor(maxDevicesRaw)
+      : 1;
     const maxIncrement = Math.max(
       1,
       Number(src.max_increment_per_run ?? src.maxIncrementPerRun) || 10,
@@ -3733,29 +3975,30 @@ Please share payment details.`;
       this.normalizeGoogleTrialDoc(doc),
       cfg,
     );
+    const maxDevices = this.resolveGoogleTrialMaxDevices(doc, cfg);
     const expired = !unlimitedTime && license.accessStatus === "expired";
     const exhausted = license.accessStatus === "runs_exhausted";
 
     if (
       machineId &&
       trial.machineIds.length &&
-      cfg.max_devices > 0 &&
+      maxDevices > 0 &&
       !trial.machineIds.includes(machineId) &&
-      trial.machineIds.length >= cfg.max_devices
+      trial.machineIds.length >= maxDevices
     ) {
       return {
         ok: false,
-        reason: `Trial device limit reached (${trial.machineIds.length}/${cfg.max_devices}). Sign off on another device or contact support.`,
+        reason: `Trial device limit reached (${trial.machineIds.length}/${maxDevices}). Sign off on another device or contact support.`,
         license,
         deviceLimit: true,
       };
     }
 
     if (machineId && !trial.machineIds.includes(machineId)) {
-      if (cfg.max_devices > 0 && trial.machineIds.length >= cfg.max_devices) {
+      if (maxDevices > 0 && trial.machineIds.length >= maxDevices) {
         return {
           ok: false,
-          reason: `Trial device limit reached (${cfg.max_devices} device${cfg.max_devices === 1 ? "" : "s"}).`,
+          reason: `Trial device limit reached (${maxDevices} device${maxDevices === 1 ? "" : "s"}).`,
           license,
           deviceLimit: true,
         };

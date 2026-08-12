@@ -8,6 +8,29 @@ window.homeFilterActiveCategories = window.homeFilterActiveCategories || [];
 window.wishFilterActiveCategories = window.wishFilterActiveCategories || [];
 window.categoriesLoaded = false;
 
+/** Registered immediately so inline handlers work before the rest of this file finishes loading. */
+window.toggleAdminCategoryAccordion = window.toggleAdminCategoryAccordion || async function toggleAdminCategoryAccordionEarly() {
+    const content = document.getElementById('admin-category-accordion-content');
+    if (!content) return;
+    if (content.style.display === 'none' || !content.style.display) {
+        if (typeof window.openAdminCategoryAccordion === 'function') {
+            window.openAdminCategoryAccordion();
+        } else {
+            content.style.display = 'flex';
+            const icon = document.getElementById('admin-category-accordion-icon');
+            if (icon) icon.style.transform = 'rotate(0deg)';
+        }
+        return;
+    }
+    if (typeof window.tryCloseAdminCategoryAccordion === 'function') {
+        await window.tryCloseAdminCategoryAccordion();
+    } else {
+        content.style.display = 'none';
+        const icon = document.getElementById('admin-category-accordion-icon');
+        if (icon) icon.style.transform = 'rotate(-90deg)';
+    }
+};
+
 if (window.filterActiveCategory && !window.homeFilterActiveCategories.length) {
     window.homeFilterActiveCategories = [window.filterActiveCategory];
 }
@@ -1243,8 +1266,9 @@ function openAdminCategoryAccordion() {
     if (icon) icon.style.transform = 'rotate(0deg)';
     if (typeof renderAdminDraftRecoveryPanel === 'function') renderAdminDraftRecoveryPanel();
 }
+window.openAdminCategoryAccordion = openAdminCategoryAccordion;
 
-window.toggleAdminCategoryAccordion = async function() {
+window.toggleAdminCategoryAccordion = async function toggleAdminCategoryAccordion() {
     const content = document.getElementById('admin-category-accordion-content');
     if (!content) return;
 
@@ -1254,6 +1278,7 @@ window.toggleAdminCategoryAccordion = async function() {
     }
     await tryCloseAdminCategoryAccordion();
 };
+window.tryCloseAdminCategoryAccordion = tryCloseAdminCategoryAccordion;
 
 function updateCategoryFormMode() {
     /* Add-only top form — no mode switching. */
