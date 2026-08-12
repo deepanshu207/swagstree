@@ -12659,12 +12659,37 @@ body.so-action-preview-open {
 .so-modal-panel--wide {
     max-width: 520px;
 }
-.so-google-user-modal-panel {
+.so-google-user-modal-overlay {
+    overflow: hidden;
+    overscroll-behavior: contain;
+}
+.so-google-user-modal-panel.so-modal-panel {
     display: flex;
     flex-direction: column;
-    max-height: 92vh;
     padding: 0;
-    overflow: hidden;
+    overflow: hidden !important;
+    overflow-y: hidden !important;
+    max-height: min(92vh, 100dvh);
+    width: 100%;
+}
+.so-google-user-modal-panel .so-modal-header--sticky {
+    position: relative;
+    top: auto;
+    z-index: 3;
+}
+.so-google-user-modal-panel .so-modal-footer--sticky {
+    position: relative;
+    bottom: auto;
+    z-index: 3;
+}
+.so-section-save-bar--stack {
+    flex-direction: column;
+    align-items: stretch;
+}
+.so-section-save-bar--stack .so-btn-save,
+.so-section-save-bar--stack .so-btn-sm {
+    width: 100%;
+    min-height: 44px;
 }
 .so-google-user-modal-body {
     flex: 1 1 auto;

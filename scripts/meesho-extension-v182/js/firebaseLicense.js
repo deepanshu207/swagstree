@@ -3683,6 +3683,10 @@ Please share payment details.`;
         : doc.machineId
           ? [doc.machineId]
           : [],
+      maxDevices:
+        doc.max_devices != null || doc.maxDevices != null
+          ? Number(doc.max_devices ?? doc.maxDevices)
+          : null,
       daysGranted: Number(doc.days_granted ?? doc.daysGranted) || 0,
       label: doc.label || "Google free trial",
       unlimitedTime: this.isUnlimitedFlag(
@@ -3702,9 +3706,21 @@ Please share payment details.`;
     return days === 0;
   },
 
+  resolveGoogleTrialMaxDevices(trialDoc, cfg) {
+    const trial = this.normalizeGoogleTrialDoc(trialDoc);
+    const userRaw = trial?.maxDevices;
+    if (userRaw != null && Number.isFinite(Number(userRaw)) && Number(userRaw) >= 0) {
+      return Math.floor(Number(userRaw));
+    }
+    const cfgRaw = Number(cfg?.max_devices ?? cfg?.maxDevices);
+    if (Number.isFinite(cfgRaw) && cfgRaw >= 0) return Math.floor(cfgRaw);
+    return 1;
+  },
+
   buildGoogleTrialLicensePayload(uid, trialDoc, cfg) {
     const trial = this.normalizeGoogleTrialDoc(trialDoc);
     const unlimitedTime = this.googleTrialHasUnlimitedTime(trial, cfg);
+    const maxDevices = this.resolveGoogleTrialMaxDevices(trialDoc, cfg);
     const key = this.buildGoogleTrialLicenseKey(uid);
     const now = new Date();
     const expired =
@@ -3731,7 +3747,8 @@ Please share payment details.`;
       expiresAt: unlimitedTime ? null : trial.expiresAt,
       activatedAt: trial.createdAt || now.toISOString(),
       deviceCount: trial.machineIds.length || 1,
-      maxDevices: cfg?.max_devices || 1,
+      maxDevices,
+      unlimitedDevices: maxDevices === 0,
       accessStatus,
       unlimitedTime,
       unlimitedCredits: false,
@@ -3755,7 +3772,10 @@ Please share payment details.`;
       ? 0
       : Math.max(1, Number(src.days) || 7);
     const imageRunLimit = this.resolveGoogleTrialImageRunLimit(src);
-    const maxDevices = Math.max(1, Number(src.max_devices ?? src.maxDevices) || 1);
+    const maxDevicesRaw = Number(src.max_devices ?? src.maxDevices);
+    const maxDevices = Number.isFinite(maxDevicesRaw) && maxDevicesRaw >= 0
+      ? Math.floor(maxDevicesRaw)
+      : 1;
     const maxIncrement = Math.max(
       1,
       Number(src.max_increment_per_run ?? src.maxIncrementPerRun) || 10,
@@ -3839,29 +3859,30 @@ Please share payment details.`;
       this.normalizeGoogleTrialDoc(doc),
       cfg,
     );
+    const maxDevices = this.resolveGoogleTrialMaxDevices(doc, cfg);
     const expired = !unlimitedTime && license.accessStatus === "expired";
     const exhausted = license.accessStatus === "runs_exhausted";
 
     if (
       machineId &&
       trial.machineIds.length &&
-      cfg.max_devices > 0 &&
+      maxDevices > 0 &&
       !trial.machineIds.includes(machineId) &&
-      trial.machineIds.length >= cfg.max_devices
+      trial.machineIds.length >= maxDevices
     ) {
       return {
         ok: false,
-        reason: `Trial device limit reached (${trial.machineIds.length}/${cfg.max_devices}). Sign off on another device or contact support.`,
+        reason: `Trial device limit reached (${trial.machineIds.length}/${maxDevices}). Sign off on another device or contact support.`,
         license,
         deviceLimit: true,
       };
     }
 
     if (machineId && !trial.machineIds.includes(machineId)) {
-      if (cfg.max_devices > 0 && trial.machineIds.length >= cfg.max_devices) {
+      if (maxDevices > 0 && trial.machineIds.length >= maxDevices) {
         return {
           ok: false,
-          reason: `Trial device limit reached (${cfg.max_devices} device${cfg.max_devices === 1 ? "" : "s"}).`,
+          reason: `Trial device limit reached (${maxDevices} device${maxDevices === 1 ? "" : "s"}).`,
           license,
           deviceLimit: true,
         };

@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.37)
+# Meesho Extension — Admin sync prompt (v1.8.38)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -15,8 +15,8 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 |------|---------|
 | `js/firebaseLicense.js` | Subscription-first `deductCredits`, `included_credits_used` / `addon_credits_used`, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
 | `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate |
-| `config.js` | `VERSION: "1.8.37"` |
-| `manifest.json` | `"version": "1.8.37"` |
+| `config.js` | `VERSION: "1.8.38"` |
+| `manifest.json` | `"version": "1.8.38"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -91,7 +91,13 @@ Legacy licenses without `included_credits_used` / `addon_credits_used` are migra
 2. Tap **Seed built-in → Firebase** → confirm preview → write.
 3. Reload extension at `chrome://extensions` (v1.8.37+).
 
-## Google trial defaults
+## Google trial device limits (v1.8.38)
 
-- `google_trial.max_devices: 1` (enforced for Google sign-in trials only).
-- Editable in admin **Google Free Trial** tab; save shows preview modal.
+| Scope | Field | Default | Notes |
+|-------|-------|---------|-------|
+| Global config | `google_trial.max_devices` | `1` | New sign-ins · `div`0` = unlimited |
+| Per user | `shipping_optimizer_google_trials/{uid}.max_devices` | inherits global | Admin → Google Users → Manage → Devices |
+
+Extension resolves: per-user `max_devices` if set, else `google_trial.max_devices`. `0` skips device cap checks.
+
+Admin **Manage Google user** modal sections each support **Save → Firebase** with preview. Credits and Devices also offer **Save as global default** (updates `google_trial` config only).

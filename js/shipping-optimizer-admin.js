@@ -3580,10 +3580,16 @@
         modal.style.display = 'flex';
         document.body.classList.add('so-action-preview-open');
         return new Promise(resolve => {
-            soActionPreviewResolver = (ok) => {
+            soActionPreviewResolver = async (ok) => {
                 soCloseActionPreviewModal();
                 resolve(!!ok);
-                if (ok && typeof options.onConfirm === 'function') options.onConfirm();
+                if (ok && typeof options.onConfirm === 'function') {
+                    try {
+                        await options.onConfirm();
+                    } catch (e) {
+                        soToast(e.message || 'Action failed.');
+                    }
+                }
             };
         });
     }
@@ -4346,7 +4352,11 @@
             trial_credits: trialCredits,
             image_run_limit: trialCredits,
             max_increment_per_run: Math.max(1, parseInt(src.max_increment_per_run ?? src.maxIncrementPerRun, 10) || DEFAULT_GOOGLE_TRIAL.max_increment_per_run),
-            max_devices: Math.max(1, parseInt(src.max_devices ?? src.maxDevices, 10) || DEFAULT_GOOGLE_TRIAL.max_devices),
+            max_devices: (() => {
+                const n = parseInt(src.max_devices ?? src.maxDevices, 10);
+                if (Number.isFinite(n) && n >= 0) return n;
+                return DEFAULT_GOOGLE_TRIAL.max_devices;
+            })(),
             label: String(src.label || DEFAULT_GOOGLE_TRIAL.label).trim(),
             oauth_client_id: String(src.oauth_client_id || src.oauthClientId || DEFAULT_GOOGLE_TRIAL.oauth_client_id || '').trim(),
             oauth_web_client_id: String(src.oauth_web_client_id || src.oauthWebClientId || DEFAULT_GOOGLE_TRIAL.oauth_web_client_id || '').trim(),
@@ -4650,6 +4660,71 @@
         return Array.isArray(ids) ? ids.length : 0;
     }
 
+    function soGoogleTrialMaxDevices(row) {
+        const userRaw = row?.max_devices ?? row?.maxDevices;
+        if (userRaw != null && userRaw !== '') {
+            const n = parseInt(userRaw, 10);
+            if (Number.isFinite(n) && n >= 0) return n;
+        }
+        return soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+    }
+
+    function soFormatGoogleTrialDeviceLimit(n) {
+        const val = parseInt(n, 10);
+        if (!Number.isFinite(val) || val < 0) return '1';
+        return val === 0 ? 'unlimited' : String(val);
+    }
+
+    function soReadGoogleUserMaxDevicesInput() {
+        const raw = document.getElementById('so-google-user-max-devices')?.value;
+        if (raw === '' || raw == null) return soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 0) return null;
+        return n;
+    }
+
+    function soBindGoogleUserDevicesForm(row) {
+        const maxEl = document.getElementById('so-google-user-max-devices');
+        if (maxEl) {
+            const limit = soGoogleTrialMaxDevices(row);
+            maxEl.value = limit != null ? limit : DEFAULT_GOOGLE_TRIAL.max_devices;
+        }
+        soUpdateGoogleUserDevicesLabel(row);
+    }
+
+    function soUpdateGoogleUserDevicesLabel(row) {
+        const uid = soGoogleTrialManageUid;
+        const src = row || (uid ? soGoogleTrials.find(r => r.uid === uid) : null);
+        if (!src) return;
+        const devices = soGoogleTrialDeviceCount(src);
+        const inputLimit = soReadGoogleUserMaxDevicesInput();
+        const limit = inputLimit != null ? inputLimit : soGoogleTrialMaxDevices(src);
+        const labelEl = document.getElementById('so-google-user-devices-label');
+        const previewEl = document.getElementById('so-google-user-devices-preview');
+        const hasOverride = src.max_devices != null || src.maxDevices != null;
+        const globalDefault = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+        if (labelEl) {
+            labelEl.textContent = `${devices} bound · limit ${soFormatGoogleTrialDeviceLimit(limit)}${hasOverride ? ' (per-user override)' : ` (global default ${globalDefault})`}`;
+        }
+        if (previewEl) {
+            previewEl.textContent = limit === 0
+                ? 'Preview: unlimited devices — 0 clears the per-user cap.'
+                : `Preview: up to ${limit} device${limit === 1 ? '' : 's'} · ${devices} currently bound.`;
+        }
+    }
+
+    window.soOnGoogleUserMaxDevicesInput = function() {
+        soUpdateGoogleUserDevicesLabel();
+    };
+
+    window.soGoogleUserApplyGlobalDeviceDefault = function() {
+        const def = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+        const el = document.getElementById('so-google-user-max-devices');
+        if (el) el.value = def;
+        soUpdateGoogleUserDevicesLabel();
+        soToast(`Device limit field set to global default (${soFormatGoogleTrialDeviceLimit(def)}) — tap Save to Firebase when ready.`);
+    };
+
     function soGoogleTrialImagesUsed(row) {
         return Number(row.images_used ?? row.imagesUsed ?? 0) || 0;
     }
@@ -4788,24 +4863,58 @@
 
         const prevUsed = soGoogleTrialImagesUsed(row);
         const prevTotal = soGoogleTrialImagesLimit(row);
-        const summary = `Save credits for ${row.email || uid}?\n\n` +
-            `Total: ${prevTotal} → ${total}\n` +
-            `Used: ${prevUsed} → ${used}\n` +
-            `Balance: ${Math.max(0, prevTotal - prevUsed)} → ${balance}`;
-        if (!confirm(summary)) return;
+        const payload = {
+            images_limit: total,
+            trial_credits: total,
+            images_used: used,
+            adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+            adjusted_by: soAuthEmail()
+        };
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Save Google user credits → Firebase',
+            bodyHtml: `<p><strong>User:</strong> ${soEsc(row.email || uid)}</p>
+                <ul class="so-save-review-list">
+                    <li><strong>Total:</strong> ${prevTotal} → ${total}</li>
+                    <li><strong>Used:</strong> ${prevUsed} → ${used}</li>
+                    <li><strong>Balance:</strong> ${Math.max(0, prevTotal - prevUsed)} → ${balance}</li>
+                </ul>
+                <p class="so-admin-muted">Writes <code>shipping_optimizer_google_trials/${soEsc(uid)}</code> only.</p>`,
+            confirmLabel: 'Save credits to Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
 
         try {
-            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
-                images_limit: total,
-                trial_credits: total,
-                images_used: used,
-                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
-                adjusted_by: soAuthEmail()
-            }, { merge: true });
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set(payload, { merge: true });
             await soLoadGoogleTrials();
             soBindGoogleUserCreditsForm(soGoogleTrials.find(r => r.uid === uid) || row);
             renderSoGoogleTrialsRegistry();
             soToast(`Credits saved — ${balance} remaining of ${total} total.`);
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveSoGoogleUserCreditsAsDefault = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const total = Math.max(0, parseInt(document.getElementById('so-google-user-total-credits')?.value, 10) || 0);
+        const prev = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).trial_credits;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Save trial credits as global default',
+            bodyHtml: `<p>Update <code>google_trial.trial_credits</code> for <em>new</em> Google sign-ins?</p>
+                <ul class="so-save-review-list"><li><strong>Trial credits:</strong> ${prev} → ${total}</li></ul>
+                <p class="so-admin-muted">Does not change existing user docs — only app config default.</p>`,
+            confirmLabel: 'Save global default to Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
+        try {
+            const trial = soNormalizeGoogleTrial(Object.assign({}, soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL, {
+                trial_credits: total,
+                image_run_limit: total
+            }));
+            await soPersistGoogleTrial(soGoogleTrialToFirestore(trial));
+            soToast(`Global Google trial credits default set to ${total}.`);
         } catch (e) {
             soToast('Save failed: ' + (e.message || 'Unknown error'));
         }
@@ -4862,7 +4971,15 @@
             if (Number.isFinite(days) && days > 0) payload.days_granted = days;
         }
         const label = unlimited ? 'no expiry (unlimited time)' : `expires ${payload.expires_at.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
-        if (!confirm(`Save access time for ${row.email || uid}?\n\n${label}`)) return;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Save Google user access time → Firebase',
+            bodyHtml: `<p><strong>User:</strong> ${soEsc(row.email || uid)}</p>
+                <ul class="so-save-review-list"><li><strong>Access:</strong> ${soEsc(label)}</li></ul>
+                <p class="so-admin-muted">Per-user override on trial doc only.</p>`,
+            confirmLabel: 'Save access time to Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
         try {
             await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set(payload, { merge: true });
             await soLoadGoogleTrials();
@@ -4874,13 +4991,76 @@
         }
     };
 
+    window.saveSoGoogleUserDevices = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const uid = soGoogleTrialManageUid;
+        if (!uid) return soToast('No user selected.');
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        if (!row) return soToast('Google user not found.');
+        const limit = soReadGoogleUserMaxDevicesInput();
+        if (limit == null) return soToast('Device limit must be 0 (unlimited) or a positive number.');
+        const prev = soGoogleTrialMaxDevices(row);
+        const bound = soGoogleTrialDeviceCount(row);
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Save Google user device limit → Firebase',
+            bodyHtml: `<p><strong>User:</strong> ${soEsc(row.email || uid)}</p>
+                <ul class="so-save-review-list">
+                    <li><strong>Device limit:</strong> ${soFormatGoogleTrialDeviceLimit(prev)} → ${soFormatGoogleTrialDeviceLimit(limit)}</li>
+                    <li><strong>Currently bound:</strong> ${bound} device${bound === 1 ? '' : 's'}</li>
+                </ul>
+                <p class="so-admin-muted"><strong>0 = unlimited</strong> · default for new users is global config (currently ${soFormatGoogleTrialDeviceLimit(soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices)}).</p>`,
+            confirmLabel: 'Save device limit to Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
+        try {
+            await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
+                max_devices: limit,
+                adjusted_at: firebase.firestore.FieldValue.serverTimestamp(),
+                adjusted_by: soAuthEmail()
+            }, { merge: true });
+            await soLoadGoogleTrials();
+            soRefreshGoogleUserModalLabels();
+            renderSoGoogleTrialsRegistry();
+            soToast(`Device limit saved — ${soFormatGoogleTrialDeviceLimit(limit)} for this user.`);
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.saveSoGoogleUserDevicesAsDefault = async function() {
+        if (!soRequireExtensionWrite()) return;
+        const limit = soReadGoogleUserMaxDevicesInput();
+        if (limit == null) return soToast('Device limit must be 0 (unlimited) or a positive number.');
+        const prev = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Save device limit as global Google trial default',
+            bodyHtml: `<p>Update <code>google_trial.max_devices</code> for the extension?</p>
+                <ul class="so-save-review-list"><li><strong>Default device limit:</strong> ${soFormatGoogleTrialDeviceLimit(prev)} → ${soFormatGoogleTrialDeviceLimit(limit)}</li></ul>
+                <p class="so-admin-muted">New sign-ins use this unless a per-user <code>max_devices</code> override is set. <strong>0 = unlimited.</strong></p>`,
+            confirmLabel: 'Save global default to Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
+        try {
+            const trial = soNormalizeGoogleTrial(Object.assign({}, soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL, {
+                max_devices: limit
+            }));
+            await soPersistGoogleTrial(soGoogleTrialToFirestore(trial));
+            soUpdateGoogleUserDevicesLabel();
+            soToast(`Global Google trial device default set to ${soFormatGoogleTrialDeviceLimit(limit)}.`);
+        } catch (e) {
+            soToast('Save failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
     function soRefreshGoogleUserModalLabels() {
         const uid = soGoogleTrialManageUid;
         if (!uid) return;
         const row = soGoogleTrials.find(r => r.uid === uid);
         if (!row) return;
         const devices = soGoogleTrialDeviceCount(row);
-        const maxDevices = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
+        const maxDevices = soGoogleTrialMaxDevices(row);
         const unlimited = soGoogleTrialHasUnlimitedTimeRow(row);
         const emailEl = document.getElementById('so-google-user-email-label');
         const summaryEl = document.getElementById('so-google-user-summary-label');
@@ -4892,7 +5072,10 @@
                 : `Access expires: ${soFormatGoogleTrialExpiry(row)} · UID ${row.uid || ''}`;
         }
         soBindGoogleUserCreditsForm(row);
-        if (devicesEl) devicesEl.textContent = `${devices} / ${maxDevices} device(s) bound`;
+        soBindGoogleUserDevicesForm(row);
+        if (devicesEl) {
+            devicesEl.textContent = `${devices} / ${soFormatGoogleTrialDeviceLimit(maxDevices)} device(s) bound`;
+        }
         const unlimitedEl = document.getElementById('so-google-user-unlimited-time');
         if (unlimitedEl) unlimitedEl.checked = unlimited;
         const expiresEl = document.getElementById('so-google-user-expires-at');
@@ -4940,7 +5123,7 @@
             statusBadge,
             created: soFormatGoogleTrialCreated(r),
             balanceLabel: `${remaining} / ${limit || '—'}`,
-            devicesLabel: `${devices}/${maxDevices}`
+            devicesLabel: `${devices}/${maxDevices === 0 ? '∞' : maxDevices}`
         };
     }
 
@@ -4959,7 +5142,6 @@
         const countEl = document.getElementById('so-google-trials-count');
         if (!container) return;
         const rows = soGoogleTrials.slice();
-        const maxDevices = soNormalizeGoogleTrial(soConfig?.google_trial || DEFAULT_GOOGLE_TRIAL).max_devices;
         if (countEl) {
             countEl.textContent = rows.length === 1 ? '1 Google user' : `${rows.length} Google users`;
         }
@@ -4982,7 +5164,7 @@
         container.innerHTML = `
             <div class="so-google-trials-cards" role="list">
                 ${filtered.map(r => {
-                    const v = soGoogleTrialRowViewModel(r, maxDevices);
+                    const v = soGoogleTrialRowViewModel(r, soGoogleTrialMaxDevices(r));
                     const linked = v.linkedKey ? `<div class="so-google-trial-card-linked"><code>${soEsc(v.linkedKey)}</code></div>` : '';
                     return `
                     <article class="so-google-trial-card ${v.active ? '' : 'so-google-trial-card--revoked'}" role="listitem" onclick="openSoGoogleTrialManage('${soAttr(v.uid)}')" title="Tap to manage credits and access">
@@ -5022,7 +5204,7 @@
                     </thead>
                     <tbody>
                         ${filtered.map(r => {
-                            const v = soGoogleTrialRowViewModel(r, maxDevices);
+                            const v = soGoogleTrialRowViewModel(r, soGoogleTrialMaxDevices(r));
                             const legacyCol = v.legacyCol ? `<br>${v.legacyCol}` : '';
                             return `
                             <tr class="so-google-trial-row ${v.active ? '' : 'so-google-trial-row--revoked'}" onclick="openSoGoogleTrialManage('${soAttr(v.uid)}')" title="Click to manage credits and access time">
@@ -5242,8 +5424,17 @@
 
     window.soResetGoogleTrialDevices = async function(uid) {
         if (!soRequireExtensionWrite()) return;
+        const row = soGoogleTrials.find(r => r.uid === uid);
+        const email = row?.email || uid;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Reset Google trial device bindings',
+            bodyHtml: `<p>Clear all bound devices for <strong>${soEsc(email)}</strong>?</p>
+                <p class="so-admin-muted">User can sign in again on a new device. Device <em>limit</em> is unchanged.</p>`,
+            confirmLabel: 'Reset bindings in Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
         if (!uid) return soToast('Missing trial uid.');
-        if (!confirm(`Reset device bindings for trial ${uid}? User can activate on a new device.`)) return;
         try {
             await soDb().collection(SO_GOOGLE_TRIALS_COL).doc(uid).set({
                 machine_ids: []
@@ -7240,8 +7431,9 @@
             out.credits_balance = formFields.credits_balance != null
                 ? Math.max(0, parseInt(formFields.credits_balance, 10) || 0)
                 : Math.max(0, effectiveTotal - used);
-            out.included_credits_used = Math.min(used, calc.included);
-            out.addon_credits_used = Math.max(0, used - calc.included);
+            const includedGrant = out.included_credits != null ? out.included_credits : calc.included;
+            out.included_credits_used = Math.min(used, includedGrant);
+            out.addon_credits_used = Math.max(0, used - includedGrant);
         }
         return out;
     }

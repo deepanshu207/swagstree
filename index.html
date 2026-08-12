@@ -2649,8 +2649,8 @@
                                     <input id="so-google-trial-credits" type="number" min="0" step="1" value="3"></label>
                                 <label><span class="admin-settings-field-label">max_increment_per_run</span>
                                     <input id="so-google-trial-max-increment" type="number" min="1" step="1" value="10"></label>
-                                <label><span class="admin-settings-field-label">max_devices</span>
-                                    <input id="so-google-trial-max-devices" type="number" min="1" step="1" value="1"></label>
+                                <label><span class="admin-settings-field-label">max_devices (0 = unlimited, default 1)</span>
+                                    <input id="so-google-trial-max-devices" type="number" min="0" step="1" value="1"></label>
                                 <label class="so-field-full"><span class="admin-settings-field-label">label</span>
                                     <input id="so-google-trial-label" type="text" placeholder="Google free trial" value="Google free trial"></label>
                             </div>
@@ -2902,8 +2902,9 @@
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('add-balance')">+ Add to balance</button>
                                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserQuickAdjust('reset-used')">Reset used → 0</button>
                             </div>
-                            <div class="so-section-save-bar" style="margin-top:10px;">
-                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserCredits()">Save credits</button>
+                            <div class="so-section-save-bar so-section-save-bar--stack" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserCredits()">Save credits → Firebase</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="saveSoGoogleUserCreditsAsDefault()" title="Updates google_trial.trial_credits for new sign-ins">Save as global default</button>
                             </div>
                         </div>
 
@@ -2923,14 +2924,25 @@
                                     <input id="so-google-user-expires-at" type="datetime-local"></label>
                             </div>
                             <div class="so-section-save-bar" style="margin-top:10px;">
-                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserAccessTime()">Save access time</button>
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserAccessTime()">Save access time → Firebase</button>
                             </div>
                         </div>
 
                         <div class="so-google-user-modal-section">
                             <h5>Devices</h5>
+                            <p class="so-admin-muted so-admin-tip"><strong>0 = unlimited</strong> · default for new Google trials is <strong>1 device</strong> (global config). Per-user override below applies to this account only.</p>
                             <p id="so-google-user-devices-label" class="so-admin-muted"></p>
-                            <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevicesFromModal()">Reset device bindings</button>
+                            <label><span class="admin-settings-field-label">Device limit for this user</span>
+                                <input id="so-google-user-max-devices" type="number" min="0" step="1" placeholder="1" oninput="soOnGoogleUserMaxDevicesInput()"></label>
+                            <div id="so-google-user-devices-preview" class="so-admin-muted so-admin-tip" style="margin-top:6px;"></div>
+                            <div class="so-google-user-quick-btns" style="margin-top:8px;">
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soGoogleUserApplyGlobalDeviceDefault()">Use global default</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soResetGoogleTrialDevicesFromModal()">Reset device bindings</button>
+                            </div>
+                            <div class="so-section-save-bar so-section-save-bar--stack" style="margin-top:10px;">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="saveSoGoogleUserDevices()">Save device limit → Firebase</button>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="saveSoGoogleUserDevicesAsDefault()" title="Updates google_trial.max_devices for all new sign-ins">Save as global default</button>
+                            </div>
                         </div>
 
                         <div class="so-google-user-modal-section">
