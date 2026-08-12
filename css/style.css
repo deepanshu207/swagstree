@@ -11221,9 +11221,41 @@ body.so-action-preview-open {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
-.so-save-review-list {
+.so-save-review-panel--flex {
+    max-height: min(92vh, 100dvh);
+    padding: 0;
+    overflow: hidden !important;
+}
+.so-save-review-panel--flex .so-save-review-body {
     margin: 0;
-    padding-left: 18px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 0 18px 12px;
+}
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.so-license-consumed-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+}
+.so-license-consumed-card {
+    padding: 8px 10px;
+    border: 1px solid #333;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 11px;
+    line-height: 1.45;
+}
+.so-license-consumed-card strong {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--gold, #ffd700);
 }
 .so-save-review-list li {
     margin-bottom: 8px;

@@ -2302,11 +2302,89 @@
 
     function soReadLicenseGrantTotal(plan, selectedIds, lic) {
         const totalEl = document.getElementById('so-license-total-credits');
+        const balEl = document.getElementById('so-license-credits-balance');
+        const usedEl = document.getElementById('so-license-credits-used');
         const manual = Math.max(0, parseInt(totalEl?.value, 10) || 0);
+        const bal = Math.max(0, parseInt(balEl?.value, 10) || 0);
+        const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
+        const custom = Math.max(0, parseInt(document.getElementById('so-license-custom-credits')?.value, 10) || 0);
+        if (soEditingLicenseKey) {
+            const fromBalance = bal + used;
+            if (fromBalance > 0) return fromBalance;
+        }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
         if (soLicenseCreditsTotalDirty && manual > 0) return manual;
-        if (manual > 0 && manual !== breakdown.total) return manual;
-        return breakdown.total > 0 ? breakdown.total : manual;
+        if (manual > 0 && manual !== breakdown.grantTotal) return manual;
+        const base = breakdown.grantTotal > 0 ? breakdown.grantTotal : manual;
+        return base > 0 ? base : manual;
+    }
+
+    function soReadLicenseCustomCredits() {
+        return Math.max(0, parseInt(document.getElementById('so-license-custom-credits')?.value, 10) || 0);
+    }
+
+    function soReadLicenseCustomCreditsLabel() {
+        return String(document.getElementById('so-license-custom-credits-label')?.value || '').trim();
+    }
+
+    function soResolveLicenseConsumedPools(lic, breakdown, used) {
+        const includedGrant = breakdown.included;
+        const addonGrant = breakdown.addon;
+        const customGrant = breakdown.custom;
+        let includedUsed = Math.min(used, includedGrant);
+        let addonUsed = 0;
+        let customUsed = 0;
+        if (lic) {
+            const iu = parseInt(lic.included_credits_used ?? lic.includedCreditsUsed, 10);
+            const au = parseInt(lic.addon_credits_used ?? lic.addonCreditsUsed, 10);
+            const cu = parseInt(lic.custom_credits_used ?? lic.customCreditsUsed, 10);
+            if (Number.isFinite(iu) && iu >= 0) includedUsed = Math.min(iu, includedGrant);
+            if (Number.isFinite(au) && au >= 0) addonUsed = Math.min(au, addonGrant);
+            if (Number.isFinite(cu) && cu >= 0) customUsed = Math.min(cu, customGrant);
+            if (!Number.isFinite(iu) && !Number.isFinite(au)) {
+                includedUsed = Math.min(used, includedGrant);
+                addonUsed = Math.max(0, Math.min(used - includedUsed, addonGrant));
+                customUsed = Math.max(0, used - includedUsed - addonUsed);
+            } else if (!Number.isFinite(cu)) {
+                customUsed = Math.max(0, Math.min(used - includedUsed - addonUsed, customGrant));
+            }
+        } else {
+            includedUsed = Math.min(used, includedGrant);
+            addonUsed = Math.max(0, Math.min(used - includedUsed, addonGrant));
+            customUsed = Math.max(0, used - includedUsed - addonUsed);
+        }
+        return {
+            includedGrant,
+            addonGrant,
+            customGrant,
+            includedUsed,
+            addonUsed,
+            customUsed,
+            includedRemaining: Math.max(0, includedGrant - includedUsed),
+            addonRemaining: Math.max(0, addonGrant - addonUsed),
+            customRemaining: Math.max(0, customGrant - customUsed)
+        };
+    }
+
+    function soRenderLicenseConsumedPanel(pools, isEdit) {
+        const panel = document.getElementById('so-license-consumed-panel');
+        if (!panel) return;
+        if (!isEdit || (pools.includedGrant + pools.addonGrant + pools.customGrant) <= 0) {
+            panel.hidden = true;
+            panel.innerHTML = '';
+            return;
+        }
+        panel.hidden = false;
+        const mk = (title, grant, usedVal, remain) => grant > 0
+            ? `<div class="so-license-consumed-card"><strong>${title}</strong>Used ${usedVal} / ${grant} · Left ${remain}</div>`
+            : '';
+        panel.innerHTML = `<div class="so-admin-subhead" style="margin-top:8px;">Consumed breakdown (stored on license)</div>
+            <div class="so-license-consumed-grid">
+                ${mk('Subscription', pools.includedGrant, pools.includedUsed, pools.includedRemaining)}
+                ${mk('Add-on', pools.addonGrant, pools.addonUsed, pools.addonRemaining)}
+                ${mk('Custom', pools.customGrant, pools.customUsed, pools.customRemaining)}
+            </div>
+            <p class="so-admin-muted so-admin-tip" style="margin-top:6px;">Extension deducts in order: subscription → add-on → custom.</p>`;
     }
 
     window.soOnLicenseTotalCreditsChange = function() {
@@ -2314,8 +2392,14 @@
         const totalEl = document.getElementById('so-license-total-credits');
         const balEl = document.getElementById('so-license-credits-balance');
         const usedEl = document.getElementById('so-license-credits-used');
+        const customEl = document.getElementById('so-license-custom-credits');
+        const includedEl = document.getElementById('so-license-included-credits');
+        const addonEl = document.getElementById('so-license-addon-credits');
         const total = Math.max(0, parseInt(totalEl?.value, 10) || 0);
         const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
+        const inc = Math.max(0, parseInt(includedEl?.value, 10) || 0);
+        const add = Math.max(0, parseInt(addonEl?.value, 10) || 0);
+        if (customEl && total >= inc + add) customEl.value = Math.max(0, total - inc - add);
         if (balEl && (!soEditingLicenseKey || total >= used)) {
             balEl.value = Math.max(0, total - used);
         }
@@ -2353,10 +2437,32 @@
         else soUpdateLicenseCreditsBreakdown();
         const locEl = document.getElementById('so-license-customer-location');
         if (locEl && !locEl.value) locEl.value = soGuessAdminLocation();
+        void soPrefillLicenseCustomerFields(null);
+    }
+
+    async function soFetchAdminIpIntoLicenseField() {
         const ipEl = document.getElementById('so-license-customer-ip');
-        if (ipEl && !ipEl.placeholder) {
-            ipEl.placeholder = 'Optional — set when known';
-        }
+        if (!ipEl || ipEl.value || soEditingLicenseKey) return;
+        try {
+            const r = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(4000) });
+            if (!r.ok) return;
+            const j = await r.json();
+            if (j && j.ip) ipEl.value = String(j.ip);
+        } catch (_) { /* optional */ }
+    }
+
+    function soPrefillLicenseCustomerFields(lic) {
+        const isEdit = !!soEditingLicenseKey;
+        const src = lic || {};
+        const setIfEmpty = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && !String(el.value || '').trim() && val) el.value = val;
+        };
+        setIfEmpty('so-license-customer-name', src.customer_name || src.customerName || '');
+        setIfEmpty('so-license-customer-phone', src.customer_phone || src.customerPhone || '');
+        setIfEmpty('so-license-customer-email', src.customer_email || src.customerEmail || (!isEdit ? soAuthEmail() : ''));
+        setIfEmpty('so-license-customer-location', src.customer_location || src.customerLocation || soGuessAdminLocation());
+        if (!isEdit) void soFetchAdminIpIntoLicenseField();
     }
 
     function soResolveLicenseCreditBreakdown(plan, selectedIds, lic) {
@@ -2369,8 +2475,15 @@
             if (Number.isFinite(licIncluded) && licIncluded >= 0) included = licIncluded;
             if (Number.isFinite(licAddon) && licAddon >= 0) addon = licAddon;
         }
-        const total = included + addon;
-        return { included, addon, total, addonPrice: calc.addonPrice };
+        const custom = lic
+            ? Math.max(0, parseInt(lic.custom_credits ?? lic.customCredits, 10) || parseInt(lic.bonus_credits, 10) || 0)
+            : soReadLicenseCustomCredits();
+        if (!lic) {
+            const fromForm = soReadLicenseCustomCredits();
+            if (fromForm > 0) custom = fromForm;
+        }
+        const grantTotal = included + addon + custom;
+        return { included, addon, custom, total: grantTotal, grantTotal, addonPrice: calc.addonPrice };
     }
 
     window.soUpdateLicenseCreditsBreakdown = function() {
@@ -2390,45 +2503,56 @@
         const grantTotal = soReadLicenseGrantTotal(plan, selectedIds, lic);
         const bal = Math.max(0, parseInt(document.getElementById('so-license-credits-balance')?.value, 10) || 0);
         const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
-        const planGrant = breakdown.total;
+        const planGrant = breakdown.grantTotal || breakdown.total;
+        const custom = breakdown.custom;
         const bonus = grantTotal > planGrant ? grantTotal - planGrant : 0;
+        const isEdit = !!soEditingLicenseKey;
+        const pools = soResolveLicenseConsumedPools(lic, breakdown, used);
+        soRenderLicenseConsumedPanel(pools, isEdit);
         if (!plan) {
             panel.textContent = '';
             return;
         }
         const billing = plan.billing_mode || 'subscription';
+        const customLabel = soReadLicenseCustomCreditsLabel() || (lic && (lic.custom_credits_label || lic.customCreditsLabel)) || '';
         const grantLine = planGrant > 0
-            ? `<strong>Plan grant:</strong> ${breakdown.included} included + ${breakdown.addon} addon = <strong>${planGrant}</strong>`
-            + (bonus > 0 ? ` + <strong>${bonus} manual bonus</strong> = <strong>${grantTotal} total</strong>` : ` = <strong>${grantTotal} total</strong>`)
+            ? `<strong>Plan grant:</strong> ${breakdown.included} subscription + ${breakdown.addon} add-on${custom > 0 ? ` + ${custom} custom` : ''} = <strong>${planGrant}</strong>`
+            + (bonus > 0 ? ` + <strong>${bonus} manual adjust</strong> = <strong>${grantTotal} total</strong>` : (grantTotal !== planGrant ? ` → <strong>${grantTotal} effective total</strong>` : ''))
             : grantTotal > 0
                 ? `<strong>Manual grant:</strong> <strong>${grantTotal} credits</strong> (no plan credits — customer support top-up)`
                 : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
-        const balanceLine = `<strong>Unused (balance):</strong> ${bal} · <strong>Used:</strong> ${used}` +
-            (grantTotal > 0 ? ` · <strong>Grant total:</strong> ${grantTotal}` : '');
+        const balanceLine = `<strong>Unused (balance):</strong> ${bal} · <strong>Used (total):</strong> ${used}` +
+            (grantTotal > 0 ? ` · <strong>Grant total:</strong> ${grantTotal} (= balance + used)` : '');
         const poolLine = planGrant > 0
-            ? `<br><strong>Consumption order:</strong> subscription/base credits (${breakdown.included}) are used first, then add-on credits (${breakdown.addon}).`
+            ? `<br><strong>Consumption order:</strong> subscription (${breakdown.included}) → add-on (${breakdown.addon})${custom > 0 ? ` → custom (${custom}${customLabel ? ': ' + soEsc(customLabel) : ''})` : ''}.`
             : '';
-        const includedUsed = lic ? Math.min(used, breakdown.included) : (used > 0 ? Math.min(used, breakdown.included) : 0);
-        const addonUsed = Math.max(0, used - includedUsed);
-        const poolRemain = planGrant > 0
-            ? `<br><strong>Remaining pools:</strong> ~${Math.max(0, breakdown.included - includedUsed)} base · ~${Math.max(0, breakdown.addon - addonUsed)} add-on`
-            : '';
+        const poolRemain = isEdit && planGrant > 0
+            ? `<br><strong>Remaining pools:</strong> ${pools.includedRemaining} subscription · ${pools.addonRemaining} add-on · ${pools.customRemaining} custom`
+            : (planGrant > 0
+                ? `<br><strong>Remaining pools:</strong> ~${pools.includedRemaining} subscription · ~${pools.addonRemaining} add-on · ~${pools.customRemaining} custom`
+                : '');
         const consistencyWarn = grantTotal > 0 && (bal + used) !== grantTotal
-            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${bal + used}) ≠ grant total (${grantTotal}). Adjust balance, used, or total.</span>`
+            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${bal + used}) ≠ grant total (${grantTotal}). Set total to ${bal + used} or adjust balance/used.</span>`
             : '';
-        const activationHint = !soEditingLicenseKey && grantTotal > 0
-            ? '<br><span class="so-admin-muted">New license: balance prefilled from grant total — edit <strong>Total</strong> for manual credit requests.</span>'
-            : '';
+        const activationHint = !isEdit && grantTotal > 0
+            ? '<br><span class="so-admin-muted">New license: balance prefilled from grant total — edit <strong>Total</strong> or <strong>Custom credits</strong> for manual grants.</span>'
+            : (isEdit
+                ? '<br><span class="so-admin-muted">Edit mode: values above are loaded from Firebase. Consumed cards show stored pool usage.</span>'
+                : '');
         const planHint = planGrant === 0 && grantTotal === 0 && (billing === 'hybrid' || billing === 'credits')
-            ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing, or enter a manual <strong>Total</strong> for credit-only keys.</span>'
+            ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing, or enter <strong>Custom credits</strong> / <strong>Total</strong>.</span>'
             : '';
         panel.innerHTML = `${grantLine}<br>${balanceLine}${poolLine}${poolRemain}${consistencyWarn}${activationHint}${planHint}`;
         const includedEl = document.getElementById('so-license-included-credits');
         const addonEl = document.getElementById('so-license-addon-credits');
         const totalEl = document.getElementById('so-license-total-credits');
-        if (includedEl) includedEl.value = breakdown.included;
-        if (addonEl) addonEl.value = breakdown.addon;
-        if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal > 0 ? grantTotal : planGrant;
+        if (!isEdit) {
+            if (includedEl) includedEl.value = breakdown.included;
+            if (addonEl) addonEl.value = breakdown.addon;
+            if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal > 0 ? grantTotal : planGrant;
+        } else if (totalEl && !soLicenseCreditsTotalDirty && (bal + used) > 0) {
+            totalEl.value = bal + used;
+        }
     };
 
     function soValidatePlans(plans) {
@@ -3515,9 +3639,13 @@
             if (JSON.stringify(before.image_generation) !== JSON.stringify(after.image_generation)) {
                 lines.push('<li><strong>Image generation billing</strong> changed</li>');
             }
+            if (JSON.stringify(before.addon_catalog || []) !== JSON.stringify(after.addon_catalog || [])) {
+                const n = (after.addon_catalog || []).length;
+                lines.push(`<li><strong>Add-on catalog</strong> (${n} item${n === 1 ? '' : 's'})</li>`);
+            }
         }
         if (!lines.length) {
-            return '<p class="so-admin-muted">No changes detected vs last saved snapshot.</p>';
+            return '<p class="so-admin-muted" data-so-no-diff="1">No field-level diff vs last saved snapshot — you can still save current form values below.</p>';
         }
         return `<p class="so-admin-muted" style="margin-bottom:8px;">These changes will be written to Firebase. License and Google user records are <strong>not</strong> modified by config/credits saves.</p><ul class="so-save-review-list">${lines.join('')}</ul>`;
     }
@@ -3695,8 +3823,12 @@
         const key = payload.key || soEditingLicenseKey || '(new key)';
         const included = payload.included_credits != null ? payload.included_credits : 0;
         const addon = payload.addon_credits != null ? payload.addon_credits : 0;
+        const custom = payload.custom_credits != null ? payload.custom_credits : 0;
         const bal = payload.credits_balance != null ? payload.credits_balance : 0;
         const used = payload.credits_used != null ? payload.credits_used : 0;
+        const iUsed = payload.included_credits_used != null ? payload.included_credits_used : 0;
+        const aUsed = payload.addon_credits_used != null ? payload.addon_credits_used : 0;
+        const cUsed = payload.custom_credits_used != null ? payload.custom_credits_used : 0;
         const maxDev = payload.max_devices != null
             ? (payload.max_devices === 0 ? 'unlimited' : payload.max_devices)
             : 'from plan';
@@ -3710,7 +3842,9 @@
                 <li><strong>Plan:</strong> ${soEsc(payload.planId || payload.planType || '—')}</li>
                 <li><strong>Subscription credits (included):</strong> ${included}</li>
                 <li><strong>Add-on credits:</strong> ${addon}${payload.addon_credit_ids?.length ? ` · IDs: ${soEsc(payload.addon_credit_ids.join(', '))}` : ''}</li>
-                <li><strong>Balance / used:</strong> ${bal} remaining · ${used} used <span class="so-admin-muted">(extension consumes subscription credits first)</span></li>
+                <li><strong>Custom credits (license-only):</strong> ${custom}${payload.custom_credits_label ? ` · ${soEsc(payload.custom_credits_label)}` : ''}</li>
+                <li><strong>Balance / used:</strong> ${bal} remaining · ${used} used</li>
+                <li><strong>Consumed pools:</strong> subscription ${iUsed} · add-on ${aUsed} · custom ${cUsed}</li>
                 <li><strong>Devices:</strong> ${maxDev}</li>
                 ${flags.length ? `<li><strong>Extension flags:</strong> ${soEsc(flags.join(', '))}</li>` : ''}
             </ul>
@@ -3795,19 +3929,55 @@
         }
     }
 
+    function soBuildTabSavePreviewSummary(tab) {
+        if (tab === 'credits') {
+            let state;
+            try {
+                state = JSON.parse(soSerializeCreditsTabState());
+            } catch (_) {
+                return '';
+            }
+            const packs = state.packs || [];
+            const addons = state.addon_catalog || [];
+            return `<ul class="so-save-review-list">
+                <li><strong>Price/credit:</strong> ₹${state.price_per_credit} · min ${state.min_purchase}</li>
+                <li><strong>Packs:</strong> ${packs.length} · <strong>Add-on catalog:</strong> ${addons.length}</li>
+            </ul>`;
+        }
+        if (tab === 'config') {
+            let state;
+            try {
+                state = JSON.parse(soSerializeConfigTabState());
+            } catch (_) {
+                return '';
+            }
+            return `<ul class="so-save-review-list"><li><strong>Plans:</strong> ${(state.plans || []).length}</li></ul>`;
+        }
+        return '';
+    }
+
     let soSaveReviewResolver = null;
 
     function soOpenSaveReviewModal(tab, onConfirm) {
         const modal = soEnsureSaveReviewModalPortal();
         const body = document.getElementById('so-save-review-body');
         const title = document.getElementById('so-save-review-title');
+        const confirmBtn = document.getElementById('so-save-review-confirm');
         if (!modal || !body) {
             if (typeof onConfirm === 'function') onConfirm();
             return Promise.resolve(true);
         }
         const tabLabel = tab === 'credits' ? 'Credits & Packs' : 'Config & Pricing';
         if (title) title.textContent = `Review changes — ${tabLabel}`;
-        body.innerHTML = soBuildSaveReviewHtml(tab);
+        const html = soBuildSaveReviewHtml(tab);
+        const noDiff = html.includes('data-so-no-diff');
+        body.innerHTML = noDiff
+            ? `${html}${soBuildTabSavePreviewSummary(tab)}`
+            : html;
+        if (confirmBtn) {
+            confirmBtn.style.display = '';
+            confirmBtn.textContent = 'Write to Firebase';
+        }
         modal.hidden = false;
         modal.style.display = 'flex';
         document.body.classList.add('so-save-review-open');
@@ -3836,6 +4006,19 @@
 
     async function soConfirmSaveWithReview(tab, saveFn) {
         const dirty = soComputeDirtyFromSnapshots();
+        const previewHtml = soBuildSaveReviewHtml(tab);
+        const noDiff = previewHtml.includes('data-so-no-diff');
+        if (!dirty[tab] && noDiff) return saveFn();
+        if (noDiff && dirty[tab]) {
+            const ok = await soConfirmActionPreviewModal({
+                title: `Save ${tab === 'credits' ? 'Credits & Packs' : 'Config & Pricing'} → Firebase`,
+                bodyHtml: `<p>Unsaved edits detected. Saving current form values.</p>${soBuildTabSavePreviewSummary(tab)}`,
+                confirmLabel: 'Write to Firebase',
+                dangerous: true,
+                onConfirm: saveFn
+            });
+            return ok;
+        }
         if (!dirty[tab]) return saveFn();
         return soOpenSaveReviewModal(tab, saveFn);
     }
@@ -7417,23 +7600,36 @@
     function soBuildLicenseCreditFields(plan, formFields) {
         const selectedIds = formFields.addon_credit_ids || [];
         const calc = plan ? soCalculatePlanCredits(plan, selectedIds) : { included: 0, addon: 0, total: 0 };
+        const custom = soReadLicenseCustomCredits();
+        const customLabel = soReadLicenseCustomCreditsLabel();
+        const planTotal = calc.included + calc.addon;
         const grantTotal = Math.max(0, parseInt(document.getElementById('so-license-total-credits')?.value, 10) || 0);
-        const planTotal = calc.total;
-        const effectiveTotal = grantTotal > 0 ? grantTotal : planTotal;
+        const effectiveTotal = grantTotal > 0 ? grantTotal : (planTotal + custom);
         const out = {
             included_credits: calc.included,
             addon_credits: calc.addon,
-            addon_credit_ids: selectedIds
+            addon_credit_ids: selectedIds,
+            custom_credits: custom
         };
-        if (effectiveTotal > planTotal) out.bonus_credits = effectiveTotal - planTotal;
+        if (customLabel) out.custom_credits_label = customLabel;
+        if (effectiveTotal > planTotal + custom && custom === 0) {
+            out.bonus_credits = effectiveTotal - planTotal;
+        }
         if (!soIsUnlimitedCredits(plan) && !formFields.unlimited_credits) {
             const used = Math.max(0, parseInt(formFields.credits_used, 10) || 0);
             out.credits_balance = formFields.credits_balance != null
                 ? Math.max(0, parseInt(formFields.credits_balance, 10) || 0)
                 : Math.max(0, effectiveTotal - used);
-            const includedGrant = out.included_credits != null ? out.included_credits : calc.included;
-            out.included_credits_used = Math.min(used, includedGrant);
-            out.addon_credits_used = Math.max(0, used - includedGrant);
+            const breakdown = {
+                included: calc.included,
+                addon: calc.addon,
+                custom,
+                grantTotal: effectiveTotal
+            };
+            const pools = soResolveLicenseConsumedPools(null, breakdown, used);
+            out.included_credits_used = pools.includedUsed;
+            out.addon_credits_used = pools.addonUsed;
+            out.custom_credits_used = pools.customUsed;
         }
         return out;
     }
@@ -7513,6 +7709,10 @@
         document.getElementById('so-license-max-devices').value = '';
         document.getElementById('so-license-credits-balance').value = '0';
         document.getElementById('so-license-credits-used').value = '0';
+        const customEl = document.getElementById('so-license-custom-credits');
+        const customLabelEl = document.getElementById('so-license-custom-credits-label');
+        if (customEl) customEl.value = '0';
+        if (customLabelEl) customLabelEl.value = '';
         document.getElementById('so-license-billing-mode').value = 'subscription';
         soSetLicenseUnlimitedCheckboxes({});
         soSetLicenseExpiryMode('activation');
@@ -7541,9 +7741,14 @@
         const totalEl = document.getElementById('so-license-total-credits');
         if (includedEl) includedEl.value = lic.included_credits != null ? lic.included_credits : 0;
         if (addonEl) addonEl.value = lic.addon_credits != null ? lic.addon_credits : 0;
+        const customEl = document.getElementById('so-license-custom-credits');
+        const customLabelEl = document.getElementById('so-license-custom-credits-label');
+        const customStored = lic.custom_credits != null ? lic.custom_credits : lic.bonus_credits;
+        if (customEl) customEl.value = customStored != null ? customStored : 0;
+        if (customLabelEl) customLabelEl.value = lic.custom_credits_label || lic.customCreditsLabel || '';
         const grantTotal = (parseInt(lic.included_credits, 10) || 0)
             + (parseInt(lic.addon_credits, 10) || 0)
-            + (parseInt(lic.bonus_credits, 10) || 0);
+            + (parseInt(customStored, 10) || 0);
         soLicenseCreditsTotalDirty = false;
         if (totalEl) {
             totalEl.value = grantTotal > 0
@@ -7565,6 +7770,7 @@
         document.getElementById('so-license-support-notes').value = lic.support_notes || '';
         soApplyLicenseExpiryFromDoc(lic);
         soApplyLicenseAddonFlagsToForm(lic);
+        soPrefillLicenseCustomerFields(lic);
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
         switchShippingOptimizerTab('licenses');

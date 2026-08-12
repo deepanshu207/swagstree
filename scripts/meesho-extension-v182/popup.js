@@ -286,11 +286,13 @@ document.addEventListener("DOMContentLoaded", async () => {
           // Device limits apply to Google trial only — not shown for license-key customers.
         }
         const addonCredits = Number(info.addonCredits) || 0;
+        const customCredits = Number(info.customCredits) || 0;
         const showCredits =
           creditUsage.applies ||
           info.billingMode === "credits" ||
           info.billingMode === "hybrid" ||
           addonCredits > 0 ||
+          customCredits > 0 ||
           creditUsage.used > 0;
         if (showCredits) {
           if (info.unlimitedCredits) {
@@ -306,9 +308,18 @@ document.addEventListener("DOMContentLoaded", async () => {
               const balance = Number(info.creditsBalance) || 0;
               infoHTML += ` · Credits left: <strong>${balance}</strong>`;
             }
-            if (addonCredits > 0) {
+            if (addonCredits > 0 || customCredits > 0) {
               const baseCredits = Number(info.includedCredits) || 0;
-              infoHTML += ` <span style="color:var(--mso-muted);">(${baseCredits} base + ${addonCredits} addon)</span>`;
+              const parts = [];
+              if (baseCredits > 0) parts.push(`${baseCredits} base`);
+              if (addonCredits > 0) parts.push(`${addonCredits} add-on`);
+              if (customCredits > 0) {
+                const label = String(info.customCreditsLabel || "").trim();
+                parts.push(label ? `${customCredits} ${label}` : `${customCredits} custom`);
+              }
+              if (parts.length) {
+                infoHTML += ` <span style="color:var(--mso-muted);">(${parts.join(" + ")})</span>`;
+              }
             }
           }
         }

@@ -1535,8 +1535,15 @@ Please share payment details.`;
     const addon = hasLicAddon
       ? Number(lic.addon_credits ?? lic.addonCredits) || 0
       : this.calculatePlanCredits(plan, addonIds).addon;
-    const total = existingBalance > 0 ? existingBalance : included + addon;
-    return { included, addon, total, addonIds, existingBalance };
+    const custom = Math.max(
+      0,
+      Number(lic?.custom_credits ?? lic?.customCredits ?? lic?.bonus_credits ?? lic?.bonusCredits ?? 0) || 0,
+    );
+    const grantSum = included + addon + custom;
+    const used = Number(lic?.credits_used ?? lic?.creditsUsed ?? 0) || 0;
+    const balance = this.resolveCreditsBalance(lic);
+    const total = balance + used > 0 ? balance + used : grantSum;
+    return { included, addon, custom, total, addonIds, existingBalance: balance };
   },
 
   escapeAttr(value) {
@@ -2239,24 +2246,31 @@ Please share payment details.`;
     const creditInfo = this.resolveLicenseCredits(lic, plan);
     const includedGrant = Number(creditInfo.included) || 0;
     const addonGrant = Number(creditInfo.addon) || 0;
+    const customGrant = Number(creditInfo.custom) || 0;
     const totalUsed = Number(lic?.credits_used ?? lic?.creditsUsed ?? 0) || 0;
     let includedUsed = Number(
       lic?.included_credits_used ?? lic?.includedCreditsUsed,
     );
     let addonUsed = Number(lic?.addon_credits_used ?? lic?.addonCreditsUsed);
-    if (!Number.isFinite(includedUsed) || !Number.isFinite(addonUsed)) {
+    let customUsed = Number(lic?.custom_credits_used ?? lic?.customCreditsUsed);
+    if (!Number.isFinite(includedUsed) || !Number.isFinite(addonUsed) || !Number.isFinite(customUsed)) {
       includedUsed = Math.min(totalUsed, includedGrant);
-      addonUsed = Math.max(0, totalUsed - includedUsed);
+      addonUsed = Math.max(0, Math.min(totalUsed - includedUsed, addonGrant));
+      customUsed = Math.max(0, totalUsed - includedUsed - addonUsed);
     }
     includedUsed = Math.max(0, Math.min(includedUsed, includedGrant));
     addonUsed = Math.max(0, Math.min(addonUsed, addonGrant));
+    customUsed = Math.max(0, Math.min(customUsed, customGrant));
     return {
       includedGrant,
       addonGrant,
+      customGrant,
       includedUsed,
       addonUsed,
+      customUsed,
       includedRemaining: Math.max(0, includedGrant - includedUsed),
       addonRemaining: Math.max(0, addonGrant - addonUsed),
+      customRemaining: Math.max(0, customGrant - customUsed),
       totalUsed,
     };
   },
@@ -2265,13 +2279,17 @@ Please share payment details.`;
     const cost = Math.max(1, Number(amount) || 1);
     const pools = this.resolveCreditGrantPools(lic, plan);
     const fromIncluded = Math.min(cost, pools.includedRemaining);
-    const fromAddon = cost - fromIncluded;
+    const afterIncluded = cost - fromIncluded;
+    const fromAddon = Math.min(afterIncluded, pools.addonRemaining);
+    const fromCustom = afterIncluded - fromAddon;
     return {
       cost,
       fromIncluded,
       fromAddon,
+      fromCustom,
       includedUsed: pools.includedUsed + fromIncluded,
       addonUsed: pools.addonUsed + fromAddon,
+      customUsed: pools.customUsed + fromCustom,
       totalUsed: pools.totalUsed + cost,
     };
   },
@@ -2441,6 +2459,12 @@ Please share payment details.`;
       addonCredits:
         extras.addonCredits ??
         (Number(lic.addon_credits ?? lic.addonCredits ?? 0) || 0),
+      customCredits:
+        extras.customCredits ??
+        (Number(lic.custom_credits ?? lic.customCredits ?? lic.bonus_credits ?? lic.bonusCredits ?? 0) || 0),
+      customCreditsLabel:
+        extras.customCreditsLabel ??
+        String(lic.custom_credits_label ?? lic.customCreditsLabel ?? "").trim(),
       addonCreditIds: extras.addonCreditIds ?? this.getLicenseAddonIds(lic),
       creditsUsed: Number(lic.credits_used ?? lic.creditsUsed ?? 0) || 0,
       includedCreditsUsed:
@@ -2449,12 +2473,18 @@ Please share payment details.`;
       addonCreditsUsed:
         extras.addonCreditsUsed ??
         this.resolveCreditGrantPools(lic, plan).addonUsed,
+      customCreditsUsed:
+        extras.customCreditsUsed ??
+        this.resolveCreditGrantPools(lic, plan).customUsed,
       includedCreditsRemaining:
         extras.includedCreditsRemaining ??
         this.resolveCreditGrantPools(lic, plan).includedRemaining,
       addonCreditsRemaining:
         extras.addonCreditsRemaining ??
         this.resolveCreditGrantPools(lic, plan).addonRemaining,
+      customCreditsRemaining:
+        extras.customCreditsRemaining ??
+        this.resolveCreditGrantPools(lic, plan).customRemaining,
       imagesGeneratedTotal:
         Number(lic.images_generated_total ?? lic.imagesGeneratedTotal ?? 0) || 0,
       imagesGeneratedToday:
@@ -2943,8 +2973,9 @@ Please share payment details.`;
         credits_used: split.totalUsed,
         included_credits_used: split.includedUsed,
         addon_credits_used: split.addonUsed,
+        custom_credits_used: split.customUsed,
       },
-      ["credits_balance", "credits_used", "included_credits_used", "addon_credits_used"],
+      ["credits_balance", "credits_used", "included_credits_used", "addon_credits_used", "custom_credits_used"],
     );
     if (!ok) return { ok: false, reason: "Could not update credits" };
 
@@ -2955,8 +2986,10 @@ Please share payment details.`;
       deducted: cost,
       fromIncluded: split.fromIncluded,
       fromAddon: split.fromAddon,
+      fromCustom: split.fromCustom,
       includedCreditsUsed: split.includedUsed,
       addonCreditsUsed: split.addonUsed,
+      customCreditsUsed: split.customUsed,
     };
   },
 

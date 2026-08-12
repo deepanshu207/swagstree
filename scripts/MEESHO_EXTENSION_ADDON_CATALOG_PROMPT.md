@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.38)
+# Meesho Extension — Admin sync prompt (v1.8.39)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -13,10 +13,10 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | Subscription-first `deductCredits`, `included_credits_used` / `addon_credits_used`, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
-| `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate |
-| `config.js` | `VERSION: "1.8.38"` |
-| `manifest.json` | `"version": "1.8.38"` |
+| `js/firebaseLicense.js` | Subscription-first `deductCredits`, pool counters (`included_credits_used` / `addon_credits_used` / `custom_credits_used`), per-license custom credits, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
+| `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate, custom credits line (license-only) |
+| `config.js` | `VERSION: "1.8.39"` |
+| `manifest.json` | `"version": "1.8.39"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -42,6 +42,10 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 | `credits_used` | Total consumed |
 | `included_credits_used` | Base pool consumed (extension maintains) |
 | `addon_credits_used` | Add-on pool consumed (extension maintains) |
+| `custom_credits` | Per-license bonus grant (admin-only field; shown only for that license in extension) |
+| `custom_credits_label` | Optional display label in extension popup (e.g. "VIP support bonus") |
+| `custom_credits_used` | Custom pool consumed (extension maintains) |
+| `bonus_credits` | Legacy alias — read as fallback for `custom_credits` |
 | `hide_plan_addons` | Hide plan add-ons in extension for this license |
 | `disable_plan_addons` | Show plan add-ons disabled |
 | `hide_custom_plan` | Hide custom plan block |
@@ -51,9 +55,24 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 
 1. On each operation, extension deducts from `included_credits` pool until `included_credits_used >= included_credits`.
 2. Then deducts from `addon_credits` pool until `addon_credits_used >= addon_credits`.
-3. `credits_balance` and `credits_used` stay the single source of truth for access checks.
+3. Then deducts from `custom_credits` pool until `custom_credits_used >= custom_credits`.
+4. `credits_balance` and `credits_used` stay the single source of truth for access checks.
 
-Legacy licenses without `included_credits_used` / `addon_credits_used` are migrated on first deduction using subscription-first inference.
+Legacy licenses without pool counters are migrated on first deduction using subscription → add-on → custom inference.
+
+## Per-license custom credits (v1.8.39)
+
+Set in Swagstree admin → Super → Licenses → create/edit license:
+
+| Admin field | Firebase | Extension popup |
+|-------------|----------|-----------------|
+| Custom credits (this license only) | `custom_credits` | Remaining + used for this pool |
+| Custom credits label | `custom_credits_label` | Shown next to custom line (if set) |
+
+- Custom credits are **not** part of the plan catalog — they apply only to the license key you edit.
+- Total grant = `included_credits + addon_credits + custom_credits`.
+- Admin edit view shows a **Consumed breakdown** panel (subscription / add-on / custom used vs remaining) from stored `*_credits_used` fields.
+- Customer fields (email, location, IP) auto-prefill on create from admin session; empty fields only on edit.
 
 ## Firebase — credits config
 
@@ -89,13 +108,18 @@ Legacy licenses without `included_credits_used` / `addon_credits_used` are migra
 
 1. Super → Shipping Optimizer → **Built-in defaults** tab → preview cards.
 2. Tap **Seed built-in → Firebase** → confirm preview → write.
-3. Reload extension at `chrome://extensions` (v1.8.37+).
+3. Reload extension at `chrome://extensions` (v1.8.39+).
+
+## Credits tab — Save to Firebase (v1.8.39 fix)
+
+- Review modal always shows **Write to Firebase** (sticky footer on mobile).
+- If form is dirty but field-level diff is empty (e.g. add-on catalog reorder), admin falls back to action preview with current form summary — no more stuck "No changes" with only Cancel.
 
 ## Google trial device limits (v1.8.38)
 
 | Scope | Field | Default | Notes |
 |-------|-------|---------|-------|
-| Global config | `google_trial.max_devices` | `1` | New sign-ins · `div`0` = unlimited |
+| Global config | `google_trial.max_devices` | `1` | New sign-ins · `0` = unlimited |
 | Per user | `shipping_optimizer_google_trials/{uid}.max_devices` | inherits global | Admin → Google Users → Manage → Devices |
 
 Extension resolves: per-user `max_devices` if set, else `google_trial.max_devices`. `0` skips device cap checks.

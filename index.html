@@ -2741,6 +2741,10 @@
                                     <input id="so-license-included-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
                                 <label><span class="admin-settings-field-label">Add-on credits (used after subscription pool)</span>
                                     <input id="so-license-addon-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
+                                <label><span class="admin-settings-field-label">Custom credits (this license only — shown in extension)</span>
+                                    <input id="so-license-custom-credits" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()" title="Per-license bonus pool — consumed after subscription and add-on credits"></label>
+                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Custom credits label (extension display)</span>
+                                    <input id="so-license-custom-credits-label" type="text" placeholder="e.g. VIP support bonus" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                                 <label><span class="admin-settings-field-label">Total credits (plan grant)</span>
                                     <input id="so-license-total-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseTotalCreditsChange()" title="Editable — increase for manual credit requests (e.g. customer support top-up)"></label>
                                 <label><span class="admin-settings-field-label">Credits balance (remaining)</span>
@@ -2749,6 +2753,7 @@
                                     <input id="so-license-credits-used" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                             </div>
                             <div id="so-license-credits-breakdown" class="so-license-credits-breakdown so-admin-muted so-admin-tip"></div>
+                            <div id="so-license-consumed-panel" class="so-license-consumed-panel" hidden></div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:6px;">Edit <strong>Total credits</strong> to grant extra credits beyond the plan (manual support requests). Balance auto-adjusts when you change total on new licenses.</p>
                             <div class="so-checkbox-group">
                                 <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox" onchange="soOnLicenseUnlimitedTimeToggle()"> Never expires (unlimited time)</label>
@@ -4875,12 +4880,15 @@
 
     <!-- Save review modal (portaled to body — full-screen overlay, not inside accordion) -->
     <div id="so-save-review-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" role="dialog" aria-labelledby="so-save-review-title" aria-modal="true" onclick="if(event.target===this)soCancelSaveReview()">
-        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel">
-            <h4 id="so-save-review-title" class="so-modal-title">Review changes</h4>
+        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+            <div class="so-modal-header so-modal-header--sticky">
+                <h4 id="so-save-review-title" class="so-modal-title" style="margin:0;">Review changes</h4>
+                <button type="button" class="so-modal-close-btn" onclick="soCancelSaveReview()" aria-label="Close">×</button>
+            </div>
             <div id="so-save-review-body" class="so-save-review-body"></div>
-            <div class="so-modal-actions">
+            <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soCancelSaveReview()">Cancel</button>
-                <button type="button" class="btn-gold so-btn-sm" onclick="soConfirmSaveReview()">Write to Firebase</button>
+                <button type="button" id="so-save-review-confirm" class="btn-gold so-btn-sm" onclick="soConfirmSaveReview()">Write to Firebase</button>
             </div>
         </div>
     </div>
