@@ -828,6 +828,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     await openWhatsApp(message);
   }
 
+  async function getActiveLicenseContextForPlans() {
+    if (typeof LicenseManager === "undefined") return null;
+    const licenses = await LicenseManager.getActiveLicenses();
+    const entry = (licenses || []).find(
+      (e) =>
+        LicenseManager.licenseEntryHasAccess(e) &&
+        e.licenseInfo?.planType !== "demo" &&
+        e.licenseInfo?.planType !== "google_trial",
+    );
+    if (!entry?.licenseInfo) return null;
+    const info = LicenseManager.normalizeLicenseInfo(entry.licenseInfo);
+    return {
+      license_custom_plan: info.licenseCustomPlan,
+      licenseCustomPlan: info.licenseCustomPlan,
+      hide_custom_plan: info.hideCustomPlan,
+      hideCustomPlan: info.hideCustomPlan,
+      disable_custom_plan: info.disableCustomPlan,
+      disableCustomPlan: info.disableCustomPlan,
+      customer_email: info.customerEmail,
+      customer_name: info.customerName,
+    };
+  }
+
   async function showPlanDetail(planId) {
     const body = document.getElementById("plan-detail-body");
     if (!body) return;
@@ -856,18 +879,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       cachedAddonCatalog = cachedCreditsConfig?.addon_catalog || [];
     }
 
+    const licenseContext = await getActiveLicenseContextForPlans();
+
     body.innerHTML = FirebaseLicense.renderPlanDetailHtml(plan, {
       productName,
       addonCatalog: cachedAddonCatalog,
       creditsConfig: cachedCreditsConfig,
       allPlans: cachedPlans,
       pricePerCredit: cachedCreditsPricePerCredit,
+      licenseContext,
     });
-    bindPlanDetailBuy(body, plan.id);
+    bindPlanDetailBuy(body, plan.id, licenseContext);
     bindCreditPackButtons(body);
   }
 
-  function bindPlanDetailBuy(root, planId) {
+  function bindPlanDetailBuy(root, planId, licenseContext) {
     if (
       typeof FirebaseLicense !== "undefined" &&
       FirebaseLicense.wirePlanAddonSelection
@@ -884,19 +910,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (pid && addonId) void showAddonCreditDetail(pid, addonId);
       });
     });
-    const customBtn = root.querySelector(".plan-detail-custom-plan-btn");
-    if (customBtn && customBtn.dataset.wired !== "1") {
+    root.querySelectorAll(".plan-detail-custom-plan-btn").forEach((customBtn) => {
+      if (customBtn.dataset.wired === "1") return;
       customBtn.dataset.wired = "1";
       PA.bindTap(customBtn, async () => {
+        const source = customBtn.dataset.customPlanSource || "global";
+        let customCfg = cachedCreditsConfig?.custom_plan || null;
+        if (source === "license" && licenseContext) {
+          customCfg =
+            licenseContext.license_custom_plan ||
+            licenseContext.licenseCustomPlan ||
+            customCfg;
+        }
         const message = FirebaseLicense.buildCustomPlanPurchaseMessage(
           planId,
           productName,
           root,
           cachedCreditsConfig,
+          customCfg,
         );
         await openWhatsApp(message);
       });
-    }
+    });
     const buyBtn = root.querySelector(".plan-detail-buy-btn");
     if (!buyBtn) return;
     PA.bindTap(buyBtn, async () => {

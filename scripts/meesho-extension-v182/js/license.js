@@ -66,6 +66,13 @@ const LicenseManager = {
         ),
       googleUid: info.googleUid || info.google_uid || null,
       customerEmail: info.customerEmail || info.customer_email || null,
+      customerName: info.customerName || info.customer_name || null,
+      customerAddress: info.customerAddress || info.customer_address || null,
+      customerLocation: info.customerLocation || info.customer_location || null,
+      licenseCustomPlan: info.licenseCustomPlan || info.license_custom_plan || null,
+      hideCustomPlan: info.hideCustomPlan === true || info.hide_custom_plan === true,
+      disableCustomPlan:
+        info.disableCustomPlan === true || info.disable_custom_plan === true,
     };
   },
 

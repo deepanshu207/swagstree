@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.41)
+# Meesho Extension — Admin sync prompt (v1.8.44)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -7,16 +7,21 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 - **Safe admin:** Swagstree superadmin uses preview modals before any Firebase write (load/seed/import/license).
 - **Clear credits:** Subscription (`included_credits`) vs add-on (`addon_credits`) pools; extension **always consumes subscription credits first**.
 - **Flexible add-ons:** Per-plan and per-license hide/disable for plan add-ons and custom plan block.
+- **Billing mode:** Licenses default `subscription`; auto `hybrid` when add-on or custom credits exist (admin + extension activation).
+- **Customer mapping:** Email, name, location (timezone), address on license — prefilled from Google sign-in on activation when empty.
+- **Per-license custom plan:** Extra WhatsApp custom-plan block for a specific license key (shown alongside global custom plan).
 - **Device limits:** Subscription plans default `max_devices: 0` (unlimited). Google trial default `max_devices: 1` (editable in admin).
 
 ## Files to sync
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | Subscription-first `deductCredits`, pool counters (`included_credits_used` / `addon_credits_used` / `custom_credits_used`), per-license custom credits, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
-| `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate, custom credits line (license-only) |
-| `config.js` | `VERSION: "1.8.41"` |
-| `manifest.json` | `"version": "1.8.41"` |
+| `js/firebaseLicense.js` | `inferLicenseBillingMode`, customer patch on activation, `license_custom_plan` blocks, `resolveCustomPlanBlocks` (v1.8.44) |
+| `js/license.js` | `licenseCustomPlan`, customer address/location in `normalizeLicenseInfo` |
+| `popup.js` | Pass `licenseContext` to plan detail; wire per-license custom plan WhatsApp |
+| `firestore.rules` | Allow extension to patch `customer_*`, `custom_credits` on activation |
+| `config.js` | `VERSION: "1.8.44"` |
+| `manifest.json` | `"version": "1.8.44"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -50,6 +55,44 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 | `disable_plan_addons` | Show plan add-ons disabled |
 | `hide_custom_plan` | Hide custom plan block |
 | `disable_custom_plan` | Disable custom plan button |
+| `billing_mode` | `subscription` (default) · `hybrid` (auto when add-on/custom credits) · `credits` |
+| `customer_name` / `customer_phone` / `customer_email` | Customer mapping (extension may fill email/name/location on activation) |
+| `customer_address` | Optional street address |
+| `customer_location` | Timezone / locale string (e.g. `Asia/Kolkata · en-IN`) |
+| `customer_ip` | Optional IP when known |
+| `license_custom_plan` | Per-license WhatsApp custom plan block `{ enabled, label, description, whatsapp_title }` |
+
+## Billing mode (v1.8.44)
+
+- **Create/edit license (admin):** billing defaults to `subscription`.
+- **Auto hybrid:** when add-on credits > 0, custom credits > 0, or add-on IDs are selected → billing switches to `hybrid`.
+- **Manual override:** admin can still pick `credits` for pure pay-per-use licenses.
+- **Extension activation:** if license has add-on/custom credits and no stored billing mode, writes `billing_mode: hybrid`.
+
+## Per-license custom plan (v1.8.44)
+
+Admin → Super → Licenses → **License custom plan (this key only)**:
+
+```json
+"license_custom_plan": {
+  "enabled": true,
+  "label": "Request VIP package via WhatsApp",
+  "whatsapp_title": "VIP Custom Plan",
+  "description": "Your dedicated support package for this license."
+}
+```
+
+- Shown in extension plan detail **in addition to** global `credits.custom_plan`.
+- Respects license flags `hide_custom_plan` / `disable_custom_plan`.
+- Stored on `licenseInfo.licenseCustomPlan` after activation for popup rendering.
+
+## Customer fields on activation (v1.8.44)
+
+When a user activates a license in the extension while signed in with Google:
+
+- Writes empty-only fields: `customer_email`, `customer_name`, `customer_location` (browser timezone + locale).
+- Requires updated `firestore.rules` (deploy from repo).
+- Admin can edit/override anytime in license form (including `customer_address`).
 
 ## Credit consumption order
 

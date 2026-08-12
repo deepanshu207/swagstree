@@ -2751,8 +2751,8 @@
                                     <div id="so-hint-license-plan" class="so-field-info-panel" hidden role="note">Links license to a pricing plan. On edit you can switch plans (e.g. Monthly → Yearly) — credits recalculate from the new plan while preserving credits already used.</div>
                                     <select id="so-license-plan" onchange="soUpdateLicensePlanHint()"></select></label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Billing mode</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('billing-mode', event)" aria-expanded="false" aria-controls="so-hint-billing-mode" title="More info">ⓘ</button></span>
-                                    <div id="so-hint-billing-mode" class="so-field-info-panel" hidden role="note"><code>subscription</code> = time-based access · <code>credits</code> = pay per use · <code>hybrid</code> = subscription plus credits.</div>
-                                    <select id="so-license-billing-mode">
+                                    <div id="so-hint-billing-mode" class="so-field-info-panel" hidden role="note">Defaults to <code>subscription</code>. Auto-switches to <code>hybrid</code> when add-on or custom credits are added. Override manually for pure <code>credits</code> plans.</div>
+                                    <select id="so-license-billing-mode" onchange="soOnLicenseBillingModeManualChange()">
                                         <option value="subscription">subscription</option>
                                         <option value="credits">credits</option>
                                         <option value="hybrid">hybrid</option>
@@ -2805,16 +2805,34 @@
                                 <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox"> Hide custom plan block</label>
                                 <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox"> Disable custom plan block</label>
                             </div>
+                            <details class="so-details-block" open>
+                                <summary>License custom plan (this key only)</summary>
+                                <p class="so-admin-muted so-admin-tip" style="margin-top:8px;">Optional WhatsApp custom-plan block shown in the extension for this license — in addition to the global custom plan in Config → Credits.</p>
+                                <div class="so-checkbox-group" style="margin-top:8px;">
+                                    <label class="so-plan-check"><input id="so-license-custom-plan-enabled" type="checkbox" onchange="soOnLicenseCustomPlanToggle()"> Enable license custom plan</label>
+                                </div>
+                                <div id="so-license-custom-plan-fields" class="so-admin-grid" style="margin-top:10px; display:none;">
+                                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Button label</span>
+                                        <input id="so-license-custom-plan-label" type="text" placeholder="e.g. Request VIP package via WhatsApp"></label>
+                                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp message title</span>
+                                        <input id="so-license-custom-plan-whatsapp-title" type="text" placeholder="e.g. VIP Custom Plan"></label>
+                                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Description (shown above button)</span>
+                                        <textarea id="so-license-custom-plan-description" rows="2" placeholder="Explain what this customer can request…"></textarea></label>
+                                    <button type="button" class="so-btn-sm so-btn-touch" style="grid-column:1/-1;" onclick="soClearLicenseCustomPlan()">Remove license custom plan</button>
+                                </div>
+                            </details>
                             <details class="so-details-block">
                                 <summary>Customer details (optional — add anytime)</summary>
-                                <p class="so-admin-muted so-admin-tip" style="margin-top:8px;">Create the license first without a customer — it appears in <strong>License Customers</strong> as &quot;Unassigned&quot;. Add name, phone, email, location, or IP when you assign the key.</p>
+                                <p class="so-admin-muted so-admin-tip" style="margin-top:8px;">Create the license first without a customer — it appears in <strong>License Customers</strong> as &quot;Unassigned&quot;. Add name, phone, email, address, location, or IP when you assign the key. Extension can prefill email/location from Google sign-in on activation.</p>
                                 <div class="so-admin-grid" style="margin-top:10px;">
                                     <label><span class="admin-settings-field-label">Customer name</span>
                                         <input id="so-license-customer-name" type="text" placeholder="Optional"></label>
                                     <label><span class="admin-settings-field-label">Customer phone</span>
                                         <input id="so-license-customer-phone" type="text" inputmode="tel" placeholder="Optional"></label>
                                     <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Customer email</span>
-                                        <input id="so-license-customer-email" type="email" placeholder="Optional"></label>
+                                        <input id="so-license-customer-email" type="email" placeholder="Optional — prefilled from Google trial if matched"></label>
+                                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Customer address</span>
+                                        <input id="so-license-customer-address" type="text" placeholder="Optional — street, city, state"></label>
                                     <label><span class="admin-settings-field-label">Location (timezone / region)</span>
                                         <input id="so-license-customer-location" type="text" placeholder="e.g. Asia/Kolkata · en-IN"></label>
                                     <label><span class="admin-settings-field-label">IP address</span>
@@ -4834,7 +4852,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.21"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.22"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

@@ -2519,6 +2519,7 @@
             }
         }
         soUpdateLicenseCreditsBreakdown();
+        soSyncLicenseBillingModeFromCredits();
     };
 
     function soCalculateLicenseCreditPrefill(plan, selectedIds) {
@@ -2583,6 +2584,40 @@
             if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal;
             if (balEl && !soEditingLicenseKey) balEl.value = Math.max(0, grantTotal - used);
         }
+        soUpdateLicenseCreditsBreakdown();
+        soSyncLicenseBillingModeFromCredits();
+    };
+
+    let soLicenseBillingManualOverride = false;
+
+    function soLicenseNeedsHybridBilling(plan, selectedIds, lic) {
+        const custom = soReadLicenseCustomCredits();
+        const ids = selectedIds || soReadSelectedLicenseAddonIds();
+        const calc = plan ? soCalculatePlanCredits(plan, ids) : { addon: 0 };
+        let addon = calc.addon;
+        if (lic && soEditingLicenseKey && !ids.length) {
+            addon = Math.max(0, parseInt(lic.addon_credits ?? lic.addonCredits, 10) || 0);
+        }
+        return custom > 0 || addon > 0 || ids.length > 0;
+    }
+
+    function soSyncLicenseBillingModeFromCredits() {
+        const billingEl = document.getElementById('so-license-billing-mode');
+        if (!billingEl || soLicenseBillingManualOverride) return;
+        const planId = document.getElementById('so-license-plan')?.value;
+        const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+        const lic = soEditingLicenseKey ? soLicenses.find(l => l.key === soEditingLicenseKey) : null;
+        const selectedIds = soReadSelectedLicenseAddonIds();
+        if (soLicenseNeedsHybridBilling(plan, selectedIds, lic)) {
+            billingEl.value = 'hybrid';
+        } else if (billingEl.value !== 'credits') {
+            billingEl.value = 'subscription';
+        }
+    }
+
+    window.soOnLicenseBillingModeManualChange = function() {
+        const billingEl = document.getElementById('so-license-billing-mode');
+        soLicenseBillingManualOverride = billingEl && billingEl.value === 'credits';
         soUpdateLicenseCreditsBreakdown();
     };
 
@@ -2728,7 +2763,16 @@
         setIfEmpty('so-license-customer-name', src.customer_name || src.customerName || '');
         setIfEmpty('so-license-customer-phone', src.customer_phone || src.customerPhone || '');
         setIfEmpty('so-license-customer-email', src.customer_email || src.customerEmail || (!isEdit ? soAuthEmail() : ''));
+        setIfEmpty('so-license-customer-address', src.customer_address || src.customerAddress || '');
         setIfEmpty('so-license-customer-location', src.customer_location || src.customerLocation || soGuessAdminLocation());
+        const email = String(document.getElementById('so-license-customer-email')?.value || src.customer_email || src.customerEmail || '').trim().toLowerCase();
+        if (email && soGoogleTrials && soGoogleTrials.length) {
+            const trial = soGoogleTrials.find(r => String(r.email || '').trim().toLowerCase() === email);
+            if (trial) {
+                setIfEmpty('so-license-customer-name', trial.display_name || trial.displayName || '');
+                setIfEmpty('so-license-customer-email', trial.email || email);
+            }
+        }
         if (!isEdit) void soFetchAdminIpIntoLicenseField();
     }
 
@@ -2819,7 +2863,11 @@
         const planHint = planGrant === 0 && grantTotal === 0 && (billing === 'hybrid' || billing === 'credits')
             ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing, or enter <strong>Custom credits</strong> / <strong>Total</strong>.</span>'
             : '';
-        panel.innerHTML = `${grantLine}<br>${balanceLine}${poolLine}${poolRemain}${consistencyWarn}${activationHint}${planHint}`;
+        const billingEl = document.getElementById('so-license-billing-mode');
+        soSyncLicenseBillingModeFromCredits();
+        const billingMode = billingEl ? billingEl.value : (lic?.billing_mode || 'subscription');
+        const billingLine = `<br><strong>Billing mode:</strong> ${soEsc(billingMode)}${soLicenseBillingManualOverride ? ' (manual credits override)' : ' (auto: hybrid when add-on or custom credits)'}`;
+        panel.innerHTML = `${grantLine}<br>${balanceLine}${poolLine}${poolRemain}${billingLine}${consistencyWarn}${activationHint}${planHint}`;
         const includedEl = document.getElementById('so-license-included-credits');
         const addonEl = document.getElementById('so-license-addon-credits');
         const totalEl = document.getElementById('so-license-total-credits');
@@ -4129,6 +4177,15 @@
         if (payload.disable_plan_addons) flags.push('disable plan add-ons');
         if (payload.hide_custom_plan) flags.push('hide custom plan');
         if (payload.disable_custom_plan) flags.push('disable custom plan');
+        const licPlan = payload.license_custom_plan;
+        const licPlanLine = licPlan && licPlan.enabled !== false
+            ? `<li><strong>License custom plan:</strong> ${soEsc(licPlan.label || 'enabled')}</li>`
+            : (mode === 'update' && existingLic && (existingLic.license_custom_plan || existingLic.licenseCustomPlan)
+                ? '<li><strong>License custom plan:</strong> removed</li>'
+                : '');
+        const customerLine = (payload.customer_email || payload.customer_name || payload.customer_address)
+            ? `<li><strong>Customer:</strong> ${soEsc([payload.customer_name, payload.customer_email, payload.customer_address].filter(Boolean).join(' · '))}</li>`
+            : '';
         const prevPlan = existingLic ? (existingLic.planId || existingLic.planType || '') : '';
         const newPlan = payload.planId || payload.planType || '';
         const planChangeLine = mode === 'update' && prevPlan && newPlan && soSlugifyId(prevPlan) !== soSlugifyId(newPlan)
@@ -4137,7 +4194,10 @@
         return `<p><strong>Action:</strong> ${mode === 'update' ? 'Update' : 'Create'} license <code>${soEsc(String(key))}</code> in Firebase.</p>
             <ul class="so-save-review-list">
                 <li><strong>Plan:</strong> ${soEsc(payload.planId || payload.planType || '—')}</li>
+                <li><strong>Billing mode:</strong> ${soEsc(payload.billing_mode || 'subscription')}</li>
                 ${planChangeLine}
+                ${customerLine}
+                ${licPlanLine}
                 <li><strong>Subscription credits (included):</strong> ${included}</li>
                 <li><strong>Add-on credits:</strong> ${addon}${payload.addon_credit_ids?.length ? ` · IDs: ${soEsc(payload.addon_credit_ids.join(', '))}` : ''}</li>
                 <li><strong>Custom credits (license-only):</strong> ${custom}${payload.custom_credits_label ? ` · ${soEsc(payload.custom_credits_label)}` : ''}</li>
@@ -4339,6 +4399,7 @@
             customer_name: String(document.getElementById('so-license-customer-name')?.value || '').trim(),
             customer_phone: String(document.getElementById('so-license-customer-phone')?.value || '').replace(/\D/g, ''),
             customer_email: String(document.getElementById('so-license-customer-email')?.value || '').trim(),
+            customer_address: String(document.getElementById('so-license-customer-address')?.value || '').trim(),
             customer_location: String(document.getElementById('so-license-customer-location')?.value || '').trim(),
             customer_ip: String(document.getElementById('so-license-customer-ip')?.value || '').trim(),
         };
@@ -4368,12 +4429,13 @@
         if (!existingLic) return true;
         const next = soLicenseCustomerSnapshot();
         const had = existingLic.customer_name || existingLic.customer_phone || existingLic.customer_email
-            || existingLic.customer_location || existingLic.customer_ip;
+            || existingLic.customer_address || existingLic.customer_location || existingLic.customer_ip;
         const clearing = had && (!next.customer_name && !next.customer_phone && !next.customer_email
-            && !next.customer_location && !next.customer_ip);
+            && !next.customer_address && !next.customer_location && !next.customer_ip);
         const partialClear = (existingLic.customer_name && !next.customer_name)
             || (existingLic.customer_phone && !next.customer_phone)
             || (existingLic.customer_email && !next.customer_email)
+            || (existingLic.customer_address && !next.customer_address)
             || (existingLic.customer_location && !next.customer_location)
             || (existingLic.customer_ip && !next.customer_ip);
         if (!clearing && !partialClear) return true;
@@ -4383,6 +4445,7 @@
                 existingLic.customer_name,
                 existingLic.customer_phone,
                 existingLic.customer_email,
+                existingLic.customer_address,
                 existingLic.customer_location,
                 existingLic.customer_ip,
             ].filter(Boolean).join(' · ') || '—'}\n\n`
@@ -7919,9 +7982,64 @@
         set('so-license-disable-plan-addons', src.disable_plan_addons);
         set('so-license-hide-custom-plan', src.hide_custom_plan);
         set('so-license-disable-custom-plan', src.disable_custom_plan);
+        soApplyLicenseCustomPlanToForm(lic);
+    }
+
+    function soApplyLicenseCustomPlanToForm(lic) {
+        const src = lic || {};
+        const cfg = src.license_custom_plan || src.licenseCustomPlan || null;
+        const enabledEl = document.getElementById('so-license-custom-plan-enabled');
+        const fieldsEl = document.getElementById('so-license-custom-plan-fields');
+        const enabled = !!(cfg && cfg.enabled !== false && (cfg.label || cfg.description || cfg.whatsapp_title || cfg.whatsappTitle));
+        if (enabledEl) enabledEl.checked = enabled;
+        if (fieldsEl) fieldsEl.style.display = enabled ? '' : 'none';
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val || '';
+        };
+        setVal('so-license-custom-plan-label', cfg?.label || '');
+        setVal('so-license-custom-plan-whatsapp-title', cfg?.whatsapp_title || cfg?.whatsappTitle || '');
+        setVal('so-license-custom-plan-description', cfg?.description || '');
+    }
+
+    window.soOnLicenseCustomPlanToggle = function() {
+        const enabled = !!document.getElementById('so-license-custom-plan-enabled')?.checked;
+        const fieldsEl = document.getElementById('so-license-custom-plan-fields');
+        if (fieldsEl) fieldsEl.style.display = enabled ? '' : 'none';
+    };
+
+    window.soClearLicenseCustomPlan = function() {
+        const enabledEl = document.getElementById('so-license-custom-plan-enabled');
+        if (enabledEl) enabledEl.checked = false;
+        ['so-license-custom-plan-label', 'so-license-custom-plan-whatsapp-title', 'so-license-custom-plan-description']
+            .forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+        soOnLicenseCustomPlanToggle();
+    };
+
+    function soReadLicenseCustomPlanFields(forUpdate) {
+        const enabled = !!document.getElementById('so-license-custom-plan-enabled')?.checked;
+        if (!enabled) {
+            if (forUpdate) return { license_custom_plan: firebase.firestore.FieldValue.delete() };
+            return {};
+        }
+        const label = String(document.getElementById('so-license-custom-plan-label')?.value || '').trim();
+        const whatsappTitle = String(document.getElementById('so-license-custom-plan-whatsapp-title')?.value || '').trim();
+        const description = String(document.getElementById('so-license-custom-plan-description')?.value || '').trim();
+        return {
+            license_custom_plan: {
+                enabled: true,
+                label: label || 'Request Custom Plan via WhatsApp',
+                whatsapp_title: whatsappTitle || 'Custom Plan',
+                description: description || 'Pick add-ons and send — we will confirm pricing and assign your license.'
+            }
+        };
     }
 
     function soReadLicenseFormFields() {
+        soSyncLicenseBillingModeFromCredits();
         const billingMode = String(document.getElementById('so-license-billing-mode')?.value || 'subscription').trim();
         const maxDevicesRaw = document.getElementById('so-license-max-devices')?.value;
         let maxDevices = null;
@@ -7998,9 +8116,9 @@
     function soApplyPlanDefaultsToLicenseForm(plan) {
         if (!plan) return;
         const billingEl = document.getElementById('so-license-billing-mode');
-        const included = soGetPlanIncludedCredits(plan);
         if (billingEl) {
-            billingEl.value = plan.billing_mode || (included > 0 ? 'hybrid' : 'subscription');
+            soLicenseBillingManualOverride = false;
+            billingEl.value = 'subscription';
         }
         const maxEl = document.getElementById('so-license-max-devices');
         if (maxEl) {
@@ -8019,6 +8137,7 @@
             soPrefillLicenseCreditsFromPlan(plan, preselected);
         }
         soUpdateLicenseCreditsBreakdown();
+        soSyncLicenseBillingModeFromCredits();
     }
 
     function soApplyPlanDefaultsToLicenseFormOnEdit(plan) {
@@ -8032,8 +8151,11 @@
         );
         const custom = soReadLicenseCustomCredits();
         const billingEl = document.getElementById('so-license-billing-mode');
-        if (billingEl) {
-            billingEl.value = plan.billing_mode || billingEl.value || 'subscription';
+        if (billingEl && lic?.billing_mode === 'credits') {
+            soLicenseBillingManualOverride = true;
+            billingEl.value = 'credits';
+        } else if (billingEl) {
+            soLicenseBillingManualOverride = false;
         }
         const maxEl = document.getElementById('so-license-max-devices');
         if (maxEl && !lic?.activatedAt) {
@@ -8064,6 +8186,7 @@
         if (balEl) balEl.value = Math.max(0, grantTotal - used);
         soLicenseCreditsTotalDirty = false;
         soUpdateLicenseCreditsBreakdown();
+        soSyncLicenseBillingModeFromCredits();
     }
 
     function soOpenLicenseCreateAccordion(options) {
@@ -8136,10 +8259,13 @@
         document.getElementById('so-license-customer-name').value = '';
         document.getElementById('so-license-customer-phone').value = '';
         document.getElementById('so-license-customer-email').value = '';
+        const addrEl = document.getElementById('so-license-customer-address');
+        if (addrEl) addrEl.value = '';
         const locEl = document.getElementById('so-license-customer-location');
         if (locEl) locEl.value = soGuessAdminLocation();
         const ipEl = document.getElementById('so-license-customer-ip');
         if (ipEl) ipEl.value = '';
+        soLicenseBillingManualOverride = false;
         soLicenseCreditsTotalDirty = false;
         document.getElementById('so-license-support-notes').value = '';
         document.getElementById('so-license-max-devices').value = '';
@@ -8156,6 +8282,7 @@
         if (dateEl) dateEl.value = '';
         soRenderLicenseAddonPicks(null, []);
         soApplyLicenseAddonFlagsToForm({});
+        soClearLicenseCustomPlan();
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
         if (wasEdit) soCloseLicenseCreateAccordion();
@@ -8170,6 +8297,7 @@
         const planSel = document.getElementById('so-license-plan');
         if (planSel && (lic.planId || lic.planType)) planSel.value = lic.planId || lic.planType;
         document.getElementById('so-license-billing-mode').value = lic.billing_mode || 'subscription';
+        soLicenseBillingManualOverride = lic.billing_mode === 'credits';
         document.getElementById('so-license-max-devices').value = lic.max_devices != null ? lic.max_devices : '';
         document.getElementById('so-license-credits-balance').value = lic.credits_balance != null ? lic.credits_balance : 0;
         document.getElementById('so-license-credits-used').value = lic.credits_used != null ? lic.credits_used : 0;
@@ -8200,6 +8328,8 @@
         document.getElementById('so-license-customer-name').value = lic.customer_name || '';
         document.getElementById('so-license-customer-phone').value = lic.customer_phone || '';
         document.getElementById('so-license-customer-email').value = lic.customer_email || '';
+        const addrEl = document.getElementById('so-license-customer-address');
+        if (addrEl) addrEl.value = lic.customer_address || lic.customerAddress || '';
         const locEl = document.getElementById('so-license-customer-location');
         if (locEl) locEl.value = lic.customer_location || lic.customerLocation || '';
         const ipEl = document.getElementById('so-license-customer-ip');
@@ -8208,6 +8338,7 @@
         soApplyLicenseExpiryFromDoc(lic);
         soApplyLicenseAddonFlagsToForm(lic);
         soPrefillLicenseCustomerFields(lic);
+        soSyncLicenseBillingModeFromCredits();
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
         switchShippingOptimizerTab('licenses');
@@ -8263,12 +8394,13 @@
         }
         const customerFields = soReadLicenseCustomerFields();
         const addonFlags = soReadLicenseAddonFlags();
+        const customPlanFields = soReadLicenseCustomPlanFields(false);
         const payload = Object.assign({
             active: true,
             planId: plan.id,
             planType: plan.id,
             planDays: plan.days,
-            billing_mode: formFields.billing_mode || plan.billing_mode || 'subscription',
+            billing_mode: formFields.billing_mode || 'subscription',
             max_devices: maxDevices,
             credits_used: formFields.credits_used,
             unlimited_time: expiryFields.unlimited_time || formFields.unlimited_time || soIsUnlimitedTime(plan),
@@ -8289,7 +8421,7 @@
             shared_at: '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: soAuthEmail()
-        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields, null));
+        }, customerFields, addonFlags, customPlanFields, soBuildLicenseCreditFields(plan, formFields, null));
         payload.key = key;
         const previewOk = await soConfirmActionPreviewModal({
             title: 'Create license → Firebase',
@@ -8336,6 +8468,7 @@
         }
         const customerFields = soReadLicenseCustomerFields();
         const addonFlags = soReadLicenseAddonFlags();
+        const customPlanFields = soReadLicenseCustomPlanFields(true);
         const payload = Object.assign({
             planId: plan.id,
             planType: plan.id,
@@ -8351,7 +8484,7 @@
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: soAuthEmail()
-        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields, existingLic));
+        }, customerFields, addonFlags, customPlanFields, soBuildLicenseCreditFields(plan, formFields, existingLic));
         payload.key = key;
         const previewOk = await soConfirmActionPreviewModal({
             title: 'Update license → Firebase',
@@ -8407,7 +8540,7 @@
             if (!q) return true;
             const deviceIds = soGetLicenseDeviceIds(lic).join(' ');
             const hay = [lic.key, lic.machineId, deviceIds, lic.planId, lic.planType, lic.billing_mode,
-                lic.customer_name, lic.customer_phone, lic.customer_email,
+                lic.customer_name, lic.customer_phone, lic.customer_email, lic.customer_address,
                 lic.credits_balance, lic.credits_used, soFormatValidity(lic)]
                 .filter(v => v != null && v !== '').join(' ').toLowerCase();
             return hay.includes(q);
