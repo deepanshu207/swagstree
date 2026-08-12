@@ -11103,6 +11103,21 @@ body.seo-indexing-off #seo-primary-nav {
         border-radius: 14px !important;
     }
 }
+@media (max-width: 1024px), (pointer: coarse) {
+    /* Sticky tab save bar must sit above fixed bottom nav, not behind it */
+    #shipping-optimizer-admin-section .so-sticky-save {
+        bottom: calc(var(--storefront-bottom-nav-h, 58px) + env(safe-area-inset-bottom, 0px));
+        padding-bottom: 10px;
+        z-index: 20;
+    }
+    #shipping-optimizer-admin-section .so-admin-tab-panel {
+        padding-bottom: calc(var(--storefront-bottom-nav-h, 58px) + env(safe-area-inset-bottom, 0px) + 12px);
+        scroll-padding-bottom: calc(var(--storefront-bottom-nav-h, 58px) + 72px);
+    }
+    #super-view {
+        padding-bottom: calc(var(--storefront-bottom-nav-h, 58px) + env(safe-area-inset-bottom, 0px));
+    }
+}
 .so-admin-workflow-hint {
     margin: 0;
     font-size: 11px;
@@ -11192,14 +11207,23 @@ body.seo-indexing-off #seo-primary-nav {
     gap: 6px;
 }
 .so-save-review-overlay {
-    z-index: 12050;
+    /* Must sit above .bottom-nav (2147483647) so modal footers stay tappable on mobile */
+    z-index: 2147483647;
 }
 .so-save-review-overlay[hidden] {
     display: none !important;
 }
 body.so-save-review-open,
-body.so-action-preview-open {
+body.so-action-preview-open,
+body.so-google-user-modal-open {
     overflow: hidden;
+}
+/* Hide bottom nav while SO confirmation modals are open (full sheet visible) */
+body.so-save-review-open .bottom-nav,
+body.so-action-preview-open .bottom-nav,
+body.so-google-user-modal-open .bottom-nav,
+body:has(.so-save-review-overlay[style*="flex"]) .bottom-nav {
+    display: none !important;
 }
 .so-save-review-panel {
     display: flex;
@@ -11228,6 +11252,17 @@ body.so-action-preview-open {
     overflow-y: hidden !important;
     display: flex;
     flex-direction: column;
+}
+@media (max-width: 1024px), (pointer: coarse) {
+    .so-save-review-overlay {
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .so-save-review-panel--flex {
+        max-height: min(
+            88dvh,
+            calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)
+        );
+    }
 }
 .so-save-review-overlay .so-modal-panel.so-save-review-panel--flex {
     padding: 0 !important;
@@ -11588,6 +11623,19 @@ body.so-action-preview-open {
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
+    }
+}
+.so-sticky-save--muted .so-btn-sm,
+.so-sticky-save--muted .so-btn-save,
+.so-sticky-save--muted .so-btn-touch {
+    min-height: 44px;
+    width: 100%;
+}
+@media (min-width: 520px) {
+    .so-sticky-save--muted .so-btn-sm,
+    .so-sticky-save--muted .so-btn-save,
+    .so-sticky-save--muted .so-btn-touch {
+        width: auto;
     }
 }
 .so-ext-preview-root {
@@ -12826,9 +12874,6 @@ body.so-action-preview-open {
     width: 100%;
     min-height: 44px;
     font-weight: 700;
-}
-body.so-google-user-modal-open {
-    overflow: hidden;
 }
 .so-google-user-modal-overlay[hidden] {
     display: none !important;
