@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.40)
+# Meesho Extension — Admin sync prompt (v1.8.41)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -15,8 +15,8 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 |------|---------|
 | `js/firebaseLicense.js` | Subscription-first `deductCredits`, pool counters (`included_credits_used` / `addon_credits_used` / `custom_credits_used`), per-license custom credits, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
 | `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate, custom credits line (license-only) |
-| `config.js` | `VERSION: "1.8.40"` |
-| `manifest.json` | `"version": "1.8.40"` |
+| `config.js` | `VERSION: "1.8.41"` |
+| `manifest.json` | `"version": "1.8.41"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -108,9 +108,18 @@ Set in Swagstree admin → Super → Licenses → create/edit license:
 
 1. Super → Shipping Optimizer → **Built-in defaults** tab → preview cards.
 2. Tap **Seed built-in → Firebase** → confirm preview → write.
-3. Reload extension at `chrome://extensions` (v1.8.40+).
+3. Reload extension at `chrome://extensions` (v1.8.41+).
 
-## Credit packs — admin save & extension sync (v1.8.40)
+## Credit packs — admin save & extension sync (v1.8.40+)
+
+- **No seed required** if your export already has `credits.packs[]` and `credits.addon_catalog[]` in Firebase — seed only resets to factory defaults.
+- **Subscription plans** live under Config tab → save via **Save plans** or **Save to Firebase** on Config tab.
+- **Credit packs** (⚡ BUY CREDITS) live under Credits tab → **Save credit packs** or **Save to Firebase** on Credits tab.
+- **Plan add-ons** (`addon_50`, etc.) are in each plan's `credit_addons[]` and/or `credits.addon_catalog[]` — extension plan detail (ℹ️) reads both.
+- Admin always reads pack rows from the DOM before Firebase write.
+- Extension busts config cache when Firebase `updatedAt` changes.
+- **License update modal** (v1.8.41): sticky footer so **Update license in Firebase** is always visible on mobile.
+- **Custom credits** on edit: increasing custom credits auto-adds the same amount to balance + total.
 
 - **Subscription plans** live under Config tab → save via **Save plans** or **Save to Firebase** on Config tab.
 - **Credit packs** live under Credits tab → save via **Save credit packs** or **Save to Firebase** on Credits tab (both write `credits.packs[]` on `shipping_optimizer_config/app`).

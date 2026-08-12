@@ -2742,7 +2742,7 @@
                                 <label><span class="admin-settings-field-label">Add-on credits (used after subscription pool)</span>
                                     <input id="so-license-addon-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
                                 <label><span class="admin-settings-field-label">Custom credits (this license only — shown in extension)</span>
-                                    <input id="so-license-custom-credits" type="number" min="0" step="1" value="0" oninput="soUpdateLicenseCreditsBreakdown()" title="Per-license bonus pool — consumed after subscription and add-on credits"></label>
+                                    <input id="so-license-custom-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseCustomCreditsChange()" title="Per-license bonus pool — consumed after subscription and add-on credits"></label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Custom credits label (extension display)</span>
                                     <input id="so-license-custom-credits-label" type="text" placeholder="e.g. VIP support bonus" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                                 <label><span class="admin-settings-field-label">Total credits (plan grant)</span>
@@ -4868,10 +4868,13 @@
 
     <!-- Action preview modal (load/seed/import/license — review before destructive or Firebase writes) -->
     <div id="so-action-preview-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" role="dialog" aria-labelledby="so-action-preview-title" aria-modal="true" onclick="if(event.target===this)soCancelActionPreview()">
-        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel">
-            <h4 id="so-action-preview-title" class="so-modal-title">Review action</h4>
+        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+            <div class="so-modal-header so-modal-header--sticky">
+                <h4 id="so-action-preview-title" class="so-modal-title" style="margin:0;">Review action</h4>
+                <button type="button" class="so-modal-close-btn" onclick="soCancelActionPreview()" aria-label="Close">×</button>
+            </div>
             <div id="so-action-preview-body" class="so-save-review-body"></div>
-            <div class="so-modal-actions">
+            <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
                 <button type="button" class="so-btn-sm so-btn-touch" onclick="soCancelActionPreview()">Cancel</button>
                 <button type="button" id="so-action-preview-confirm" class="btn-gold so-btn-sm" onclick="soConfirmActionPreview()">Confirm</button>
             </div>

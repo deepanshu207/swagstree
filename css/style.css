@@ -11237,6 +11237,12 @@ body.so-action-preview-open {
     display: flex;
     gap: 8px;
     justify-content: flex-end;
+    flex-wrap: wrap;
+}
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions .btn-gold,
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-sm {
+    min-height: 44px;
+    flex: 1 1 auto;
 }
 .so-license-consumed-grid {
     display: grid;

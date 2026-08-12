@@ -2349,6 +2349,35 @@
         return base > 0 ? base : manual;
     }
 
+    window.soOnLicenseCustomCreditsChange = function() {
+        const lic = soEditingLicenseKey ? soLicenses.find(l => l.key === soEditingLicenseKey) : null;
+        const prevCustom = lic
+            ? Math.max(0, parseInt(lic.custom_credits ?? lic.customCredits ?? lic.bonus_credits, 10) || 0)
+            : 0;
+        const custom = soReadLicenseCustomCredits();
+        const balEl = document.getElementById('so-license-credits-balance');
+        const usedEl = document.getElementById('so-license-credits-used');
+        const totalEl = document.getElementById('so-license-total-credits');
+        const bal = Math.max(0, parseInt(balEl?.value, 10) || 0);
+        const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
+        if (soEditingLicenseKey && custom > prevCustom) {
+            const delta = custom - prevCustom;
+            const newBal = bal + delta;
+            const newTotal = used + newBal;
+            if (balEl) balEl.value = newBal;
+            if (totalEl) totalEl.value = newTotal;
+            soLicenseCreditsTotalDirty = true;
+        } else if (!soEditingLicenseKey) {
+            const planId = document.getElementById('so-license-plan')?.value;
+            const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+            const breakdown = soResolveLicenseCreditBreakdown(plan, soReadSelectedLicenseAddonIds(), null);
+            const grantTotal = breakdown.included + breakdown.addon + custom;
+            if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal;
+            if (balEl && !soEditingLicenseKey) balEl.value = Math.max(0, grantTotal - used);
+        }
+        soUpdateLicenseCreditsBreakdown();
+    };
+
     function soReadLicenseCustomCredits() {
         return Math.max(0, parseInt(document.getElementById('so-license-custom-credits')?.value, 10) || 0);
     }
@@ -3732,6 +3761,8 @@
         body.innerHTML = options.bodyHtml || '<p class="so-admin-muted">No preview available.</p>';
         if (confirmBtn) {
             confirmBtn.textContent = options.confirmLabel || 'Confirm';
+            confirmBtn.style.display = '';
+            confirmBtn.disabled = false;
             confirmBtn.classList.toggle('so-btn-danger', !!options.dangerous);
         }
         modal.hidden = false;
@@ -7629,14 +7660,22 @@
         };
     }
 
-    function soBuildLicenseCreditFields(plan, formFields) {
+    function soBuildLicenseCreditFields(plan, formFields, existingLic) {
         const selectedIds = formFields.addon_credit_ids || [];
         const calc = plan ? soCalculatePlanCredits(plan, selectedIds) : { included: 0, addon: 0, total: 0 };
         const custom = soReadLicenseCustomCredits();
         const customLabel = soReadLicenseCustomCreditsLabel();
         const planTotal = calc.included + calc.addon;
-        const grantTotal = Math.max(0, parseInt(document.getElementById('so-license-total-credits')?.value, 10) || 0);
-        const effectiveTotal = grantTotal > 0 ? grantTotal : (planTotal + custom);
+        const manualTotal = Math.max(0, parseInt(document.getElementById('so-license-total-credits')?.value, 10) || 0);
+        const used = Math.max(0, parseInt(formFields.credits_used, 10) || 0);
+        const balanceRaw = formFields.credits_balance != null
+            ? Math.max(0, parseInt(formFields.credits_balance, 10) || 0)
+            : null;
+        let effectiveTotal = planTotal + custom;
+        if (manualTotal > effectiveTotal) effectiveTotal = manualTotal;
+        if (balanceRaw != null && (balanceRaw + used) > effectiveTotal) {
+            effectiveTotal = balanceRaw + used;
+        }
         const out = {
             included_credits: calc.included,
             addon_credits: calc.addon,
@@ -7648,17 +7687,15 @@
             out.bonus_credits = effectiveTotal - planTotal;
         }
         if (!soIsUnlimitedCredits(plan) && !formFields.unlimited_credits) {
-            const used = Math.max(0, parseInt(formFields.credits_used, 10) || 0);
-            out.credits_balance = formFields.credits_balance != null
-                ? Math.max(0, parseInt(formFields.credits_balance, 10) || 0)
-                : Math.max(0, effectiveTotal - used);
+            out.credits_balance = balanceRaw != null ? balanceRaw : Math.max(0, effectiveTotal - used);
+            out.credits_used = used;
             const breakdown = {
                 included: calc.included,
                 addon: calc.addon,
                 custom,
                 grantTotal: effectiveTotal
             };
-            const pools = soResolveLicenseConsumedPools(null, breakdown, used);
+            const pools = soResolveLicenseConsumedPools(existingLic || null, breakdown, used);
             out.included_credits_used = pools.includedUsed;
             out.addon_credits_used = pools.addonUsed;
             out.custom_credits_used = pools.customUsed;
@@ -7885,7 +7922,7 @@
             shared_at: '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: soAuthEmail()
-        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields));
+        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields, null));
         payload.key = key;
         const previewOk = await soConfirmActionPreviewModal({
             title: 'Create license → Firebase',
@@ -7946,7 +7983,7 @@
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: soAuthEmail()
-        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields));
+        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields, existingLic));
         payload.key = key;
         const previewOk = await soConfirmActionPreviewModal({
             title: 'Update license → Firebase',
