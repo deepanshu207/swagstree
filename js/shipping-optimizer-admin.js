@@ -584,7 +584,7 @@
         return DEFAULT_GOOGLE_TRIAL.trial_credits;
     }
 
-    const SO_DEVICE_TIER_MAX = { standard: 1, family: 3, friends: 5, unlimited: 0 };
+    const SO_DEVICE_TIER_MAX = { standard: 0, family: 3, friends: 5, unlimited: 0 };
     const SO_BILLING_MODES = ['subscription', 'credits', 'hybrid'];
     const SO_DEVICE_TIERS = ['standard', 'family', 'friends', 'unlimited'];
 
@@ -706,54 +706,15 @@
         if (section === 'credits' || section === 'all') soMarkTabDirty('credits');
     }
 
-    window.soLoadDefaultsForTab = function(tab) {
-        const tabLabels = {
-            config: 'Config & Pricing',
-            credits: 'Credits & Packs',
-            demo: 'Demo / Promo Keys',
-            licenses: 'Paid Licenses',
-            'google-trial': 'Google Free Trial'
-        };
-        const label = tabLabels[tab] || tab;
-        if (!confirm(`Load recommended defaults for "${label}"?\n\nPreview everything first on the Built-in defaults tab.\nUnsaved changes on this tab will be replaced in the form only — not Firebase until you Save.`)) return;
-
-        const seed = soGetDefaultAppSeed();
-        if (tab === 'config') {
-            soApplySeedSectionToState(seed, 'config');
-            soRefreshFormsAfterSeed('config');
-            soToast('Config defaults loaded — tap Save to Firebase when ready.');
-        } else if (tab === 'credits') {
-            soApplySeedSectionToState(seed, 'credits');
-            soRefreshFormsAfterSeed('credits');
-            soToast('Credits defaults loaded — tap Save to Firebase when ready.');
-        } else if (tab === 'demo') {
-            const key = 'MEESHO-DEMOFREE';
-            const entry = seed.demo_keys[key];
-            const exists = soDemoKeys.some(d => d.key === key);
-            if (exists) {
-                soToast(`Demo key ${key} already exists in Firebase.`);
-                return;
-            }
-            const pending = soDemoKeyPendingRows.some(r => String(r.key || '').toUpperCase() === key);
-            if (!pending) {
-                soDemoKeyPendingRows.push({
-                    key,
-                    days: entry.days,
-                    label: entry.label,
-                    max_uses: 0,
-                    active: true
-                });
-                renderSoDemoPendingKeysEditor();
-            }
-            soToast(`Default demo key ${key} added to batch — tap Save to Firebase.`);
-        } else if (tab === 'licenses') {
-            cancelSoLicenseEdit();
-            soToast('License form reset to defaults.');
-        } else if (tab === 'google-trial') {
-            soApplySeedSectionToState(seed, 'google-trial');
-            soRefreshFormsAfterSeed('google-trial');
-            soToast('Google trial defaults loaded — tap Save to Firebase when ready.');
-        }
+    window.soLoadDefaultsForTab = async function(tab) {
+        const ok = await soConfirmActionPreviewModal({
+            title: 'Load built-in defaults → form only',
+            bodyHtml: soBuildLoadDefaultsPreviewHtml(tab),
+            confirmLabel: 'Load into form (no Firebase)',
+            dangerous: false
+        });
+        if (!ok) return;
+        soApplyLoadDefaultsForTab(tab);
     };
 
     window.soViewAllDefaults = function() {
@@ -1137,12 +1098,17 @@
         const modeLabel = mode === 'firebase'
             ? 'write directly to Firebase (merge)'
             : 'load into admin forms only (review before Save)';
-        if (!confirm(
-            `Import ${label} backup from "${file.name}"?\n\n` +
-            `Mode: ${modeLabel}\n\n` +
-            'Licenses, Google users, and demo_keys collection are never changed by import.\n' +
-            'Unsaved form changes on affected tabs will be replaced.'
-        )) return;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: mode === 'firebase' ? 'Import backup → Firebase' : 'Import backup → form only',
+            bodyHtml: `<p><strong>File:</strong> ${soEsc(file.name)}</p>
+                <p><strong>Scope:</strong> ${soEsc(label)}</p>
+                <p><strong>Mode:</strong> ${soEsc(modeLabel)}</p>
+                <p class="so-admin-muted">Licenses, Google users, and demo_keys collection are never changed by import.</p>
+                ${mode === 'firebase' ? '<p class="so-admin-muted" style="color:#f59e0b;">Import + Firebase mode will merge backup into live config after this confirm.</p>' : '<p class="so-admin-muted">Form-only mode — nothing is written until you Save to Firebase.</p>'}`,
+            confirmLabel: mode === 'firebase' ? 'Import & write Firebase' : 'Load into forms',
+            dangerous: mode === 'firebase'
+        });
+        if (!previewOk) return;
 
         try {
             if (importScope === 'config') {
@@ -1182,37 +1148,14 @@
     };
 
     window.soSeedAllDefaults = async function() {
-        if (!confirm('Write the full recommended app config to Firebase (shipping_optimizer_config/app)? Existing fields will be merged/overwritten with seed values.')) return;
-        if (!soRequireExtensionWrite()) return;
-        const seed = soGetDefaultAppSeed();
-        const payload = Object.assign({}, seed, {
-            plans: seed.plans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i)),
-            support: soSupportToFirestore(soNormalizeSupport(seed.support)),
-            credits: Object.assign({}, seed.credits, {
-                packs: seed.credits.packs.map((p, i) => soCreditPackToFirestore(soNormalizeCreditPack(p, i), i)),
-                image_generation: seed.credits.image_generation
-            }),
-            smart_mode: soSmartModeToFirestore(soNormalizeSmartMode(seed.smart_mode)),
-            google_trial: soGoogleTrialToFirestore(seed.google_trial)
+        const ok = await soConfirmActionPreviewModal({
+            title: 'Seed built-in defaults → Firebase',
+            bodyHtml: soBuildSeedDefaultsPreviewHtml(),
+            confirmLabel: 'Write seed to Firebase',
+            dangerous: true,
+            onConfirm: () => soExecuteSeedAllDefaults()
         });
-        try {
-            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, payload, {
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedBy: soAuthEmail()
-            }), { merge: true });
-            const legacyDeletes = {};
-            SO_GOOGLE_TRIAL_LEGACY_FIELDS.forEach((field) => {
-                legacyDeletes[`google_trial.${field}`] = firebase.firestore.FieldValue.delete();
-            });
-            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update(legacyDeletes);
-            soApplySeedSectionToState(seed, 'all');
-            soRefreshFormsAfterSeed('all');
-            soEstablishCleanBaseline();
-            soClearDraftStorage();
-            soToast('Full app config seeded to Firebase.');
-        } catch (e) {
-            soToast('Seed failed: ' + (e.message || 'Unknown error'));
-        }
+        if (!ok) return;
     };
 
     window.soSaveTabToFirebase = async function(tab) {
@@ -1293,10 +1236,22 @@
             return soToast(`"${label}" does not support Save as defaults.`);
         }
         if (active === 'licenses') {
-            if (!confirm(confirmMsg)) return;
-            return soToast('Use Create license to save license records.');
+            const ok = await soConfirmActionPreviewModal({
+                title: 'Licenses are not app defaults',
+                bodyHtml: `<p>${soEsc(confirmMsg)}</p>`,
+                confirmLabel: 'OK',
+                dangerous: false
+            });
+            if (ok) soToast('Use Create license to save license records.');
+            return;
         }
-        if (!confirm(confirmMsg)) return;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: `Save ${label} → Firebase`,
+            bodyHtml: soBuildFirebaseTabSavePreviewHtml(active),
+            confirmLabel: 'Write to Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
         if (!soRequireExtensionWrite()) return;
 
         if (active === 'config') {
@@ -1392,12 +1347,13 @@
     };
 
     window.soSaveAllCurrentAsDefaults = async function() {
-        if (!confirm(
-            'Save ALL current admin form values to Firebase as the live default?\n\n' +
-            'This writes config, credits, smart mode, and Google trial from the forms now ' +
-            'to shipping_optimizer_config/app (merge). The extension uses this after refresh.\n\n' +
-            'Use "Seed all defaults" instead to reset to built-in recommended values.'
-        )) return;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Save all forms → Firebase',
+            bodyHtml: soBuildFullFirebaseSavePreviewHtml(),
+            confirmLabel: 'Write all to Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
         if (!soRequireExtensionWrite()) return;
 
         let built;
@@ -1724,7 +1680,7 @@
         } else if (Number.isFinite(rawMax) && rawMax >= 0) {
             p.max_devices = rawMax;
         } else {
-            p.max_devices = tierDefault != null ? tierDefault : 1;
+            p.max_devices = tierDefault != null ? tierDefault : 0;
         }
         p.billing_mode = SO_BILLING_MODES.includes(p.billing_mode) ? p.billing_mode : 'subscription';
         p.included_credits = Math.max(0, parseInt(p.included_credits, 10) || 0);
@@ -1744,8 +1700,11 @@
         p.allow_credit_addons = p.allow_credit_addons === true;
         p.allow_plan_addons = p.allow_plan_addons === true;
         p.hide_plan_addons_in_detail = p.hide_plan_addons_in_detail === true;
+        p.disable_plan_addons = p.disable_plan_addons === true;
         if (p.allow_custom_plan === false) p.allow_custom_plan = false;
         else p.allow_custom_plan = true;
+        p.hide_custom_plan = p.hide_custom_plan === true;
+        p.disable_custom_plan = p.disable_custom_plan === true;
         p.max_addon_selections = Math.max(0, parseInt(p.max_addon_selections, 10) || 0);
         const rawAddons = Array.isArray(p.credit_addons) ? p.credit_addons : [];
         p.credit_addons = soSortCreditAddons(rawAddons.map(soNormalizeCreditAddon));
@@ -1885,7 +1844,7 @@
             active: p.active !== false,
             order: order,
             device_tier: p.device_tier || 'standard',
-            max_devices: p.max_devices != null ? p.max_devices : 1,
+            max_devices: p.max_devices != null ? p.max_devices : 0,
             billing_mode: p.billing_mode || 'subscription'
         };
         if (p.duration) out.duration = p.duration;
@@ -1902,6 +1861,12 @@
         if (p.show_details_icon === false) out.show_details_icon = false;
         if (p.included_credits > 0) out.included_credits = p.included_credits;
         if (p.allow_credit_addons) out.allow_credit_addons = true;
+        if (p.allow_plan_addons) out.allow_plan_addons = true;
+        if (p.hide_plan_addons_in_detail) out.hide_plan_addons_in_detail = true;
+        if (p.disable_plan_addons) out.disable_plan_addons = true;
+        if (p.allow_custom_plan === false) out.allow_custom_plan = false;
+        if (p.hide_custom_plan) out.hide_custom_plan = true;
+        if (p.disable_custom_plan) out.disable_custom_plan = true;
         if (p.max_addon_selections > 0) out.max_addon_selections = p.max_addon_selections;
         if (Array.isArray(p.credit_addons) && p.credit_addons.length) {
             out.credit_addons = p.credit_addons.map((a, i) => {
@@ -2440,6 +2405,14 @@
                 : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
         const balanceLine = `<strong>Unused (balance):</strong> ${bal} · <strong>Used:</strong> ${used}` +
             (grantTotal > 0 ? ` · <strong>Grant total:</strong> ${grantTotal}` : '');
+        const poolLine = planGrant > 0
+            ? `<br><strong>Consumption order:</strong> subscription/base credits (${breakdown.included}) are used first, then add-on credits (${breakdown.addon}).`
+            : '';
+        const includedUsed = lic ? Math.min(used, breakdown.included) : (used > 0 ? Math.min(used, breakdown.included) : 0);
+        const addonUsed = Math.max(0, used - includedUsed);
+        const poolRemain = planGrant > 0
+            ? `<br><strong>Remaining pools:</strong> ~${Math.max(0, breakdown.included - includedUsed)} base · ~${Math.max(0, breakdown.addon - addonUsed)} add-on`
+            : '';
         const consistencyWarn = grantTotal > 0 && (bal + used) !== grantTotal
             ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${bal + used}) ≠ grant total (${grantTotal}). Adjust balance, used, or total.</span>`
             : '';
@@ -2449,7 +2422,7 @@
         const planHint = planGrant === 0 && grantTotal === 0 && (billing === 'hybrid' || billing === 'credits')
             ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing, or enter a manual <strong>Total</strong> for credit-only keys.</span>'
             : '';
-        panel.innerHTML = `${grantLine}<br>${balanceLine}${consistencyWarn}${activationHint}${planHint}`;
+        panel.innerHTML = `${grantLine}<br>${balanceLine}${poolLine}${poolRemain}${consistencyWarn}${activationHint}${planHint}`;
         const includedEl = document.getElementById('so-license-included-credits');
         const addonEl = document.getElementById('so-license-addon-credits');
         const totalEl = document.getElementById('so-license-total-credits');
@@ -3565,6 +3538,255 @@
         }
         document.body.classList.remove('so-save-review-open');
         soSaveReviewResolver = null;
+    }
+
+    let soActionPreviewResolver = null;
+
+    function soEnsureActionPreviewModalPortal() {
+        const modal = document.getElementById('so-action-preview-modal');
+        if (modal && modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        return modal;
+    }
+
+    function soCloseActionPreviewModal() {
+        const modal = document.getElementById('so-action-preview-modal');
+        if (modal) {
+            modal.hidden = true;
+            modal.style.display = 'none';
+        }
+        document.body.classList.remove('so-action-preview-open');
+        soActionPreviewResolver = null;
+    }
+
+    function soOpenActionPreviewModal(opts) {
+        const options = opts || {};
+        const modal = soEnsureActionPreviewModalPortal();
+        const body = document.getElementById('so-action-preview-body');
+        const title = document.getElementById('so-action-preview-title');
+        const confirmBtn = document.getElementById('so-action-preview-confirm');
+        if (!modal || !body) {
+            if (typeof options.onConfirm === 'function') options.onConfirm();
+            return Promise.resolve(true);
+        }
+        if (title) title.textContent = options.title || 'Review before continuing';
+        body.innerHTML = options.bodyHtml || '<p class="so-admin-muted">No preview available.</p>';
+        if (confirmBtn) {
+            confirmBtn.textContent = options.confirmLabel || 'Confirm';
+            confirmBtn.classList.toggle('so-btn-danger', !!options.dangerous);
+        }
+        modal.hidden = false;
+        modal.style.display = 'flex';
+        document.body.classList.add('so-action-preview-open');
+        return new Promise(resolve => {
+            soActionPreviewResolver = (ok) => {
+                soCloseActionPreviewModal();
+                resolve(!!ok);
+                if (ok && typeof options.onConfirm === 'function') options.onConfirm();
+            };
+        });
+    }
+
+    window.soConfirmActionPreview = function() {
+        if (soActionPreviewResolver) soActionPreviewResolver(true);
+    };
+
+    window.soCancelActionPreview = function() {
+        if (soActionPreviewResolver) soActionPreviewResolver(false);
+    };
+
+    function soBuildLoadDefaultsPreviewHtml(tab) {
+        const tabLabels = {
+            config: 'Config & Pricing',
+            credits: 'Credits & Packs',
+            demo: 'Demo / Promo Keys',
+            licenses: 'Paid Licenses',
+            'google-trial': 'Google Free Trial'
+        };
+        const label = tabLabels[tab] || tab;
+        const seed = soGetDefaultAppSeed();
+        const lines = [
+            `<p><strong>Action:</strong> Load built-in defaults into the <em>${soEsc(label)}</em> form.</p>`,
+            '<p class="so-admin-muted"><strong>Safe:</strong> Does <em>not</em> write Firebase. Unsaved form edits on this tab will be replaced. Tap <strong>Save to Firebase</strong> separately when ready.</p>'
+        ];
+        if (tab === 'config') {
+            const plans = (seed.plans || []).map((p, i) => soNormalizePlan(p, i));
+            lines.push(`<p><strong>Plans (${plans.length}):</strong></p><ul class="so-save-review-list">${plans.map(p =>
+                `<li>${soEsc(p.name)} · ₹${p.price} · ${p.included_credits || 0} cr · devices ${p.max_devices === 0 ? 'unlimited' : p.max_devices}</li>`
+            ).join('')}</ul>`);
+        } else if (tab === 'credits') {
+            const packs = seed.credits?.packs || [];
+            const addons = seed.credits?.addon_catalog || [];
+            lines.push(`<p><strong>Credit rate:</strong> ₹${seed.credits?.price_per_credit}/cr · min ${seed.credits?.min_purchase} · ${packs.length} pack(s) · ${addons.length} catalog add-on(s)</p>`);
+        } else if (tab === 'google-trial') {
+            const t = soNormalizeGoogleTrial(seed.google_trial);
+            lines.push(`<p><strong>Google trial:</strong> ${t.trial_credits} credits · ${t.max_devices} device(s) · login ${t.google_login_enabled ? 'on' : 'off'}</p>`);
+        } else if (tab === 'demo') {
+            lines.push('<p><strong>Demo key:</strong> <code>MEESHO-DEMOFREE</code> added to pending batch (if not already present).</p>');
+        } else if (tab === 'licenses') {
+            lines.push('<p><strong>License form</strong> will be cleared to create-new defaults.</p>');
+        }
+        lines.push('<p class="so-admin-muted">Open the <strong>Built-in defaults</strong> tab anytime for the full read-only preview.</p>');
+        return lines.join('');
+    }
+
+    function soBuildSeedDefaultsPreviewHtml() {
+        const seed = soGetDefaultAppSeed();
+        const plans = (seed.plans || []).map((p, i) => soNormalizePlan(p, i));
+        const packs = seed.credits?.packs || [];
+        const trial = soNormalizeGoogleTrial(seed.google_trial);
+        return `<p><strong>Action:</strong> Write the full built-in seed to <code>shipping_optimizer_config/app</code> (merge).</p>
+            <p class="so-admin-muted" style="color:#f59e0b;"><strong>Warning:</strong> Overwrites config fields with seed values. Does <em>not</em> delete licenses, Google users, or demo_keys collection docs.</p>
+            <ul class="so-save-review-list">
+                <li><strong>Plans:</strong> ${plans.length} — ${plans.map(p => soEsc(p.name)).join(', ')}</li>
+                <li><strong>Credit packs:</strong> ${packs.length}</li>
+                <li><strong>Google trial:</strong> ${trial.trial_credits} credits · ${trial.max_devices} device limit</li>
+                <li><strong>WhatsApp:</strong> ${soEsc(seed.whatsapp_number || '—')}</li>
+            </ul>
+            <p class="so-admin-muted">Prefer a safer path? Use <em>Load → Config form</em> then review → <em>Save to Firebase</em>.</p>`;
+    }
+
+    function soBuildFirebaseTabSavePreviewHtml(tab) {
+        const tabLabels = {
+            config: 'Config & Pricing',
+            credits: 'Credits & Packs',
+            demo: 'Demo / Promo Keys',
+            'google-trial': 'Google Free Trial'
+        };
+        const label = tabLabels[tab] || tab;
+        const confirmMsg = SO_SAVE_AS_DEFAULTS_CONFIRM[tab] || '';
+        let detail = '';
+        if (tab === 'config') {
+            soPlans = soReadPlansFromDom();
+            detail = `<ul class="so-save-review-list">${soPlans.map(p => `<li>${soEsc(soPlanReviewSummary(p))}</li>`).join('')}</ul>`;
+        } else if (tab === 'credits') {
+            const packs = soReadCreditPacksFromDom();
+            detail = `<p><strong>${packs.length} credit pack(s)</strong> · rates from current form</p>`;
+        }
+        return `<p><strong>Action:</strong> Save current <em>${soEsc(label)}</em> form to Firebase.</p>
+            <p class="so-admin-muted">${soEsc(confirmMsg)}</p>${detail}`;
+    }
+
+    function soBuildFullFirebaseSavePreviewHtml() {
+        let built;
+        try {
+            built = soBuildFullAppPayloadFromForms();
+        } catch (e) {
+            return `<p class="so-admin-muted">Could not build preview: ${soEsc(e.message || 'Invalid forms')}</p>`;
+        }
+        const plans = built.payload?.plans || [];
+        return `<p><strong>Action:</strong> Save <em>all</em> current admin forms to Firebase (merge).</p>
+            <p class="so-admin-muted" style="color:#f59e0b;">Writes config, credits, smart mode, support, inline demo keys, and Google trial from forms now.</p>
+            <ul class="so-save-review-list">
+                <li><strong>Plans:</strong> ${plans.length}</li>
+                <li><strong>Credit packs:</strong> ${(built.creditsPayload?.packs || []).length}</li>
+                <li><strong>Google trial oauth:</strong> ${soEsc(built.googleTrialPayload?.oauth_client_id ? 'set' : 'missing')}</li>
+            </ul>`;
+    }
+
+    function soBuildLicenseSavePreviewHtml(payload, mode) {
+        const key = payload.key || soEditingLicenseKey || '(new key)';
+        const included = payload.included_credits != null ? payload.included_credits : 0;
+        const addon = payload.addon_credits != null ? payload.addon_credits : 0;
+        const bal = payload.credits_balance != null ? payload.credits_balance : 0;
+        const used = payload.credits_used != null ? payload.credits_used : 0;
+        const maxDev = payload.max_devices != null
+            ? (payload.max_devices === 0 ? 'unlimited' : payload.max_devices)
+            : 'from plan';
+        const flags = [];
+        if (payload.hide_plan_addons) flags.push('hide plan add-ons');
+        if (payload.disable_plan_addons) flags.push('disable plan add-ons');
+        if (payload.hide_custom_plan) flags.push('hide custom plan');
+        if (payload.disable_custom_plan) flags.push('disable custom plan');
+        return `<p><strong>Action:</strong> ${mode === 'update' ? 'Update' : 'Create'} license <code>${soEsc(String(key))}</code> in Firebase.</p>
+            <ul class="so-save-review-list">
+                <li><strong>Plan:</strong> ${soEsc(payload.planId || payload.planType || '—')}</li>
+                <li><strong>Subscription credits (included):</strong> ${included}</li>
+                <li><strong>Add-on credits:</strong> ${addon}${payload.addon_credit_ids?.length ? ` · IDs: ${soEsc(payload.addon_credit_ids.join(', '))}` : ''}</li>
+                <li><strong>Balance / used:</strong> ${bal} remaining · ${used} used <span class="so-admin-muted">(extension consumes subscription credits first)</span></li>
+                <li><strong>Devices:</strong> ${maxDev}</li>
+                ${flags.length ? `<li><strong>Extension flags:</strong> ${soEsc(flags.join(', '))}</li>` : ''}
+            </ul>
+            <p class="so-admin-muted">This writes only this license document — not app config.</p>`;
+    }
+
+    async function soConfirmActionPreviewModal(opts) {
+        const ok = await soOpenActionPreviewModal(opts);
+        return !!ok;
+    }
+
+    function soApplyLoadDefaultsForTab(tab) {
+        const seed = soGetDefaultAppSeed();
+        if (tab === 'config') {
+            soApplySeedSectionToState(seed, 'config');
+            soRefreshFormsAfterSeed('config');
+            soToast('Config defaults loaded into form — review, then Save to Firebase when ready.');
+        } else if (tab === 'credits') {
+            soApplySeedSectionToState(seed, 'credits');
+            soRefreshFormsAfterSeed('credits');
+            soToast('Credits defaults loaded into form — review, then Save to Firebase when ready.');
+        } else if (tab === 'demo') {
+            const key = 'MEESHO-DEMOFREE';
+            const entry = seed.demo_keys[key];
+            const exists = soDemoKeys.some(d => d.key === key);
+            if (exists) {
+                soToast(`Demo key ${key} already exists in Firebase.`);
+                return;
+            }
+            const pending = soDemoKeyPendingRows.some(r => String(r.key || '').toUpperCase() === key);
+            if (!pending) {
+                soDemoKeyPendingRows.push({
+                    key,
+                    days: entry.days,
+                    label: entry.label,
+                    max_uses: 0,
+                    active: true
+                });
+                renderSoDemoPendingKeysEditor();
+            }
+            soToast(`Default demo key ${key} added to batch — review, then Save to Firebase.`);
+        } else if (tab === 'licenses') {
+            cancelSoLicenseEdit();
+            soToast('License form reset.');
+        } else if (tab === 'google-trial') {
+            soApplySeedSectionToState(seed, 'google-trial');
+            soRefreshFormsAfterSeed('google-trial');
+            soToast('Google trial defaults loaded into form — Save to Firebase when ready.');
+        }
+    }
+
+    async function soExecuteSeedAllDefaults() {
+        if (!soRequireExtensionWrite()) return;
+        const seed = soGetDefaultAppSeed();
+        const payload = Object.assign({}, seed, {
+            plans: seed.plans.map((p, i) => soPlanToFirestore(soNormalizePlan(p, i), i)),
+            support: soSupportToFirestore(soNormalizeSupport(seed.support)),
+            credits: Object.assign({}, seed.credits, {
+                packs: seed.credits.packs.map((p, i) => soCreditPackToFirestore(soNormalizeCreditPack(p, i), i)),
+                image_generation: seed.credits.image_generation
+            }),
+            smart_mode: soSmartModeToFirestore(soNormalizeSmartMode(seed.smart_mode)),
+            google_trial: soGoogleTrialToFirestore(seed.google_trial)
+        });
+        try {
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).set(Object.assign({}, payload, {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: soAuthEmail()
+            }), { merge: true });
+            const legacyDeletes = {};
+            SO_GOOGLE_TRIAL_LEGACY_FIELDS.forEach((field) => {
+                legacyDeletes[`google_trial.${field}`] = firebase.firestore.FieldValue.delete();
+            });
+            await soDb().collection(SO_CONFIG_DOC).doc(SO_CONFIG_ID).update(legacyDeletes);
+            soApplySeedSectionToState(seed, 'all');
+            soRefreshFormsAfterSeed('all');
+            soEstablishCleanBaseline();
+            soClearDraftStorage();
+            soToast('Full app config seeded to Firebase.');
+        } catch (e) {
+            soToast('Seed failed: ' + (e.message || 'Unknown error'));
+        }
     }
 
     let soSaveReviewResolver = null;
@@ -6181,7 +6403,10 @@
                             ${soCheckboxInfoHtml('Allow credit add-ons', 'plan-allow-addons', 'allow_credit_addons', plan.allow_credit_addons, idx)}
                             ${soCheckboxInfoHtml('Allow plan add-ons in detail', 'plan-allow-plan-addons', 'allow_plan_addons', plan.allow_plan_addons != null ? plan.allow_plan_addons : plan.allow_credit_addons, idx)}
                             ${soCheckboxInfoHtml('Hide add-ons in plan detail', 'plan-hide-plan-addons', 'hide_plan_addons_in_detail', plan.hide_plan_addons_in_detail, idx)}
+                            ${soCheckboxInfoHtml('Disable add-ons (show grayed)', 'plan-disable-plan-addons', 'disable_plan_addons', plan.disable_plan_addons, idx)}
                             ${soCheckboxInfoHtml('Show custom plan block', 'plan-allow-custom-plan', 'allow_custom_plan', plan.allow_custom_plan != null ? plan.allow_custom_plan : true, idx)}
+                            ${soCheckboxInfoHtml('Hide custom plan block', 'plan-hide-custom-plan', 'hide_custom_plan', plan.hide_custom_plan, idx)}
+                            ${soCheckboxInfoHtml('Disable custom plan (visible but inactive)', 'plan-disable-custom-plan', 'disable_custom_plan', plan.disable_custom_plan, idx)}
                         </div>
                         <label>${soFieldLabelHtml('Max add-on selections (0 = unlimited)', 'plan-max-addon-selections', idx)}
                             <input type="number" min="0" step="1" data-field="max_addon_selections" value="${plan.max_addon_selections || 0}" oninput="soMarkTabDirty('config')"></label>
@@ -6250,7 +6475,10 @@
                 allow_credit_addons: get('allow_credit_addons'),
                 allow_plan_addons: get('allow_plan_addons'),
                 hide_plan_addons_in_detail: get('hide_plan_addons_in_detail'),
+                disable_plan_addons: get('disable_plan_addons'),
                 allow_custom_plan: get('allow_custom_plan'),
+                hide_custom_plan: get('hide_custom_plan'),
+                disable_custom_plan: get('disable_custom_plan'),
                 max_addon_selections: get('max_addon_selections'),
                 credit_addons: soReadPlanCreditAddonsFromRow(row),
                 unlimited_time: get('unlimited_time'),
@@ -6945,6 +7173,34 @@
         if (cancelBtn) cancelBtn.style.display = soEditingLicenseKey ? 'block' : 'none';
         const keyEl = document.getElementById('so-license-key-input');
         if (keyEl) keyEl.readOnly = !!soEditingLicenseKey;
+        const genBtn = document.getElementById('so-license-generate-btn');
+        if (genBtn) {
+            genBtn.disabled = !!soEditingLicenseKey;
+            genBtn.title = soEditingLicenseKey
+                ? 'Cannot generate a new key while editing an existing license'
+                : 'Generate a unique MEESHO-XXXX-XXXX-XXXX key';
+        }
+    }
+
+    function soReadLicenseAddonFlags() {
+        return {
+            hide_plan_addons: !!document.getElementById('so-license-hide-plan-addons')?.checked,
+            disable_plan_addons: !!document.getElementById('so-license-disable-plan-addons')?.checked,
+            hide_custom_plan: !!document.getElementById('so-license-hide-custom-plan')?.checked,
+            disable_custom_plan: !!document.getElementById('so-license-disable-custom-plan')?.checked
+        };
+    }
+
+    function soApplyLicenseAddonFlagsToForm(lic) {
+        const src = lic || {};
+        const set = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!val;
+        };
+        set('so-license-hide-plan-addons', src.hide_plan_addons);
+        set('so-license-disable-plan-addons', src.disable_plan_addons);
+        set('so-license-hide-custom-plan', src.hide_custom_plan);
+        set('so-license-disable-custom-plan', src.disable_custom_plan);
     }
 
     function soReadLicenseFormFields() {
@@ -6984,6 +7240,8 @@
             out.credits_balance = formFields.credits_balance != null
                 ? Math.max(0, parseInt(formFields.credits_balance, 10) || 0)
                 : Math.max(0, effectiveTotal - used);
+            out.included_credits_used = Math.min(used, calc.included);
+            out.addon_credits_used = Math.max(0, used - calc.included);
         }
         return out;
     }
@@ -7069,6 +7327,7 @@
         const dateEl = document.getElementById('so-license-expires-at');
         if (dateEl) dateEl.value = '';
         soRenderLicenseAddonPicks(null, []);
+        soApplyLicenseAddonFlagsToForm({});
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
     };
@@ -7113,6 +7372,7 @@
         if (ipEl) ipEl.value = lic.customer_ip || lic.customerIp || '';
         document.getElementById('so-license-support-notes').value = lic.support_notes || '';
         soApplyLicenseExpiryFromDoc(lic);
+        soApplyLicenseAddonFlagsToForm(lic);
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
         switchShippingOptimizerTab('licenses');
@@ -7123,6 +7383,9 @@
 
     window.generateSoLicenseKey = async function() {
         if (!soRequireSuperAdmin()) return;
+        if (soEditingLicenseKey) {
+            return soToast('Cannot generate a new key while editing an existing license.');
+        }
         try {
             await soLoadConfig();
             const key = await soGenerateUniqueLicenseKey();
@@ -7165,6 +7428,7 @@
             return soToast(e.message || 'Invalid expiry settings.');
         }
         const customerFields = soReadLicenseCustomerFields();
+        const addonFlags = soReadLicenseAddonFlags();
         const payload = Object.assign({
             active: true,
             planId: plan.id,
@@ -7191,7 +7455,16 @@
             shared_at: '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: soAuthEmail()
-        }, customerFields, soBuildLicenseCreditFields(plan, formFields));
+        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields));
+        payload.key = key;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Create license → Firebase',
+            bodyHtml: soBuildLicenseSavePreviewHtml(payload, 'create'),
+            confirmLabel: 'Create license in Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
+        delete payload.key;
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload);
             cancelSoLicenseEdit();
@@ -7227,6 +7500,7 @@
             return soToast(e.message || 'Invalid expiry settings.');
         }
         const customerFields = soReadLicenseCustomerFields();
+        const addonFlags = soReadLicenseAddonFlags();
         const payload = Object.assign({
             planId: plan.id,
             planType: plan.id,
@@ -7242,7 +7516,16 @@
             support_notes: String(document.getElementById('so-license-support-notes')?.value || '').trim(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: soAuthEmail()
-        }, customerFields, soBuildLicenseCreditFields(plan, formFields));
+        }, customerFields, addonFlags, soBuildLicenseCreditFields(plan, formFields));
+        payload.key = key;
+        const previewOk = await soConfirmActionPreviewModal({
+            title: 'Update license → Firebase',
+            bodyHtml: soBuildLicenseSavePreviewHtml(payload, 'update'),
+            confirmLabel: 'Update license in Firebase',
+            dangerous: true
+        });
+        if (!previewOk) return;
+        delete payload.key;
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
             cancelSoLicenseEdit();

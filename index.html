@@ -2426,12 +2426,12 @@
                         <span class="so-admin-muted">Save everything on this tab · <button type="button" class="so-link-btn" onclick="switchShippingOptimizerTab('defaults')">Preview built-in defaults first ⓘ</button></span>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soViewAllDefaults()">View all defaults</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soCopyAllDefaults()">Copy defaults JSON</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Built-in values → this tab's form only (no Firebase)">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('config')" title="Built-in values → this tab's form only (no Firebase)">Load built-in → form</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('config')"><i class="fa fa-download"></i> Export</button>
-                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('config','form')"><i class="fa fa-upload"></i> Import</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')">Save as defaults</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soSeedAllDefaults()">Seed all defaults</button>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()">Save all as defaults</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('config','form')"><i class="fa fa-upload"></i> Import to form</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('config')" title="Save current form to Firebase">Save form → Firebase</button>
+                        <button type="button" class="so-btn-sm so-btn-touch so-btn-danger" onclick="soSeedAllDefaults()" title="Writes full built-in seed to Firebase">Seed built-in → Firebase</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soSaveAllCurrentAsDefaults()" title="Save all tabs from forms to Firebase">Save all forms → Firebase</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('config')">Save to Firebase</button>
                     </div>
                 </div>
@@ -2576,7 +2576,7 @@
 
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Save everything on this tab</span>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Built-in values → this tab's form only (no Firebase)">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('credits')" title="Built-in values → this tab's form only (no Firebase)">Load built-in → form</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soExportShippingOptimizer('credits')"><i class="fa fa-download"></i> Export</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soTriggerImportShippingOptimizer('credits','form')"><i class="fa fa-upload"></i> Import</button>
                         <button type="button" class="btn-gold so-btn-sm" onclick="soSaveCurrentAsDefaults('credits')">Save as defaults</button>
@@ -2722,7 +2722,7 @@
                                     <span class="admin-settings-field-label">License key</span>
                                     <div class="so-input-with-btn">
                                         <input id="so-license-key-input" type="text" placeholder="MEESHO-XXXX-XXXX-XXXX" style="text-transform:uppercase;">
-                                        <button type="button" class="so-btn-sm so-btn-touch" onclick="generateSoLicenseKey()" title="Generate">🎲 Generate</button>
+                                        <button type="button" id="so-license-generate-btn" class="so-btn-sm so-btn-touch" onclick="generateSoLicenseKey()" title="Generate a unique MEESHO-XXXX-XXXX-XXXX key">🎲 Generate</button>
                                     </div>
                                 </label>
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Plan</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('license-plan', event)" aria-expanded="false" aria-controls="so-hint-license-plan" title="More info">ⓘ</button></span>
@@ -2737,9 +2737,9 @@
                                     </select></label>
                                 <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
                                     <input id="so-license-max-devices" type="number" min="0" step="1" placeholder="From plan"></label>
-                                <label><span class="admin-settings-field-label">Included credits (from plan)</span>
+                                <label><span class="admin-settings-field-label">Subscription credits (from plan, used first)</span>
                                     <input id="so-license-included-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
-                                <label><span class="admin-settings-field-label">Addon credits</span>
+                                <label><span class="admin-settings-field-label">Add-on credits (used after subscription pool)</span>
                                     <input id="so-license-addon-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
                                 <label><span class="admin-settings-field-label">Total credits (plan grant)</span>
                                     <input id="so-license-total-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseTotalCreditsChange()" title="Editable — increase for manual credit requests (e.g. customer support top-up)"></label>
@@ -2766,9 +2766,17 @@
                                 <input id="so-license-expires-at" type="date"></label>
                             <p id="so-license-plan-hint" class="so-admin-muted so-admin-tip"></p>
                             <div id="so-license-addon-section" class="so-license-addon-section" style="display:none;">
-                                <div class="so-admin-subhead">Credit add-ons for this plan</div>
+                                <div class="so-admin-subhead">Credit add-ons for this plan (admin grant)</div>
                                 <div id="so-license-addon-picks" class="so-license-addon-picks"></div>
                                 <p id="so-license-credits-summary" class="so-admin-muted so-admin-tip"></p>
+                            </div>
+                            <div class="so-admin-subhead" style="margin-top:10px;">Extension purchase UI (this license)</div>
+                            <p class="so-admin-muted so-admin-tip">Hide or disable plan add-ons / custom plan block in the extension for customers using this license key.</p>
+                            <div class="so-checkbox-group">
+                                <label class="so-plan-check"><input id="so-license-hide-plan-addons" type="checkbox"> Hide plan add-ons in extension</label>
+                                <label class="so-plan-check"><input id="so-license-disable-plan-addons" type="checkbox"> Disable plan add-ons (visible but not selectable)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox"> Hide custom plan block</label>
+                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox"> Disable custom plan block</label>
                             </div>
                             <details class="so-details-block">
                                 <summary>Customer details (optional — add anytime)</summary>
@@ -4840,6 +4848,18 @@
             }
         })();
     </script>
+
+    <!-- Action preview modal (load/seed/import/license — review before destructive or Firebase writes) -->
+    <div id="so-action-preview-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" role="dialog" aria-labelledby="so-action-preview-title" aria-modal="true" onclick="if(event.target===this)soCancelActionPreview()">
+        <div class="so-modal-panel so-modal-panel--wide so-save-review-panel">
+            <h4 id="so-action-preview-title" class="so-modal-title">Review action</h4>
+            <div id="so-action-preview-body" class="so-save-review-body"></div>
+            <div class="so-modal-actions">
+                <button type="button" class="so-btn-sm so-btn-touch" onclick="soCancelActionPreview()">Cancel</button>
+                <button type="button" id="so-action-preview-confirm" class="btn-gold so-btn-sm" onclick="soConfirmActionPreview()">Confirm</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Save review modal (portaled to body — full-screen overlay, not inside accordion) -->
     <div id="so-save-review-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" role="dialog" aria-labelledby="so-save-review-title" aria-modal="true" onclick="if(event.target===this)soCancelSaveReview()">
