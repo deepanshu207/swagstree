@@ -839,9 +839,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     if (!entry?.licenseInfo) return null;
     const info = LicenseManager.normalizeLicenseInfo(entry.licenseInfo);
+    let plans = info.licenseCustomPlans || info.license_custom_plans || [];
+    let legacyPlan = info.licenseCustomPlan || info.license_custom_plan || null;
+    if (typeof FirebaseLicense !== "undefined" && FirebaseLicense.isEnabled() && info.key) {
+      try {
+        const lic = await FirebaseLicense.fetchDoc("licenses", info.key);
+        if (lic) {
+          plans = lic.license_custom_plans || lic.licenseCustomPlans || plans;
+          legacyPlan = lic.license_custom_plan || lic.licenseCustomPlan || legacyPlan;
+        }
+      } catch (_) { /* use cached licenseInfo */ }
+    }
     return {
-      license_custom_plan: info.licenseCustomPlan,
-      licenseCustomPlan: info.licenseCustomPlan,
+      license_custom_plans: plans,
+      licenseCustomPlans: plans,
+      license_custom_plan: legacyPlan,
+      licenseCustomPlan: legacyPlan,
       hide_custom_plan: info.hideCustomPlan,
       hideCustomPlan: info.hideCustomPlan,
       disable_custom_plan: info.disableCustomPlan,
@@ -915,12 +928,26 @@ document.addEventListener("DOMContentLoaded", async () => {
       customBtn.dataset.wired = "1";
       PA.bindTap(customBtn, async () => {
         const source = customBtn.dataset.customPlanSource || "global";
+        const planCfgId = customBtn.dataset.customPlanId || "";
         let customCfg = cachedCreditsConfig?.custom_plan || null;
         if (source === "license" && licenseContext) {
-          customCfg =
+          const entries =
+            licenseContext.license_custom_plans ||
+            licenseContext.licenseCustomPlans ||
+            [];
+          const legacy =
             licenseContext.license_custom_plan ||
-            licenseContext.licenseCustomPlan ||
-            customCfg;
+            licenseContext.licenseCustomPlan;
+          const match = Array.isArray(entries)
+            ? entries.find(
+                (p) =>
+                  p &&
+                  (p.id === planCfgId ||
+                    FirebaseLicense.slugifyPlanId?.(p.id) ===
+                      FirebaseLicense.slugifyPlanId?.(planCfgId)),
+              )
+            : null;
+          customCfg = match || legacy || customCfg;
         }
         const message = FirebaseLicense.buildCustomPlanPurchaseMessage(
           planId,

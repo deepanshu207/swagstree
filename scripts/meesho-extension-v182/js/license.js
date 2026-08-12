@@ -70,6 +70,8 @@ const LicenseManager = {
       customerAddress: info.customerAddress || info.customer_address || null,
       customerLocation: info.customerLocation || info.customer_location || null,
       licenseCustomPlan: info.licenseCustomPlan || info.license_custom_plan || null,
+      licenseCustomPlans:
+        info.licenseCustomPlans || info.license_custom_plans || null,
       hideCustomPlan: info.hideCustomPlan === true || info.hide_custom_plan === true,
       disableCustomPlan:
         info.disableCustomPlan === true || info.disable_custom_plan === true,

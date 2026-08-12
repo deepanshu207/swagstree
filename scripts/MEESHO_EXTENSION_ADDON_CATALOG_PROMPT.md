@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.44)
+# Meesho Extension — Admin sync prompt (v1.8.45)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -16,12 +16,12 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | `inferLicenseBillingMode`, customer patch on activation, `license_custom_plan` blocks, `resolveCustomPlanBlocks` (v1.8.44) |
+| `js/firebaseLicense.js` | `license_custom_plans[]`, `resolveLicenseCustomPlanEntries`, multi-block custom plan UI (v1.8.45) |
 | `js/license.js` | `licenseCustomPlan`, customer address/location in `normalizeLicenseInfo` |
 | `popup.js` | Pass `licenseContext` to plan detail; wire per-license custom plan WhatsApp |
 | `firestore.rules` | Allow extension to patch `customer_*`, `custom_credits` on activation |
-| `config.js` | `VERSION: "1.8.44"` |
-| `manifest.json` | `"version": "1.8.44"` |
+| `config.js` | `VERSION: "1.8.45"` |
+| `manifest.json` | `"version": "1.8.45"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -60,7 +60,8 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 | `customer_address` | Optional street address |
 | `customer_location` | Timezone / locale string (e.g. `Asia/Kolkata · en-IN`) |
 | `customer_ip` | Optional IP when known |
-| `license_custom_plan` | Per-license WhatsApp custom plan block `{ enabled, label, description, whatsapp_title }` |
+| `license_custom_plans` | Per-license WhatsApp custom plan blocks `[{ id, enabled, label, description, whatsapp_title, order }]` |
+| `license_custom_plan` | Legacy single object — still read; remove on save when using array |
 
 ## Billing mode (v1.8.44)
 
@@ -69,22 +70,39 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 - **Manual override:** admin can still pick `credits` for pure pay-per-use licenses.
 - **Extension activation:** if license has add-on/custom credits and no stored billing mode, writes `billing_mode: hybrid`.
 
-## Per-license custom plan (v1.8.44)
+## Per-license custom plans (v1.8.45)
 
-Admin → Super → Licenses → **License custom plan (this key only)**:
+Admin → Super → Licenses → **License custom plans (this key only)** — add multiple mapped plans per license (same workflow as credit packs: list + modal).
 
 ```json
-"license_custom_plan": {
-  "enabled": true,
-  "label": "Request VIP package via WhatsApp",
-  "whatsapp_title": "VIP Custom Plan",
-  "description": "Your dedicated support package for this license."
-}
+"license_custom_plans": [
+  {
+    "id": "vip_yearly",
+    "enabled": true,
+    "label": "Request VIP yearly package",
+    "whatsapp_title": "VIP Yearly Plan",
+    "description": "Your dedicated yearly support package.",
+    "order": 0
+  },
+  {
+    "id": "addon_bundle",
+    "enabled": true,
+    "label": "Custom add-on bundle",
+    "whatsapp_title": "Add-on bundle",
+    "description": "Pick extra credits for my license.",
+    "order": 1
+  }
+]
 ```
 
-- Shown in extension plan detail **in addition to** global `credits.custom_plan`.
-- Respects license flags `hide_custom_plan` / `disable_custom_plan`.
-- Stored on `licenseInfo.licenseCustomPlan` after activation for popup rendering.
+- Legacy single `license_custom_plan` object is still read — migrated to array on next license save.
+- Extension plan detail shows **each** enabled entry plus the global `credits.custom_plan` block.
+- `hide_custom_plan` on the license hides all license-mapped custom plans (global block still follows plan/config rules).
+- Active license context loads fresh `license_custom_plans[]` from Firebase when opening plan detail.
+
+## Per-license custom plan (v1.8.44 — superseded)
+
+Use `license_custom_plans[]` array instead of single `license_custom_plan`.
 
 ## Customer fields on activation (v1.8.44)
 

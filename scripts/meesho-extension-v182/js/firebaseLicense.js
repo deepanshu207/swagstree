@@ -1255,13 +1255,37 @@ Please share payment details.`;
       assign_on_whatsapp:
         c.assign_on_whatsapp !== false && c.assignOnWhatsapp !== false,
       source: c.source || "global",
+      id: c.id || c.slug || "",
     };
   },
 
   normalizeLicenseCustomPlanConfig(raw) {
     const c = raw && typeof raw === "object" ? raw : null;
-    if (!c || c.enabled === false) return null;
-    return this.normalizeCustomPlanConfig({ ...c, source: "license" });
+    if (!c || c.enabled === false || c.active === false) return null;
+    return this.normalizeCustomPlanConfig({
+      ...c,
+      source: "license",
+      id: c.id || c.slug || "",
+    });
+  },
+
+  resolveLicenseCustomPlanEntries(lic) {
+    const src = lic || {};
+    const rawArr = src.license_custom_plans || src.licenseCustomPlans;
+    if (Array.isArray(rawArr) && rawArr.length) {
+      return rawArr
+        .map((entry, i) => this.normalizeLicenseCustomPlanConfig(entry, i))
+        .filter(Boolean)
+        .sort(
+          (a, b) =>
+            (a.order ?? 0) - (b.order ?? 0) ||
+            String(a.label || "").localeCompare(String(b.label || "")),
+        );
+    }
+    const legacy = this.normalizeLicenseCustomPlanConfig(
+      src.license_custom_plan ?? src.licenseCustomPlan,
+    );
+    return legacy ? [legacy] : [];
   },
 
   resolveCustomPlanBlocks(plan, creditsConfig, licenseContext) {
@@ -1271,19 +1295,17 @@ Please share payment details.`;
       creditsConfig?.custom_plan ?? creditsConfig?.customPlan,
     );
     if (this.planShowsCustomPlan(plan, creditsConfig, licenseContext)) {
-      blocks.push({ ...globalCfg, source: "global" });
+      blocks.push({ ...globalCfg, source: "global", id: "global_custom_plan" });
     }
-    const licCfg = this.normalizeLicenseCustomPlanConfig(
-      lic?.license_custom_plan ?? lic?.licenseCustomPlan,
-    );
-    if (
-      licCfg &&
-      !lic?.hide_custom_plan &&
-      !lic?.hideCustomPlan &&
-      !plan?.hide_custom_plan &&
-      !plan?.hideCustomPlan
-    ) {
-      blocks.push(licCfg);
+    const hideLicenseCustom =
+      lic?.hide_custom_plan ||
+      lic?.hideCustomPlan ||
+      plan?.hide_custom_plan ||
+      plan?.hideCustomPlan;
+    if (!hideLicenseCustom) {
+      this.resolveLicenseCustomPlanEntries(lic).forEach((entry) => {
+        blocks.push(entry);
+      });
     }
     return blocks;
   },
@@ -1292,16 +1314,17 @@ Please share payment details.`;
     if (!blocks?.length) return "";
     const customDisabled = this.planCustomPlanDisabled(plan, licenseContext);
     let html = "";
-    blocks.forEach((cfg, index) => {
-      const title =
-        cfg.source === "license"
-          ? "🛠 YOUR LICENSE CUSTOM PLAN"
-          : "🛠 CUSTOM PLAN";
-      html += `<div class="plan-detail-section plan-detail-section--custom" data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-index="${index}">
-        <div class="plan-detail-section-title">${title}</div>
+    blocks.forEach((cfg) => {
+      const isLicense = cfg.source === "license";
+      const title = isLicense
+        ? `🛠 ${cfg.label || "YOUR LICENSE CUSTOM PLAN"}`
+        : "🛠 CUSTOM PLAN";
+      const planId = cfg.id || (isLicense ? "license_custom_plan" : "global_custom_plan");
+      html += `<div class="plan-detail-section plan-detail-section--custom" data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}">
+        <div class="plan-detail-section-title">${this.escapeHtml(title)}</div>
         ${cfg.description ? `<p class="plan-detail-section-body">${this.escapeHtml(cfg.description)}</p>` : ""}
-        <button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-index="${index}" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
-          ${this.escapeHtml(cfg.label)}${customDisabled ? " (disabled)" : ""}
+        <button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
+          ${this.escapeHtml(cfg.label || "Request Custom Plan via WhatsApp")}${customDisabled ? " (disabled)" : ""}
         </button>
       </div>`;
     });
@@ -2662,6 +2685,8 @@ Please share payment details.`;
       customerLocation: lic.customer_location || lic.customerLocation || "",
       licenseCustomPlan:
         lic.license_custom_plan || lic.licenseCustomPlan || null,
+      licenseCustomPlans:
+        lic.license_custom_plans || lic.licenseCustomPlans || null,
       hideCustomPlan: !!(lic.hide_custom_plan || lic.hideCustomPlan),
       disableCustomPlan: !!(lic.disable_custom_plan || lic.disableCustomPlan),
     };
@@ -2865,7 +2890,7 @@ Please share payment details.`;
           .toUpperCase()
           .replace(/\s+/g, "-");
 
-    const lic = await this.fetchDoc("licenses", key);
+    let lic = await this.fetchDoc("licenses", key);
     if (!lic) {
       return { valid: false, reason: "License key not found" };
     }
