@@ -6770,6 +6770,7 @@
     };
 
     window.renderSoExtensionPreview = renderSoExtensionPreview;
+    window.renderSoCreditPacksEditor = renderSoCreditPacksEditor;
 
     function soPlanMetaChips(plan) {
         const chips = [];
