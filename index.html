@@ -2717,6 +2717,7 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip" style="margin-bottom:10px;">Tap <strong>Open form</strong> below if this section is collapsed. Generate a key, pick plan &amp; credits, then <strong>Create license</strong>.</p>
                             <div class="so-admin-grid">
                                 <label style="grid-column:1/-1;">
                                     <span class="admin-settings-field-label">License key</span>
@@ -2840,7 +2841,8 @@
                     </div>
                     <div class="so-sticky-save so-sticky-save--muted">
                         <span class="so-admin-muted">Create / edit license</span>
-                        <button type="button" class="btn-gold so-btn-sm" onclick="soLoadDefaultsForTab('licenses')">Load defaults</button>
+                        <button type="button" class="btn-gold so-btn-sm so-btn-touch" onclick="openSoLicenseCreateForm()">Open form</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soLoadDefaultsForTab('licenses')" title="Clear form only — no Firebase">Reset form</button>
                         <button type="button" class="btn-gold so-btn-save" onclick="soSaveTabToFirebase('licenses')">Save to Firebase</button>
                     </div>
                 </div>
@@ -2970,42 +2972,52 @@
                 <div id="so-google-credits-modal" class="so-modal-overlay" style="display:none;" hidden aria-hidden="true"></div>
 
                 <!-- Add credits modal (mobile-safe, no prompt) -->
-                <div id="so-add-credits-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
-                    <div class="so-modal-panel">
-                        <h4 class="so-modal-title">Add credits</h4>
-                        <p id="so-add-credits-key-label" class="so-admin-muted"></p>
-                        <p id="so-add-credits-balance-label" class="so-admin-muted"></p>
-                        <div id="so-add-credits-packs" class="so-pack-quick-btns"></div>
-                        <label style="margin-top:12px;"><span class="admin-settings-field-label">Custom amount</span>
-                            <input id="so-add-credits-amount" type="number" min="1" step="1" placeholder="Credits to add"></label>
-                        <div class="so-modal-actions">
-                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoAddCredits()">Add credits</button>
+                <div id="so-add-credits-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" onclick="if(event.target===this)closeSoAddCreditsModal()">
+                    <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+                        <div class="so-modal-header so-modal-header--sticky">
+                            <h4 class="so-modal-title" style="margin:0;">Add credits</h4>
+                            <button type="button" class="so-modal-close-btn" onclick="closeSoAddCreditsModal()" aria-label="Close">×</button>
+                        </div>
+                        <div class="so-save-review-body">
+                            <p id="so-add-credits-key-label" class="so-admin-muted"></p>
+                            <p id="so-add-credits-balance-label" class="so-admin-muted"></p>
+                            <div id="so-add-credits-packs" class="so-pack-quick-btns"></div>
+                            <label style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"><span class="admin-settings-field-label">Custom amount</span>
+                                <input id="so-add-credits-amount" type="number" min="1" step="1" placeholder="Credits to add"></label>
+                        </div>
+                        <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
                             <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoAddCreditsModal()">Cancel</button>
+                            <button type="button" class="btn-gold so-btn-save" onclick="confirmSoAddCredits()">Add credits</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- License overrides modal -->
-                <div id="so-license-overrides-modal" class="so-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSoLicenseOverrides()">
-                    <div class="so-modal-panel">
-                        <h4 class="so-modal-title">Edit license overrides</h4>
-                        <p id="so-overrides-key-label" class="so-admin-muted"></p>
-                        <div class="so-admin-grid">
-                            <label><span class="admin-settings-field-label">Billing mode</span>
-                                <select id="so-overrides-billing-mode">
-                                    <option value="subscription">subscription</option>
-                                    <option value="credits">credits</option>
-                                    <option value="hybrid">hybrid</option>
-                                </select></label>
-                            <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
-                                <input id="so-overrides-max-devices" type="number" min="0" step="1"></label>
-                            <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-time" type="checkbox"> Unlimited time</label>
-                            <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-devices" type="checkbox"> Unlimited devices</label>
-                            <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-credits" type="checkbox"> Unlimited credits</label>
+                <div id="so-license-overrides-modal" class="so-modal-overlay so-save-review-overlay" style="display:none;" onclick="if(event.target===this)closeSoLicenseOverrides()">
+                    <div class="so-modal-panel so-modal-panel--wide so-save-review-panel so-save-review-panel--flex">
+                        <div class="so-modal-header so-modal-header--sticky">
+                            <h4 class="so-modal-title" style="margin:0;">Edit license overrides</h4>
+                            <button type="button" class="so-modal-close-btn" onclick="closeSoLicenseOverrides()" aria-label="Close">×</button>
                         </div>
-                        <div class="so-modal-actions">
-                            <button type="button" class="btn-gold so-btn-save" onclick="saveSoLicenseOverrides()">Save overrides</button>
+                        <div class="so-save-review-body">
+                            <p id="so-overrides-key-label" class="so-admin-muted"></p>
+                            <div class="so-admin-grid">
+                                <label><span class="admin-settings-field-label">Billing mode</span>
+                                    <select id="so-overrides-billing-mode">
+                                        <option value="subscription">subscription</option>
+                                        <option value="credits">credits</option>
+                                        <option value="hybrid">hybrid</option>
+                                    </select></label>
+                                <label><span class="admin-settings-field-label">Max devices (0 = unlimited)</span>
+                                    <input id="so-overrides-max-devices" type="number" min="0" step="1"></label>
+                                <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-time" type="checkbox"> Unlimited time</label>
+                                <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-devices" type="checkbox"> Unlimited devices</label>
+                                <label class="so-plan-check" style="grid-column:1/-1;"><input id="so-overrides-unlimited-credits" type="checkbox"> Unlimited credits</label>
+                            </div>
+                        </div>
+                        <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
                             <button type="button" class="so-btn-sm so-btn-touch" onclick="closeSoLicenseOverrides()">Cancel</button>
+                            <button type="button" class="btn-gold so-btn-save" onclick="saveSoLicenseOverrides()">Save overrides</button>
                         </div>
                     </div>
                 </div>

@@ -11222,9 +11222,24 @@ body.so-action-preview-open {
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .so-save-review-panel--flex {
-    max-height: min(92vh, 100dvh);
+    max-height: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 12px));
     padding: 0;
     overflow: hidden !important;
+    overflow-y: hidden !important;
+    display: flex;
+    flex-direction: column;
+}
+.so-save-review-overlay .so-modal-panel.so-save-review-panel--flex {
+    padding: 0 !important;
+    overflow: hidden !important;
+    overflow-y: hidden !important;
+}
+.so-save-review-panel--flex .so-modal-header--sticky,
+.so-save-review-panel--flex .so-modal-footer--sticky {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    flex-shrink: 0;
 }
 .so-save-review-panel--flex .so-save-review-body {
     margin: 0;
@@ -11232,17 +11247,46 @@ body.so-action-preview-open {
     border-radius: 0;
     background: transparent;
     padding: 0 18px 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 .so-save-review-panel--flex .so-modal-footer.so-modal-actions {
     display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: stretch;
+    width: 100%;
+    box-sizing: border-box;
 }
 .so-save-review-panel--flex .so-modal-footer.so-modal-actions .btn-gold,
-.so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-sm {
-    min-height: 44px;
-    flex: 1 1 auto;
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-sm,
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-touch {
+    width: 100%;
+    min-height: 48px;
+    flex: 0 0 auto;
+    margin: 0;
+}
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-action-preview-confirm,
+.so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-save-review-confirm {
+    order: -1;
+}
+@media (min-width: 520px) {
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions {
+        flex-direction: row;
+        justify-content: flex-end;
+    }
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions .btn-gold,
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions .so-btn-sm {
+        width: auto;
+        min-height: 44px;
+        flex: 1 1 auto;
+    }
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-action-preview-confirm,
+    .so-save-review-panel--flex .so-modal-footer.so-modal-actions #so-save-review-confirm {
+        order: 0;
+    }
 }
 .so-license-consumed-grid {
     display: grid;

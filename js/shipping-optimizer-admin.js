@@ -705,14 +705,35 @@
     }
 
     window.soLoadDefaultsForTab = async function(tab) {
+        const shortLicenseReset = tab === 'licenses';
         const ok = await soConfirmActionPreviewModal({
-            title: 'Load built-in defaults → form only',
-            bodyHtml: soBuildLoadDefaultsPreviewHtml(tab),
-            confirmLabel: 'Load into form (no Firebase)',
+            title: shortLicenseReset ? 'Reset license form' : 'Load built-in defaults → form only',
+            bodyHtml: shortLicenseReset
+                ? '<p>Clear the create/edit form and start fresh.</p><p class="so-admin-muted"><strong>Safe:</strong> Does not write Firebase. Saved licenses are not changed.</p>'
+                : soBuildLoadDefaultsPreviewHtml(tab),
+            confirmLabel: shortLicenseReset ? 'Reset form' : 'Load into form (no Firebase)',
             dangerous: false
         });
         if (!ok) return;
         soApplyLoadDefaultsForTab(tab);
+        if (shortLicenseReset) openSoLicenseCreateForm({ reset: false });
+    };
+
+    window.openSoLicenseCreateForm = function(options) {
+        const opts = options || {};
+        switchShippingOptimizerTab('licenses');
+        if (opts.reset) cancelSoLicenseEdit();
+        soOpenSections.add('license-create');
+        const formSection = document.querySelector('.so-section-accordion[data-so-section="license-create"]');
+        if (formSection) formSection.classList.add('so-section-accordion--open');
+        requestAnimationFrame(() => {
+            const target = document.getElementById('so-license-key-input')
+                || document.getElementById('so-license-form-title');
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        if (opts.toast !== false) {
+            soToast(soEditingLicenseKey ? 'License form open — scroll up to edit.' : 'Create license form open.');
+        }
     };
 
     window.soViewAllDefaults = function() {
@@ -3709,12 +3730,16 @@
         return `<p class="so-admin-muted" style="margin-bottom:8px;">These changes will be written to Firebase. License and Google user records are <strong>not</strong> modified by config/credits saves.</p><ul class="so-save-review-list">${lines.join('')}</ul>`;
     }
 
-    function soEnsureSaveReviewModalPortal() {
-        const modal = document.getElementById('so-save-review-modal');
+    function soEnsureModalPortal(modalId) {
+        const modal = document.getElementById(modalId);
         if (modal && modal.parentElement !== document.body) {
             document.body.appendChild(modal);
         }
         return modal;
+    }
+
+    function soEnsureSaveReviewModalPortal() {
+        return soEnsureModalPortal('so-save-review-modal');
     }
 
     function soCloseSaveReviewModal() {
@@ -3730,11 +3755,7 @@
     let soActionPreviewResolver = null;
 
     function soEnsureActionPreviewModalPortal() {
-        const modal = document.getElementById('so-action-preview-modal');
-        if (modal && modal.parentElement !== document.body) {
-            document.body.appendChild(modal);
-        }
-        return modal;
+        return soEnsureModalPortal('so-action-preview-modal');
     }
 
     function soCloseActionPreviewModal() {
@@ -3768,6 +3789,9 @@
         modal.hidden = false;
         modal.style.display = 'flex';
         document.body.classList.add('so-action-preview-open');
+        requestAnimationFrame(() => {
+            if (confirmBtn) confirmBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
         return new Promise(resolve => {
             soActionPreviewResolver = async (ok) => {
                 soCloseActionPreviewModal();
@@ -4042,6 +4066,9 @@
         modal.hidden = false;
         modal.style.display = 'flex';
         document.body.classList.add('so-save-review-open');
+        requestAnimationFrame(() => {
+            if (confirmBtn) confirmBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
         return new Promise(resolve => {
             soSaveReviewResolver = (ok) => {
                 soCloseSaveReviewModal();
@@ -8237,8 +8264,9 @@
                 ).join('')
                 : '<p class="so-admin-muted">No packs configured — enter custom amount below.</p>';
         }
-        const modal = document.getElementById('so-add-credits-modal');
+        const modal = soEnsureModalPortal('so-add-credits-modal');
         if (modal) modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
     };
 
     window.soSelectAddCreditsPack = function(credits) {
@@ -8250,6 +8278,7 @@
         soAddCreditsLicenseKey = null;
         const modal = document.getElementById('so-add-credits-modal');
         if (modal) modal.style.display = 'none';
+        document.body.style.overflow = '';
     };
 
     window.confirmSoAddCredits = async function() {
@@ -8287,14 +8316,16 @@
         document.getElementById('so-overrides-unlimited-time').checked = soIsUnlimitedTime(lic);
         document.getElementById('so-overrides-unlimited-devices').checked = soIsUnlimitedDevices(lic);
         document.getElementById('so-overrides-unlimited-credits').checked = soIsUnlimitedCredits(lic);
-        const modal = document.getElementById('so-license-overrides-modal');
+        const modal = soEnsureModalPortal('so-license-overrides-modal');
         if (modal) modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
     };
 
     window.closeSoLicenseOverrides = function() {
         soOverridesLicenseKey = null;
         const modal = document.getElementById('so-license-overrides-modal');
         if (modal) modal.style.display = 'none';
+        document.body.style.overflow = '';
     };
 
     window.saveSoLicenseOverrides = async function() {
