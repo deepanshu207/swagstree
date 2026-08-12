@@ -2465,6 +2465,8 @@
                         <div class="so-section-accordion-body">
                             <p class="so-admin-muted so-admin-tip">Rates and toggles — saved separately from pack list.</p>
                             <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-credits-enabled" type="checkbox" checked onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> Credits enabled in extension</label>
+                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-pack-scopes-enabled" type="checkbox" onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> <strong>Pack plan mapping</strong> — filter credit packs by subscription plan (<code>scope</code> + <code>plan_ids</code> on each pack)</label>
+                            <label class="so-plan-check" style="margin-bottom:10px;"><input id="so-addon-scopes-enabled" type="checkbox" onchange="soMarkTabDirty('credits'); renderSoExtensionPreview()"> <strong>Add-on plan mapping</strong> — filter shared add-on catalog by plan (<code>addon_scopes_enabled</code>)</label>
                             <div class="so-admin-grid">
                                 <label><span class="so-field-label-row"><span class="admin-settings-field-label">Price per credit (₹)</span><button type="button" class="so-field-info-btn" onclick="toggleSoFieldInfo('price-per-credit', event)" aria-expanded="false" aria-controls="so-hint-price-per-credit" title="More info">ⓘ</button></span>
                                     <div id="so-hint-price-per-credit" class="so-field-info-panel" hidden role="note">Used for custom credit top-ups in the extension (not plan price). Example: 10 credits × ₹2 = ₹20.</div>
@@ -2577,7 +2579,7 @@
                             <i class="fa fa-chevron-down so-section-chevron"></i>
                         </button>
                         <div class="so-section-accordion-body">
-                            <p class="so-admin-muted so-admin-tip">Tap a pack row to expand. Hidden packs are not shown in the extension.</p>
+                            <p class="so-admin-muted so-admin-tip">Tap a pack row to expand. Set <strong>Scope</strong> to map packs to subscription plans (Monthly, Yearly, credits_starter, etc.). Enable <strong>Pack plan mapping</strong> above so the extension filters by active license plan. Hidden packs are not shown in the extension.</p>
                             <div class="so-plans-toolbar">
                                 <span class="so-plans-count">Credit packs</span>
                                 <div class="so-plans-toolbar-actions">
@@ -4832,7 +4834,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.17"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.18"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

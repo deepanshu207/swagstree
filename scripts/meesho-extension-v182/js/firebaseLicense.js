@@ -957,6 +957,20 @@ const FirebaseLicense = {
       html += `</div></div>`;
     }
 
+    const planCreditPacks = creditsConfig
+      ? this.getPlanDetailCreditPacks(plan, creditsConfig)
+      : [];
+    if (planCreditPacks.length) {
+      html += `<div class="plan-detail-section plan-detail-section--packs">
+        <div class="plan-detail-section-title">⚡ CREDIT PACKS FOR THIS PLAN</div>
+        <p class="plan-detail-section-body">Top-up bundles mapped to <strong>${this.escapeHtml(plan.name || plan.id)}</strong>. Tap a pack for details or buy via WhatsApp.</p>
+        <div class="plan-grid plan-detail-pack-cards" style="grid-template-columns:${this.planGridColumns(planCreditPacks.length)};">`;
+      planCreditPacks.forEach((p) => {
+        html += this.renderCreditPackCardHtml(p, "plan_detail");
+      });
+      html += `</div></div>`;
+    }
+
     if (this.planShowsCustomPlan(plan, creditsConfig, licenseContext)) {
       const customDisabled = this.planCustomPlanDisabled(plan, licenseContext);
       html += `<div class="plan-detail-section plan-detail-section--custom">
@@ -1223,6 +1237,8 @@ Please share payment details.`;
         raw.plan_addons_enabled !== false && raw.planAddonsEnabled !== false,
       addon_scopes_enabled:
         raw.addon_scopes_enabled === true || raw.addonScopesEnabled === true,
+      pack_scopes_enabled:
+        raw.pack_scopes_enabled === true || raw.packScopesEnabled === true,
       custom_plan: this.normalizeCustomPlanConfig(
         raw.custom_plan ?? raw.customPlan,
       ),
@@ -1724,7 +1740,60 @@ Please share payment details.`;
         p?.show_details_icon !== false && p?.showDetailsIcon !== false,
       card_subtitle: p?.card_subtitle || p?.cardSubtitle || "",
       offer_badges: this.parseOfferBadges(p?.offer_badges ?? p?.offerBadges),
+      scope:
+        String(p?.scope || "global").trim().toLowerCase() === "plan"
+          ? "plan"
+          : "global",
+      plan_ids: (Array.isArray(p?.plan_ids ?? p?.planIds)
+        ? p.plan_ids ?? p.planIds
+        : String(p?.plan_ids ?? p?.planIds ?? "")
+            .split(/[\s,]+/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+      ).map((id) => this.slugifyPlanId(id)),
     };
+  },
+
+  packAppliesToPlan(pack, planId, scopesEnabled) {
+    if (!pack || pack.active === false) return false;
+    if (!scopesEnabled) return true;
+    const scope = pack.scope || "global";
+    if (scope !== "plan") return scope === "global";
+    const ids = pack.plan_ids || [];
+    if (!ids.length) return false;
+    const key = this.slugifyPlanId(planId);
+    return ids.some((id) => this.slugifyPlanId(id) === key);
+  },
+
+  filterCreditPacksForMain(packs, activePlanIds, scopesEnabled) {
+    const list = Array.isArray(packs) ? packs : [];
+    if (!scopesEnabled) return list;
+    const planKeys = new Set(
+      (activePlanIds || [])
+        .map((id) => this.slugifyPlanId(id))
+        .filter(Boolean),
+    );
+    return list.filter((p) => {
+      if ((p.scope || "global") !== "plan") return true;
+      if (!planKeys.size) return false;
+      return (p.plan_ids || []).some((id) =>
+        planKeys.has(this.slugifyPlanId(id)),
+      );
+    });
+  },
+
+  getPlanDetailCreditPacks(plan, creditsConfig) {
+    const cfg = creditsConfig || {};
+    const scopesEnabled =
+      cfg.pack_scopes_enabled === true || cfg.packScopesEnabled === true;
+    const packs = (cfg.packs || []).filter((p) => p.active !== false);
+    if (!scopesEnabled || !plan) return [];
+    return this.sortPlans(
+      packs.filter(
+        (p) =>
+          p.scope === "plan" && this.packAppliesToPlan(p, plan.id, true),
+      ),
+    );
   },
 
   parseCreditPacks(raw) {
@@ -1878,6 +1947,7 @@ Please share payment details.`;
       global_addons_enabled: addonsCfg.global_addons_enabled,
       plan_addons_enabled: addonsCfg.plan_addons_enabled,
       addon_scopes_enabled: addonsCfg.addon_scopes_enabled,
+      pack_scopes_enabled: addonsCfg.pack_scopes_enabled,
       custom_plan: addonsCfg.custom_plan,
       image_generation: this.normalizeImageGenConfig(
         raw.image_generation ?? raw.imageGeneration,
@@ -3582,6 +3652,25 @@ Please share payment details.`;
     return this.planCardShell(btn, addon, "addon");
   },
 
+  renderCreditPackCardHtml(pack, variant = "popup") {
+    const p = pack || {};
+    const offerBadges = this.planOfferBadgesHtml(p);
+    const subtitle = p.card_subtitle || `${p.credits} credits · ₹${p.price}`;
+    const cardHint = p.card_hint || "Tap for details · WhatsApp to buy";
+    const btnClass =
+      variant === "plan_detail"
+        ? "plan-btn credit-pack-open-btn plan-card-main"
+        : "plan-btn credit-pack-open-btn plan-card-main";
+    const btn = `<button type="button" class="${btnClass}" data-pack="${this.escapeAttr(p.id)}" data-credits="${p.credits}" data-price="${p.price}" data-label="${this.escapeAttr(p.label)}">
+      ${offerBadges}
+      <div class="plan-name">${this.escapeHtml(p.label || p.credits + " Credits")}</div>
+      <div class="plan-price">₹${p.price}</div>
+      <div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitle)}</div>
+      ${this.planCardFooterHtml({ card_hint: cardHint })}
+    </button>`;
+    return this.planCardShell(btn, p, "pack");
+  },
+
   renderCreditPacks(container, packs, variant = "popup") {
     if (!container) return;
     const list = packs?.length ? packs : this.defaultCreditsConfig().packs;
@@ -3597,18 +3686,7 @@ Please share payment details.`;
 
     if (variant === "popup") {
       container.innerHTML = list
-        .map((p) => {
-          const offerBadges = this.planOfferBadgesHtml(p);
-          const subtitle =
-            p.card_subtitle || `${p.credits} credits · ₹${p.price}`;
-          const btn = `<button type="button" class="plan-btn credit-pack-open-btn plan-card-main" data-pack="${this.escapeAttr(p.id)}" data-credits="${p.credits}" data-price="${p.price}" data-label="${this.escapeAttr(p.label)}">
-            ${offerBadges}
-            <div class="plan-name">${this.escapeHtml(p.label || p.credits + " Credits")}</div>
-            <div class="plan-price">₹${p.price}</div>
-            <div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitle)}</div>
-          </button>`;
-          return this.planCardShell(btn, p, "pack");
-        })
+        .map((p) => this.renderCreditPackCardHtml(p, "popup"))
         .join("");
       return;
     }

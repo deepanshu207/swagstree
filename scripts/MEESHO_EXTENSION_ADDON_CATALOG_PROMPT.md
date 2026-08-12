@@ -79,10 +79,16 @@ Set in Swagstree admin → Super → Licenses → create/edit license:
 ```json
 {
   "credits": {
+    "pack_scopes_enabled": true,
     "addon_scopes_enabled": true,
     "addons_enabled": true,
     "plan_addons_enabled": true,
     "global_addons_enabled": true,
+    "packs": [
+      { "id": "pack_10", "scope": "global", "credits": 10, "price": 20, "label": "10 Credits", "active": true },
+      { "id": "pack_50", "scope": "plan", "plan_ids": ["monthly", "yearly"], "credits": 50, "price": 90, "label": "50 Credits", "active": true },
+      { "id": "pack_custom", "scope": "plan", "plan_ids": ["credits_starter"], "credits": 60, "price": 70, "label": "60 credits", "active": true }
+    ],
     "addon_catalog": [
       { "id": "addon_10", "scope": "plan", "plan_ids": ["monthly"], "credits": 10, "price": 20 },
       { "id": "addon_25", "scope": "global", "credits": 25, "price": 40 }
@@ -91,8 +97,33 @@ Set in Swagstree admin → Super → Licenses → create/edit license:
 }
 ```
 
-- `scope: "plan"` + `plan_ids[]` → add-on in plan detail only.
-- `scope: "global"` → licensed users see it in popup global add-ons grid.
+- `scope: "plan"` + `plan_ids[]` on **add-ons** → add-on in plan detail only (when `addon_scopes_enabled: true`).
+- `scope: "global"` on add-ons → licensed users see it in popup global add-ons grid.
+- `scope: "plan"` + `plan_ids[]` on **credit packs** → pack shown in ⚡ BUY CREDITS when user's active license plan matches, and on that plan's detail screen (when `pack_scopes_enabled: true`).
+- `scope: "global"` on credit packs → always in main ⚡ BUY CREDITS section (all eligible users).
+- Map custom/credits-only packs to plan id `credits_starter` (or your credits-only plan slug).
+
+## Credit pack plan mapping — extension (v1.8.43+)
+
+Admin: Credits tab → enable **Pack plan mapping** → set each pack **Scope** + **Plan IDs** → Save to Firebase.
+
+Extension behavior when `credits.pack_scopes_enabled === true`:
+
+| Surface | What shows |
+|---------|------------|
+| Main popup ⚡ BUY CREDITS | `scope: global` packs + `scope: plan` packs matching active license `plan_id` |
+| Plan detail (ℹ️) | `scope: plan` packs where `plan_ids` includes that plan's id |
+| No license yet | Global packs only (plan-mapped packs hidden until activated) |
+
+Implementation (`firebaseLicense.js` v1.8.43):
+
+- `normalizeCreditPack()` reads `scope` + `plan_ids[]`
+- `packAppliesToPlan(pack, planId, scopesEnabled)` — same rules as add-ons
+- `filterCreditPacksForMain(packs, activePlanIds, scopesEnabled)` — popup grid
+- `getPlanDetailCreditPacks(plan, creditsConfig)` — plan detail section **⚡ CREDIT PACKS FOR THIS PLAN**
+- `popup.js` → `refreshCreditsTopUpSection()` passes active license plan ids into filter
+
+After admin save: close/reopen extension popup (config cache ~5 min or bust on `updatedAt`).
 
 ## Swagstree admin button guide
 
@@ -109,6 +140,12 @@ Set in Swagstree admin → Super → Licenses → create/edit license:
 1. Super → Shipping Optimizer → **Built-in defaults** tab → preview cards.
 2. Tap **Seed built-in → Firebase** → confirm preview → write.
 3. Reload extension at `chrome://extensions` (v1.8.41+).
+
+## Credit packs — admin save & extension sync (v1.8.43+)
+
+- **Pack plan mapping** (Credits tab checkbox) writes `credits.pack_scopes_enabled` — extension filters packs by active license plan.
+- Each pack row has **Scope** (`global` | `plan`) and **Plan IDs** (comma-separated slugs like `monthly`, `yearly`, `credits_starter`).
+- Plan-mapped packs appear on that plan's detail page (ℹ️) under **CREDIT PACKS FOR THIS PLAN**.
 
 ## Credit packs — admin save & extension sync (v1.8.40+)
 

@@ -185,16 +185,34 @@ document.addEventListener("DOMContentLoaded", async () => {
       FirebaseLicense.getCreditPacks(true),
       FirebaseLicense.getCreditsConfig(true),
     ]);
-    cachedCreditPacks = creditPacks;
+    const list = licenses || [];
+    const scopesEnabled = creditsCfg?.pack_scopes_enabled === true;
+    const activePlanIds = list
+      .filter(
+        (e) =>
+          typeof LicenseManager !== "undefined" &&
+          LicenseManager.licenseEntryHasAccess(e) &&
+          e.licenseInfo?.planType !== "demo",
+      )
+      .map((e) => {
+        const info = LicenseManager.normalizeLicenseInfo(e.licenseInfo || {});
+        return info.planId || info.plan_id || info.planType || info.plan;
+      })
+      .filter(Boolean);
+    const filteredPacks = FirebaseLicense.filterCreditPacksForMain(
+      creditPacks,
+      activePlanIds,
+      scopesEnabled,
+    );
+    cachedCreditPacks = filteredPacks;
     if (!creditsCfg?.enabled) {
       creditsSection.classList.add("hidden");
       return;
     }
-    if (!creditPacks.length) {
+    if (!filteredPacks.length) {
       creditsSection.classList.add("hidden");
       return;
     }
-    const list = licenses || [];
     const hasActiveLicense = list.some(
       (e) =>
         LicenseManager.licenseEntryHasAccess(e) &&
@@ -217,11 +235,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       creditsSection.classList.add("hidden");
       return;
     }
-    FirebaseLicense.renderCreditPacks(creditsGrid, creditPacks, "popup");
+    FirebaseLicense.renderCreditPacks(creditsGrid, filteredPacks, "popup");
     creditsSection.classList.remove("hidden");
     const priceHint = document.getElementById("credits-price-hint");
     if (priceHint) {
-      priceHint.textContent = `₹${creditsCfg.price_per_credit} per credit · minimum ${creditsCfg.min_purchase} credits · stacks on Monthly / Yearly / any active plan`;
+      priceHint.textContent = scopesEnabled
+        ? `₹${creditsCfg.price_per_credit} per credit · min ${creditsCfg.min_purchase} · packs filtered by your active plan`
+        : `₹${creditsCfg.price_per_credit} per credit · minimum ${creditsCfg.min_purchase} credits · stacks on Monthly / Yearly / any active plan`;
     }
     bindCreditPackButtons();
   }
@@ -452,8 +472,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function bindCreditPackButtons() {
-    document.querySelectorAll(".credit-pack-open-btn").forEach((btn) => {
+  function bindCreditPackButtons(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll(".credit-pack-open-btn").forEach((btn) => {
+      if (btn.dataset.wired === "1") return;
+      btn.dataset.wired = "1";
       PA.bindTap(btn, (e) => {
         if (
           e?.target?.closest?.(
@@ -466,14 +489,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (packId) void openWhatsAppForCreditPack(packId, btn);
       });
     });
-    document.querySelectorAll(".credit-pack-detail-corner-btn").forEach((btn) => {
+    scope.querySelectorAll(".credit-pack-detail-corner-btn").forEach((btn) => {
+      if (btn.dataset.wired === "1") return;
+      btn.dataset.wired = "1";
       PA.bindTap(btn, (e) => {
         e?.stopPropagation?.();
         const packId = btn.dataset.pack;
         if (packId) void showCreditPackDetail(packId);
       });
     });
-    document.querySelectorAll(".plan-addon-detail-corner-btn").forEach((btn) => {
+    scope.querySelectorAll(".plan-addon-detail-corner-btn").forEach((btn) => {
       PA.bindTap(btn, (e) => {
         e?.stopPropagation?.();
         const planId = btn.dataset.plan;
@@ -839,6 +864,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       pricePerCredit: cachedCreditsPricePerCredit,
     });
     bindPlanDetailBuy(body, plan.id);
+    bindCreditPackButtons(body);
   }
 
   function bindPlanDetailBuy(root, planId) {
