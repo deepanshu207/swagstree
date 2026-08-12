@@ -723,14 +723,7 @@
         const opts = options || {};
         switchShippingOptimizerTab('licenses');
         if (opts.reset) cancelSoLicenseEdit();
-        soOpenSections.add('license-create');
-        const formSection = document.querySelector('.so-section-accordion[data-so-section="license-create"]');
-        if (formSection) formSection.classList.add('so-section-accordion--open');
-        requestAnimationFrame(() => {
-            const target = document.getElementById('so-license-key-input')
-                || document.getElementById('so-license-form-title');
-            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
+        soOpenLicenseCreateAccordion({ scroll: true });
         if (opts.toast !== false) {
             soToast(soEditingLicenseKey ? 'License form open — scroll up to edit.' : 'Create license form open.');
         }
@@ -1434,6 +1427,8 @@
     let soActiveTab = 'config';
     let soLoaded = false;
     let soEditingLicenseKey = null;
+    /** Original plan id when edit started — used to detect mid-edit plan changes. */
+    let soLicenseEditBaselinePlanId = null;
     let soOverridesLicenseKey = null;
     let soAddCreditsLicenseKey = null;
     let soDirtyTabs = { config: false, credits: false };
@@ -2510,6 +2505,18 @@
             balEl.value = prefill.balance;
             const usedEl = document.getElementById('so-license-credits-used');
             if (usedEl) usedEl.value = prefill.used;
+        } else if (soEditingLicenseKey) {
+            const planId = document.getElementById('so-license-plan')?.value;
+            const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+            const lic = soLicenses.find(l => l.key === soEditingLicenseKey);
+            if (plan && lic && soLicensePlanChangedOnEdit(plan)) {
+                const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
+                const breakdown = soResolveLicenseCreditBreakdown(plan, soReadSelectedLicenseAddonIds(), lic);
+                const grantTotal = breakdown.grantTotal;
+                if (balEl) balEl.value = Math.max(0, grantTotal - used);
+                const totalEl = document.getElementById('so-license-total-credits');
+                if (totalEl) totalEl.value = grantTotal;
+            }
         }
         soUpdateLicenseCreditsBreakdown();
     };
@@ -2725,11 +2732,19 @@
         if (!isEdit) void soFetchAdminIpIntoLicenseField();
     }
 
+    function soLicensePlanChangedOnEdit(plan) {
+        if (!soEditingLicenseKey || !plan) return false;
+        const lic = soLicenses.find(l => l.key === soEditingLicenseKey);
+        const baseline = soLicenseEditBaselinePlanId || (lic && (lic.planId || lic.planType)) || '';
+        return soSlugifyId(plan.id) !== soSlugifyId(baseline);
+    }
+
     function soResolveLicenseCreditBreakdown(plan, selectedIds, lic) {
         const calc = plan ? soCalculatePlanCredits(plan, selectedIds || []) : { included: 0, addon: 0, total: 0, addonPrice: 0 };
         let included = calc.included;
         let addon = calc.addon;
-        if (lic) {
+        const planChangedOnEdit = lic && soEditingLicenseKey && plan && soLicensePlanChangedOnEdit(plan);
+        if (lic && !planChangedOnEdit) {
             const licIncluded = parseInt(lic.included_credits, 10);
             const licAddon = parseInt(lic.addon_credits, 10);
             if (Number.isFinite(licIncluded) && licIncluded >= 0) included = licIncluded;
@@ -2797,7 +2812,9 @@
         const activationHint = !isEdit && grantTotal > 0
             ? '<br><span class="so-admin-muted">New license: balance prefilled from grant total — edit <strong>Total</strong> or <strong>Custom credits</strong> for manual grants.</span>'
             : (isEdit
-                ? '<br><span class="so-admin-muted">Edit mode: values above are loaded from Firebase. Consumed cards show stored pool usage.</span>'
+                ? (plan && lic && soLicensePlanChangedOnEdit(plan)
+                    ? '<br><span class="so-admin-muted" style="color:#f59e0b;">Plan changed — credits recalculated from the new plan. Used credits preserved; review balance before saving.</span>'
+                    : '<br><span class="so-admin-muted">Edit mode: values above are loaded from Firebase. Consumed cards show stored pool usage.</span>')
                 : '');
         const planHint = planGrant === 0 && grantTotal === 0 && (billing === 'hybrid' || billing === 'credits')
             ? '<br><span class="so-admin-muted">Set <code>included_credits</code> on this plan in Config → Pricing, or enter <strong>Custom credits</strong> / <strong>Total</strong>.</span>'
@@ -2807,6 +2824,10 @@
         const addonEl = document.getElementById('so-license-addon-credits');
         const totalEl = document.getElementById('so-license-total-credits');
         if (!isEdit) {
+            if (includedEl) includedEl.value = breakdown.included;
+            if (addonEl) addonEl.value = breakdown.addon;
+            if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal > 0 ? grantTotal : planGrant;
+        } else if (plan && lic && soLicensePlanChangedOnEdit(plan)) {
             if (includedEl) includedEl.value = breakdown.included;
             if (addonEl) addonEl.value = breakdown.addon;
             if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal > 0 ? grantTotal : planGrant;
@@ -4090,7 +4111,7 @@
             </ul>`;
     }
 
-    function soBuildLicenseSavePreviewHtml(payload, mode) {
+    function soBuildLicenseSavePreviewHtml(payload, mode, existingLic) {
         const key = payload.key || soEditingLicenseKey || '(new key)';
         const included = payload.included_credits != null ? payload.included_credits : 0;
         const addon = payload.addon_credits != null ? payload.addon_credits : 0;
@@ -4108,9 +4129,15 @@
         if (payload.disable_plan_addons) flags.push('disable plan add-ons');
         if (payload.hide_custom_plan) flags.push('hide custom plan');
         if (payload.disable_custom_plan) flags.push('disable custom plan');
+        const prevPlan = existingLic ? (existingLic.planId || existingLic.planType || '') : '';
+        const newPlan = payload.planId || payload.planType || '';
+        const planChangeLine = mode === 'update' && prevPlan && newPlan && soSlugifyId(prevPlan) !== soSlugifyId(newPlan)
+            ? `<li><strong>Plan change:</strong> <code>${soEsc(prevPlan)}</code> → <code>${soEsc(newPlan)}</code></li>`
+            : '';
         return `<p><strong>Action:</strong> ${mode === 'update' ? 'Update' : 'Create'} license <code>${soEsc(String(key))}</code> in Firebase.</p>
             <ul class="so-save-review-list">
                 <li><strong>Plan:</strong> ${soEsc(payload.planId || payload.planType || '—')}</li>
+                ${planChangeLine}
                 <li><strong>Subscription credits (included):</strong> ${included}</li>
                 <li><strong>Add-on credits:</strong> ${addon}${payload.addon_credit_ids?.length ? ` · IDs: ${soEsc(payload.addon_credit_ids.join(', '))}` : ''}</li>
                 <li><strong>Custom credits (license-only):</strong> ${custom}${payload.custom_credits_label ? ` · ${soEsc(payload.custom_credits_label)}` : ''}</li>
@@ -7847,6 +7874,12 @@
 
     function soSetLicenseFormMode(editingKey) {
         soEditingLicenseKey = editingKey || null;
+        if (editingKey) {
+            const lic = soLicenses.find(l => l.key === editingKey);
+            soLicenseEditBaselinePlanId = lic ? (lic.planId || lic.planType || null) : null;
+        } else {
+            soLicenseEditBaselinePlanId = null;
+        }
         const btn = document.querySelector('#so-tab-licenses .so-btn-save');
         if (btn) {
             btn.textContent = soEditingLicenseKey ? 'Update license' : 'Create license';
@@ -7988,6 +8021,84 @@
         soUpdateLicenseCreditsBreakdown();
     }
 
+    function soApplyPlanDefaultsToLicenseFormOnEdit(plan) {
+        if (!plan || !soEditingLicenseKey) return;
+        const lic = soLicenses.find(l => l.key === soEditingLicenseKey);
+        const used = Math.max(
+            0,
+            parseInt(document.getElementById('so-license-credits-used')?.value, 10)
+                || parseInt(lic?.credits_used, 10)
+                || 0
+        );
+        const custom = soReadLicenseCustomCredits();
+        const billingEl = document.getElementById('so-license-billing-mode');
+        if (billingEl) {
+            billingEl.value = plan.billing_mode || billingEl.value || 'subscription';
+        }
+        const maxEl = document.getElementById('so-license-max-devices');
+        if (maxEl && !lic?.activatedAt) {
+            maxEl.value = plan.max_devices != null
+                ? plan.max_devices
+                : (SO_DEVICE_TIER_MAX[plan.device_tier] != null ? SO_DEVICE_TIER_MAX[plan.device_tier] : maxEl.value);
+        }
+        if (!lic?.activatedAt && !lic?.expiresAt) {
+            if (soIsUnlimitedTime(plan)) soSetLicenseExpiryMode('never');
+            else if (soGetLicenseExpiryMode() === 'never' && !soIsUnlimitedTime(plan)) soSetLicenseExpiryMode('activation');
+        }
+        const prevSelected = soReadSelectedLicenseAddonIds();
+        const newPlanAddons = soGetActivePlanCreditAddons(plan);
+        const kept = prevSelected.filter(id => newPlanAddons.some(a => a.id === id));
+        const preselected = kept.length
+            ? kept
+            : newPlanAddons.filter(a => a.default_selected).map(a => a.id);
+        soRenderLicenseAddonPicks(plan, preselected);
+        const calc = soCalculatePlanCredits(plan, preselected);
+        const grantTotal = calc.included + calc.addon + custom;
+        const includedEl = document.getElementById('so-license-included-credits');
+        const addonEl = document.getElementById('so-license-addon-credits');
+        const totalEl = document.getElementById('so-license-total-credits');
+        const balEl = document.getElementById('so-license-credits-balance');
+        if (includedEl) includedEl.value = calc.included;
+        if (addonEl) addonEl.value = calc.addon;
+        if (totalEl) totalEl.value = grantTotal;
+        if (balEl) balEl.value = Math.max(0, grantTotal - used);
+        soLicenseCreditsTotalDirty = false;
+        soUpdateLicenseCreditsBreakdown();
+    }
+
+    function soOpenLicenseCreateAccordion(options) {
+        const opts = options || {};
+        soOpenSections.add('license-create');
+        const formSection = document.querySelector('.so-section-accordion[data-so-section="license-create"]');
+        if (formSection) formSection.classList.add('so-section-accordion--open');
+        if (opts.scroll !== false) {
+            requestAnimationFrame(() => {
+                const target = document.getElementById('so-license-key-input')
+                    || document.getElementById('so-license-form-title');
+                target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        }
+    }
+
+    function soCloseLicenseCreateAccordion(options) {
+        const opts = options || {};
+        const formSection = document.querySelector('.so-section-accordion[data-so-section="license-create"]');
+        if (formSection) formSection.classList.remove('so-section-accordion--open');
+        soOpenSections.delete('license-create');
+        if (opts.scrollToKey) {
+            requestAnimationFrame(() => {
+                const rows = document.querySelectorAll('.so-license-row[data-license-key]');
+                const row = Array.from(rows).find(r => r.getAttribute('data-license-key') === opts.scrollToKey);
+                if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                else document.getElementById('so-licenses-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        } else if (opts.scrollToList) {
+            requestAnimationFrame(() => {
+                document.getElementById('so-licenses-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        }
+    }
+
     window.soUpdateLicensePlanHint = function() {
         const sel = document.getElementById('so-license-plan');
         const hint = document.getElementById('so-license-plan-hint');
@@ -8005,13 +8116,21 @@
         if (plan && soGetPlanIncludedCredits(plan) > 0) {
             hint.textContent += ` · ${soGetPlanIncludedCredits(plan)} credits included in plan.`;
         }
-        if (!soEditingLicenseKey) {
+        if (soEditingLicenseKey) {
+            if (plan && soLicensePlanChangedOnEdit(plan)) {
+                soApplyPlanDefaultsToLicenseFormOnEdit(plan);
+            } else {
+                soUpdateLicenseCreditsBreakdown();
+            }
+        } else if (plan) {
             soApplyPlanDefaultsToLicenseForm(plan);
+        } else {
+            soUpdateLicenseCreditsBreakdown();
         }
-        soUpdateLicenseCreditsBreakdown();
     };
 
     window.cancelSoLicenseEdit = function() {
+        const wasEdit = !!soEditingLicenseKey;
         soSetLicenseFormMode(null);
         document.getElementById('so-license-key-input').value = '';
         document.getElementById('so-license-customer-name').value = '';
@@ -8039,6 +8158,7 @@
         soApplyLicenseAddonFlagsToForm({});
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
+        if (wasEdit) soCloseLicenseCreateAccordion();
     };
 
     window.editSoLicense = async function(key) {
@@ -8091,9 +8211,8 @@
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
         switchShippingOptimizerTab('licenses');
-        toggleSoSectionAccordion('license-create');
-        document.getElementById('so-license-key-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        soToast(`Editing ${key} — update fields and tap Update license.`);
+        soOpenLicenseCreateAccordion({ scroll: true });
+        soToast(`Editing ${key} — change plan or credits, then tap Update license.`);
     };
 
     window.generateSoLicenseKey = async function() {
@@ -8186,6 +8305,7 @@
             await soLoadLicenses();
             renderSoLicensesList();
             renderSoCustomerRegistry();
+            soCloseLicenseCreateAccordion({ scrollToKey: key });
             const custLabel = soCustomerDetailsComplete(payload) ? 'Customer mapped.' : 'License created — add customer name/email anytime.';
             soToast(`License ${key} created. ${custLabel}`);
         } catch (e) {
@@ -8235,7 +8355,7 @@
         payload.key = key;
         const previewOk = await soConfirmActionPreviewModal({
             title: 'Update license → Firebase',
-            bodyHtml: soBuildLicenseSavePreviewHtml(payload, 'update'),
+            bodyHtml: soBuildLicenseSavePreviewHtml(payload, 'update', existingLic),
             confirmLabel: 'Update license in Firebase',
             dangerous: true
         });
@@ -8247,6 +8367,7 @@
             await soLoadLicenses();
             renderSoLicensesList();
             renderSoCustomerRegistry();
+            soCloseLicenseCreateAccordion({ scrollToKey: key });
             soToast(`License ${key} updated.`);
         } catch (e) {
             soToast('Update failed: ' + (e.message || 'Unknown error'));
