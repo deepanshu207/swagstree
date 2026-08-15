@@ -3041,15 +3041,35 @@
                                 <label><span class="admin-settings-field-label">Plan id (slug)</span>
                                     <input id="so-lic-cplan-modal-id" type="text" placeholder="e.g. vip_yearly"></label>
                                 <label class="so-plan-check" style="align-self:end;"><input id="so-lic-cplan-modal-active" type="checkbox" checked> Show in extension</label>
-                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Button label</span>
-                                    <input id="so-lic-cplan-modal-label" type="text" placeholder="Request VIP package via WhatsApp"></label>
-                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp message title</span>
-                                    <input id="so-lic-cplan-modal-whatsapp-title" type="text" placeholder="VIP Custom Plan"></label>
-                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Description (above options in extension)</span>
-                                    <textarea id="so-lic-cplan-modal-description" rows="2" placeholder="Select a bundle below and request via WhatsApp."></textarea></label>
-                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Credit options (one per line — like global custom plan chips)</span>
-                                    <textarea id="so-lic-cplan-modal-options" rows="4" placeholder="10,20&#10;20,38&#10;50,90&#10;80,70"></textarea></label>
-                                <p class="so-admin-muted so-admin-tip" style="grid-column:1/-1;">Format: <code>credits,price</code> or <code>credits,price,label</code>. Example: <code>80,70,80 Credits · ₹70</code> → shows as a tappable chip in Meesho Shipping, same style as global custom plan.</p>
+                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp message title (🛠 MY PLANS heading)</span>
+                                    <input id="so-lic-cplan-modal-whatsapp-title" type="text" placeholder="My Plans"></label>
+                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Description (above credit pack cards)</span>
+                                    <textarea id="so-lic-cplan-modal-description" rows="2" placeholder="Hello — pick a bundle below and send via WhatsApp."></textarea></label>
+                                <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp button label (section CTA — not credit amount)</span>
+                                    <input id="so-lic-cplan-modal-label" type="text" placeholder="Request Custom Plan via WhatsApp"></label>
+                            </div>
+                            <div class="so-field-group" style="margin-top:12px;">
+                                <div class="so-field-group-title"><i class="fa fa-id-card"></i> Pack card defaults (all options)</div>
+                                <p class="so-field-group-hint">Same fields as credit pack editor. Each credit option can override these below.</p>
+                                <div class="so-plan-fields so-plan-fields--basic">
+                                    <label><span>Default card hint</span><input id="so-lic-cplan-modal-card-hint" type="text" placeholder="Tap to select · WhatsApp below"></label>
+                                    <label class="so-field-full"><span>Section detail footer</span><input id="so-lic-cplan-modal-detail-footer" type="text" placeholder="Optional note below the WhatsApp button"></label>
+                                    <label class="so-plan-check"><input id="so-lic-cplan-modal-show-whatsapp-icon" type="checkbox" checked> Show green WhatsApp icon on pack cards</label>
+                                    <label class="so-plan-check"><input id="so-lic-cplan-modal-show-details-icon" type="checkbox" checked> Show details (ℹ️) icon on pack cards</label>
+                                </div>
+                            </div>
+                            <div class="so-field-group" style="margin-top:12px;">
+                                <div class="so-field-group-title"><i class="fa fa-box"></i> Credit options (pack cards in extension)</div>
+                                <p class="so-field-group-hint">Each row becomes a tappable pack card like ⚡ BUY CREDITS. Customer selects a bundle, then taps the WhatsApp button above.</p>
+                                <div id="so-lic-cplan-modal-options-editor" class="so-lic-cplan-options-editor"></div>
+                                <button type="button" class="so-btn-sm so-btn-touch" onclick="soAddLicenseCustomPlanOptionRow()">+ Add credit option</button>
+                                <details class="so-details-block" style="margin-top:10px;">
+                                    <summary>Quick import (one line per option)</summary>
+                                    <label style="margin-top:8px;display:flex;flex-direction:column;gap:6px;"><span class="admin-settings-field-label">Paste lines</span>
+                                        <textarea id="so-lic-cplan-modal-options" rows="4" placeholder="10,20&#10;20,38&#10;80,70,80 Credits · ₹70"></textarea></label>
+                                    <p class="so-admin-muted so-admin-tip">Format: <code>credits,price</code> or <code>credits,price,label</code>. Replaces option rows when you tap import.</p>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soImportLicenseCustomPlanOptionsFromTextarea()">Import lines into options</button>
+                                </details>
                             </div>
                         </div>
                         <div class="so-modal-footer so-modal-footer--sticky so-modal-actions">
@@ -4880,7 +4900,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.24"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.25"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

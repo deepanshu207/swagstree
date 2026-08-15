@@ -8014,14 +8014,49 @@
             if (credits <= 0 && price <= 0) return;
             const label = parts.slice(2).join(',').trim()
                 || `${credits} Credits · ₹${price}`;
-            out.push({
+            out.push(soNormalizeLicenseCustomPlanOption({
                 id: soSlugifyId(`opt_${credits}_${price}_${i}`) || `opt_${i + 1}`,
                 credits,
                 price,
                 label
-            });
+            }, i, {}));
         });
         return out;
+    }
+
+    function soNormalizeLicenseCustomPlanOption(raw, index, planDefaults) {
+        const defs = planDefaults || {};
+        const credits = Math.max(0, parseInt(raw?.credits, 10) || 0);
+        const price = Math.max(0, parseInt(raw?.price, 10) || 0);
+        const label = String(raw?.label || `${credits} Credits · ₹${price}`).trim();
+        const cardSubtitle = String(
+            raw?.card_subtitle || raw?.cardSubtitle ||
+            `${credits} credits · ₹${price}`
+        ).trim();
+        const cardHint = String(
+            raw?.card_hint || raw?.cardHint || defs.card_hint || ''
+        ).trim();
+        const ctaText = String(
+            raw?.cta_text || raw?.ctaText ||
+            `Buy ${credits} credits on WhatsApp`
+        ).trim();
+        let showWhatsapp = defs.show_whatsapp_icon !== false;
+        if (raw?.show_whatsapp_icon === false || raw?.showWhatsappIcon === false) showWhatsapp = false;
+        else if (raw?.show_whatsapp_icon === true || raw?.showWhatsappIcon === true) showWhatsapp = true;
+        let showDetails = defs.show_details_icon !== false;
+        if (raw?.show_details_icon === false || raw?.showDetailsIcon === false) showDetails = false;
+        else if (raw?.show_details_icon === true || raw?.showDetailsIcon === true) showDetails = true;
+        return {
+            id: soSlugifyId(raw?.id || `opt_${credits}_${price}_${index}`) || `opt_${index + 1}`,
+            credits,
+            price,
+            label,
+            card_subtitle: cardSubtitle,
+            card_hint: cardHint,
+            cta_text: ctaText,
+            show_whatsapp_icon: showWhatsapp,
+            show_details_icon: showDetails
+        };
     }
 
     function soFormatLicenseCustomPlanOptionsForEditor(options) {
@@ -8032,28 +8067,115 @@
         ).join('\n');
     }
 
+    function soRenderLicenseCustomPlanOptionRowHtml(opt, idx) {
+        const o = opt || {};
+        return `
+            <div class="so-plan-addon-row so-lic-cplan-option-row" data-opt-idx="${idx}">
+                <label><span>Credits</span><input type="number" min="1" step="1" data-opt-field="credits" value="${o.credits || 10}"></label>
+                <label><span>Price ₹</span><input type="number" min="0" step="1" data-opt-field="price" value="${o.price || 0}"></label>
+                <label class="so-field-full"><span>Card label (extension)</span><input type="text" data-opt-field="label" value="${soAttr(o.label || '')}" placeholder="80 Credits · ₹70"></label>
+                <label class="so-field-full"><span>Card subtitle</span><input type="text" data-opt-field="card_subtitle" value="${soAttr(o.card_subtitle || '')}" placeholder="80 credits · ₹70"></label>
+                <label class="so-field-full"><span>Card hint</span><input type="text" data-opt-field="card_hint" value="${soAttr(o.card_hint || '')}" placeholder="Tap to select · WhatsApp below"></label>
+                <label class="so-field-full"><span>WhatsApp button label (this option)</span><input type="text" data-opt-field="cta_text" value="${soAttr(o.cta_text || '')}" placeholder="Buy 80 credits on WhatsApp"></label>
+                <label class="so-plan-check"><input type="checkbox" data-opt-field="show_whatsapp_icon" ${o.show_whatsapp_icon !== false ? 'checked' : ''}> Show WhatsApp icon</label>
+                <label class="so-plan-check"><input type="checkbox" data-opt-field="show_details_icon" ${o.show_details_icon !== false ? 'checked' : ''}> Show details icon</label>
+                <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="soRemoveLicenseCustomPlanOptionRow(${idx})">Remove option</button>
+            </div>`;
+    }
+
+    function soRenderLicenseCustomPlanOptionsEditor(options) {
+        const container = document.getElementById('so-lic-cplan-modal-options-editor');
+        if (!container) return;
+        const list = options || [];
+        if (!list.length) {
+            container.innerHTML = '<p class="so-admin-muted">No credit options yet. Tap <strong>+ Add credit option</strong> or import lines.</p>';
+            return;
+        }
+        container.innerHTML = list.map((o, i) => soRenderLicenseCustomPlanOptionRowHtml(o, i)).join('');
+    }
+
+    function soReadLicenseCustomPlanOptionsFromModal() {
+        const container = document.getElementById('so-lic-cplan-modal-options-editor');
+        const planDefaults = {
+            card_hint: String(document.getElementById('so-lic-cplan-modal-card-hint')?.value || '').trim(),
+            show_whatsapp_icon: !!document.getElementById('so-lic-cplan-modal-show-whatsapp-icon')?.checked,
+            show_details_icon: !!document.getElementById('so-lic-cplan-modal-show-details-icon')?.checked
+        };
+        if (!container) return [];
+        const rows = container.querySelectorAll('.so-lic-cplan-option-row');
+        return Array.from(rows).map((row, idx) => {
+            const get = (field) => {
+                const el = row.querySelector(`[data-opt-field="${field}"]`);
+                if (!el) return '';
+                if (el.type === 'checkbox') return el.checked;
+                return el.value;
+            };
+            return soNormalizeLicenseCustomPlanOption({
+                id: get('id') || undefined,
+                credits: get('credits'),
+                price: get('price'),
+                label: get('label'),
+                card_subtitle: get('card_subtitle'),
+                card_hint: get('card_hint'),
+                cta_text: get('cta_text'),
+                show_whatsapp_icon: get('show_whatsapp_icon'),
+                show_details_icon: get('show_details_icon')
+            }, idx, planDefaults);
+        }).filter(o => o.credits > 0 || o.price > 0);
+    }
+
+    window.soAddLicenseCustomPlanOptionRow = function() {
+        const planDefaults = {
+            card_hint: String(document.getElementById('so-lic-cplan-modal-card-hint')?.value || '').trim(),
+            show_whatsapp_icon: !!document.getElementById('so-lic-cplan-modal-show-whatsapp-icon')?.checked,
+            show_details_icon: !!document.getElementById('so-lic-cplan-modal-show-details-icon')?.checked
+        };
+        const current = soReadLicenseCustomPlanOptionsFromModal();
+        current.push(soNormalizeLicenseCustomPlanOption({ credits: 10, price: 20 }, current.length, planDefaults));
+        soRenderLicenseCustomPlanOptionsEditor(current);
+    };
+
+    window.soRemoveLicenseCustomPlanOptionRow = function(idx) {
+        const current = soReadLicenseCustomPlanOptionsFromModal();
+        current.splice(idx, 1);
+        soRenderLicenseCustomPlanOptionsEditor(current);
+    };
+
+    window.soImportLicenseCustomPlanOptionsFromTextarea = function() {
+        const planDefaults = {
+            card_hint: String(document.getElementById('so-lic-cplan-modal-card-hint')?.value || '').trim(),
+            show_whatsapp_icon: !!document.getElementById('so-lic-cplan-modal-show-whatsapp-icon')?.checked,
+            show_details_icon: !!document.getElementById('so-lic-cplan-modal-show-details-icon')?.checked
+        };
+        const parsed = soParseLicenseCustomPlanOptionsText(
+            document.getElementById('so-lic-cplan-modal-options')?.value || ''
+        ).map((o, i) => soNormalizeLicenseCustomPlanOption(o, i, planDefaults));
+        soRenderLicenseCustomPlanOptionsEditor(parsed);
+        soToast(parsed.length ? `Imported ${parsed.length} option(s).` : 'No valid lines to import.');
+    };
+
     function soNormalizeLicenseCustomPlanEntry(raw, index) {
         if (!raw || typeof raw !== 'object') return null;
         const id = soSlugifyId(raw.id || raw.slug || `license_custom_${index + 1}`);
         if (!id) return null;
+        const planDefaults = {
+            card_hint: String(raw.card_hint || raw.cardHint || 'Tap to select · WhatsApp below').trim(),
+            show_whatsapp_icon: raw.show_whatsapp_icon !== false && raw.showWhatsappIcon !== false,
+            show_details_icon: raw.show_details_icon !== false && raw.showDetailsIcon !== false
+        };
         let options = Array.isArray(raw.options) ? raw.options : [];
-        options = options.map((o, i) => {
-            const credits = Math.max(0, parseInt(o?.credits, 10) || 0);
-            const price = Math.max(0, parseInt(o?.price, 10) || 0);
-            if (credits <= 0 && price <= 0) return null;
-            return {
-                id: soSlugifyId(o?.id || `opt_${credits}_${price}_${i}`) || `opt_${i + 1}`,
-                credits,
-                price,
-                label: String(o?.label || `${credits} Credits · ₹${price}`).trim()
-            };
-        }).filter(Boolean);
+        options = options.map((o, i) => soNormalizeLicenseCustomPlanOption(o, i, planDefaults))
+            .filter(o => o.credits > 0 || o.price > 0);
         return {
             id,
             enabled: raw.enabled !== false && raw.active !== false,
             label: String(raw.label || 'Request Custom Plan via WhatsApp').trim(),
-            whatsapp_title: String(raw.whatsapp_title || raw.whatsappTitle || 'Custom Plan').trim(),
+            whatsapp_title: String(raw.whatsapp_title || raw.whatsappTitle || 'My Plans').trim(),
             description: String(raw.description || 'Pick a bundle below and send via WhatsApp.').trim(),
+            detail_footer: String(raw.detail_footer || raw.detailFooter || '').trim(),
+            card_hint: planDefaults.card_hint,
+            show_whatsapp_icon: planDefaults.show_whatsapp_icon,
+            show_details_icon: planDefaults.show_details_icon,
             order: Number.isFinite(Number(raw.order)) ? Number(raw.order) : index,
             options
         };
@@ -8106,8 +8228,9 @@
                     ${(plan.options || []).length
                         ? `<div class="so-ext-plan-addons">${plan.options.map(o =>
                             `<span class="so-ext-addon-chip">${soEsc(o.label || `${o.credits} Credits · ₹${o.price}`)}</span>`
-                        ).join('')}</div>`
-                        : '<p class="so-admin-muted">No credit options — add lines like <code>80,70</code> in the modal.</p>'}
+                        ).join('')}</div>
+                        <p class="so-admin-muted"><strong>Pack cards:</strong> ${plan.options.length} option(s) with subtitle/hint like credit packs.</p>`
+                        : '<p class="so-admin-muted">No credit options — add rows in the modal (or import <code>80,70</code> lines).</p>'}
                     <div class="so-plan-actions-bar">
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soOpenLicenseCustomPlanModalById('${soAttr(plan.id)}')"><i class="fa fa-pen"></i> Edit in modal</button>
                         <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="soRemoveLicenseCustomPlan('${soAttr(plan.id)}')"><i class="fa fa-trash"></i> Remove</button>
@@ -8169,9 +8292,14 @@
         document.getElementById('so-lic-cplan-modal-label').value = plan?.label || '';
         document.getElementById('so-lic-cplan-modal-whatsapp-title').value = plan?.whatsapp_title || '';
         document.getElementById('so-lic-cplan-modal-description').value = plan?.description || '';
+        document.getElementById('so-lic-cplan-modal-card-hint').value = plan?.card_hint || '';
+        document.getElementById('so-lic-cplan-modal-detail-footer').value = plan?.detail_footer || '';
+        document.getElementById('so-lic-cplan-modal-show-whatsapp-icon').checked = plan ? plan.show_whatsapp_icon !== false : true;
+        document.getElementById('so-lic-cplan-modal-show-details-icon').checked = plan ? plan.show_details_icon !== false : true;
         document.getElementById('so-lic-cplan-modal-options').value = plan
             ? soFormatLicenseCustomPlanOptionsForEditor(plan.options)
             : '';
+        soRenderLicenseCustomPlanOptionsEditor(plan?.options || []);
         document.getElementById('so-lic-cplan-modal-active').checked = plan ? plan.enabled !== false : true;
         if (modal) {
             modal.style.display = '';
@@ -8197,16 +8325,22 @@
         const label = String(document.getElementById('so-lic-cplan-modal-label')?.value || '').trim();
         const whatsappTitle = String(document.getElementById('so-lic-cplan-modal-whatsapp-title')?.value || '').trim();
         const description = String(document.getElementById('so-lic-cplan-modal-description')?.value || '').trim();
-        const options = soParseLicenseCustomPlanOptionsText(
-            document.getElementById('so-lic-cplan-modal-options')?.value || ''
-        );
+        const cardHint = String(document.getElementById('so-lic-cplan-modal-card-hint')?.value || '').trim();
+        const detailFooter = String(document.getElementById('so-lic-cplan-modal-detail-footer')?.value || '').trim();
+        const showWhatsappIcon = !!document.getElementById('so-lic-cplan-modal-show-whatsapp-icon')?.checked;
+        const showDetailsIcon = !!document.getElementById('so-lic-cplan-modal-show-details-icon')?.checked;
+        const options = soReadLicenseCustomPlanOptionsFromModal();
         const enabled = !!document.getElementById('so-lic-cplan-modal-active')?.checked;
         const entry = soNormalizeLicenseCustomPlanEntry({
             id,
             enabled,
             label: label || 'Request Custom Plan via WhatsApp',
-            whatsapp_title: whatsappTitle || 'Custom Plan',
+            whatsapp_title: whatsappTitle || 'My Plans',
             description: description || 'Pick a bundle below and send via WhatsApp.',
+            card_hint: cardHint,
+            detail_footer: detailFooter,
+            show_whatsapp_icon: showWhatsappIcon,
+            show_details_icon: showDetailsIcon,
             options,
             order: soLicenseCustomPlanModalIdx >= 0
                 ? (soLicenseCustomPlans[soLicenseCustomPlanModalIdx]?.order ?? soLicenseCustomPlanModalIdx)
@@ -8246,13 +8380,25 @@
                 label: p.label,
                 whatsapp_title: p.whatsapp_title,
                 description: p.description,
+                detail_footer: p.detail_footer || '',
+                card_hint: p.card_hint || '',
+                show_whatsapp_icon: p.show_whatsapp_icon !== false,
+                show_details_icon: p.show_details_icon !== false,
                 order: i,
-                options: (p.options || []).map((o, oi) => ({
-                    id: o.id || `opt_${oi + 1}`,
-                    credits: o.credits,
-                    price: o.price,
-                    label: o.label
-                }))
+                options: (p.options || []).map((o, oi) => {
+                    const row = {
+                        id: o.id || `opt_${oi + 1}`,
+                        credits: o.credits,
+                        price: o.price,
+                        label: o.label,
+                        card_subtitle: o.card_subtitle || '',
+                        card_hint: o.card_hint || '',
+                        cta_text: o.cta_text || ''
+                    };
+                    if (o.show_whatsapp_icon === false) row.show_whatsapp_icon = false;
+                    if (o.show_details_icon === false) row.show_details_icon = false;
+                    return row;
+                })
             }));
         if (!plans.length) {
             if (forUpdate) {

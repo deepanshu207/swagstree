@@ -1262,19 +1262,66 @@ Please share payment details.`;
   normalizeLicenseCustomPlanConfig(raw) {
     const c = raw && typeof raw === "object" ? raw : null;
     if (!c || c.enabled === false || c.active === false) return null;
+    const planDefaults = {
+      card_hint:
+        String(c.card_hint || c.cardHint || "Tap to select · WhatsApp below").trim(),
+      show_whatsapp_icon:
+        c.show_whatsapp_icon !== false && c.showWhatsappIcon !== false,
+      show_details_icon:
+        c.show_details_icon !== false && c.showDetailsIcon !== false,
+    };
     const options = Array.isArray(c.options)
       ? c.options
           .map((o, i) => {
             const credits = Math.max(0, Number(o?.credits) || 0);
             const price = Math.max(0, Number(o?.price) || 0);
             if (credits <= 0 && price <= 0) return null;
+            const label =
+              String(o?.label || "").trim() ||
+              `${credits} Credits · ₹${price}`;
+            const cardSubtitle =
+              String(o?.card_subtitle || o?.cardSubtitle || "").trim() ||
+              `${credits} credits · ₹${price}`;
+            const cardHint = String(
+              o?.card_hint || o?.cardHint || planDefaults.card_hint || "",
+            ).trim();
+            const ctaText =
+              String(o?.cta_text || o?.ctaText || "").trim() ||
+              `Buy ${credits} credits on WhatsApp`;
+            let showWhatsapp = planDefaults.show_whatsapp_icon;
+            if (
+              o?.show_whatsapp_icon === false ||
+              o?.showWhatsappIcon === false
+            ) {
+              showWhatsapp = false;
+            } else if (
+              o?.show_whatsapp_icon === true ||
+              o?.showWhatsappIcon === true
+            ) {
+              showWhatsapp = true;
+            }
+            let showDetails = planDefaults.show_details_icon;
+            if (
+              o?.show_details_icon === false ||
+              o?.showDetailsIcon === false
+            ) {
+              showDetails = false;
+            } else if (
+              o?.show_details_icon === true ||
+              o?.showDetailsIcon === true
+            ) {
+              showDetails = true;
+            }
             return {
               id: o?.id || `opt_${credits}_${price}_${i}`,
               credits,
               price,
-              label:
-                String(o?.label || "").trim() ||
-                `${credits} Credits · ₹${price}`,
+              label,
+              card_subtitle: cardSubtitle,
+              card_hint: cardHint,
+              cta_text: ctaText,
+              show_whatsapp_icon: showWhatsapp,
+              show_details_icon: showDetails,
             };
           })
           .filter(Boolean)
@@ -1283,6 +1330,10 @@ Please share payment details.`;
       ...c,
       source: "license",
       id: c.id || c.slug || "",
+      detail_footer: String(c.detail_footer || c.detailFooter || "").trim(),
+      card_hint: planDefaults.card_hint,
+      show_whatsapp_icon: planDefaults.show_whatsapp_icon,
+      show_details_icon: planDefaults.show_details_icon,
       options,
     });
   },
@@ -1345,7 +1396,7 @@ Please share payment details.`;
       if (isLicense && options.length) {
         html += `<div class="plan-grid plan-detail-lic-custom-options" style="grid-template-columns:${this.planGridColumns(options.length)};margin-top:8px;">`;
         options.forEach((opt, oi) => {
-          html += this.renderLicenseCustomPlanOptionChip(
+          html += this.renderLicenseCustomPlanOptionCard(
             opt,
             cfg,
             plan,
@@ -1359,13 +1410,16 @@ Please share payment details.`;
       }
       html += `<button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
           ${this.escapeHtml(cfg.label || "Request Custom Plan via WhatsApp")}${customDisabled ? " (disabled)" : ""}
-        </button>
-      </div>`;
+        </button>`;
+      if (cfg.detail_footer) {
+        html += `<p class="plan-detail-footer">${this.escapeHtml(cfg.detail_footer)}</p>`;
+      }
+      html += `</div>`;
     });
     return html;
   },
 
-  renderLicenseCustomPlanOptionChip(option, cfg, parentPlan, disabled, index) {
+  renderLicenseCustomPlanOptionCard(option, cfg, parentPlan, disabled, index) {
     const credits = Math.max(0, Number(option?.credits) || 0);
     const price = Math.max(0, Number(option?.price) || 0);
     const label =
@@ -1374,16 +1428,36 @@ Please share payment details.`;
     const cfgId = cfg?.id || "license_custom_plan";
     const pressed = index === 0 ? ' aria-pressed="true"' : ' aria-pressed="false"';
     const selectedClass = index === 0 ? " plan-btn--selected" : "";
-    return `<button type="button" class="plan-btn plan-lic-custom-option-btn plan-buy-btn${selectedClass}${disabled ? " plan-addon-card--disabled" : ""}"${disabled ? " disabled" : ""}${pressed}
+    const subtitle =
+      option?.card_subtitle ||
+      `${credits} credits · ₹${price}`;
+    const cardHint =
+      option?.card_hint || cfg?.card_hint || "Tap to select · WhatsApp below";
+    const btn = `<button type="button" class="plan-btn plan-lic-custom-option-btn plan-buy-btn plan-card-main${selectedClass}${disabled ? " plan-addon-card--disabled" : ""}"${disabled ? " disabled" : ""}${pressed}
       data-plan="${this.escapeAttr(parentPlan?.id || "")}"
       data-custom-plan-id="${this.escapeAttr(cfgId)}"
       data-option-id="${this.escapeAttr(optId)}"
       data-option-credits="${credits}"
       data-option-price="${price}"
       data-option-label="${this.escapeAttr(label)}"
+      data-option-cta="${this.escapeAttr(option?.cta_text || "")}"
       style="width:100%;padding:10px;font-size:11px;text-align:center;cursor:pointer;">
-      ${this.escapeHtml(label)}
+      <div class="plan-name">${this.escapeHtml(label)}</div>
+      <div class="plan-price">₹${price}</div>
+      <div class="plan-note" style="color:var(--mso-muted);">${this.escapeHtml(subtitle)}</div>
+      ${this.planCardFooterHtml({ card_hint: cardHint })}
     </button>`;
+    return btn;
+  },
+
+  renderLicenseCustomPlanOptionChip(option, cfg, parentPlan, disabled, index) {
+    return this.renderLicenseCustomPlanOptionCard(
+      option,
+      cfg,
+      parentPlan,
+      disabled,
+      index,
+    );
   },
 
   isPlanVisible(plan) {
