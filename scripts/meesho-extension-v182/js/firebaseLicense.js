@@ -1262,10 +1262,28 @@ Please share payment details.`;
   normalizeLicenseCustomPlanConfig(raw) {
     const c = raw && typeof raw === "object" ? raw : null;
     if (!c || c.enabled === false || c.active === false) return null;
+    const options = Array.isArray(c.options)
+      ? c.options
+          .map((o, i) => {
+            const credits = Math.max(0, Number(o?.credits) || 0);
+            const price = Math.max(0, Number(o?.price) || 0);
+            if (credits <= 0 && price <= 0) return null;
+            return {
+              id: o?.id || `opt_${credits}_${price}_${i}`,
+              credits,
+              price,
+              label:
+                String(o?.label || "").trim() ||
+                `${credits} Credits · ₹${price}`,
+            };
+          })
+          .filter(Boolean)
+      : [];
     return this.normalizeCustomPlanConfig({
       ...c,
       source: "license",
       id: c.id || c.slug || "",
+      options,
     });
   },
 
@@ -1317,18 +1335,55 @@ Please share payment details.`;
     blocks.forEach((cfg) => {
       const isLicense = cfg.source === "license";
       const title = isLicense
-        ? `🛠 ${cfg.label || "YOUR LICENSE CUSTOM PLAN"}`
+        ? `🛠 ${cfg.whatsapp_title || cfg.label || "YOUR LICENSE CUSTOM PLAN"}`
         : "🛠 CUSTOM PLAN";
       const planId = cfg.id || (isLicense ? "license_custom_plan" : "global_custom_plan");
+      const options = Array.isArray(cfg.options) ? cfg.options : [];
       html += `<div class="plan-detail-section plan-detail-section--custom" data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}">
         <div class="plan-detail-section-title">${this.escapeHtml(title)}</div>
-        ${cfg.description ? `<p class="plan-detail-section-body">${this.escapeHtml(cfg.description)}</p>` : ""}
-        <button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
+        ${cfg.description ? `<p class="plan-detail-section-body">${this.escapeHtml(cfg.description)}</p>` : ""}`;
+      if (isLicense && options.length) {
+        html += `<div class="plan-grid plan-detail-lic-custom-options" style="grid-template-columns:${this.planGridColumns(options.length)};margin-top:8px;">`;
+        options.forEach((opt, oi) => {
+          html += this.renderLicenseCustomPlanOptionChip(
+            opt,
+            cfg,
+            plan,
+            customDisabled,
+            oi,
+          );
+        });
+        html += `</div>`;
+      } else if (!isLicense && cfg.allow_addon_selection !== false) {
+        html += `<p class="plan-detail-section-body">Select add-ons above and request a tailored package via WhatsApp.</p>`;
+      }
+      html += `<button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
           ${this.escapeHtml(cfg.label || "Request Custom Plan via WhatsApp")}${customDisabled ? " (disabled)" : ""}
         </button>
       </div>`;
     });
     return html;
+  },
+
+  renderLicenseCustomPlanOptionChip(option, cfg, parentPlan, disabled, index) {
+    const credits = Math.max(0, Number(option?.credits) || 0);
+    const price = Math.max(0, Number(option?.price) || 0);
+    const label =
+      String(option?.label || "").trim() || `${credits} Credits · ₹${price}`;
+    const optId = option?.id || `opt_${index}`;
+    const cfgId = cfg?.id || "license_custom_plan";
+    const pressed = index === 0 ? ' aria-pressed="true"' : ' aria-pressed="false"';
+    const selectedClass = index === 0 ? " plan-btn--selected" : "";
+    return `<button type="button" class="plan-btn plan-lic-custom-option-btn plan-buy-btn${selectedClass}${disabled ? " plan-addon-card--disabled" : ""}"${disabled ? " disabled" : ""}${pressed}
+      data-plan="${this.escapeAttr(parentPlan?.id || "")}"
+      data-custom-plan-id="${this.escapeAttr(cfgId)}"
+      data-option-id="${this.escapeAttr(optId)}"
+      data-option-credits="${credits}"
+      data-option-price="${price}"
+      data-option-label="${this.escapeAttr(label)}"
+      style="width:100%;padding:10px;font-size:11px;text-align:center;cursor:pointer;">
+      ${this.escapeHtml(label)}
+    </button>`;
   },
 
   isPlanVisible(plan) {
@@ -3588,6 +3643,43 @@ Please share payment details.`;
       };
       chip.addEventListener("click", handler);
     });
+    this.wireLicenseCustomPlanOptions(root);
+  },
+
+  licenseCustomOptionChips(customPlanId, root) {
+    const scope = root || document;
+    const key = String(customPlanId || "");
+    return Array.from(
+      scope.querySelectorAll(".plan-lic-custom-option-btn"),
+    ).filter((c) => c.dataset.customPlanId === key);
+  },
+
+  toggleLicenseCustomOptionChip(chip, root) {
+    if (!chip || chip.disabled) return;
+    const cfgId = chip.dataset.customPlanId;
+    const siblings = this.licenseCustomOptionChips(cfgId, root);
+    siblings.forEach((c) => {
+      if (c !== chip) {
+        c.setAttribute("aria-pressed", "false");
+        c.classList.remove("plan-btn--selected");
+      }
+    });
+    const isSel = chip.getAttribute("aria-pressed") === "true";
+    chip.setAttribute("aria-pressed", isSel ? "false" : "true");
+    chip.classList.toggle("plan-btn--selected", !isSel);
+  },
+
+  wireLicenseCustomPlanOptions(root) {
+    const scope = root || document;
+    scope.querySelectorAll(".plan-lic-custom-option-btn").forEach((chip) => {
+      if (chip.dataset.wired === "1") return;
+      chip.dataset.wired = "1";
+      chip.addEventListener("click", (e) => {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        this.toggleLicenseCustomOptionChip(chip, root);
+      });
+    });
   },
 
   getSelectedAddonIds(planId, root) {
@@ -3665,10 +3757,17 @@ Please share payment details.`;
     const cfg = customPlanCfg
       ? this.normalizeCustomPlanConfig(customPlanCfg)
       : this.normalizeCustomPlanConfig(creditsConfig?.custom_plan);
+    const licOptChips =
+      cfg.source === "license" && cfg.id
+        ? this.licenseCustomOptionChips(cfg.id, root).filter(
+            (c) => c.getAttribute("aria-pressed") === "true",
+          )
+        : [];
     const selChips = this.addonChipsForPlan(planId, root).filter(
       (c) => c.getAttribute("aria-pressed") === "true",
     );
     let addonPrice = 0;
+    let optionPrice = 0;
     const labels = [];
     const addonIds = [];
     selChips.forEach((c) => {
@@ -3676,9 +3775,18 @@ Please share payment details.`;
       labels.push(c.dataset.addonLabel || `${c.dataset.addonCredits} credits`);
       if (c.dataset.addonId) addonIds.push(c.dataset.addonId);
     });
-    const total = price + addonPrice;
+    licOptChips.forEach((c) => {
+      optionPrice += Number(c.dataset.optionPrice) || 0;
+      labels.push(
+        c.dataset.optionLabel ||
+          `${c.dataset.optionCredits} credits · ₹${c.dataset.optionPrice}`,
+      );
+    });
+    const total = price + addonPrice + optionPrice;
     let msg = `Hi! I want a custom ${productName || "Shipping Optimizer"} package.\n\n🛠 *${cfg.whatsapp_title}*\n📦 *Base subscription:* ${name} — ₹${price}`;
-    if (labels.length && cfg.allow_addon_selection) {
+    if (licOptChips.length) {
+      msg += `\n🎫 *Selected bundle:* ${labels.slice(-licOptChips.length).join(", ")} — ₹${optionPrice}`;
+    } else if (labels.length && cfg.allow_addon_selection) {
       msg += `\n⚡ *Custom add-ons:* ${labels.join(", ")} — +₹${addonPrice}`;
       if (addonIds.length) {
         msg += `\n🆔 *Add-on IDs:* ${addonIds.join(", ")}`;

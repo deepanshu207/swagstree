@@ -8002,17 +8002,60 @@
         return [];
     }
 
+    function soParseLicenseCustomPlanOptionsText(text) {
+        const lines = String(text || '').split(/\r?\n/);
+        const out = [];
+        lines.forEach((line, i) => {
+            const raw = line.trim();
+            if (!raw || raw.startsWith('#')) return;
+            const parts = raw.split(',').map(s => s.trim());
+            const credits = Math.max(0, parseInt(parts[0], 10) || 0);
+            const price = Math.max(0, parseInt(parts[1], 10) || 0);
+            if (credits <= 0 && price <= 0) return;
+            const label = parts.slice(2).join(',').trim()
+                || `${credits} Credits · ₹${price}`;
+            out.push({
+                id: soSlugifyId(`opt_${credits}_${price}_${i}`) || `opt_${i + 1}`,
+                credits,
+                price,
+                label
+            });
+        });
+        return out;
+    }
+
+    function soFormatLicenseCustomPlanOptionsForEditor(options) {
+        return (options || []).map(o =>
+            o.label && o.label !== `${o.credits} Credits · ₹${o.price}`
+                ? `${o.credits},${o.price},${o.label}`
+                : `${o.credits},${o.price}`
+        ).join('\n');
+    }
+
     function soNormalizeLicenseCustomPlanEntry(raw, index) {
         if (!raw || typeof raw !== 'object') return null;
         const id = soSlugifyId(raw.id || raw.slug || `license_custom_${index + 1}`);
         if (!id) return null;
+        let options = Array.isArray(raw.options) ? raw.options : [];
+        options = options.map((o, i) => {
+            const credits = Math.max(0, parseInt(o?.credits, 10) || 0);
+            const price = Math.max(0, parseInt(o?.price, 10) || 0);
+            if (credits <= 0 && price <= 0) return null;
+            return {
+                id: soSlugifyId(o?.id || `opt_${credits}_${price}_${i}`) || `opt_${i + 1}`,
+                credits,
+                price,
+                label: String(o?.label || `${credits} Credits · ₹${price}`).trim()
+            };
+        }).filter(Boolean);
         return {
             id,
             enabled: raw.enabled !== false && raw.active !== false,
             label: String(raw.label || 'Request Custom Plan via WhatsApp').trim(),
             whatsapp_title: String(raw.whatsapp_title || raw.whatsappTitle || 'Custom Plan').trim(),
-            description: String(raw.description || 'Pick add-ons and send — we will confirm pricing and assign your license.').trim(),
-            order: Number.isFinite(Number(raw.order)) ? Number(raw.order) : index
+            description: String(raw.description || 'Pick a bundle below and send via WhatsApp.').trim(),
+            order: Number.isFinite(Number(raw.order)) ? Number(raw.order) : index,
+            options
         };
     }
 
@@ -8060,6 +8103,11 @@
                 <div class="so-plan-card-body" onclick="event.stopPropagation()">
                     <p class="so-admin-muted so-admin-tip">${soEsc(plan.description || '')}</p>
                     <p class="so-admin-muted"><strong>WhatsApp title:</strong> ${soEsc(plan.whatsapp_title || 'Custom Plan')}</p>
+                    ${(plan.options || []).length
+                        ? `<div class="so-ext-plan-addons">${plan.options.map(o =>
+                            `<span class="so-ext-addon-chip">${soEsc(o.label || `${o.credits} Credits · ₹${o.price}`)}</span>`
+                        ).join('')}</div>`
+                        : '<p class="so-admin-muted">No credit options — add lines like <code>80,70</code> in the modal.</p>'}
                     <div class="so-plan-actions-bar">
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soOpenLicenseCustomPlanModalById('${soAttr(plan.id)}')"><i class="fa fa-pen"></i> Edit in modal</button>
                         <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="soRemoveLicenseCustomPlan('${soAttr(plan.id)}')"><i class="fa fa-trash"></i> Remove</button>
@@ -8121,6 +8169,9 @@
         document.getElementById('so-lic-cplan-modal-label').value = plan?.label || '';
         document.getElementById('so-lic-cplan-modal-whatsapp-title').value = plan?.whatsapp_title || '';
         document.getElementById('so-lic-cplan-modal-description').value = plan?.description || '';
+        document.getElementById('so-lic-cplan-modal-options').value = plan
+            ? soFormatLicenseCustomPlanOptionsForEditor(plan.options)
+            : '';
         document.getElementById('so-lic-cplan-modal-active').checked = plan ? plan.enabled !== false : true;
         if (modal) {
             modal.style.display = '';
@@ -8146,13 +8197,17 @@
         const label = String(document.getElementById('so-lic-cplan-modal-label')?.value || '').trim();
         const whatsappTitle = String(document.getElementById('so-lic-cplan-modal-whatsapp-title')?.value || '').trim();
         const description = String(document.getElementById('so-lic-cplan-modal-description')?.value || '').trim();
+        const options = soParseLicenseCustomPlanOptionsText(
+            document.getElementById('so-lic-cplan-modal-options')?.value || ''
+        );
         const enabled = !!document.getElementById('so-lic-cplan-modal-active')?.checked;
         const entry = soNormalizeLicenseCustomPlanEntry({
             id,
             enabled,
             label: label || 'Request Custom Plan via WhatsApp',
             whatsapp_title: whatsappTitle || 'Custom Plan',
-            description: description || 'Pick add-ons and send — we will confirm pricing and assign your license.',
+            description: description || 'Pick a bundle below and send via WhatsApp.',
+            options,
             order: soLicenseCustomPlanModalIdx >= 0
                 ? (soLicenseCustomPlans[soLicenseCustomPlanModalIdx]?.order ?? soLicenseCustomPlanModalIdx)
                 : soLicenseCustomPlans.length
@@ -8191,7 +8246,13 @@
                 label: p.label,
                 whatsapp_title: p.whatsapp_title,
                 description: p.description,
-                order: i
+                order: i,
+                options: (p.options || []).map((o, oi) => ({
+                    id: o.id || `opt_${oi + 1}`,
+                    credits: o.credits,
+                    price: o.price,
+                    label: o.label
+                }))
             }));
         if (!plans.length) {
             if (forUpdate) {
