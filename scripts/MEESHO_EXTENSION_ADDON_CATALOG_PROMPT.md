@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.41)
+# Meesho Extension — Admin sync prompt (v1.8.48)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -7,16 +7,21 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 - **Safe admin:** Swagstree superadmin uses preview modals before any Firebase write (load/seed/import/license).
 - **Clear credits:** Subscription (`included_credits`) vs add-on (`addon_credits`) pools; extension **always consumes subscription credits first**.
 - **Flexible add-ons:** Per-plan and per-license hide/disable for plan add-ons and custom plan block.
+- **Billing mode:** Licenses default `subscription`; auto `hybrid` when add-on or custom credits exist (admin + extension activation).
+- **Customer mapping:** Email, name, location (timezone), address on license — prefilled from Google sign-in on activation when empty.
+- **Per-license custom plan:** Extra WhatsApp custom-plan block for a specific license key (shown alongside global custom plan).
 - **Device limits:** Subscription plans default `max_devices: 0` (unlimited). Google trial default `max_devices: 1` (editable in admin).
 
 ## Files to sync
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | Subscription-first `deductCredits`, pool counters (`included_credits_used` / `addon_credits_used` / `custom_credits_used`), per-license custom credits, plan+license hide/disable flags, scoped add-ons (v1.8.36+) |
-| `popup.js` / `popup.html` | Plan detail add-ons inside ℹ️, global add-ons section, license gate, custom credits line (license-only) |
-| `config.js` | `VERSION: "1.8.41"` |
-| `manifest.json` | `"version": "1.8.41"` |
+| `js/firebaseLicense.js` | Merge MY PLANS blocks by title; multi-pack grid (v1.8.48) |
+| `js/license.js` | `licenseCustomPlan`, customer address/location in `normalizeLicenseInfo` |
+| `popup.js` | Pass `licenseContext` to plan detail; wire per-license custom plan WhatsApp |
+| `firestore.rules` | Allow extension to patch `customer_*`, `custom_credits` on activation |
+| `config.js` | `VERSION: "1.8.48"` |
+| `manifest.json` | `"version": "1.8.48"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -50,6 +55,98 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 | `disable_plan_addons` | Show plan add-ons disabled |
 | `hide_custom_plan` | Hide custom plan block |
 | `disable_custom_plan` | Disable custom plan button |
+| `billing_mode` | `subscription` (default) · `hybrid` (auto when add-on/custom credits) · `credits` |
+| `customer_name` / `customer_phone` / `customer_email` | Customer mapping (extension may fill email/name/location on activation) |
+| `customer_address` | Optional street address |
+| `customer_location` | Timezone / locale string (e.g. `Asia/Kolkata · en-IN`) |
+| `customer_ip` | Optional IP when known |
+| `license_custom_plans` | Per-license WhatsApp blocks — see v1.8.47 schema below |
+| `license_custom_plan` | Legacy single object — still read; remove on save when using array |
+
+## Billing mode (v1.8.44)
+
+- **Create/edit license (admin):** billing defaults to `subscription`.
+- **Auto hybrid:** when add-on credits > 0, custom credits > 0, or add-on IDs are selected → billing switches to `hybrid`.
+- **Manual override:** admin can still pick `credits` for pure pay-per-use licenses.
+- **Extension activation:** if license has add-on/custom credits and no stored billing mode, writes `billing_mode: hybrid`.
+
+## Per-license custom plans (v1.8.47)
+
+Admin → Super → Licenses → **License custom plans (this key only)** — same workflow as credit packs: list + modal with **Pack card & CTA** fields per option.
+
+```json
+"license_custom_plans": [
+  {
+    "id": "license1",
+    "enabled": true,
+    "whatsapp_title": "My Plans",
+    "description": "Hello",
+    "label": "Request Custom Plan via WhatsApp",
+    "detail_footer": "",
+    "card_hint": "Tap to select · WhatsApp below",
+    "show_whatsapp_icon": true,
+    "show_details_icon": true,
+    "order": 0,
+    "options": [
+      {
+        "id": "cr_80",
+        "credits": 80,
+        "price": 70,
+        "label": "80 Credits · ₹70",
+        "card_subtitle": "80 credits · ₹70",
+        "card_hint": "Tap to select · WhatsApp below",
+        "cta_text": "Buy 80 credits on WhatsApp",
+        "show_whatsapp_icon": true,
+        "show_details_icon": true
+      }
+    ]
+  }
+]
+```
+
+**Admin modal fields (do not confuse):**
+
+| Field | Example | Purpose |
+|-------|---------|---------|
+| `whatsapp_title` | `My Plans` | 🛠 section heading in extension |
+| `description` | `Hello` | Text above pack cards |
+| `label` | `Request Custom Plan via WhatsApp` | Section WhatsApp button (NOT credit amount) |
+| `options[].credits,price,label` | `80,70,80 Credits · ₹70` | Pack card grid like ⚡ BUY CREDITS |
+
+**Quick import:** one line per option → `credits,price` or `credits,price,label` (then edit pack card fields per row).
+
+| Field | Purpose |
+|-------|---------|
+| `id` | Unique slug on this license |
+| `label` | Section WhatsApp CTA button text |
+| `whatsapp_title` | Section heading (`🛠 MY PLANS`) + WhatsApp message title |
+| `description` | Text above the pack card grid |
+| `detail_footer` | Optional note below the WhatsApp button |
+| `card_hint` | Default hint on all option cards |
+| `show_whatsapp_icon` / `show_details_icon` | Default corner icons on option cards |
+| `options[]` | Pack cards — same fields as credit packs (`card_subtitle`, `card_hint`, `cta_text`, icons) |
+
+- Legacy single `license_custom_plan` object is still read — migrated to array on next license save.
+- Extension plan detail shows **each** enabled entry as 🛠 MY PLANS with pack-style option grid + WhatsApp CTA.
+- Blocks with the same `whatsapp_title` (e.g. `My Plans`) **merge into one grid** in the extension — add more packs via **+ Add credit pack** on the block, not a duplicate block with the same id.
+- `hide_custom_plan` on the license hides all license-mapped custom plans (global block still follows plan/config rules).
+- Active license context loads fresh `license_custom_plans[]` from Firebase when opening plan detail.
+
+## Per-license custom plans (v1.8.45 — superseded)
+
+Options were plain chips without pack card fields. Upgrade to v1.8.47 schema above.
+
+## Per-license custom plan (v1.8.44 — superseded)
+
+Use `license_custom_plans[]` array instead of single `license_custom_plan`.
+
+## Customer fields on activation (v1.8.44)
+
+When a user activates a license in the extension while signed in with Google:
+
+- Writes empty-only fields: `customer_email`, `customer_name`, `customer_location` (browser timezone + locale).
+- Requires updated `firestore.rules` (deploy from repo).
+- Admin can edit/override anytime in license form (including `customer_address`).
 
 ## Credit consumption order
 

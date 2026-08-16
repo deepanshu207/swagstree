@@ -81,7 +81,9 @@ service cloud.firestore {
           'unlimited_time', 'unlimited_devices', 'unlimited_credits',
           'activatedAt', 'lastVerifiedAt', 'expiresAt',
           'credits_balance', 'credits_used',
-          'included_credits', 'addon_credits', 'addon_credit_ids',
+          'included_credits', 'addon_credits', 'addon_credit_ids', 'custom_credits',
+          'customer_name', 'customer_phone', 'customer_email',
+          'customer_address', 'customer_location', 'customer_ip',
           'images_generated_total', 'images_generated_today',
           'images_generated_today_date', 'images_generated_month',
           'images_generated_month_key'

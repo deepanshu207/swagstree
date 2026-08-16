@@ -828,6 +828,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     await openWhatsApp(message);
   }
 
+  async function getActiveLicenseContextForPlans() {
+    if (typeof LicenseManager === "undefined") return null;
+    const licenses = await LicenseManager.getActiveLicenses();
+    const entry = (licenses || []).find(
+      (e) =>
+        LicenseManager.licenseEntryHasAccess(e) &&
+        e.licenseInfo?.planType !== "demo" &&
+        e.licenseInfo?.planType !== "google_trial",
+    );
+    if (!entry?.licenseInfo) return null;
+    const info = LicenseManager.normalizeLicenseInfo(entry.licenseInfo);
+    let plans = info.licenseCustomPlans || info.license_custom_plans || [];
+    let legacyPlan = info.licenseCustomPlan || info.license_custom_plan || null;
+    if (typeof FirebaseLicense !== "undefined" && FirebaseLicense.isEnabled() && info.key) {
+      try {
+        const lic = await FirebaseLicense.fetchDoc("licenses", info.key);
+        if (lic) {
+          plans = lic.license_custom_plans || lic.licenseCustomPlans || plans;
+          legacyPlan = lic.license_custom_plan || lic.licenseCustomPlan || legacyPlan;
+        }
+      } catch (_) { /* use cached licenseInfo */ }
+    }
+    return {
+      license_custom_plans: plans,
+      licenseCustomPlans: plans,
+      license_custom_plan: legacyPlan,
+      licenseCustomPlan: legacyPlan,
+      hide_custom_plan: info.hideCustomPlan,
+      hideCustomPlan: info.hideCustomPlan,
+      disable_custom_plan: info.disableCustomPlan,
+      disableCustomPlan: info.disableCustomPlan,
+      customer_email: info.customerEmail,
+      customer_name: info.customerName,
+    };
+  }
+
   async function showPlanDetail(planId) {
     const body = document.getElementById("plan-detail-body");
     if (!body) return;
@@ -856,18 +892,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       cachedAddonCatalog = cachedCreditsConfig?.addon_catalog || [];
     }
 
+    const licenseContext = await getActiveLicenseContextForPlans();
+
     body.innerHTML = FirebaseLicense.renderPlanDetailHtml(plan, {
       productName,
       addonCatalog: cachedAddonCatalog,
       creditsConfig: cachedCreditsConfig,
       allPlans: cachedPlans,
       pricePerCredit: cachedCreditsPricePerCredit,
+      licenseContext,
     });
-    bindPlanDetailBuy(body, plan.id);
+    bindPlanDetailBuy(body, plan.id, licenseContext);
     bindCreditPackButtons(body);
   }
 
-  function bindPlanDetailBuy(root, planId) {
+  function bindPlanDetailBuy(root, planId, licenseContext) {
     if (
       typeof FirebaseLicense !== "undefined" &&
       FirebaseLicense.wirePlanAddonSelection
@@ -884,19 +923,61 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (pid && addonId) void showAddonCreditDetail(pid, addonId);
       });
     });
-    const customBtn = root.querySelector(".plan-detail-custom-plan-btn");
-    if (customBtn && customBtn.dataset.wired !== "1") {
+    root.querySelectorAll(".plan-detail-custom-plan-btn").forEach((customBtn) => {
+      if (customBtn.dataset.wired === "1") return;
       customBtn.dataset.wired = "1";
       PA.bindTap(customBtn, async () => {
+        const source = customBtn.dataset.customPlanSource || "global";
+        const planCfgId = customBtn.dataset.customPlanId || "";
+        let customCfg = cachedCreditsConfig?.custom_plan || null;
+        if (source === "license" && licenseContext) {
+          const entries =
+            licenseContext.license_custom_plans ||
+            licenseContext.licenseCustomPlans ||
+            [];
+          const legacy =
+            licenseContext.license_custom_plan ||
+            licenseContext.licenseCustomPlan;
+          const section = customBtn.closest(".plan-detail-section--custom");
+          const selectedChip = section?.querySelector(
+            '.plan-lic-custom-option-btn[aria-pressed="true"]',
+          );
+          const selectedCfgId =
+            selectedChip?.dataset?.customPlanId || planCfgId;
+          const match = Array.isArray(entries)
+            ? entries.find(
+                (p) =>
+                  p &&
+                  (p.id === selectedCfgId ||
+                    p.id === planCfgId ||
+                    FirebaseLicense.slugifyPlanId?.(p.id) ===
+                      FirebaseLicense.slugifyPlanId?.(selectedCfgId) ||
+                    FirebaseLicense.slugifyPlanId?.(p.id) ===
+                      FirebaseLicense.slugifyPlanId?.(planCfgId)),
+              )
+            : null;
+          customCfg = match || legacy || customCfg;
+          if (customCfg && selectedChip) {
+            customCfg = {
+              ...customCfg,
+              source: "license",
+              whatsapp_title:
+                customCfg.whatsapp_title ||
+                customCfg.whatsappTitle ||
+                "My Plans",
+            };
+          }
+        }
         const message = FirebaseLicense.buildCustomPlanPurchaseMessage(
           planId,
           productName,
           root,
           cachedCreditsConfig,
+          customCfg,
         );
         await openWhatsApp(message);
       });
-    }
+    });
     const buyBtn = root.querySelector(".plan-detail-buy-btn");
     if (!buyBtn) return;
     PA.bindTap(buyBtn, async () => {
