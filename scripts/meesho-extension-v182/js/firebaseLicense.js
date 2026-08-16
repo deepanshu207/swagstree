@@ -1379,43 +1379,101 @@ Please share payment details.`;
     return blocks;
   },
 
+  groupLicenseCustomPlansForDisplay(blocks) {
+    const list = (blocks || []).filter((b) => b && b.source === "license");
+    if (!list.length) return [];
+    const groups = new Map();
+    list.forEach((cfg) => {
+      const key = String(cfg.whatsapp_title || cfg.id || "my_plans")
+        .trim()
+        .toLowerCase();
+      if (!groups.has(key)) {
+        groups.set(key, {
+          ...cfg,
+          options: [],
+          _mergedPlanIds: [],
+        });
+      }
+      const group = groups.get(key);
+      group._mergedPlanIds.push(cfg.id);
+      (cfg.options || []).forEach((opt, oi) => {
+        group.options.push({
+          ...opt,
+          _cfgId: cfg.id,
+          id: opt.id || `opt_${cfg.id}_${oi}`,
+        });
+      });
+    });
+    return Array.from(groups.values()).map((g) => {
+      const seen = new Set();
+      g.options = (g.options || []).filter((opt) => {
+        const dedupeKey = `${opt._cfgId || g.id}:${opt.id}:${opt.credits}:${opt.price}`;
+        if (seen.has(dedupeKey)) return false;
+        seen.add(dedupeKey);
+        return true;
+      });
+      return g;
+    });
+  },
+
   renderCustomPlanSectionHtml(plan, blocks, licenseContext) {
     if (!blocks?.length) return "";
     const customDisabled = this.planCustomPlanDisabled(plan, licenseContext);
     let html = "";
-    blocks.forEach((cfg) => {
-      const isLicense = cfg.source === "license";
-      const title = isLicense
-        ? `🛠 ${cfg.whatsapp_title || cfg.label || "YOUR LICENSE CUSTOM PLAN"}`
-        : "🛠 CUSTOM PLAN";
-      const planId = cfg.id || (isLicense ? "license_custom_plan" : "global_custom_plan");
-      const options = Array.isArray(cfg.options) ? cfg.options : [];
-      html += `<div class="plan-detail-section plan-detail-section--custom" data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}">
+    const globalBlocks = blocks.filter((b) => b.source !== "license");
+    const licenseBlocks = this.groupLicenseCustomPlansForDisplay(
+      blocks.filter((b) => b.source === "license"),
+    );
+    globalBlocks.forEach((cfg) => {
+      html += this.renderOneCustomPlanSectionHtml(
+        plan,
+        cfg,
+        customDisabled,
+        false,
+      );
+    });
+    licenseBlocks.forEach((cfg) => {
+      html += this.renderOneCustomPlanSectionHtml(
+        plan,
+        cfg,
+        customDisabled,
+        true,
+      );
+    });
+    return html;
+  },
+
+  renderOneCustomPlanSectionHtml(plan, cfg, customDisabled, isLicense) {
+    const title = isLicense
+      ? `🛠 ${cfg.whatsapp_title || cfg.label || "MY PLANS"}`
+      : "🛠 CUSTOM PLAN";
+    const planId = cfg.id || (isLicense ? "license_custom_plan" : "global_custom_plan");
+    const options = Array.isArray(cfg.options) ? cfg.options : [];
+    let html = `<div class="plan-detail-section plan-detail-section--custom" data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}">
         <div class="plan-detail-section-title">${this.escapeHtml(title)}</div>
         ${cfg.description ? `<p class="plan-detail-section-body">${this.escapeHtml(cfg.description)}</p>` : ""}`;
-      if (isLicense && options.length) {
-        html += `<div class="plan-grid plan-detail-lic-custom-options" style="grid-template-columns:${this.planGridColumns(options.length)};margin-top:8px;">`;
-        options.forEach((opt, oi) => {
-          html += this.renderLicenseCustomPlanOptionCard(
-            opt,
-            cfg,
-            plan,
-            customDisabled,
-            oi,
-          );
-        });
-        html += `</div>`;
-      } else if (!isLicense && cfg.allow_addon_selection !== false) {
-        html += `<p class="plan-detail-section-body">Select add-ons above and request a tailored package via WhatsApp.</p>`;
-      }
-      html += `<button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
+    if (isLicense && options.length) {
+      html += `<div class="plan-grid plan-detail-lic-custom-options" style="grid-template-columns:${this.planGridColumns(options.length)};margin-top:8px;">`;
+      options.forEach((opt, oi) => {
+        html += this.renderLicenseCustomPlanOptionCard(
+          opt,
+          cfg,
+          plan,
+          customDisabled,
+          oi,
+        );
+      });
+      html += `</div>`;
+    } else if (!isLicense && cfg.allow_addon_selection !== false) {
+      html += `<p class="plan-detail-section-body">Select add-ons above and request a tailored package via WhatsApp.</p>`;
+    }
+    html += `<button type="button" class="plan-detail-custom-plan-btn btn btn-secondary${customDisabled ? " plan-detail-custom-plan-btn--disabled" : ""}" ${customDisabled ? "disabled" : ""} data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}" ${this.planDataAttrs(plan, this.formatPlanDurationLabel(plan))} style="width:100%;margin-top:8px;padding:10px;font-size:12px;${customDisabled ? "opacity:0.55;cursor:not-allowed;" : ""}">
           ${this.escapeHtml(cfg.label || "Request Custom Plan via WhatsApp")}${customDisabled ? " (disabled)" : ""}
         </button>`;
-      if (cfg.detail_footer) {
-        html += `<p class="plan-detail-footer">${this.escapeHtml(cfg.detail_footer)}</p>`;
-      }
-      html += `</div>`;
-    });
+    if (cfg.detail_footer) {
+      html += `<p class="plan-detail-footer">${this.escapeHtml(cfg.detail_footer)}</p>`;
+    }
+    html += `</div>`;
     return html;
   },
 
@@ -1425,7 +1483,7 @@ Please share payment details.`;
     const label =
       String(option?.label || "").trim() || `${credits} Credits · ₹${price}`;
     const optId = option?.id || `opt_${index}`;
-    const cfgId = cfg?.id || "license_custom_plan";
+    const cfgId = option?._cfgId || cfg?.id || "license_custom_plan";
     const pressed = index === 0 ? ' aria-pressed="true"' : ' aria-pressed="false"';
     const selectedClass = index === 0 ? " plan-btn--selected" : "";
     const subtitle =
@@ -3728,10 +3786,21 @@ Please share payment details.`;
     ).filter((c) => c.dataset.customPlanId === key);
   },
 
+  getSelectedLicenseCustomOptionChips(root, sectionEl) {
+    const scope = sectionEl || root || document;
+    return Array.from(
+      scope.querySelectorAll(
+        '.plan-detail-section--custom .plan-lic-custom-option-btn[aria-pressed="true"]',
+      ),
+    );
+  },
+
   toggleLicenseCustomOptionChip(chip, root) {
     if (!chip || chip.disabled) return;
-    const cfgId = chip.dataset.customPlanId;
-    const siblings = this.licenseCustomOptionChips(cfgId, root);
+    const section = chip.closest(".plan-detail-section--custom");
+    const siblings = section
+      ? Array.from(section.querySelectorAll(".plan-lic-custom-option-btn"))
+      : this.licenseCustomOptionChips(chip.dataset.customPlanId, root);
     siblings.forEach((c) => {
       if (c !== chip) {
         c.setAttribute("aria-pressed", "false");
@@ -3831,11 +3900,20 @@ Please share payment details.`;
     const cfg = customPlanCfg
       ? this.normalizeCustomPlanConfig(customPlanCfg)
       : this.normalizeCustomPlanConfig(creditsConfig?.custom_plan);
+    const customSection = cfg.id
+      ? Array.from(
+          scope.querySelectorAll(".plan-detail-section--custom"),
+        ).find((el) => el.dataset.customPlanId === String(cfg.id))
+      : null;
     const licOptChips =
-      cfg.source === "license" && cfg.id
-        ? this.licenseCustomOptionChips(cfg.id, root).filter(
-            (c) => c.getAttribute("aria-pressed") === "true",
-          )
+      cfg.source === "license"
+        ? (customSection
+            ? Array.from(
+                customSection.querySelectorAll(
+                  '.plan-lic-custom-option-btn[aria-pressed="true"]',
+                ),
+              )
+            : this.getSelectedLicenseCustomOptionChips(scope))
         : [];
     const selChips = this.addonChipsForPlan(planId, root).filter(
       (c) => c.getAttribute("aria-pressed") === "true",

@@ -8181,6 +8181,23 @@
         };
     }
 
+    function soSuggestNextLicenseCustomPlanId() {
+        const used = new Set(soLicenseCustomPlans.map(p => p.id));
+        for (let i = 1; i <= 99; i++) {
+            const id = `license${i}`;
+            if (!used.has(id)) return id;
+        }
+        return `license_${Date.now().toString(36)}`;
+    }
+
+    function soDefaultLicenseCustomPlanOption(planDefaults, index) {
+        return soNormalizeLicenseCustomPlanOption(
+            { credits: 10, price: 20 },
+            index,
+            planDefaults || {}
+        );
+    }
+
     function soApplyLicenseCustomPlansToForm(lic) {
         soLicenseCustomPlans = soResolveLicenseCustomPlansFromDoc(lic);
         soExpandedLicenseCustomPlanIds = new Set(soLicenseCustomPlans.map(p => p.id));
@@ -8206,10 +8223,11 @@
                         <span class="so-plan-order" aria-hidden="true">${idx + 1}</span>
                         <div class="so-plan-card-summary">
                             <div class="so-plan-card-title-row">
-                                <strong class="so-plan-card-name">${soEsc(plan.label || plan.id)}</strong>
+                                <strong class="so-plan-card-name">${soEsc(plan.whatsapp_title || plan.id)}</strong>
                             </div>
                             <div class="so-plan-card-meta">
                                 <code class="so-plan-id-tag">${soEsc(plan.id)}</code>
+                                · ${(plan.options || []).length} pack${(plan.options || []).length === 1 ? '' : 's'}
                             </div>
                             <div class="so-plan-card-badges">
                                 ${plan.enabled !== false ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
@@ -8223,17 +8241,16 @@
                     </div>
                 </div>
                 <div class="so-plan-card-body" onclick="event.stopPropagation()">
-                    <p class="so-admin-muted so-admin-tip">${soEsc(plan.description || '')}</p>
-                    <p class="so-admin-muted"><strong>WhatsApp title:</strong> ${soEsc(plan.whatsapp_title || 'Custom Plan')}</p>
+                    <p class="so-admin-muted"><strong>WhatsApp CTA:</strong> ${soEsc(plan.label || 'Request Custom Plan via WhatsApp')}</p>
                     ${(plan.options || []).length
                         ? `<div class="so-ext-plan-addons">${plan.options.map(o =>
                             `<span class="so-ext-addon-chip">${soEsc(o.label || `${o.credits} Credits · ₹${o.price}`)}</span>`
-                        ).join('')}</div>
-                        <p class="so-admin-muted"><strong>Pack cards:</strong> ${plan.options.length} option(s) with subtitle/hint like credit packs.</p>`
-                        : '<p class="so-admin-muted">No credit options — add rows in the modal (or import <code>80,70</code> lines).</p>'}
+                        ).join('')}</div>`
+                        : '<p class="so-admin-muted">No credit packs yet — tap <strong>+ Add credit pack</strong> below.</p>'}
                     <div class="so-plan-actions-bar">
-                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soOpenLicenseCustomPlanModalById('${soAttr(plan.id)}')"><i class="fa fa-pen"></i> Edit in modal</button>
-                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="soRemoveLicenseCustomPlan('${soAttr(plan.id)}')"><i class="fa fa-trash"></i> Remove</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soQuickAddLicenseCustomPlanOption('${soAttr(plan.id)}')"><i class="fa fa-plus"></i> Add credit pack</button>
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soOpenLicenseCustomPlanModalById('${soAttr(plan.id)}')"><i class="fa fa-pen"></i> Edit block</button>
+                        <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="soRemoveLicenseCustomPlan('${soAttr(plan.id)}')"><i class="fa fa-trash"></i> Remove block</button>
                     </div>
                 </div>
             </div>`;
@@ -8276,6 +8293,24 @@
         soRenderLicenseCustomPlansEditor();
     };
 
+    window.soQuickAddLicenseCustomPlanOption = function(planId) {
+        const idx = soLicenseCustomPlans.findIndex(p => p.id === planId);
+        if (idx < 0) return soToast('Custom plan block not found.');
+        const plan = soLicenseCustomPlans[idx];
+        const planDefaults = {
+            card_hint: plan.card_hint || '',
+            show_whatsapp_icon: plan.show_whatsapp_icon !== false,
+            show_details_icon: plan.show_details_icon !== false
+        };
+        const options = (plan.options || []).slice();
+        options.push(soDefaultLicenseCustomPlanOption(planDefaults, options.length));
+        soLicenseCustomPlans[idx] = soNormalizeLicenseCustomPlanEntry(Object.assign({}, plan, { options }), idx);
+        soExpandedLicenseCustomPlanIds.add(planId);
+        soRenderLicenseCustomPlansEditor();
+        soOpenLicenseCustomPlanModal(idx);
+        soToast('Added another credit pack row — set credits/price, then Save plan.');
+    };
+
     window.soOpenLicenseCustomPlanModalById = function(id) {
         const idx = soLicenseCustomPlans.findIndex(p => p.id === id);
         soOpenLicenseCustomPlanModal(idx >= 0 ? idx : -1);
@@ -8286,20 +8321,28 @@
         const modal = document.getElementById('so-license-custom-plan-modal');
         const title = document.getElementById('so-license-custom-plan-modal-title');
         const plan = soLicenseCustomPlanModalIdx >= 0 ? soLicenseCustomPlans[soLicenseCustomPlanModalIdx] : null;
-        if (title) title.textContent = plan ? `Edit license custom plan · ${plan.label || plan.id}` : 'Add license custom plan';
-        document.getElementById('so-lic-cplan-modal-id').value = plan?.id || '';
+        if (title) {
+            title.textContent = plan
+                ? `Edit MY PLANS block · ${plan.whatsapp_title || plan.id}`
+                : 'Add MY PLANS block';
+        }
+        const suggestedId = plan?.id || soSuggestNextLicenseCustomPlanId();
+        document.getElementById('so-lic-cplan-modal-id').value = suggestedId;
         document.getElementById('so-lic-cplan-modal-id').readOnly = !!plan;
-        document.getElementById('so-lic-cplan-modal-label').value = plan?.label || '';
-        document.getElementById('so-lic-cplan-modal-whatsapp-title').value = plan?.whatsapp_title || '';
+        document.getElementById('so-lic-cplan-modal-label').value = plan?.label || 'Request Custom Plan via WhatsApp';
+        document.getElementById('so-lic-cplan-modal-whatsapp-title').value = plan?.whatsapp_title || 'My Plans';
         document.getElementById('so-lic-cplan-modal-description').value = plan?.description || '';
-        document.getElementById('so-lic-cplan-modal-card-hint').value = plan?.card_hint || '';
+        document.getElementById('so-lic-cplan-modal-card-hint').value = plan?.card_hint || 'Tap to select · WhatsApp below';
         document.getElementById('so-lic-cplan-modal-detail-footer').value = plan?.detail_footer || '';
         document.getElementById('so-lic-cplan-modal-show-whatsapp-icon').checked = plan ? plan.show_whatsapp_icon !== false : true;
         document.getElementById('so-lic-cplan-modal-show-details-icon').checked = plan ? plan.show_details_icon !== false : true;
         document.getElementById('so-lic-cplan-modal-options').value = plan
             ? soFormatLicenseCustomPlanOptionsForEditor(plan.options)
             : '';
-        soRenderLicenseCustomPlanOptionsEditor(plan?.options || []);
+        const defaultOpts = plan?.options?.length
+            ? plan.options
+            : [soDefaultLicenseCustomPlanOption({ card_hint: 'Tap to select · WhatsApp below' }, 0)];
+        soRenderLicenseCustomPlanOptionsEditor(defaultOpts);
         document.getElementById('so-lic-cplan-modal-active').checked = plan ? plan.enabled !== false : true;
         if (modal) {
             modal.style.display = '';
@@ -8349,7 +8392,7 @@
         if (!entry) return soToast('Invalid custom plan.');
         const dup = soLicenseCustomPlans.findIndex(p => p.id === entry.id);
         if (dup >= 0 && dup !== soLicenseCustomPlanModalIdx) {
-            return soToast('Plan id already exists on this license.');
+            return soToast(`Plan id "${entry.id}" already exists — use a unique slug (e.g. ${soSuggestNextLicenseCustomPlanId()}) or add another credit pack to the existing block.`);
         }
         const wasEdit = soLicenseCustomPlanModalIdx >= 0;
         if (wasEdit) {

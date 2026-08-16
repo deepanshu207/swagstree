@@ -938,16 +938,35 @@ document.addEventListener("DOMContentLoaded", async () => {
           const legacy =
             licenseContext.license_custom_plan ||
             licenseContext.licenseCustomPlan;
+          const section = customBtn.closest(".plan-detail-section--custom");
+          const selectedChip = section?.querySelector(
+            '.plan-lic-custom-option-btn[aria-pressed="true"]',
+          );
+          const selectedCfgId =
+            selectedChip?.dataset?.customPlanId || planCfgId;
           const match = Array.isArray(entries)
             ? entries.find(
                 (p) =>
                   p &&
-                  (p.id === planCfgId ||
+                  (p.id === selectedCfgId ||
+                    p.id === planCfgId ||
+                    FirebaseLicense.slugifyPlanId?.(p.id) ===
+                      FirebaseLicense.slugifyPlanId?.(selectedCfgId) ||
                     FirebaseLicense.slugifyPlanId?.(p.id) ===
                       FirebaseLicense.slugifyPlanId?.(planCfgId)),
               )
             : null;
           customCfg = match || legacy || customCfg;
+          if (customCfg && selectedChip) {
+            customCfg = {
+              ...customCfg,
+              source: "license",
+              whatsapp_title:
+                customCfg.whatsapp_title ||
+                customCfg.whatsappTitle ||
+                "My Plans",
+            };
+          }
         }
         const message = FirebaseLicense.buildCustomPlanPurchaseMessage(
           planId,

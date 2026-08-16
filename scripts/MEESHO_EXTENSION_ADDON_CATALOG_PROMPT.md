@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.47)
+# Meesho Extension — Admin sync prompt (v1.8.48)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -16,12 +16,12 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | `license_custom_plans[]` pack-card options, `renderLicenseCustomPlanOptionCard` (v1.8.47) |
+| `js/firebaseLicense.js` | Merge MY PLANS blocks by title; multi-pack grid (v1.8.48) |
 | `js/license.js` | `licenseCustomPlan`, customer address/location in `normalizeLicenseInfo` |
 | `popup.js` | Pass `licenseContext` to plan detail; wire per-license custom plan WhatsApp |
 | `firestore.rules` | Allow extension to patch `customer_*`, `custom_credits` on activation |
-| `config.js` | `VERSION: "1.8.47"` |
-| `manifest.json` | `"version": "1.8.47"` |
+| `config.js` | `VERSION: "1.8.48"` |
+| `manifest.json` | `"version": "1.8.48"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -128,6 +128,7 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
 
 - Legacy single `license_custom_plan` object is still read — migrated to array on next license save.
 - Extension plan detail shows **each** enabled entry as 🛠 MY PLANS with pack-style option grid + WhatsApp CTA.
+- Blocks with the same `whatsapp_title` (e.g. `My Plans`) **merge into one grid** in the extension — add more packs via **+ Add credit pack** on the block, not a duplicate block with the same id.
 - `hide_custom_plan` on the license hides all license-mapped custom plans (global block still follows plan/config rules).
 - Active license context loads fresh `license_custom_plans[]` from Firebase when opening plan detail.
 
