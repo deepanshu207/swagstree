@@ -4178,8 +4178,10 @@
         const flags = [];
         if (payload.hide_plan_addons) flags.push('hide plan add-ons');
         if (payload.disable_plan_addons) flags.push('disable plan add-ons');
-        if (payload.hide_custom_plan) flags.push('hide custom plan');
-        if (payload.disable_custom_plan) flags.push('disable custom plan');
+        if (payload.hide_custom_plan) flags.push('hide global custom plan');
+        if (payload.disable_custom_plan) flags.push('disable global custom plan');
+        if (payload.hide_license_custom_plans) flags.push('hide MY PLANS');
+        if (payload.disable_license_custom_plans) flags.push('disable MY PLANS');
         const licPlans = payload.license_custom_plans;
         const licPlanCount = Array.isArray(licPlans) ? licPlans.filter(p => p && p.enabled !== false).length : 0;
         const licPlanLine = licPlanCount > 0
@@ -7972,7 +7974,9 @@
             hide_plan_addons: !!document.getElementById('so-license-hide-plan-addons')?.checked,
             disable_plan_addons: !!document.getElementById('so-license-disable-plan-addons')?.checked,
             hide_custom_plan: !!document.getElementById('so-license-hide-custom-plan')?.checked,
-            disable_custom_plan: !!document.getElementById('so-license-disable-custom-plan')?.checked
+            disable_custom_plan: !!document.getElementById('so-license-disable-custom-plan')?.checked,
+            hide_license_custom_plans: !!document.getElementById('so-license-hide-license-custom-plans')?.checked,
+            disable_license_custom_plans: !!document.getElementById('so-license-disable-license-custom-plans')?.checked
         };
     }
 
@@ -7986,6 +7990,8 @@
         set('so-license-disable-plan-addons', src.disable_plan_addons);
         set('so-license-hide-custom-plan', src.hide_custom_plan);
         set('so-license-disable-custom-plan', src.disable_custom_plan);
+        set('so-license-hide-license-custom-plans', src.hide_license_custom_plans);
+        set('so-license-disable-license-custom-plans', src.disable_license_custom_plans);
         soApplyLicenseCustomPlansToForm(lic);
     }
 
@@ -8169,6 +8175,7 @@
         return {
             id,
             enabled: raw.enabled !== false && raw.active !== false,
+            disabled: raw.disabled === true || raw.disable === true || raw.disable_block === true,
             label: String(raw.label || 'Request Custom Plan via WhatsApp').trim(),
             whatsapp_title: String(raw.whatsapp_title || raw.whatsappTitle || 'My Plans').trim(),
             description: String(raw.description || 'Pick a bundle below and send via WhatsApp.').trim(),
@@ -8231,6 +8238,7 @@
                             </div>
                             <div class="so-plan-card-badges">
                                 ${plan.enabled !== false ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
+                                ${plan.disabled ? '<span class="so-badge so-badge--warn">Disabled</span>' : ''}
                             </div>
                         </div>
                         <i class="fa fa-chevron-down so-plan-chevron" aria-hidden="true"></i>
@@ -8344,6 +8352,7 @@
             : [soDefaultLicenseCustomPlanOption({ card_hint: 'Tap to select · WhatsApp below' }, 0)];
         soRenderLicenseCustomPlanOptionsEditor(defaultOpts);
         document.getElementById('so-lic-cplan-modal-active').checked = plan ? plan.enabled !== false : true;
+        document.getElementById('so-lic-cplan-modal-disabled').checked = !!plan?.disabled;
         if (modal) {
             modal.style.display = '';
             modal.hidden = false;
@@ -8374,9 +8383,11 @@
         const showDetailsIcon = !!document.getElementById('so-lic-cplan-modal-show-details-icon')?.checked;
         const options = soReadLicenseCustomPlanOptionsFromModal();
         const enabled = !!document.getElementById('so-lic-cplan-modal-active')?.checked;
+        const disabled = !!document.getElementById('so-lic-cplan-modal-disabled')?.checked;
         const entry = soNormalizeLicenseCustomPlanEntry({
             id,
             enabled,
+            disabled,
             label: label || 'Request Custom Plan via WhatsApp',
             whatsapp_title: whatsappTitle || 'My Plans',
             description: description || 'Pick a bundle below and send via WhatsApp.',
@@ -8442,7 +8453,12 @@
                     if (o.show_details_icon === false) row.show_details_icon = false;
                     return row;
                 })
-            }));
+            }))
+            .map((p) => {
+                const row = { ...p };
+                if (p.disabled) row.disabled = true;
+                return row;
+            });
         if (!plans.length) {
             if (forUpdate) {
                 return {

@@ -2798,12 +2798,14 @@
                                 <p id="so-license-credits-summary" class="so-admin-muted so-admin-tip"></p>
                             </div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Extension purchase UI (this license)</div>
-                            <p class="so-admin-muted so-admin-tip">Hide or disable plan add-ons / custom plan block in the extension for customers using this license key.</p>
+                            <p class="so-admin-muted so-admin-tip">Hide or disable extension purchase sections for customers using this license key.</p>
                             <div class="so-checkbox-group">
                                 <label class="so-plan-check"><input id="so-license-hide-plan-addons" type="checkbox"> Hide plan add-ons in extension</label>
                                 <label class="so-plan-check"><input id="so-license-disable-plan-addons" type="checkbox"> Disable plan add-ons (visible but not selectable)</label>
-                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox"> Hide custom plan block</label>
-                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox"> Disable custom plan block</label>
+                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox"> Hide global custom plan block (🛠 CUSTOM PLAN)</label>
+                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox"> Disable global custom plan (visible but inactive)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-license-custom-plans" type="checkbox"> Hide MY PLANS (license custom plans)</label>
+                                <label class="so-plan-check"><input id="so-license-disable-license-custom-plans" type="checkbox"> Disable MY PLANS (visible but inactive)</label>
                             </div>
                             <details class="so-details-block" open>
                                 <summary>License custom plans (this key only)</summary>
@@ -3041,6 +3043,7 @@
                                 <label><span class="admin-settings-field-label">Plan id (slug)</span>
                                     <input id="so-lic-cplan-modal-id" type="text" placeholder="e.g. vip_yearly"></label>
                                 <label class="so-plan-check" style="align-self:end;"><input id="so-lic-cplan-modal-active" type="checkbox" checked> Show in extension</label>
+                                <label class="so-plan-check" style="align-self:end;"><input id="so-lic-cplan-modal-disabled" type="checkbox"> Disable block (visible but inactive)</label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp message title (🛠 MY PLANS heading)</span>
                                     <input id="so-lic-cplan-modal-whatsapp-title" type="text" placeholder="My Plans"></label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Description (above credit pack cards)</span>
@@ -4900,7 +4903,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.26"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.27"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

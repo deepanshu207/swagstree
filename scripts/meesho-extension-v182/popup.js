@@ -841,12 +841,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     const info = LicenseManager.normalizeLicenseInfo(entry.licenseInfo);
     let plans = info.licenseCustomPlans || info.license_custom_plans || [];
     let legacyPlan = info.licenseCustomPlan || info.license_custom_plan || null;
+    let hideLicenseCustomPlans =
+      info.hideLicenseCustomPlans ||
+      info.hide_license_custom_plans ||
+      false;
+    let disableLicenseCustomPlans =
+      info.disableLicenseCustomPlans ||
+      info.disable_license_custom_plans ||
+      false;
+    let hideCustomPlan = info.hideCustomPlan;
+    let disableCustomPlan = info.disableCustomPlan;
     if (typeof FirebaseLicense !== "undefined" && FirebaseLicense.isEnabled() && info.key) {
       try {
         const lic = await FirebaseLicense.fetchDoc("licenses", info.key);
         if (lic) {
           plans = lic.license_custom_plans || lic.licenseCustomPlans || plans;
           legacyPlan = lic.license_custom_plan || lic.licenseCustomPlan || legacyPlan;
+          hideLicenseCustomPlans = !!(
+            lic.hide_license_custom_plans || lic.hideLicenseCustomPlans
+          );
+          disableLicenseCustomPlans = !!(
+            lic.disable_license_custom_plans || lic.disableLicenseCustomPlans
+          );
+          hideCustomPlan = !!(
+            lic.hide_custom_plan || lic.hideCustomPlan || hideCustomPlan
+          );
+          disableCustomPlan = !!(
+            lic.disable_custom_plan || lic.disableCustomPlan || disableCustomPlan
+          );
         }
       } catch (_) { /* use cached licenseInfo */ }
     }
@@ -855,10 +877,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       licenseCustomPlans: plans,
       license_custom_plan: legacyPlan,
       licenseCustomPlan: legacyPlan,
-      hide_custom_plan: info.hideCustomPlan,
-      hideCustomPlan: info.hideCustomPlan,
-      disable_custom_plan: info.disableCustomPlan,
-      disableCustomPlan: info.disableCustomPlan,
+      hide_custom_plan: hideCustomPlan,
+      hideCustomPlan: hideCustomPlan,
+      disable_custom_plan: disableCustomPlan,
+      disableCustomPlan: disableCustomPlan,
+      hide_license_custom_plans: hideLicenseCustomPlans,
+      hideLicenseCustomPlans: hideLicenseCustomPlans,
+      disable_license_custom_plans: disableLicenseCustomPlans,
+      disableLicenseCustomPlans: disableLicenseCustomPlans,
       customer_email: info.customerEmail,
       customer_name: info.customerName,
     };

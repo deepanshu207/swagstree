@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.48)
+# Meesho Extension — Admin sync prompt (v1.8.49)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -16,12 +16,12 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | Merge MY PLANS blocks by title; multi-pack grid (v1.8.48) |
+| `js/firebaseLicense.js` | MY PLANS hide/disable flags + per-block `disabled` (v1.8.49) |
 | `js/license.js` | `licenseCustomPlan`, customer address/location in `normalizeLicenseInfo` |
 | `popup.js` | Pass `licenseContext` to plan detail; wire per-license custom plan WhatsApp |
 | `firestore.rules` | Allow extension to patch `customer_*`, `custom_credits` on activation |
-| `config.js` | `VERSION: "1.8.48"` |
-| `manifest.json` | `"version": "1.8.48"` |
+| `config.js` | `VERSION: "1.8.49"` |
+| `manifest.json` | `"version": "1.8.49"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -53,8 +53,10 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 | `bonus_credits` | Legacy alias — read as fallback for `custom_credits` |
 | `hide_plan_addons` | Hide plan add-ons in extension for this license |
 | `disable_plan_addons` | Show plan add-ons disabled |
-| `hide_custom_plan` | Hide custom plan block |
-| `disable_custom_plan` | Disable custom plan button |
+| `hide_custom_plan` | Hide global 🛠 CUSTOM PLAN block |
+| `disable_custom_plan` | Disable global custom plan (visible but inactive) |
+| `hide_license_custom_plans` | Hide all 🛠 MY PLANS blocks for this license |
+| `disable_license_custom_plans` | Show MY PLANS grayed / not tappable for this license |
 | `billing_mode` | `subscription` (default) · `hybrid` (auto when add-on/custom credits) · `credits` |
 | `customer_name` / `customer_phone` / `customer_email` | Customer mapping (extension may fill email/name/location on activation) |
 | `customer_address` | Optional street address |
@@ -79,6 +81,7 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
   {
     "id": "license1",
     "enabled": true,
+    "disabled": false,
     "whatsapp_title": "My Plans",
     "description": "Hello",
     "label": "Request Custom Plan via WhatsApp",
@@ -118,6 +121,8 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
 | Field | Purpose |
 |-------|---------|
 | `id` | Unique slug on this license |
+| `enabled` | `false` = hide this MY PLANS block |
+| `disabled` | `true` = show block grayed / chips not selectable |
 | `label` | Section WhatsApp CTA button text |
 | `whatsapp_title` | Section heading (`🛠 MY PLANS`) + WhatsApp message title |
 | `description` | Text above the pack card grid |
@@ -129,7 +134,8 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
 - Legacy single `license_custom_plan` object is still read — migrated to array on next license save.
 - Extension plan detail shows **each** enabled entry as 🛠 MY PLANS with pack-style option grid + WhatsApp CTA.
 - Blocks with the same `whatsapp_title` (e.g. `My Plans`) **merge into one grid** in the extension — add more packs via **+ Add credit pack** on the block, not a duplicate block with the same id.
-- `hide_custom_plan` on the license hides all license-mapped custom plans (global block still follows plan/config rules).
+- **Hide/disable (v1.8.49):** License flags `hide_license_custom_plans` / `disable_license_custom_plans` apply to all MY PLANS blocks. Per-block `enabled: false` hides one block; `disabled: true` grays one block. Legacy `hide_custom_plan` / `disable_custom_plan` on license still affect MY PLANS for backward compatibility.
+- `hide_custom_plan` on the license hides global custom plan only (when using new split flags); legacy licenses with only `hide_custom_plan` still hide MY PLANS too.
 - Active license context loads fresh `license_custom_plans[]` from Firebase when opening plan detail.
 
 ## Per-license custom plans (v1.8.45 — superseded)
