@@ -281,3 +281,35 @@ After admin save: close/reopen extension popup (config cache ~5 min or bust on `
 Extension resolves: per-user `max_devices` if set, else `google_trial.max_devices`. `0` skips device cap checks.
 
 Admin **Manage Google user** modal sections each support **Save → Firebase** with preview. Credits and Devices also offer **Save as global default** (updates `google_trial` config only).
+
+## Meesho extension merge prompt (v1.8.49 — MY PLANS hide/disable)
+
+Copy `scripts/meesho-extension-v182/` into your Meesho Shipping Optimizer extension repo:
+
+```
+v1.8.49 — MY PLANS hide/disable (license + per-block)
+
+Merge files:
+  js/firebaseLicense.js   — licenseMyPlansHidden(), licenseMyPlansDisabled(), per-block disabled
+  js/license.js           — hideLicenseCustomPlans, disableLicenseCustomPlans in normalizeLicenseInfo
+  popup.js                — pass flags in licenseContext (fresh Firebase fetch)
+
+Admin (swagstree): shipping-optimizer-admin.js?v=5.28
+  License form → Extension purchase UI:
+    - Hide global custom plan block (🛠 CUSTOM PLAN)
+    - Disable global custom plan
+    - Hide MY PLANS (license custom plans)
+    - Disable MY PLANS (visible but inactive)
+  MY PLANS block modal:
+    - Show in extension (enabled)
+    - Disable block (visible but inactive)
+
+Firebase license fields:
+  hide_license_custom_plans / disable_license_custom_plans  → all MY PLANS blocks
+  hide_custom_plan / disable_custom_plan                    → global CUSTOM PLAN (+ legacy MY PLANS hide)
+  license_custom_plans[].enabled: false                     → hide one block
+  license_custom_plans[].disabled: true                    → gray one block
+
+Reload extension at chrome://extensions after deploy.
+See scripts/MEESHO_EXTENSION_ADDON_CATALOG_PROMPT.md
+```

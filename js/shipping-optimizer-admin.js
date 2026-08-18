@@ -1443,6 +1443,11 @@
     let soSupport = null;
     let soSmartMode = null;
     let soLicenseFilter = 'all';
+    let soLicenseListPage = 1;
+    const SO_LICENSE_LIST_PAGE_SIZE = 10;
+    let soLicenseQuickPage = 1;
+    const SO_LICENSE_QUICK_PAGE_SIZE = 25;
+    let soLicenseQuickSelectedKey = '';
     let soDraftSaveTimer = null;
     const SO_DRAFT_STORAGE_KEY = 'swagstree_so_admin_draft_v1';
     const SO_DRAFT_SAVE_MS = 800;
@@ -1451,7 +1456,7 @@
     let soExpandedAddonCatalogIds = new Set();
     let soExpandedSmartOptionIdxs = new Set();
     let soExpandedLicenseKeys = new Set();
-    let soOpenSections = new Set(['config-general', 'license-list', 'credits-smart-mode']);
+    let soOpenSections = new Set(['config-general', 'license-quick', 'license-list', 'credits-smart-mode']);
 
     function soDb() {
         if (typeof soGetExtensionDb === 'function') {
@@ -2958,6 +2963,335 @@
             return String(ts);
         }
     }
+
+    function soLicenseCreatedAt(lic) {
+        return lic?.issued_at || lic?.issuedAt || lic?.createdAt || lic?.created_at || null;
+    }
+
+    function soFormatLicenseCreated(lic) {
+        const ts = soLicenseCreatedAt(lic);
+        return ts ? soFormatTs(ts) : '—';
+    }
+
+    function soFormatLicenseExpiryDetail(lic) {
+        if (soLicenseNeverExpires(lic)) {
+            return { label: 'Never expires', sub: 'Lifetime / unlimited time', kind: 'lifetime' };
+        }
+        const exp = soLicenseExpiryDate(lic);
+        if (exp) {
+            const expired = exp.getTime() < Date.now();
+            const daysLeft = Math.ceil((exp.getTime() - Date.now()) / 86400000);
+            return {
+                label: soFormatTs(lic.expiresAt),
+                sub: expired
+                    ? 'Expired'
+                    : (daysLeft <= 7 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : `${daysLeft} days left`),
+                kind: expired ? 'expired' : 'active'
+            };
+        }
+        if (!lic?.activatedAt && lic?.expiry_starts_on_activation !== false) {
+            const days = lic?.planDays != null ? lic.planDays : '?';
+            if (parseInt(days, 10) === 0) {
+                return { label: 'Never expires', sub: 'After activation', kind: 'lifetime' };
+            }
+            return {
+                label: `Starts on activation`,
+                sub: `${days} days from first use`,
+                kind: 'pending'
+            };
+        }
+        const expStr = lic?.expiresAt && typeof lic.expiresAt === 'string' ? lic.expiresAt.trim() : '';
+        if (expStr) return { label: expStr, sub: 'Fixed expiry', kind: 'dated' };
+        return { label: 'No fixed expiry', sub: 'Open-ended grant', kind: 'open' };
+    }
+
+    function soNormalizeLicenseKeyQuery(q) {
+        return String(q || '').trim().toUpperCase().replace(/\s+/g, '-');
+    }
+
+    function soLicenseSearchHaystack(lic) {
+        const deviceIds = soGetLicenseDeviceIds(lic).join(' ');
+        return [
+            lic.key, lic.machineId, deviceIds, lic.planId, lic.planType, lic.billing_mode,
+            lic.customer_name, lic.customer_phone, lic.customer_email, lic.customer_address,
+            String(lic.credits_balance ?? ''), String(lic.credits_used ?? ''),
+            soFormatValidity(lic), soFormatLicenseCreated(lic)
+        ].filter(v => v != null && v !== '').join(' ').toLowerCase();
+    }
+
+    function soGetFilteredLicenses() {
+        const q = String(document.getElementById('so-license-search')?.value || '').trim().toLowerCase();
+        return soLicenses.filter(lic => {
+            if (!soLicenseMatchesFilter(lic, soLicenseFilter)) return false;
+            if (!q) return true;
+            const norm = soNormalizeLicenseKeyQuery(q);
+            if (norm && lic.key && lic.key.toUpperCase().includes(norm.replace(/-/g, ''))) return true;
+            if (norm && lic.key && lic.key.toUpperCase().includes(norm)) return true;
+            return soLicenseSearchHaystack(lic).includes(q);
+        });
+    }
+
+    function soGetQuickFilteredLicenses() {
+        const q = String(document.getElementById('so-license-quick-search')?.value || '').trim().toLowerCase();
+        const quickFilter = document.getElementById('so-license-quick-filter')?.value || 'all';
+        return soLicenses.filter(lic => {
+            if (!soLicenseMatchesFilter(lic, quickFilter)) return false;
+            if (!q) return true;
+            const norm = soNormalizeLicenseKeyQuery(q);
+            if (norm && lic.key && lic.key.toUpperCase().includes(norm)) return true;
+            if (norm && lic.key && lic.key.replace(/-/g, '').includes(norm.replace(/-/g, ''))) return true;
+            return soLicenseSearchHaystack(lic).includes(q);
+        });
+    }
+
+    function soPaginateSlice(arr, page, pageSize) {
+        const total = arr.length;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+        const safePage = Math.min(Math.max(1, page), totalPages);
+        const start = (safePage - 1) * pageSize;
+        return {
+            items: arr.slice(start, start + pageSize),
+            page: safePage,
+            totalPages,
+            total
+        };
+    }
+
+    function soRenderPaginationControls(containerId, page, pageSize, total, prevHandler, nextHandler) {
+        const el = document.getElementById(containerId);
+        if (!el) return page;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+        const safePage = Math.min(Math.max(1, page), totalPages);
+        const start = total ? (safePage - 1) * pageSize + 1 : 0;
+        const end = Math.min(safePage * pageSize, total);
+        el.innerHTML = `<div class="so-pagination">
+            <span class="so-pagination-meta">${total ? `Showing ${start}–${end} of ${total}` : 'No licenses'}</span>
+            <div class="so-pagination-btns">
+                <button type="button" class="so-btn-sm so-btn-touch" data-so-page-prev="${containerId}" ${safePage <= 1 ? 'disabled' : ''}>Prev</button>
+                <span class="so-pagination-page">Page ${safePage} / ${totalPages}</span>
+                <button type="button" class="so-btn-sm so-btn-touch" data-so-page-next="${containerId}" ${safePage >= totalPages ? 'disabled' : ''}>Next</button>
+            </div>
+        </div>`;
+        const prevBtn = el.querySelector('[data-so-page-prev]');
+        const nextBtn = el.querySelector('[data-so-page-next]');
+        if (prevBtn && safePage > 1) {
+            prevBtn.onclick = () => { prevHandler(safePage - 1); };
+        }
+        if (nextBtn && safePage < totalPages) {
+            nextBtn.onclick = () => { nextHandler(safePage + 1); };
+        }
+        return safePage;
+    }
+
+    function soLicenseQuickSelectLabel(lic) {
+        const exp = soFormatLicenseExpiryDetail(lic);
+        const plan = lic.planId || lic.planType || '—';
+        const status = soRegistryStatusLabel(soGetLicenseRegistryStatus(lic));
+        return `${lic.key} · ${plan} · ${exp.label} · ${status}`;
+    }
+
+    function soRenderLicenseQuickDetails(lic) {
+        const panel = document.getElementById('so-license-quick-details');
+        const keyEl = document.getElementById('so-license-quick-key-display');
+        const editBtn = document.getElementById('so-license-quick-edit-btn');
+        const scrollBtn = document.getElementById('so-license-quick-scroll-btn');
+        if (!panel) return;
+        if (!lic) {
+            if (keyEl) keyEl.value = '';
+            if (editBtn) editBtn.disabled = true;
+            if (scrollBtn) scrollBtn.disabled = true;
+            panel.innerHTML = '<p class="so-admin-muted">Select or search for a license to view validity.</p>';
+            return;
+        }
+        soLicenseQuickSelectedKey = lic.key;
+        if (keyEl) keyEl.value = lic.key || '';
+        if (editBtn) editBtn.disabled = false;
+        if (scrollBtn) scrollBtn.disabled = false;
+        const created = soFormatLicenseCreated(lic);
+        const expiry = soFormatLicenseExpiryDetail(lic);
+        const activated = soIsLicenseActivated(lic);
+        const shared = soIsLicenseShared(lic);
+        const status = soGetLicenseRegistryStatus(lic);
+        const expiryClass = expiry.kind === 'expired' ? 'so-quick-exp--bad'
+            : (expiry.kind === 'active' && expiry.sub && expiry.sub.includes('day') && parseInt(expiry.sub, 10) <= 7 ? 'so-quick-exp--warn' : '');
+        panel.innerHTML = `
+            <div class="so-license-quick-detail-grid">
+                <div class="so-license-quick-detail-card">
+                    <div class="so-license-quick-detail-label">Created</div>
+                    <div class="so-license-quick-detail-value">${soEsc(created)}</div>
+                </div>
+                <div class="so-license-quick-detail-card ${expiryClass}">
+                    <div class="so-license-quick-detail-label">Expires</div>
+                    <div class="so-license-quick-detail-value">${soEsc(expiry.label)}</div>
+                    <div class="so-license-quick-detail-sub">${soEsc(expiry.sub || '')}</div>
+                </div>
+                <div class="so-license-quick-detail-card">
+                    <div class="so-license-quick-detail-label">Status</div>
+                    <div class="so-license-quick-detail-value">${soEsc(soRegistryStatusLabel(status))}</div>
+                </div>
+                <div class="so-license-quick-detail-card">
+                    <div class="so-license-quick-detail-label">Plan · Credits</div>
+                    <div class="so-license-quick-detail-value">${soEsc(lic.planId || lic.planType || '—')}</div>
+                    <div class="so-license-quick-detail-sub">${soEsc(soFormatCreditsLabel(lic))}</div>
+                </div>
+            </div>
+            <div class="so-license-quick-detail-meta">
+                ${lic.customer_name || lic.customer_email || lic.customer_phone
+                    ? `<strong>Customer:</strong> ${soEsc([lic.customer_name, lic.customer_email, lic.customer_phone].filter(Boolean).join(' · '))}<br>`
+                    : ''}
+                ${activated ? `<strong>Activated:</strong> ${soEsc(soFormatTs(lic.activatedAt))}<br>` : '<strong>Activated:</strong> Not yet<br>'}
+                ${shared ? `<strong>Shared:</strong> ${soEsc(soFormatTs(lic.shared_at || lic.sharedAt))}` : '<strong>Shared:</strong> Not yet'}
+            </div>`;
+    }
+
+    function soSyncLicenseQuickSelectOptions() {
+        const select = document.getElementById('so-license-quick-select');
+        if (!select) return;
+        const filtered = soGetQuickFilteredLicenses();
+        const searchNorm = soNormalizeLicenseKeyQuery(
+            document.getElementById('so-license-quick-search')?.value || ''
+        );
+        const exactMatch = searchNorm
+            ? filtered.find(l => l.key === searchNorm || l.key.replace(/-/g, '') === searchNorm.replace(/-/g, ''))
+            : null;
+        if (exactMatch) {
+            const exactIdx = filtered.findIndex(l => l.key === exactMatch.key);
+            if (exactIdx >= 0) {
+                soLicenseQuickPage = Math.floor(exactIdx / SO_LICENSE_QUICK_PAGE_SIZE) + 1;
+                soLicenseQuickSelectedKey = exactMatch.key;
+            }
+        } else if (soLicenseQuickSelectedKey && filtered.some(l => l.key === soLicenseQuickSelectedKey)) {
+            const selIdx = filtered.findIndex(l => l.key === soLicenseQuickSelectedKey);
+            if (selIdx >= 0) {
+                soLicenseQuickPage = Math.floor(selIdx / SO_LICENSE_QUICK_PAGE_SIZE) + 1;
+            }
+        }
+        const pageData = soPaginateSlice(filtered, soLicenseQuickPage, SO_LICENSE_QUICK_PAGE_SIZE);
+        soLicenseQuickPage = soRenderPaginationControls(
+            'so-license-quick-pagination',
+            pageData.page,
+            SO_LICENSE_QUICK_PAGE_SIZE,
+            pageData.total,
+            (p) => { soLicenseQuickPage = p; soSyncLicenseQuickSelectOptions(); },
+            (p) => { soLicenseQuickPage = p; soSyncLicenseQuickSelectOptions(); }
+        );
+        if (!pageData.items.length) {
+            select.innerHTML = '<option value="">No licenses match</option>';
+            soRenderLicenseQuickDetails(null);
+            return;
+        }
+        let selected = soLicenseQuickSelectedKey;
+        if (!selected || !pageData.items.some(l => l.key === selected)) {
+            selected = exactMatch?.key || pageData.items[0]?.key || '';
+        }
+        select.innerHTML = pageData.items.map(lic =>
+            `<option value="${soAttr(lic.key)}"${lic.key === selected ? ' selected' : ''}>${soEsc(soLicenseQuickSelectLabel(lic))}</option>`
+        ).join('');
+        const lic = soLicenses.find(l => l.key === selected) || pageData.items[0];
+        if (lic) soRenderLicenseQuickDetails(lic);
+    }
+
+    function soRenderLicenseQuickLookup() {
+        soSyncLicenseQuickSelectOptions();
+    }
+
+    function soRefreshLicenseUIs() {
+        renderSoLicensesList();
+        soRenderLicenseQuickLookup();
+    }
+
+    window.soCopyText = function(text) {
+        const val = String(text || '').trim();
+        if (!val) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(val).then(() => soToast('Copied.')).catch(() => {
+                soToast('Copy failed — select text and copy manually.');
+            });
+        } else {
+            soToast('Select text and copy (Ctrl+C).');
+        }
+    };
+
+    window.soOnLicenseQuickSearchInput = function() {
+        soLicenseQuickPage = 1;
+        const q = String(document.getElementById('so-license-quick-search')?.value || '').trim();
+        const norm = soNormalizeLicenseKeyQuery(q);
+        if (norm) {
+            const exact = soLicenses.find(l =>
+                l.key === norm ||
+                l.key.replace(/-/g, '') === norm.replace(/-/g, '')
+            );
+            if (exact) soLicenseQuickSelectedKey = exact.key;
+        }
+        soRenderLicenseQuickLookup();
+    };
+
+    window.soOnLicenseQuickFilterChange = function() {
+        soLicenseQuickPage = 1;
+        soRenderLicenseQuickLookup();
+    };
+
+    window.soOnLicenseQuickSelectChange = function() {
+        const key = document.getElementById('so-license-quick-select')?.value || '';
+        soLicenseQuickSelectedKey = key;
+        const lic = soLicenses.find(l => l.key === key);
+        soRenderLicenseQuickDetails(lic || null);
+    };
+
+    window.soCopyLicenseKeyQuick = function() {
+        const key = document.getElementById('so-license-quick-key-display')?.value
+            || soLicenseQuickSelectedKey
+            || '';
+        if (!key) return soToast('Select a license first.');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(key).then(() => soToast('License key copied.')).catch(() => {
+                soToast('Copy failed — tap the key field and copy manually.');
+            });
+        } else {
+            const el = document.getElementById('so-license-quick-key-display');
+            if (el) { el.focus(); el.select(); }
+            soToast('Select the key field and copy (Ctrl+C).');
+        }
+    };
+
+    window.soEditLicenseQuickSelection = function() {
+        if (!soLicenseQuickSelectedKey) return soToast('Select a license first.');
+        editSoLicense(soLicenseQuickSelectedKey);
+    };
+
+    window.soScrollToLicenseInList = function() {
+        if (!soLicenseQuickSelectedKey) return soToast('Select a license first.');
+        soOpenSections.add('license-list');
+        document.querySelectorAll('.so-section-accordion[data-so-section]').forEach(el => {
+            const id = el.getAttribute('data-so-section');
+            if (id) el.classList.toggle('so-section-accordion--open', soOpenSections.has(id));
+        });
+        const search = document.getElementById('so-license-search');
+        if (search) search.value = soLicenseQuickSelectedKey;
+        soLicenseListPage = 1;
+        renderSoLicensesList();
+        soExpandedLicenseKeys.add(soLicenseQuickSelectedKey);
+        renderSoLicensesList();
+        const row = Array.from(document.querySelectorAll('.so-license-row')).find(
+            (r) => r.dataset.licenseKey === soLicenseQuickSelectedKey
+        );
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    window.soRefreshLicenseQuickLookup = async function() {
+        try {
+            await soLoadLicenses();
+            soRefreshLicenseUIs();
+            soToast('Licenses refreshed.');
+        } catch (e) {
+            soToast('Refresh failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    window.soOnLicenseListSearchInput = function() {
+        soLicenseListPage = 1;
+        renderSoLicensesList();
+    };
 
     function soParseDate(val) {
         if (!val) return null;
@@ -4819,7 +5153,7 @@
         if (soActiveTab === 'config' || soActiveTab === 'credits') {
             renderSoExtensionPreview();
         }
-        if (soActiveTab === 'licenses') renderSoLicensesList();
+        if (soActiveTab === 'licenses') soRefreshLicenseUIs();
         if (soActiveTab === 'customers') renderSoCustomerRegistry();
         if (soActiveTab === 'defaults') renderSoDefaultsSummary();
     };
@@ -8870,7 +9204,7 @@
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload);
             cancelSoLicenseEdit();
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soCloseLicenseCreateAccordion({ scrollToKey: key });
             const custLabel = soCustomerDetailsComplete(payload) ? 'Customer mapped.' : 'License created — add customer name/email anytime.';
@@ -8933,7 +9267,7 @@
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
             cancelSoLicenseEdit();
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soCloseLicenseCreateAccordion({ scrollToKey: key });
             soToast(`License ${key} updated.`);
@@ -8958,6 +9292,7 @@
 
     window.setSoLicenseFilter = function(filter) {
         soLicenseFilter = filter || 'all';
+        soLicenseListPage = 1;
         document.querySelectorAll('[data-so-license-filter]').forEach(btn => {
             btn.classList.toggle('so-tab-chip--active', btn.getAttribute('data-so-license-filter') === soLicenseFilter);
         });
@@ -8969,22 +9304,21 @@
     function renderSoLicensesList() {
         const container = document.getElementById('so-licenses-list');
         if (!container) return;
-        const q = String(document.getElementById('so-license-search')?.value || '').trim().toLowerCase();
-        const filtered = soLicenses.filter(lic => {
-            if (!soLicenseMatchesFilter(lic, soLicenseFilter)) return false;
-            if (!q) return true;
-            const deviceIds = soGetLicenseDeviceIds(lic).join(' ');
-            const hay = [lic.key, lic.machineId, deviceIds, lic.planId, lic.planType, lic.billing_mode,
-                lic.customer_name, lic.customer_phone, lic.customer_email, lic.customer_address,
-                lic.credits_balance, lic.credits_used, soFormatValidity(lic)]
-                .filter(v => v != null && v !== '').join(' ').toLowerCase();
-            return hay.includes(q);
-        });
-        if (!filtered.length) {
+        const filtered = soGetFilteredLicenses();
+        const pageData = soPaginateSlice(filtered, soLicenseListPage, SO_LICENSE_LIST_PAGE_SIZE);
+        soLicenseListPage = soRenderPaginationControls(
+            'so-license-list-pagination',
+            pageData.page,
+            SO_LICENSE_LIST_PAGE_SIZE,
+            pageData.total,
+            (p) => { soLicenseListPage = p; renderSoLicensesList(); },
+            (p) => { soLicenseListPage = p; renderSoLicensesList(); }
+        );
+        if (!pageData.items.length) {
             container.innerHTML = '<p class="so-admin-muted">No licenses found.</p>';
             return;
         }
-        container.innerHTML = filtered.map(lic => {
+        container.innerHTML = pageData.items.map(lic => {
             const active = lic.active !== false;
             const deviceIds = soGetLicenseDeviceIds(lic);
             const devicesLabel = soFormatDevicesLabel(lic);
@@ -8996,6 +9330,8 @@
             const runsMonth = parseInt(lic.images_generated_month, 10) || 0;
             const runsTotal = parseInt(lic.images_generated_total, 10) || 0;
             const validityLabel = soFormatValidity(lic);
+            const createdLabel = soFormatLicenseCreated(lic);
+            const expiryDetail = soFormatLicenseExpiryDetail(lic);
             const registryStatus = soGetLicenseRegistryStatus(lic);
             const activatedLabel = activated
                 ? `Activated: ${soEsc(soFormatTs(lic.activatedAt))}`
@@ -9015,7 +9351,7 @@
             const summaryName = lic.customer_name ? soEsc(lic.customer_name) : '';
             return `<div class="so-license-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-license-key="${soAttr(lic.key)}">
                 <div class="so-license-head" onclick="toggleSoLicenseRow('${soAttr(lic.key)}')" style="cursor:pointer;">
-                    <code>${soEsc(lic.key)}</code>
+                    <code class="so-license-key-copy-inline" onclick="event.stopPropagation(); soCopyText('${soAttr(lic.key)}')" title="Click to copy">${soEsc(lic.key)}</code>
                     <span class="so-badge ${active ? 'so-badge--on' : 'so-badge--off'}">${active ? 'Active' : 'Revoked'}</span>
                     <span class="so-badge so-badge--meta">${soEsc(soRegistryStatusLabel(registryStatus))}</span>
                     ${expired ? '<span class="so-badge so-badge--off">Expired</span>' : ''}
@@ -9028,6 +9364,10 @@
                         · Plan: ${soEsc(lic.planId || lic.planType || '—')}
                         · Devices: ${soEsc(devicesLabel)}
                         · Credits: ${soEsc(creditsLabel)}
+                    </div>
+                    <div class="so-license-meta so-admin-muted">
+                        <strong>Created:</strong> ${soEsc(createdLabel)}
+                        · <strong>Expires:</strong> ${soEsc(expiryDetail.label)}${expiryDetail.sub ? ` (${soEsc(expiryDetail.sub)})` : ''}
                     </div>
                     <div class="so-license-meta so-admin-muted">
                         Validity: <strong>${soEsc(validityLabel)}</strong>
@@ -9057,7 +9397,7 @@
     }
 
     window.filterSoLicenses = function() {
-        renderSoLicensesList();
+        soOnLicenseListSearchInput();
     };
 
     window.toggleSoLicenseActive = async function(key, currentlyActive) {
@@ -9068,7 +9408,7 @@
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).set({ active: !currentlyActive }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             soToast(currentlyActive ? 'License revoked.' : 'License activated.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
@@ -9089,7 +9429,7 @@
                 activatedAt: ''
             }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             soToast('All devices reset.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
@@ -9106,7 +9446,7 @@
                 images_generated_today_date: today
             }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soToast("Today's run count reset.");
         } catch (e) {
@@ -9126,7 +9466,7 @@
                 images_generated_month_key: ''
             }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soToast('Generation run counts reset.');
         } catch (e) {
@@ -9146,7 +9486,7 @@
                 machineId: ids[0] || ''
             }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             soToast('Device removed.');
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
@@ -9208,7 +9548,7 @@
             }, { merge: true });
             closeSoAddCreditsModal();
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             soToast(`Added ${addCredits} credits. New balance: ${current + addCredits}.`);
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
@@ -9258,7 +9598,7 @@
             await soDb().collection(SO_LICENSE_COL).doc(key).set(payload, { merge: true });
             closeSoLicenseOverrides();
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             soToast(`Overrides saved for ${key}.`);
         } catch (e) {
             soToast('Failed: ' + (e.message || 'Unknown error'));
@@ -9279,7 +9619,7 @@
         try {
             await soDb().collection(SO_LICENSE_COL).doc(key).delete();
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soToast('License deleted.');
         } catch (e) {
@@ -9296,7 +9636,7 @@
                 expiresAt: ''
             }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soToast(`${key} is now lifetime / never expires.`);
         } catch (e) {
@@ -9314,7 +9654,7 @@
                 unlimited_time: false
             }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soToast(`Expiry cleared for ${key}.`);
         } catch (e) {
@@ -9329,7 +9669,7 @@
                 shared_at: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
             await soLoadLicenses();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoCustomerRegistry();
             soToast(`Marked ${key} as shared with customer.`);
         } catch (e) {
@@ -9484,7 +9824,7 @@
             renderSoDemoPendingKeysEditor();
             renderSoDemoKeysList();
             renderSoExtensionPreview();
-            renderSoLicensesList();
+            soRefreshLicenseUIs();
             renderSoGoogleTrialsRegistry();
             renderSoCustomerRegistry();
             soHydrating = false;

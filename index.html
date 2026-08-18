@@ -2732,6 +2732,46 @@
 
                 <!-- Tab 4: Paid Licenses -->
                 <div id="so-tab-licenses" class="so-admin-tab-panel" style="display:none;">
+                    <!-- Quick license lookup (separate from create/edit form) -->
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="license-quick">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('license-quick')">
+                            <span><i class="fa fa-bolt"></i> Quick license lookup</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Paste or type a key, email, or phone — pick from the list, then copy the key or check created / expiry dates without opening the full editor.</p>
+                            <div class="so-license-quick-panel">
+                                <label class="so-field-full"><span class="admin-settings-field-label">Find license</span>
+                                    <input id="so-license-quick-search" type="search" placeholder="MEESHO-XXXX-XXXX-XXXX, email, phone, customer…" oninput="soOnLicenseQuickSearchInput()" autocomplete="off"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">Filter</span>
+                                    <select id="so-license-quick-filter" class="so-tab-select" onchange="soOnLicenseQuickFilterChange()">
+                                        <option value="all">All licenses</option>
+                                        <option value="active">Active</option>
+                                        <option value="unused">Unused</option>
+                                        <option value="not_shared">Not shared yet</option>
+                                        <option value="expired">Expired</option>
+                                        <option value="lifetime">Lifetime</option>
+                                        <option value="credits_low">Credits low</option>
+                                        <option value="revoked">Revoked</option>
+                                    </select></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">Select license (paginated)</span>
+                                    <select id="so-license-quick-select" class="so-tab-select so-license-quick-select" onchange="soOnLicenseQuickSelectChange()"></select></label>
+                                <div id="so-license-quick-pagination"></div>
+                                <label class="so-field-full"><span class="admin-settings-field-label">License key (read-only — tap to select, then copy)</span>
+                                    <div class="so-input-with-btn">
+                                        <input id="so-license-quick-key-display" type="text" readonly class="so-readonly-input so-license-key-copy" onclick="this.select()" placeholder="Select a license above">
+                                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soCopyLicenseKeyQuick()" title="Copy license key">Copy</button>
+                                    </div></label>
+                                <div id="so-license-quick-details" class="so-license-quick-details so-admin-muted">Select or search for a license to view validity.</div>
+                                <div class="so-license-quick-actions">
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soEditLicenseQuickSelection()" id="so-license-quick-edit-btn" disabled>Edit license</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soScrollToLicenseInList()" id="so-license-quick-scroll-btn" disabled>Open in list below</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshLicenseQuickLookup()"><i class="fa fa-rotate"></i> Refresh</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="so-section-accordion" data-so-section="license-create">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('license-create')">
                             <span><i class="fa fa-file-circle-plus"></i> <span id="so-license-form-title">Create license</span></span>
@@ -2873,8 +2913,9 @@
                                     <option value="revoked">Revoked</option>
                                 </select>
                             </label>
-                            <input id="so-license-search" type="search" placeholder="Search key, phone, plan, device…" oninput="filterSoLicenses()">
+                            <input id="so-license-search" type="search" placeholder="Search key, phone, plan, device…" oninput="soOnLicenseListSearchInput()">
                             <div id="so-licenses-list" class="so-admin-list so-admin-list--tall"></div>
+                            <div id="so-license-list-pagination"></div>
                         </div>
                     </div>
                     <div class="so-sticky-save so-sticky-save--muted">
@@ -4903,7 +4944,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.27"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.28"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
