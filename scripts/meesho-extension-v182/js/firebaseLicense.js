@@ -1383,12 +1383,8 @@ Please share payment details.`;
     return !!(
       lic?.hide_license_custom_plans ||
       lic?.hideLicenseCustomPlans ||
-      lic?.hide_custom_plan ||
-      lic?.hideCustomPlan ||
       plan?.hide_license_custom_plans ||
-      plan?.hideLicenseCustomPlans ||
-      plan?.hide_custom_plan ||
-      plan?.hideCustomPlan
+      plan?.hideLicenseCustomPlans
     );
   },
 
@@ -1397,18 +1393,53 @@ Please share payment details.`;
     const licenseLevel = !!(
       lic?.disable_license_custom_plans ||
       lic?.disableLicenseCustomPlans ||
-      lic?.disable_custom_plan ||
-      lic?.disableCustomPlan ||
       plan?.disable_license_custom_plans ||
-      plan?.disableLicenseCustomPlans ||
-      plan?.disable_custom_plan ||
-      plan?.disableCustomPlan
+      plan?.disableLicenseCustomPlans
     );
     const blockLevel =
       blockCfg?.disabled === true ||
       blockCfg?.disable === true ||
       blockCfg?.disable_block === true;
     return licenseLevel || blockLevel;
+  },
+
+  resolveLicenseCustomPlanEntryById(licenseContext, planCfgId) {
+    const lic = licenseContext || null;
+    if (!lic || !planCfgId) return null;
+    const key = String(planCfgId);
+    const slug = this.slugifyPlanId?.(key) || key;
+    const entries = this.resolveLicenseCustomPlanEntries(lic);
+    return (
+      entries.find(
+        (p) =>
+          p &&
+          (p.id === key ||
+            this.slugifyPlanId?.(p.id) === slug ||
+            p.id === planCfgId),
+      ) || null
+    );
+  },
+
+  isCustomPlanPurchaseAllowed(btn, plan, licenseContext) {
+    if (!btn || btn.disabled) return false;
+    const section = btn.closest(".plan-detail-section--custom");
+    if (section?.classList.contains("plan-detail-section--disabled")) {
+      return false;
+    }
+    const source =
+      btn.dataset.customPlanSource ||
+      section?.dataset?.customPlanSource ||
+      "global";
+    const planCfgId =
+      btn.dataset.customPlanId || section?.dataset?.customPlanId || "";
+    if (source === "license") {
+      const match = this.resolveLicenseCustomPlanEntryById(
+        licenseContext,
+        planCfgId,
+      );
+      return !this.licenseMyPlansDisabled(plan, licenseContext, match);
+    }
+    return !this.planCustomPlanDisabled(plan, licenseContext);
   },
 
   groupLicenseCustomPlansForDisplay(blocks) {
@@ -3850,6 +3881,7 @@ Please share payment details.`;
   toggleLicenseCustomOptionChip(chip, root) {
     if (!chip || chip.disabled) return;
     const section = chip.closest(".plan-detail-section--custom");
+    if (section?.classList.contains("plan-detail-section--disabled")) return;
     const siblings = section
       ? Array.from(section.querySelectorAll(".plan-lic-custom-option-btn"))
       : this.licenseCustomOptionChips(chip.dataset.customPlanId, root);
@@ -3872,6 +3904,9 @@ Please share payment details.`;
       chip.addEventListener("click", (e) => {
         e?.preventDefault?.();
         e?.stopPropagation?.();
+        if (chip.disabled) return;
+        const section = chip.closest(".plan-detail-section--custom");
+        if (section?.classList.contains("plan-detail-section--disabled")) return;
         this.toggleLicenseCustomOptionChip(chip, root);
       });
     });
@@ -3939,13 +3974,22 @@ Please share payment details.`;
     root,
     creditsConfig,
     customPlanCfg,
+    licenseContext,
+    plan,
   ) {
     const scope = root || document;
     const planKey = String(planId);
-    let plan = null;
+    const parentPlan = plan || null;
     const btn =
       scope.querySelector(`.plan-detail-buy-btn[data-plan="${planKey}"]`) ||
-      scope.querySelector(`.plan-detail-custom-plan-btn[data-plan="${planKey}"]`);
+      scope.querySelector(`.plan-detail-custom-plan-btn[data-plan="${planKey}"]`) ||
+      scope.querySelector(".plan-detail-custom-plan-btn");
+    if (
+      btn &&
+      !this.isCustomPlanPurchaseAllowed(btn, parentPlan, licenseContext)
+    ) {
+      return null;
+    }
     const name = btn?.dataset?.planName || btn?.dataset?.duration || "Plan";
     const price = Number(btn?.dataset?.price) || 0;
     const included = Number(btn?.dataset?.includedCredits) || 0;

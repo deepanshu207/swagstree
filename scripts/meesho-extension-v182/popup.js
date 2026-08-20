@@ -864,10 +864,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             lic.disable_license_custom_plans || lic.disableLicenseCustomPlans
           );
           hideCustomPlan = !!(
-            lic.hide_custom_plan || lic.hideCustomPlan || hideCustomPlan
+            lic.hide_custom_plan || lic.hideCustomPlan
           );
           disableCustomPlan = !!(
-            lic.disable_custom_plan || lic.disableCustomPlan || disableCustomPlan
+            lic.disable_custom_plan || lic.disableCustomPlan
           );
         }
       } catch (_) { /* use cached licenseInfo */ }
@@ -953,6 +953,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (customBtn.dataset.wired === "1") return;
       customBtn.dataset.wired = "1";
       PA.bindTap(customBtn, async () => {
+        if (
+          typeof FirebaseLicense !== "undefined" &&
+          FirebaseLicense.isCustomPlanPurchaseAllowed &&
+          !FirebaseLicense.isCustomPlanPurchaseAllowed(
+            customBtn,
+            cachedPlans.find((p) => p.id === planId) || null,
+            licenseContext,
+          )
+        ) {
+          return;
+        }
+        if (customBtn.disabled) return;
+        const section = customBtn.closest(".plan-detail-section--custom");
+        if (section?.classList.contains("plan-detail-section--disabled")) return;
+
         const source = customBtn.dataset.customPlanSource || "global";
         const planCfgId = customBtn.dataset.customPlanId || "";
         let customCfg = cachedCreditsConfig?.custom_plan || null;
@@ -1000,7 +1015,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           root,
           cachedCreditsConfig,
           customCfg,
+          licenseContext,
+          cachedPlans.find((p) => p.id === planId) || null,
         );
+        if (!message) return;
         await openWhatsApp(message);
       });
     });
