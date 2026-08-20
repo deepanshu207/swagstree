@@ -134,8 +134,11 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
 - Legacy single `license_custom_plan` object is still read — migrated to array on next license save.
 - Extension plan detail shows **each** enabled entry as 🛠 MY PLANS with pack-style option grid + WhatsApp CTA.
 - Blocks with the same `whatsapp_title` (e.g. `My Plans`) **merge into one grid** in the extension — add more packs via **+ Add credit pack** on the block, not a duplicate block with the same id.
-- **Hide/disable (v1.8.49):** License flags `hide_license_custom_plans` / `disable_license_custom_plans` apply to all MY PLANS blocks. Per-block `enabled: false` hides one block; `disabled: true` grays one block. Legacy `hide_custom_plan` / `disable_custom_plan` on license still affect MY PLANS for backward compatibility.
-- `hide_custom_plan` on the license hides global custom plan only (when using new split flags); legacy licenses with only `hide_custom_plan` still hide MY PLANS too.
+- **Hide/disable (v1.8.50):** Global and MY PLANS flags are **independent**:
+  - `hide_custom_plan` / `disable_custom_plan` → 🛠 CUSTOM PLAN (global) only
+  - `hide_license_custom_plans` / `disable_license_custom_plans` → all MY PLANS blocks
+  - Per-block `enabled: false` hides one block; `disabled: true` grays one block
+- Disabled sections block taps (WhatsApp CTA + option chips) via `pointer-events: none` and click guards; re-enabling after admin unchecks reads fresh Firebase values (no stale cache OR).
 - Active license context loads fresh `license_custom_plans[]` from Firebase when opening plan detail.
 
 ## Per-license custom plans (v1.8.45 — superseded)
@@ -281,6 +284,29 @@ After admin save: close/reopen extension popup (config cache ~5 min or bust on `
 Extension resolves: per-user `max_devices` if set, else `google_trial.max_devices`. `0` skips device cap checks.
 
 Admin **Manage Google user** modal sections each support **Save → Firebase** with preview. Credits and Devices also offer **Save as global default** (updates `google_trial` config only).
+
+## Meesho extension merge prompt (v1.8.50 — disable fix)
+
+Copy `scripts/meesho-extension-v182/` into your Meesho Shipping Optimizer extension repo:
+
+```
+v1.8.50 — Fix disable not blocking taps; split global vs MY PLANS flags
+
+Merge files:
+  js/firebaseLicense.js   — isCustomPlanPurchaseAllowed(); decoupled hide/disable evaluators
+  popup.js                — click guard; fresh Firebase hide/disable (no stale cache OR)
+  popup.html              — pointer-events CSS for disabled custom plan sections
+  config.js, manifest.json → v1.8.50
+
+Behavior:
+  disable_custom_plan          → grays global 🛠 CUSTOM PLAN only
+  disable_license_custom_plans → grays all MY PLANS blocks
+  license_custom_plans[].disabled → grays one block
+  Disabled CTAs/chips cannot open WhatsApp (touch + click guarded)
+
+Reload extension at chrome://extensions after deploy.
+See scripts/MEESHO_EXTENSION_ADDON_CATALOG_PROMPT.md
+```
 
 ## Meesho extension merge prompt (v1.8.49 — MY PLANS hide/disable)
 
