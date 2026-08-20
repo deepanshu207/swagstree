@@ -1242,9 +1242,14 @@ Please share payment details.`;
 
   normalizeCustomPlanConfig(raw) {
     const c = raw && typeof raw === "object" ? raw : {};
-    const hidden = c.hide === true || c.disabled === true;
+    const hidden = c.hide === true;
+    const disabled =
+      c.disabled === true ||
+      c.disable === true ||
+      c.disable_block === true;
     return {
       enabled: c.enabled !== false && !hidden,
+      disabled,
       label: c.label || "Request Custom Plan via WhatsApp",
       whatsapp_title: c.whatsapp_title || c.whatsappTitle || "Custom Plan",
       description:
@@ -1262,6 +1267,10 @@ Please share payment details.`;
   normalizeLicenseCustomPlanConfig(raw) {
     const c = raw && typeof raw === "object" ? raw : null;
     if (!c || c.enabled === false || c.active === false) return null;
+    const blockDisabled =
+      c.disabled === true ||
+      c.disable === true ||
+      c.disable_block === true;
     const planDefaults = {
       card_hint:
         String(c.card_hint || c.cardHint || "Tap to select · WhatsApp below").trim(),
@@ -1326,20 +1335,29 @@ Please share payment details.`;
           })
           .filter(Boolean)
       : [];
-    return this.normalizeCustomPlanConfig({
-      ...c,
-      source: "license",
-      id: c.id || c.slug || "",
+    return {
+      enabled: true,
+      disabled: blockDisabled,
+      label: String(c.label || "Request Custom Plan via WhatsApp").trim(),
+      whatsapp_title: String(
+        c.whatsapp_title || c.whatsappTitle || "My Plans",
+      ).trim(),
+      description: String(
+        c.description || "Pick a bundle below and send via WhatsApp.",
+      ).trim(),
       detail_footer: String(c.detail_footer || c.detailFooter || "").trim(),
       card_hint: planDefaults.card_hint,
       show_whatsapp_icon: planDefaults.show_whatsapp_icon,
       show_details_icon: planDefaults.show_details_icon,
-      disabled:
-        c.disabled === true ||
-        c.disable === true ||
-        c.disable_block === true,
+      allow_addon_selection:
+        c.allow_addon_selection !== false && c.allowAddonSelection !== false,
+      assign_on_whatsapp:
+        c.assign_on_whatsapp !== false && c.assignOnWhatsapp !== false,
+      source: "license",
+      id: c.id || c.slug || "",
+      order: Number.isFinite(Number(c.order)) ? Number(c.order) : 0,
       options,
-    });
+    };
   },
 
   resolveLicenseCustomPlanEntries(lic) {
@@ -1437,6 +1455,7 @@ Please share payment details.`;
         licenseContext,
         planCfgId,
       );
+      if (match?.disabled) return false;
       return !this.licenseMyPlansDisabled(plan, licenseContext, match);
     }
     return !this.planCustomPlanDisabled(plan, licenseContext);
@@ -1522,12 +1541,15 @@ Please share payment details.`;
     const options = Array.isArray(cfg.options) ? cfg.options : [];
     const sectionDisabled =
       customDisabled ||
+      cfg?.disabled === true ||
       (isLicense && this.licenseMyPlansDisabled(plan, licenseContext, cfg));
     let html = `<div class="plan-detail-section plan-detail-section--custom${sectionDisabled ? " plan-detail-section--disabled" : ""}" data-custom-plan-source="${this.escapeAttr(cfg.source || "global")}" data-custom-plan-id="${this.escapeAttr(planId)}">
         <div class="plan-detail-section-title">${this.escapeHtml(title)}</div>
         ${cfg.description ? `<p class="plan-detail-section-body">${this.escapeHtml(cfg.description)}</p>` : ""}`;
     if (sectionDisabled && isLicense) {
       html += `<p class="plan-detail-section-body plan-detail-section-body--muted">MY PLANS are visible but disabled for this license.</p>`;
+    } else if (sectionDisabled && !isLicense) {
+      html += `<p class="plan-detail-section-body plan-detail-section-body--muted">Custom plan is visible but disabled.</p>`;
     }
     if (isLicense && options.length) {
       html += `<div class="plan-grid plan-detail-lic-custom-options" style="grid-template-columns:${this.planGridColumns(options.length)};margin-top:8px;">`;

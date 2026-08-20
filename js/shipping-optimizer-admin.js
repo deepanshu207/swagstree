@@ -8788,11 +8788,7 @@
                     return row;
                 })
             }))
-            .map((p) => {
-                const row = { ...p };
-                if (p.disabled) row.disabled = true;
-                return row;
-            });
+            .map((p) => Object.assign({}, p, { disabled: !!p.disabled }));
         if (!plans.length) {
             if (forUpdate) {
                 return {
