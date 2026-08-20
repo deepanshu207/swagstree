@@ -137,7 +137,7 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
 - **Hide/disable (v1.8.50):** Global and MY PLANS flags are **independent**:
   - `hide_custom_plan` / `disable_custom_plan` → 🛠 CUSTOM PLAN (global) only
   - `hide_license_custom_plans` / `disable_license_custom_plans` → all MY PLANS blocks
-  - Per-block `enabled: false` hides one block; `disabled: true` grays one block
+  - Per-block `enabled: false` hides one block; `disabled: true` grays one block (v1.8.51 fixes block `disabled` being dropped during normalize)
 - Disabled sections block taps (WhatsApp CTA + option chips) via `pointer-events: none` and click guards; re-enabling after admin unchecks reads fresh Firebase values (no stale cache OR).
 - Active license context loads fresh `license_custom_plans[]` from Firebase when opening plan detail.
 
@@ -284,6 +284,23 @@ After admin save: close/reopen extension popup (config cache ~5 min or bust on `
 Extension resolves: per-user `max_devices` if set, else `google_trial.max_devices`. `0` skips device cap checks.
 
 Admin **Manage Google user** modal sections each support **Save → Firebase** with preview. Credits and Devices also offer **Save as global default** (updates `google_trial` config only).
+
+## Meesho extension merge prompt (v1.8.51 — per-block MY PLANS disable fix)
+
+Copy `scripts/meesho-extension-v182/` into your Meesho Shipping Optimizer extension repo:
+
+```
+v1.8.51 — Fix per-block "Disable block" on MY PLANS not graying / blocking taps
+
+Merge files:
+  js/firebaseLicense.js   — normalizeLicenseCustomPlanConfig preserves disabled (not hide)
+  js/shipping-optimizer-admin.js (swagstree admin) — writes disabled: false when re-enabled
+
+Root cause: disabled was passed through normalizeCustomPlanConfig which treated it as
+hide and dropped the disabled flag, so block-level disable never reached the UI guards.
+
+Reload extension at chrome://extensions after deploy.
+```
 
 ## Meesho extension merge prompt (v1.8.50 — disable fix)
 
