@@ -4517,9 +4517,11 @@
         if (payload.hide_license_custom_plans) flags.push('hide MY PLANS');
         if (payload.disable_license_custom_plans) flags.push('disable MY PLANS');
         const licPlans = payload.license_custom_plans;
-        const licPlanCount = Array.isArray(licPlans) ? licPlans.filter(p => p && p.enabled !== false).length : 0;
+        const visiblePlans = Array.isArray(licPlans) ? licPlans.filter(p => p && p.enabled !== false) : [];
+        const disabledPlanCount = visiblePlans.filter(p => p.disabled).length;
+        const licPlanCount = visiblePlans.length;
         const licPlanLine = licPlanCount > 0
-            ? `<li><strong>License custom plans:</strong> ${licPlanCount} mapped (${soEsc(licPlans.filter(p => p && p.enabled !== false).map(p => p.label || p.id).join(', '))})</li>`
+            ? `<li><strong>License custom plans:</strong> ${licPlanCount} mapped${disabledPlanCount ? ` · ${disabledPlanCount} disabled block${disabledPlanCount === 1 ? '' : 's'}` : ''} (${soEsc(visiblePlans.map(p => `${p.label || p.id}${p.disabled ? ' [disabled]' : ''}`).join(', '))})</li>`
             : (mode === 'update' && existingLic && (soResolveLicenseCustomPlansFromDoc(existingLic).length)
                 ? '<li><strong>License custom plans:</strong> cleared</li>'
                 : '');
@@ -8748,7 +8750,10 @@
         soExpandedLicenseCustomPlanIds.add(entry.id);
         soRenderLicenseCustomPlansEditor();
         soCloseLicenseCustomPlanModal();
-        soToast(wasEdit ? 'Custom plan updated on form.' : 'Custom plan added — save license to write Firebase.');
+        const saveHint = soEditingLicenseKey
+            ? ' — tap Update license (or Save to Firebase) to write Firebase.'
+            : ' — save license to write Firebase.';
+        soToast((wasEdit ? 'Custom plan updated on form' : 'Custom plan added') + saveHint);
     };
 
     window.soClearLicenseCustomPlan = function() {
@@ -8765,6 +8770,7 @@
             .map((p, i) => ({
                 id: p.id,
                 enabled: p.enabled !== false,
+                disabled: !!p.disabled,
                 label: p.label,
                 whatsapp_title: p.whatsapp_title,
                 description: p.description,
@@ -8787,8 +8793,7 @@
                     if (o.show_details_icon === false) row.show_details_icon = false;
                     return row;
                 })
-            }))
-            .map((p) => Object.assign({}, p, { disabled: !!p.disabled }));
+            }));
         if (!plans.length) {
             if (forUpdate) {
                 return {
