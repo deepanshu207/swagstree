@@ -337,7 +337,7 @@ Merge files:
   js/license.js           — hideLicenseCustomPlans, disableLicenseCustomPlans in normalizeLicenseInfo
   popup.js                — pass flags in licenseContext (fresh Firebase fetch)
 
-Admin (swagstree): shipping-optimizer-admin.js?v=5.28
+Admin (swagstree): shipping-optimizer-admin.js?v=5.29
   License form → Extension purchase UI:
     - Hide global custom plan block (🛠 CUSTOM PLAN)
     - Disable global custom plan
