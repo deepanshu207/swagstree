@@ -2573,6 +2573,28 @@
                         </div>
                     </div>
 
+                    <div class="so-section-accordion" data-so-section="credits-my-plans-catalog">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-my-plans-catalog')">
+                            <span><i class="fa fa-list-check"></i> MY PLANS catalog (templates)</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Reusable MY PLANS templates at <code>credits.license_custom_plans_catalog[]</code>. On each license, check templates to attach — like credit add-ons. Per-license edits stay on the license doc only.</p>
+                            <div class="so-plans-toolbar">
+                                <span id="so-my-plans-catalog-count" class="so-plans-count">0 templates</span>
+                                <div class="so-plans-toolbar-actions">
+                                    <button type="button" class="so-btn-sm" onclick="soExpandAllMyPlansCatalog()">Expand all</button>
+                                    <button type="button" class="so-btn-sm" onclick="soCollapseAllMyPlansCatalog()">Collapse all</button>
+                                </div>
+                            </div>
+                            <div id="so-my-plans-catalog-editor" class="so-license-custom-plans-editor"></div>
+                            <button type="button" class="so-btn-sm so-btn-touch" style="margin-top:8px;" onclick="soOpenMyPlansCatalogModal(-1)">+ Add catalog template</button>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="soSaveMyPlansCatalog()">Save MY PLANS catalog</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="so-section-accordion" data-so-section="credits-packs">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-packs')">
                             <span><i class="fa fa-box"></i> Credit packs</span>
@@ -2837,6 +2859,12 @@
                                 <div id="so-license-addon-picks" class="so-license-addon-picks"></div>
                                 <p id="so-license-credits-summary" class="so-admin-muted so-admin-tip"></p>
                             </div>
+                            <div id="so-license-my-plans-section" class="so-license-addon-section" style="display:none;">
+                                <div class="so-admin-subhead">MY PLANS for this license (attach from catalog)</div>
+                                <p class="so-admin-muted so-admin-tip">Check templates from <strong>Credits → MY PLANS catalog</strong>. Copies onto this key when you <strong>Create / Update license</strong>. Fine-tune packs in the block editor below.</p>
+                                <div id="so-license-my-plans-picks" class="so-license-addon-picks"></div>
+                                <p id="so-license-my-plans-summary" class="so-admin-muted so-admin-tip"></p>
+                            </div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Extension purchase UI (this license)</div>
                             <p class="so-admin-muted so-admin-tip">Hide or disable extension purchase sections for customers using this license key.</p>
                             <div class="so-checkbox-group">
@@ -3085,6 +3113,7 @@
                                     <input id="so-lic-cplan-modal-id" type="text" placeholder="e.g. vip_yearly"></label>
                                 <label class="so-plan-check" style="align-self:end;"><input id="so-lic-cplan-modal-active" type="checkbox" checked> Show in extension</label>
                                 <label class="so-plan-check" style="align-self:end;"><input id="so-lic-cplan-modal-disabled" type="checkbox"> Disable block (visible but inactive)</label>
+                                <label id="so-lic-cplan-modal-default-selected-wrap" class="so-plan-check" style="display:none;align-self:end;"><input id="so-lic-cplan-modal-default-selected" type="checkbox"> Default attach on new licenses</label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp message title (🛠 MY PLANS heading)</span>
                                     <input id="so-lic-cplan-modal-whatsapp-title" type="text" placeholder="My Plans"></label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Description (above credit pack cards)</span>
@@ -4944,7 +4973,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.29"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.30"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"
