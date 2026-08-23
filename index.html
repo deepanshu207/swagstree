@@ -2573,6 +2573,20 @@
                         </div>
                     </div>
 
+                    <div class="so-section-accordion" data-so-section="credits-global-custom-plan">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-global-custom-plan')">
+                            <span><i class="fa fa-wrench"></i> Global CUSTOM PLAN (extension)</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Site-wide <code>credits.custom_plan</code> — shown in every plan detail as <strong>🛠 CUSTOM PLAN</strong>. Customers select ⚡ plan add-ons, then WhatsApp. For pack-card grids per license, use <strong>MY PLANS</strong> below.</p>
+                            <div id="so-global-custom-plan-editor"></div>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="soSaveGlobalCustomPlan()">Save global CUSTOM PLAN</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="so-section-accordion" data-so-section="credits-my-plans-catalog">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-my-plans-catalog')">
                             <span><i class="fa fa-list-check"></i> MY PLANS catalog (templates)</span>
@@ -2838,6 +2852,7 @@
                             </div>
                             <div id="so-license-credits-breakdown" class="so-license-credits-breakdown so-admin-muted so-admin-tip"></div>
                             <div id="so-license-consumed-panel" class="so-license-consumed-panel" hidden></div>
+                            <div id="so-license-extension-plans-preview" class="so-license-extension-plans-preview" hidden></div>
                             <p class="so-admin-muted so-admin-tip" style="margin-top:6px;">After saving an edit, this form collapses and returns you to the license list. Edit <strong>Total credits</strong> for manual support top-ups beyond the plan grant.</p>
                             <div class="so-checkbox-group">
                                 <label class="so-plan-check"><input id="so-license-unlimited-time" type="checkbox" onchange="soOnLicenseUnlimitedTimeToggle()"> Never expires (unlimited time)</label>
@@ -2868,12 +2883,12 @@
                             <div class="so-admin-subhead" style="margin-top:10px;">Extension purchase UI (this license)</div>
                             <p class="so-admin-muted so-admin-tip">Hide or disable extension purchase sections for customers using this license key.</p>
                             <div class="so-checkbox-group">
-                                <label class="so-plan-check"><input id="so-license-hide-plan-addons" type="checkbox"> Hide plan add-ons in extension</label>
-                                <label class="so-plan-check"><input id="so-license-disable-plan-addons" type="checkbox"> Disable plan add-ons (visible but not selectable)</label>
-                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox"> Hide global custom plan block (🛠 CUSTOM PLAN)</label>
-                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox"> Disable global custom plan (visible but inactive)</label>
-                                <label class="so-plan-check"><input id="so-license-hide-license-custom-plans" type="checkbox"> Hide MY PLANS (license custom plans)</label>
-                                <label class="so-plan-check"><input id="so-license-disable-license-custom-plans" type="checkbox"> Disable MY PLANS (visible but inactive)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-plan-addons" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Hide plan add-ons in extension</label>
+                                <label class="so-plan-check"><input id="so-license-disable-plan-addons" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Disable plan add-ons (visible but not selectable)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Hide global custom plan block (🛠 CUSTOM PLAN)</label>
+                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Disable global custom plan (visible but inactive)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-license-custom-plans" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Hide MY PLANS (license custom plans)</label>
+                                <label class="so-plan-check"><input id="so-license-disable-license-custom-plans" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Disable MY PLANS (visible but inactive)</label>
                             </div>
                             <details class="so-details-block" open>
                                 <summary>License custom plans (this key only)</summary>
@@ -4973,7 +4988,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.31"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.32"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

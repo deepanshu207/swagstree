@@ -428,6 +428,16 @@
         cost_per_operation: 1
     };
 
+    const DEFAULT_GLOBAL_CUSTOM_PLAN = {
+        enabled: true,
+        disabled: false,
+        label: 'Request Custom Plan via WhatsApp',
+        whatsapp_title: 'Custom Plan',
+        description: 'Pick add-ons and send — we will confirm pricing and assign your license.',
+        allow_addon_selection: true,
+        assign_on_whatsapp: true
+    };
+
     const DEFAULT_MY_PLANS_CATALOG = [
         {
             id: 'my_plans_standard',
@@ -686,6 +696,7 @@
                 ? rawCredits.addon_catalog
                 : DEFAULT_ADDON_CATALOG.slice();
             soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
+            soLoadGlobalCustomPlanFromCreditsRaw(rawCredits);
             soLoadMyPlansCatalogFromCreditsRaw(rawCredits);
             const rawPacks = soResolveCreditPacksFromConfig(rawCredits, DEFAULT_CREDIT_PACKS);
             soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
@@ -717,6 +728,7 @@
             soBindSmartModeForm();
             renderSoCreditPacksEditor();
             renderSoAddonCatalogEditor();
+            renderSoGlobalCustomPlanEditor();
             renderSoMyPlansCatalogEditor();
             soUpdateCustomCreditCalc();
         }
@@ -919,7 +931,8 @@
             addon_scopes_enabled: !!document.getElementById('so-addon-scopes-enabled')?.checked,
             packs: packsSource.map((p, i) => soCreditPackToFirestore(p, i)),
             addon_catalog: soSerializeAddonCatalog(true),
-            license_custom_plans_catalog: soSerializeMyPlansCatalog(true)
+            license_custom_plans_catalog: soSerializeMyPlansCatalog(true),
+            custom_plan: soReadGlobalCustomPlanFromDom()
         });
     }
 
@@ -2877,6 +2890,7 @@
         const isEdit = !!soEditingLicenseKey;
         const pools = soResolveLicenseConsumedPools(lic, breakdown, used);
         soRenderLicenseConsumedPanel(pools, isEdit);
+        soRenderLicenseExtensionPlansPreview();
         if (!plan) {
             panel.textContent = '';
             return;
@@ -5083,6 +5097,7 @@
             soBindSmartModeForm();
             renderSoCreditPacksEditor();
             renderSoAddonCatalogEditor();
+            renderSoGlobalCustomPlanEditor();
             renderSoMyPlansCatalogEditor();
             soUpdateCustomCreditCalc();
         }
@@ -5246,6 +5261,7 @@
             ? rawCredits.addon_catalog
             : DEFAULT_ADDON_CATALOG.slice();
         soCredits.addon_catalog = soSortCreditAddons(rawCatalog.map(soNormalizeCreditAddon));
+        soLoadGlobalCustomPlanFromCreditsRaw(rawCredits);
         soLoadMyPlansCatalogFromCreditsRaw(rawCredits);
         const rawPacks = soResolveCreditPacksFromConfig(rawCredits, DEFAULT_CREDIT_PACKS);
         soCreditPacks = soSortCreditPacks(rawPacks.map(soNormalizeCreditPack));
@@ -5271,6 +5287,7 @@
         soBindSmartModeForm();
         renderSoCreditPacksEditor();
         renderSoAddonCatalogEditor();
+        renderSoGlobalCustomPlanEditor();
         renderSoMyPlansCatalogEditor();
         renderSoPlansEditor();
         renderSoInlineDemoKeysEditor();
@@ -8557,6 +8574,158 @@
         soToast(parsed.length ? `Imported ${parsed.length} option(s).` : 'No valid lines to import.');
     };
 
+    function soNormalizeGlobalCustomPlan(raw) {
+        const c = raw && typeof raw === 'object' ? raw : {};
+        const hidden = c.hide === true || c.enabled === false;
+        const disabled = c.disabled === true || c.disable === true || c.disable_block === true;
+        return {
+            enabled: !hidden,
+            disabled,
+            label: String(c.label || DEFAULT_GLOBAL_CUSTOM_PLAN.label).trim(),
+            whatsapp_title: String(c.whatsapp_title || c.whatsappTitle || DEFAULT_GLOBAL_CUSTOM_PLAN.whatsapp_title).trim(),
+            description: String(c.description || DEFAULT_GLOBAL_CUSTOM_PLAN.description).trim(),
+            allow_addon_selection: c.allow_addon_selection !== false && c.allowAddonSelection !== false,
+            assign_on_whatsapp: c.assign_on_whatsapp !== false && c.assignOnWhatsapp !== false
+        };
+    }
+
+    function soGetGlobalCustomPlanState() {
+        const raw = soCredits?.custom_plan || soCredits?.customPlan || soConfig?.credits?.custom_plan;
+        return soNormalizeGlobalCustomPlan(raw || DEFAULT_GLOBAL_CUSTOM_PLAN);
+    }
+
+    function soLoadGlobalCustomPlanFromCreditsRaw(rawCredits) {
+        const raw = rawCredits && typeof rawCredits === 'object' ? rawCredits : {};
+        if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+        soCredits.custom_plan = soNormalizeGlobalCustomPlan(
+            raw.custom_plan || raw.customPlan || soCredits.custom_plan || DEFAULT_GLOBAL_CUSTOM_PLAN
+        );
+    }
+
+    function soReadGlobalCustomPlanFromDom() {
+        const enabledEl = document.getElementById('so-gcp-enabled');
+        if (!enabledEl) return soGetGlobalCustomPlanState();
+        return soNormalizeGlobalCustomPlan({
+            enabled: enabledEl.checked,
+            disabled: !!document.getElementById('so-gcp-disabled')?.checked,
+            label: document.getElementById('so-gcp-label')?.value,
+            description: document.getElementById('so-gcp-description')?.value,
+            allow_addon_selection: !!document.getElementById('so-gcp-allow-addons')?.checked
+        });
+    }
+
+    function renderSoGlobalCustomPlanEditor() {
+        const container = document.getElementById('so-global-custom-plan-editor');
+        if (!container) return;
+        const cfg = soGetGlobalCustomPlanState();
+        container.innerHTML = `
+            <div class="so-license-extension-plan-card">
+                <div class="so-plan-card-badges" style="margin-bottom:8px;">
+                    <span class="so-badge so-badge--on">Global</span>
+                    <span class="so-badge">${cfg.enabled ? 'Active in extension' : 'Disabled'}</span>
+                    ${cfg.disabled ? '<span class="so-badge so-badge--warn">Grayed when shown</span>' : ''}
+                </div>
+                <p class="so-admin-muted so-admin-tip">Shown in every plan detail as <strong>🛠 CUSTOM PLAN</strong>. Customer picks ⚡ plan add-ons above, then taps WhatsApp — not pack cards (use MY PLANS for pack cards).</p>
+                <div class="so-admin-grid" style="margin-top:10px;">
+                    <label class="so-plan-check"><input id="so-gcp-enabled" type="checkbox" ${cfg.enabled ? 'checked' : ''} onchange="soOnGlobalCustomPlanFormChange()"> Show global CUSTOM PLAN in extension</label>
+                    <label class="so-plan-check"><input id="so-gcp-disabled" type="checkbox" ${cfg.disabled ? 'checked' : ''} onchange="soOnGlobalCustomPlanFormChange()"> Disable block (visible but inactive)</label>
+                    <label class="so-plan-check"><input id="so-gcp-allow-addons" type="checkbox" ${cfg.allow_addon_selection ? 'checked' : ''} onchange="soOnGlobalCustomPlanFormChange()"> Allow plan add-on selection</label>
+                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp button label</span>
+                        <input id="so-gcp-label" type="text" value="${soAttr(cfg.label)}" oninput="soOnGlobalCustomPlanFormChange()"></label>
+                    <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Description (above WhatsApp button)</span>
+                        <textarea id="so-gcp-description" rows="2" oninput="soOnGlobalCustomPlanFormChange()">${soEsc(cfg.description)}</textarea></label>
+                </div>
+                <p class="so-admin-muted" style="margin-top:8px;"><strong>Per license:</strong> hide/disable under Extension purchase UI on the license form. <strong>Per plan:</strong> Config → Pricing plan flags.</p>
+            </div>`;
+    }
+
+    window.soOnGlobalCustomPlanFormChange = function() {
+        if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+        soCredits.custom_plan = soReadGlobalCustomPlanFromDom();
+        soMarkTabDirty('credits');
+        soRenderLicenseExtensionPlansPreview();
+    };
+
+    window.soSaveGlobalCustomPlan = async function() {
+        if (!soRequireSuperAdmin()) return;
+        try {
+            if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
+            soCredits.custom_plan = soReadGlobalCustomPlanFromDom();
+            await soSaveTabToFirebase('credits');
+            soToast('Global CUSTOM PLAN saved to Firebase.');
+        } catch (e) {
+            soToast(e.message || 'Save failed.');
+        }
+    };
+
+    function soFormatCustomPlanPackChipsHtml(options) {
+        const opts = Array.isArray(options) ? options : [];
+        if (!opts.length) {
+            return '<p class="so-admin-muted" style="margin:6px 0 0;">No credit packs yet — add options in the block editor.</p>';
+        }
+        return `<div class="so-ext-plan-addons">${opts.map(o =>
+            `<span class="so-ext-addon-chip">${soEsc(o.label || `${o.credits} Credits · ₹${o.price}`)}</span>`
+        ).join('')}</div>`;
+    }
+
+    function soRenderLicenseExtensionPlansPreview() {
+        const panel = document.getElementById('so-license-extension-plans-preview');
+        if (!panel) return;
+        const flags = soReadLicenseAddonFlags();
+        const globalCfg = soGetGlobalCustomPlanState();
+        const blocks = soLicenseCustomPlans.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+        const catalogIds = soGetMyPlansCatalogIdSet();
+        const hideGlobal = flags.hide_custom_plan;
+        const disableGlobal = flags.disable_custom_plan;
+        const hideMyPlans = flags.hide_license_custom_plans;
+        const disableMyPlans = flags.disable_license_custom_plans;
+        const showGlobal = globalCfg.enabled !== false && !hideGlobal;
+        const visibleBlocks = blocks.filter(b => b.enabled !== false);
+        const showMyPlans = !hideMyPlans && visibleBlocks.length > 0;
+        panel.hidden = false;
+        let html = `<div class="so-admin-subhead" style="margin-top:10px;">Extension purchase preview (this license)</div>
+            <p class="so-admin-muted so-admin-tip">Mirrors plan detail ℹ️ in the Meesho extension. <strong>CUSTOM PLAN</strong> = global add-on composer · <strong>MY PLANS</strong> = pack cards per block.</p>
+            <div class="so-license-extension-plans-grid">`;
+        if (hideGlobal) {
+            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 CUSTOM PLAN</strong> <span class="so-badge so-badge--off">Hidden</span><p class="so-admin-muted">Hidden for this license key.</p></div>`;
+        } else if (showGlobal) {
+            html += `<div class="so-license-extension-plan-card${disableGlobal ? ' so-license-extension-plan-card--disabled' : ''}">
+                <strong>🛠 CUSTOM PLAN</strong> <span class="so-badge">Global</span>
+                ${disableGlobal ? '<span class="so-badge so-badge--warn">Disabled</span>' : '<span class="so-badge so-badge--on">Visible</span>'}
+                <p class="so-admin-muted">${soEsc(globalCfg.description)}</p>
+                <p class="so-admin-muted">Uses ⚡ plan add-ons selected above — no pack grid.</p>
+                <span class="so-ext-addon-chip">${soEsc(globalCfg.label)}</span>
+            </div>`;
+        } else {
+            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 CUSTOM PLAN</strong> <span class="so-badge so-badge--off">Off globally</span></div>`;
+        }
+        if (hideMyPlans) {
+            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 MY PLANS</strong> <span class="so-badge so-badge--off">Hidden</span><p class="so-admin-muted">All license MY PLANS blocks hidden for this key.</p></div>`;
+        } else if (showMyPlans) {
+            visibleBlocks.forEach((plan) => {
+                const fromCatalog = catalogIds.has(plan.id);
+                const blockDisabled = disableMyPlans || plan.disabled;
+                html += `<div class="so-license-extension-plan-card${blockDisabled ? ' so-license-extension-plan-card--disabled' : ''}">
+                    <strong>🛠 ${soEsc(plan.whatsapp_title || plan.id)}</strong>
+                    <code class="so-plan-id-tag">${soEsc(plan.id)}</code>
+                    ${fromCatalog ? '<span class="so-badge so-badge--on">Catalog</span>' : '<span class="so-badge">Manual</span>'}
+                    ${blockDisabled ? '<span class="so-badge so-badge--warn">Disabled</span>' : '<span class="so-badge so-badge--on">Visible</span>'}
+                    ${plan.description ? `<p class="so-admin-muted">${soEsc(plan.description)}</p>` : ''}
+                    ${soFormatCustomPlanPackChipsHtml(plan.options)}
+                    <span class="so-ext-addon-chip" style="margin-top:6px;">${soEsc(plan.label || 'Request Custom Plan via WhatsApp')}</span>
+                </div>`;
+            });
+        } else {
+            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 MY PLANS</strong><p class="so-admin-muted">No blocks attached — check catalog templates or add a block below.</p></div>`;
+        }
+        html += '</div>';
+        panel.innerHTML = html;
+    }
+
+    window.soRefreshLicenseExtensionUi = function() {
+        soRenderLicenseExtensionPlansPreview();
+    };
+
     function soLoadMyPlansCatalogFromCreditsRaw(rawCredits) {
         const raw = rawCredits && typeof rawCredits === 'object' ? rawCredits : {};
         const rawMyPlansCatalog = Array.isArray(raw.license_custom_plans_catalog) && raw.license_custom_plans_catalog.length
@@ -8730,9 +8899,12 @@
                 c.disabled ? 'disabled' : '',
                 c.default_selected ? 'default on new license' : ''
             ].filter(Boolean).join(' · ');
-            return `<label class="so-plan-check so-license-my-plan-pick">
+            return `<label class="so-plan-check so-license-my-plan-pick so-license-my-plan-pick--block">
                 <input type="checkbox" data-license-my-plan value="${soAttr(c.id)}" ${selected.has(c.id) ? 'checked' : ''} onchange="soOnLicenseMyPlansPickChange()">
-                <span><strong>${soEsc(c.whatsapp_title || c.id)}</strong> <code class="so-plan-id-tag">${soEsc(c.id)}</code> — ${soEsc(packLabel)}${stateBits ? ` · <span class="so-admin-muted">${soEsc(stateBits)}</span>` : ''}</span>
+                <div class="so-license-my-plan-pick-body">
+                    <span><strong>${soEsc(c.whatsapp_title || c.id)}</strong> <code class="so-plan-id-tag">${soEsc(c.id)}</code> — ${soEsc(packLabel)}${stateBits ? ` · <span class="so-admin-muted">${soEsc(stateBits)}</span>` : ''}</span>
+                    ${soFormatCustomPlanPackChipsHtml(c.options)}
+                </div>
             </label>`;
         }).join('');
         if (summary) {
@@ -8781,7 +8953,9 @@
                 </div>
                 <div class="so-plan-card-body" onclick="event.stopPropagation()">
                     <p class="so-admin-muted"><strong>WhatsApp CTA:</strong> ${soEsc(plan.label || 'Request Custom Plan via WhatsApp')}</p>
+                    ${soFormatCustomPlanPackChipsHtml(plan.options)}
                     <div class="so-plan-actions-bar">
+                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soQuickAddMyPlansCatalogOption('${soAttr(plan.id)}')"><i class="fa fa-plus"></i> Add credit pack</button>
                         <button type="button" class="so-btn-sm so-btn-touch" onclick="soOpenMyPlansCatalogModalById('${soAttr(plan.id)}')"><i class="fa fa-pen"></i> Edit template</button>
                         <button type="button" class="so-btn-sm so-btn-sm--danger so-btn-touch" onclick="soRemoveMyPlansCatalogItem('${soAttr(plan.id)}')"><i class="fa fa-trash"></i> Remove</button>
                     </div>
@@ -8850,6 +9024,25 @@
     window.soOpenMyPlansCatalogModalById = function(id) {
         const idx = soMyPlansCatalog.findIndex(p => p.id === id);
         soOpenMyPlansCatalogModal(idx >= 0 ? idx : -1);
+    };
+
+    window.soQuickAddMyPlansCatalogOption = function(catalogId) {
+        const idx = soMyPlansCatalog.findIndex(p => p.id === catalogId);
+        if (idx < 0) return soToast('Catalog template not found.');
+        const plan = soMyPlansCatalog[idx];
+        const planDefaults = {
+            card_hint: plan.card_hint || '',
+            show_whatsapp_icon: plan.show_whatsapp_icon !== false,
+            show_details_icon: plan.show_details_icon !== false
+        };
+        const options = (plan.options || []).slice();
+        options.push(soDefaultLicenseCustomPlanOption(planDefaults, options.length));
+        soMyPlansCatalog[idx] = soNormalizeLicenseCustomPlanEntry(Object.assign({}, plan, { options }), idx);
+        soExpandedMyPlansCatalogIds.add(catalogId);
+        renderSoMyPlansCatalogEditor();
+        soOpenMyPlansCatalogModal(idx);
+        soMarkTabDirty('credits');
+        soToast('Added another credit pack — set credits/price, then Save plan.');
     };
 
     window.soRemoveMyPlansCatalogItem = function(id) {
@@ -8930,12 +9123,14 @@
         soExpandedLicenseCustomPlanIds = new Set(soLicenseCustomPlans.map(p => p.id));
         soRenderLicenseMyPlansPicks(soInferLicenseMyPlansPickIds(lic || {}));
         soRenderLicenseCustomPlansEditor();
+        soRenderLicenseExtensionPlansPreview();
     }
 
     function soRenderLicenseCustomPlansEditor() {
         const container = document.getElementById('so-license-custom-plans-editor');
         const plans = soLicenseCustomPlans.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
         soUpdateLicenseCustomPlansCountLabel();
+        soRenderLicenseExtensionPlansPreview();
         if (!container) return;
         const catalogIds = soGetMyPlansCatalogIdSet();
         if (!plans.length) {
@@ -9149,6 +9344,7 @@
             if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
             soCredits.license_custom_plans_catalog = soMyPlansCatalog.slice();
             renderSoMyPlansCatalogEditor();
+            soRenderLicenseMyPlansPicks(soReadSelectedLicenseMyPlansIds());
             soCloseLicenseCustomPlanModal();
             soMarkTabDirty('credits');
             soToast(wasEdit ? 'Catalog template updated — Save MY PLANS catalog to write Firebase.' : 'Catalog template added — Save MY PLANS catalog to write Firebase.');
@@ -9167,6 +9363,7 @@
         soExpandedLicenseCustomPlanIds.add(entry.id);
         soRenderLicenseCustomPlansEditor();
         soRenderLicenseMyPlansPicks(soReadSelectedLicenseMyPlansIds());
+        soRenderLicenseExtensionPlansPreview();
         soCloseLicenseCustomPlanModal();
         const saveHint = soEditingLicenseKey
             ? ' — tap Update license (or Save to Firebase) to write Firebase.'
@@ -9479,6 +9676,11 @@
         soRenderLicenseAddonPicks(null, []);
         soApplyLicenseAddonFlagsToForm({});
         soClearLicenseCustomPlan();
+        const previewPanel = document.getElementById('so-license-extension-plans-preview');
+        if (previewPanel) {
+            previewPanel.hidden = true;
+            previewPanel.innerHTML = '';
+        }
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();
         if (wasEdit) soCloseLicenseCreateAccordion();

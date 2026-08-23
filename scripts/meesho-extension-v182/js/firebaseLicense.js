@@ -1463,40 +1463,14 @@ Please share payment details.`;
 
   groupLicenseCustomPlansForDisplay(blocks) {
     const list = (blocks || []).filter((b) => b && b.source === "license");
-    if (!list.length) return [];
-    const groups = new Map();
-    list.forEach((cfg) => {
-      const key = String(cfg.whatsapp_title || cfg.id || "my_plans")
-        .trim()
-        .toLowerCase();
-      if (!groups.has(key)) {
-        groups.set(key, {
-          ...cfg,
-          options: [],
-          _mergedPlanIds: [],
-        });
-      }
-      const group = groups.get(key);
-      group._mergedPlanIds.push(cfg.id);
-      if (cfg.disabled) group.disabled = true;
-      (cfg.options || []).forEach((opt, oi) => {
-        group.options.push({
-          ...opt,
-          _cfgId: cfg.id,
-          id: opt.id || `opt_${cfg.id}_${oi}`,
-        });
-      });
-    });
-    return Array.from(groups.values()).map((g) => {
-      const seen = new Set();
-      g.options = (g.options || []).filter((opt) => {
-        const dedupeKey = `${opt._cfgId || g.id}:${opt.id}:${opt.credits}:${opt.price}`;
-        if (seen.has(dedupeKey)) return false;
-        seen.add(dedupeKey);
-        return true;
-      });
-      return g;
-    });
+    return list.map((cfg) => ({
+      ...cfg,
+      options: (cfg.options || []).map((opt, oi) => ({
+        ...opt,
+        _cfgId: cfg.id,
+        id: opt.id || `opt_${cfg.id}_${oi}`,
+      })),
+    }));
   },
 
   renderCustomPlanSectionHtml(plan, blocks, licenseContext) {
