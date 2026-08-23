@@ -2579,16 +2579,14 @@
         const manual = Math.max(0, parseInt(totalEl?.value, 10) || 0);
         const bal = Math.max(0, parseInt(balEl?.value, 10) || 0);
         const used = Math.max(0, parseInt(usedEl?.value, 10) || 0);
-        const custom = Math.max(0, parseInt(document.getElementById('so-license-custom-credits')?.value, 10) || 0);
-        if (soEditingLicenseKey) {
-            const fromBalance = bal + used;
-            if (fromBalance > 0) return fromBalance;
-        }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        const poolSum = breakdown.grantTotal;
+        const fromBalance = bal + used;
         if (soLicenseCreditsTotalDirty && manual > 0) return manual;
-        if (manual > 0 && manual !== breakdown.grantTotal) return manual;
-        const base = breakdown.grantTotal > 0 ? breakdown.grantTotal : manual;
-        return base > 0 ? base : manual;
+        if (soEditingLicenseKey && fromBalance > 0) return fromBalance;
+        if (manual > 0) return manual;
+        if (poolSum > 0) return poolSum;
+        return fromBalance > 0 ? fromBalance : manual;
     }
 
     window.soOnLicenseCustomCreditsChange = function() {
@@ -2822,23 +2820,35 @@
         return soSlugifyId(plan.id) !== soSlugifyId(baseline);
     }
 
+    function soReadLicensePoolFieldsFromForm() {
+        const included = Math.max(0, parseInt(document.getElementById('so-license-included-credits')?.value, 10) || 0);
+        const addon = Math.max(0, parseInt(document.getElementById('so-license-addon-credits')?.value, 10) || 0);
+        const custom = soReadLicenseCustomCredits();
+        return { included, addon, custom };
+    }
+
     function soResolveLicenseCreditBreakdown(plan, selectedIds, lic) {
         const calc = plan ? soCalculatePlanCredits(plan, selectedIds || []) : { included: 0, addon: 0, total: 0, addonPrice: 0 };
         let included = calc.included;
         let addon = calc.addon;
+        let custom = soReadLicenseCustomCredits();
         const planChangedOnEdit = lic && soEditingLicenseKey && plan && soLicensePlanChangedOnEdit(plan);
-        if (lic && !planChangedOnEdit) {
+        if (soEditingLicenseKey && !planChangedOnEdit) {
+            const formPools = soReadLicensePoolFieldsFromForm();
+            included = formPools.included;
+            addon = formPools.addon;
+            custom = formPools.custom;
+        } else if (lic && !planChangedOnEdit) {
             const licIncluded = parseInt(lic.included_credits, 10);
             const licAddon = parseInt(lic.addon_credits, 10);
             if (Number.isFinite(licIncluded) && licIncluded >= 0) included = licIncluded;
             if (Number.isFinite(licAddon) && licAddon >= 0) addon = licAddon;
-        }
-        const custom = lic
-            ? Math.max(0, parseInt(lic.custom_credits ?? lic.customCredits, 10) || parseInt(lic.bonus_credits, 10) || 0)
-            : soReadLicenseCustomCredits();
-        if (!lic) {
-            const fromForm = soReadLicenseCustomCredits();
-            if (fromForm > 0) custom = fromForm;
+            custom = Math.max(
+                0,
+                parseInt(lic.custom_credits ?? lic.customCredits, 10) || parseInt(lic.bonus_credits, 10) || 0
+            );
+        } else if (!lic && custom <= 0) {
+            custom = soReadLicenseCustomCredits();
         }
         const grantTotal = included + addon + custom;
         return { included, addon, custom, total: grantTotal, grantTotal, addonPrice: calc.addonPrice };
@@ -2873,22 +2883,35 @@
         }
         const billing = plan.billing_mode || 'subscription';
         const customLabel = soReadLicenseCustomCreditsLabel() || (lic && (lic.custom_credits_label || lic.customCreditsLabel)) || '';
-        const grantLine = planGrant > 0
-            ? `<strong>Plan grant:</strong> ${breakdown.included} subscription + ${breakdown.addon} add-on${custom > 0 ? ` + ${custom} custom` : ''} = <strong>${planGrant}</strong>`
-            + (bonus > 0 ? ` + <strong>${bonus} manual adjust</strong> = <strong>${grantTotal} total</strong>` : (grantTotal !== planGrant ? ` → <strong>${grantTotal} effective total</strong>` : ''))
-            : grantTotal > 0
-                ? `<strong>Manual grant:</strong> <strong>${grantTotal} credits</strong> (no plan credits — customer support top-up)`
-                : `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
+        const customLabelLooksNumeric = customLabel && /^\d+$/.test(customLabel) && parseInt(customLabel, 10) !== custom;
+        const poolParts = `${breakdown.included} subscription + ${breakdown.addon} add-on${custom > 0 ? ` + ${custom} custom` : ''}`;
+        let grantLine;
+        if (planGrant > 0 && grantTotal > 0 && grantTotal !== planGrant && bonus <= 0) {
+            grantLine = `<strong>Credit pools:</strong> ${poolParts} = <strong>${planGrant}</strong> (pool fields)`
+                + `<br><strong>License total:</strong> <strong>${grantTotal}</strong> (= balance ${bal} + used ${used})`
+                + `<br><span class="so-admin-muted" style="color:#f59e0b;">Pool sum (${planGrant}) ≠ license total (${grantTotal}). Adjust subscription / add-on / custom fields or <strong>Total credits</strong> so they match before saving.</span>`;
+        } else if (planGrant > 0) {
+            grantLine = `<strong>Plan grant:</strong> ${poolParts} = <strong>${planGrant}</strong>`
+                + (bonus > 0 ? ` + <strong>${bonus} manual adjust</strong> = <strong>${grantTotal} total</strong>` : '');
+        } else if (grantTotal > 0) {
+            grantLine = `<strong>Manual grant:</strong> <strong>${grantTotal} credits</strong> (no plan credits — customer support top-up)`;
+        } else {
+            grantLine = `<strong>Plan grant:</strong> none (subscription-only plan — no credits on activation)`;
+        }
         const balanceLine = `<strong>Unused (balance):</strong> ${bal} · <strong>Used (total):</strong> ${used}` +
             (grantTotal > 0 ? ` · <strong>Grant total:</strong> ${grantTotal} (= balance + used)` : '');
+        const customLabelSuffix = customLabel && !customLabelLooksNumeric ? `: ${soEsc(customLabel)}` : '';
         const poolLine = planGrant > 0
-            ? `<br><strong>Consumption order:</strong> subscription (${breakdown.included}) → add-on (${breakdown.addon})${custom > 0 ? ` → custom (${custom}${customLabel ? ': ' + soEsc(customLabel) : ''})` : ''}.`
+            ? `<br><strong>Consumption order:</strong> subscription (${breakdown.included}) → add-on (${breakdown.addon})${custom > 0 ? ` → custom (${custom}${customLabelSuffix})` : ''}.`
             : '';
         const poolRemain = isEdit && planGrant > 0
             ? `<br><strong>Remaining pools:</strong> ${pools.includedRemaining} subscription · ${pools.addonRemaining} add-on · ${pools.customRemaining} custom`
             : (planGrant > 0
                 ? `<br><strong>Remaining pools:</strong> ~${pools.includedRemaining} subscription · ~${pools.addonRemaining} add-on · ~${pools.customRemaining} custom`
                 : '');
+        const labelWarn = customLabelLooksNumeric
+            ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Custom label looks like a credit count (${soEsc(customLabel)}) but custom pool is ${custom}. Use a text label (e.g. VIP bonus).</span>`
+            : '';
         const consistencyWarn = grantTotal > 0 && (bal + used) !== grantTotal
             ? `<br><span class="so-admin-muted" style="color:#f59e0b;">Balance + used (${bal + used}) ≠ grant total (${grantTotal}). Set total to ${bal + used} or adjust balance/used.</span>`
             : '';
@@ -2906,7 +2929,7 @@
         soSyncLicenseBillingModeFromCredits();
         const billingMode = billingEl ? billingEl.value : (lic?.billing_mode || 'subscription');
         const billingLine = `<br><strong>Billing mode:</strong> ${soEsc(billingMode)}${soLicenseBillingManualOverride ? ' (manual credits override)' : ' (auto: hybrid when add-on or custom credits)'}`;
-        panel.innerHTML = `${grantLine}<br>${balanceLine}${poolLine}${poolRemain}${billingLine}${consistencyWarn}${activationHint}${planHint}`;
+        panel.innerHTML = `${grantLine}<br>${balanceLine}${poolLine}${poolRemain}${billingLine}${labelWarn}${consistencyWarn}${activationHint}${planHint}`;
         const includedEl = document.getElementById('so-license-included-credits');
         const addonEl = document.getElementById('so-license-addon-credits');
         const totalEl = document.getElementById('so-license-total-credits');
@@ -2918,8 +2941,11 @@
             if (includedEl) includedEl.value = breakdown.included;
             if (addonEl) addonEl.value = breakdown.addon;
             if (totalEl && !soLicenseCreditsTotalDirty) totalEl.value = grantTotal > 0 ? grantTotal : planGrant;
-        } else if (totalEl && !soLicenseCreditsTotalDirty && (bal + used) > 0) {
-            totalEl.value = bal + used;
+        } else if (isEdit && totalEl && !soLicenseCreditsTotalDirty) {
+            const poolSum = breakdown.grantTotal;
+            const storedTotal = bal + used;
+            if (storedTotal > 0) totalEl.value = storedTotal;
+            else if (poolSum > 0) totalEl.value = poolSum;
         }
     };
 
@@ -8601,6 +8627,51 @@
         return Array.from(container.querySelectorAll('[data-license-my-plan]:checked')).map(el => el.value);
     }
 
+    function soGetMyPlansCatalogIdSet() {
+        return new Set(soGetMyPlansCatalogList().map(c => c.id));
+    }
+
+    function soCountLicenseCustomPlanSources() {
+        const catalogIds = soGetMyPlansCatalogIdSet();
+        let catalog = 0;
+        let manual = 0;
+        soLicenseCustomPlans.forEach(p => {
+            if (catalogIds.has(p.id)) catalog += 1;
+            else manual += 1;
+        });
+        return { catalog, manual, total: soLicenseCustomPlans.length };
+    }
+
+    function soUpdateLicenseCustomPlansCountLabel() {
+        const countEl = document.getElementById('so-license-custom-plans-count');
+        if (!countEl) return;
+        const { catalog, manual, total } = soCountLicenseCustomPlanSources();
+        if (!total) {
+            countEl.textContent = '0 custom plans';
+            return;
+        }
+        const bits = [];
+        if (catalog) bits.push(`${catalog} from catalog`);
+        if (manual) bits.push(`${manual} manual`);
+        countEl.textContent = `${total} block${total === 1 ? '' : 's'}${bits.length ? ` (${bits.join(' · ')})` : ''}`;
+    }
+
+    function soUpdateLicenseMyPlansSummary() {
+        const summary = document.getElementById('so-license-my-plans-summary');
+        if (!summary) return;
+        const picked = soReadSelectedLicenseMyPlansIds().length;
+        const { manual } = soCountLicenseCustomPlanSources();
+        const pickedLine = picked
+            ? `${picked} catalog template${picked === 1 ? '' : 's'} selected`
+            : 'No catalog templates selected';
+        const manualLine = manual
+            ? ` · ${manual} manual block${manual === 1 ? '' : 's'} in editor below (not from catalog)`
+            : '';
+        summary.textContent = picked || manual
+            ? `${pickedLine}${manualLine}. Edit packs in the block editor below.`
+            : 'No MY PLANS templates selected — check one or more, or add a custom block below.';
+    }
+
     function soInferLicenseMyPlansPickIds(lic) {
         const stored = lic?.license_custom_plan_ids || lic?.licenseCustomPlanIds;
         if (Array.isArray(stored) && stored.length) return stored.filter(Boolean).map(String);
@@ -8627,11 +8698,8 @@
         }).filter(Boolean);
         soLicenseCustomPlans = fromCatalog.concat(manualBlocks).map((p, i) => Object.assign({}, p, { order: i }));
         soRenderLicenseCustomPlansEditor();
-        const countEl = document.getElementById('so-license-custom-plans-count');
-        if (countEl) {
-            const n = soLicenseCustomPlans.length;
-            countEl.textContent = `${n} custom plan${n === 1 ? '' : 's'}`;
-        }
+        soUpdateLicenseCustomPlansCountLabel();
+        soUpdateLicenseMyPlansSummary();
     }
 
     function soRenderLicenseMyPlansPicks(preselectedIds) {
@@ -8668,22 +8736,14 @@
             </label>`;
         }).join('');
         if (summary) {
-            summary.textContent = selected.size
-                ? `${selected.size} MY PLANS template${selected.size === 1 ? '' : 's'} will be copied to this license on save. Edit packs in the block editor below.`
-                : 'No MY PLANS templates selected — check one or more, or add a custom block below.';
+            soUpdateLicenseMyPlansSummary();
         }
         soSyncLicenseCustomPlansFromCatalogPicks();
     }
 
     window.soOnLicenseMyPlansPickChange = function() {
         soSyncLicenseCustomPlansFromCatalogPicks();
-        const summary = document.getElementById('so-license-my-plans-summary');
-        const n = soReadSelectedLicenseMyPlansIds().length;
-        if (summary) {
-            summary.textContent = n
-                ? `${n} MY PLANS template${n === 1 ? '' : 's'} will be copied to this license on save. Edit packs in the block editor below.`
-                : 'No MY PLANS templates selected — check one or more, or add a custom block below.';
-        }
+        soUpdateLicenseMyPlansSummary();
     };
 
     function renderSoMyPlansCatalogEditor() {
@@ -8874,16 +8934,17 @@
 
     function soRenderLicenseCustomPlansEditor() {
         const container = document.getElementById('so-license-custom-plans-editor');
-        const countEl = document.getElementById('so-license-custom-plans-count');
         const plans = soLicenseCustomPlans.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-        if (countEl) countEl.textContent = `${plans.length} custom plan${plans.length === 1 ? '' : 's'}`;
+        soUpdateLicenseCustomPlansCountLabel();
         if (!container) return;
+        const catalogIds = soGetMyPlansCatalogIdSet();
         if (!plans.length) {
             container.innerHTML = '<p class="so-admin-muted">No license custom plans yet. Tap <strong>+ Add custom plan</strong>.</p>';
             return;
         }
         container.innerHTML = plans.map((plan, idx) => {
             const open = soExpandedLicenseCustomPlanIds.has(plan.id);
+            const fromCatalog = catalogIds.has(plan.id);
             return `
             <div class="so-plan-card so-license-custom-plan-row so-collapsible-row ${open ? 'so-collapsible-row--open' : ''}" data-lic-cplan-id="${soAttr(plan.id)}">
                 <div class="so-plan-card-head-wrap">
@@ -8898,6 +8959,7 @@
                                 · ${(plan.options || []).length} pack${(plan.options || []).length === 1 ? '' : 's'}
                             </div>
                             <div class="so-plan-card-badges">
+                                ${fromCatalog ? '<span class="so-badge so-badge--on">Catalog</span>' : '<span class="so-badge">Manual</span>'}
                                 ${plan.enabled !== false ? '<span class="so-badge so-badge--on">Visible</span>' : '<span class="so-badge so-badge--off">Hidden</span>'}
                                 ${plan.disabled ? '<span class="so-badge so-badge--warn">Disabled</span>' : ''}
                             </div>
@@ -8957,9 +9019,10 @@
     };
 
     window.soRemoveLicenseCustomPlan = function(id) {
+        const picks = soReadSelectedLicenseMyPlansIds().filter(x => x !== id);
         soLicenseCustomPlans = soLicenseCustomPlans.filter(p => p.id !== id);
         soExpandedLicenseCustomPlanIds.delete(id);
-        soRenderLicenseCustomPlansEditor();
+        soRenderLicenseMyPlansPicks(picks);
     };
 
     window.soQuickAddLicenseCustomPlanOption = function(planId) {
@@ -9115,6 +9178,7 @@
         soLicenseCustomPlans = [];
         soExpandedLicenseCustomPlanIds.clear();
         soCloseLicenseCustomPlanModal();
+        soRenderLicenseMyPlansPicks([]);
         soRenderLicenseCustomPlansEditor();
     };
 
@@ -9442,15 +9506,19 @@
         const customLabelEl = document.getElementById('so-license-custom-credits-label');
         const customStored = lic.custom_credits != null ? lic.custom_credits : lic.bonus_credits;
         if (customEl) customEl.value = customStored != null ? customStored : 0;
-        if (customLabelEl) customLabelEl.value = lic.custom_credits_label || lic.customCreditsLabel || '';
-        const grantTotal = (parseInt(lic.included_credits, 10) || 0)
+        if (customLabelEl) {
+            const rawLabel = lic.custom_credits_label || lic.customCreditsLabel || '';
+            const labelNum = /^\d+$/.test(String(rawLabel).trim()) ? parseInt(rawLabel, 10) : NaN;
+            const customNum = parseInt(customStored, 10) || 0;
+            customLabelEl.value = Number.isFinite(labelNum) && labelNum === customNum ? '' : rawLabel;
+        }
+        const poolSum = (parseInt(lic.included_credits, 10) || 0)
             + (parseInt(lic.addon_credits, 10) || 0)
             + (parseInt(customStored, 10) || 0);
+        const storedTotal = (parseInt(lic.credits_balance, 10) || 0) + (parseInt(lic.credits_used, 10) || 0);
         soLicenseCreditsTotalDirty = false;
         if (totalEl) {
-            totalEl.value = grantTotal > 0
-                ? grantTotal
-                : ((parseInt(lic.credits_balance, 10) || 0) + (parseInt(lic.credits_used, 10) || 0));
+            totalEl.value = storedTotal > 0 ? storedTotal : (poolSum > 0 ? poolSum : 0);
         }
         soSetLicenseUnlimitedCheckboxes(lic);
         const addonIds = Array.isArray(lic.addon_credit_ids) ? lic.addon_credit_ids
