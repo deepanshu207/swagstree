@@ -986,11 +986,8 @@
     }
 
     function soBuildCreditsExportData(fromDom) {
-        const canonical = soBuildCreditsCanonicalObject(fromDom);
         return {
-            credits: Object.assign({}, canonical, {
-                addon_catalog: soSerializeAddonCatalog(fromDom)
-            }),
+            credits: soBuildCreditsCanonicalObject(fromDom),
             smart_mode: fromDom
                 ? soSmartModeToFirestore(soReadSmartModeFromDom())
                 : soSmartModeToFirestore(soSmartMode || soConfig?.smart_mode || DEFAULT_SMART_MODE)
@@ -1017,7 +1014,7 @@
             exported_by: soAuthEmail() || 'unknown',
             project: 'extension-e6e32',
             collection: `${SO_CONFIG_DOC}/${SO_CONFIG_ID}`,
-            note: 'Shipping Optimizer admin backup — does not include licenses, Google users, or demo_keys collection docs.',
+            note: 'Shipping Optimizer admin backup — does not include per-license docs. Credits export includes: packs, addon_catalog, license_custom_plans_catalog, custom_plan, image_generation, smart_mode.',
             data
         };
     }
@@ -2718,25 +2715,70 @@
         };
     }
 
-    function soRenderLicenseConsumedPanel(pools, isEdit) {
+    function soRenderLicenseBreakdownCards(pools, isEdit) {
         const panel = document.getElementById('so-license-consumed-panel');
         if (!panel) return;
-        if (!isEdit || (pools.includedGrant + pools.addonGrant + pools.customGrant) <= 0) {
-            panel.hidden = true;
-            panel.innerHTML = '';
-            return;
-        }
-        panel.hidden = false;
-        const mk = (title, grant, usedVal, remain) => grant > 0
-            ? `<div class="so-license-consumed-card"><strong>${title}</strong>Used ${usedVal} / ${grant} · Left ${remain}</div>`
-            : '';
-        panel.innerHTML = `<div class="so-admin-subhead" style="margin-top:8px;">Consumed breakdown (stored on license)</div>
+        const flags = soReadLicenseAddonFlags();
+        const globalCfg = soGetGlobalCustomPlanState();
+        const blocks = soLicenseCustomPlans.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+        const catalogIds = soGetMyPlansCatalogIdSet();
+        const hideGlobal = flags.hide_custom_plan;
+        const disableGlobal = flags.disable_custom_plan;
+        const hideMyPlans = flags.hide_license_custom_plans;
+        const disableMyPlans = flags.disable_license_custom_plans;
+        const hasPools = (pools.includedGrant + pools.addonGrant + pools.customGrant) > 0;
+        const visibleBlocks = blocks.filter(b => b.enabled !== false);
+        const mkPool = (title, grant, usedVal, remain) => {
+            if (grant <= 0) return '';
+            const usedLine = isEdit
+                ? `Used ${usedVal} / ${grant} · Left ${remain}`
+                : `Grant ${grant} · Used after activation`;
+            return `<div class="so-license-consumed-card"><strong>${title}</strong>${usedLine}</div>`;
+        };
+        let html = '';
+        if (hasPools) {
+            html += `<div class="so-admin-subhead" style="margin-top:8px;">Credit pools (stored on license)</div>
             <div class="so-license-consumed-grid">
-                ${mk('Subscription', pools.includedGrant, pools.includedUsed, pools.includedRemaining)}
-                ${mk('Add-on', pools.addonGrant, pools.addonUsed, pools.addonRemaining)}
-                ${mk('Custom', pools.customGrant, pools.customUsed, pools.customRemaining)}
+                ${mkPool('Subscription', pools.includedGrant, pools.includedUsed, pools.includedRemaining)}
+                ${mkPool('Add-on', pools.addonGrant, pools.addonUsed, pools.addonRemaining)}
+                ${mkPool('Custom', pools.customGrant, pools.customUsed, pools.customRemaining)}
             </div>
             <p class="so-admin-muted so-admin-tip" style="margin-top:6px;">Extension deducts in order: subscription → add-on → custom.</p>`;
+        }
+        html += `<div class="so-admin-subhead" style="margin-top:${hasPools ? '12px' : '8px'};">MY PLANS &amp; purchase blocks (extension)</div>
+            <p class="so-admin-muted so-admin-tip">Not credit pools — these are WhatsApp purchase sections in plan detail ℹ️.</p>
+            <div class="so-license-consumed-grid so-license-consumed-grid--purchase">`;
+        if (hideGlobal) {
+            html += `<div class="so-license-consumed-card so-license-consumed-card--muted"><strong>🛠 CUSTOM PLAN</strong>Hidden for this license</div>`;
+        } else if (globalCfg.enabled !== false) {
+            html += `<div class="so-license-consumed-card${disableGlobal ? ' so-license-consumed-card--disabled' : ''}"><strong>🛠 CUSTOM PLAN</strong>Global · ${disableGlobal ? 'Disabled' : 'Visible'}<br><span class="so-admin-muted">Plan add-ons → WhatsApp</span></div>`;
+        } else {
+            html += `<div class="so-license-consumed-card so-license-consumed-card--muted"><strong>🛠 CUSTOM PLAN</strong>Off globally (Credits tab)</div>`;
+        }
+        if (hideMyPlans) {
+            html += `<div class="so-license-consumed-card so-license-consumed-card--muted"><strong>🛠 MY PLANS</strong>All blocks hidden for this license</div>`;
+        } else if (visibleBlocks.length) {
+            visibleBlocks.forEach((plan) => {
+                const fromCatalog = catalogIds.has(plan.id);
+                const blockDisabled = disableMyPlans || plan.disabled;
+                const packCount = (plan.options || []).length;
+                const packCredits = (plan.options || []).reduce((s, o) => s + (parseInt(o.credits, 10) || 0), 0);
+                html += `<div class="so-license-consumed-card${blockDisabled ? ' so-license-consumed-card--disabled' : ''}">
+                    <strong>🛠 ${soEsc(plan.whatsapp_title || plan.id)}</strong>
+                    ${fromCatalog ? 'Catalog' : 'Manual'} · ${packCount} pack${packCount === 1 ? '' : 's'}${packCredits ? ` · ${packCredits} credits offered` : ''} · ${blockDisabled ? 'Disabled' : 'Visible'}
+                    ${soFormatCustomPlanPackChipsHtml(plan.options)}
+                </div>`;
+            });
+        } else {
+            html += `<div class="so-license-consumed-card so-license-consumed-card--muted"><strong>🛠 MY PLANS</strong>No blocks — check catalog templates or add a block below</div>`;
+        }
+        html += '</div>';
+        panel.hidden = false;
+        panel.innerHTML = html;
+    }
+
+    function soRenderLicenseConsumedPanel(pools, isEdit) {
+        soRenderLicenseBreakdownCards(pools, isEdit);
     }
 
     window.soOnLicenseTotalCreditsChange = function() {
@@ -2878,6 +2920,11 @@
             || soIsUnlimitedCredits(plan) || (lic && soIsUnlimitedCredits(lic));
         if (unlimited) {
             panel.innerHTML = '<strong>Credits:</strong> Unlimited — no balance tracking.';
+            soRenderLicenseBreakdownCards({
+                includedGrant: 0, addonGrant: 0, customGrant: 0,
+                includedUsed: 0, addonUsed: 0, customUsed: 0,
+                includedRemaining: 0, addonRemaining: 0, customRemaining: 0
+            }, !!soEditingLicenseKey);
             return;
         }
         const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
@@ -2890,7 +2937,6 @@
         const isEdit = !!soEditingLicenseKey;
         const pools = soResolveLicenseConsumedPools(lic, breakdown, used);
         soRenderLicenseConsumedPanel(pools, isEdit);
-        soRenderLicenseExtensionPlansPreview();
         if (!plan) {
             panel.textContent = '';
             return;
@@ -4197,7 +4243,8 @@
                 : c.addon_scopes_enabled === true,
             packs: packs.map((p, i) => soCreditPackToFirestore(p, i)),
             addon_catalog: soSerializeAddonCatalog(fromDom),
-            license_custom_plans_catalog: soSerializeMyPlansCatalog(fromDom)
+            license_custom_plans_catalog: soSerializeMyPlansCatalog(fromDom),
+            custom_plan: fromDom ? soReadGlobalCustomPlanFromDom() : soGetGlobalCustomPlanState()
         };
     }
 
@@ -8643,7 +8690,7 @@
         if (!soCredits) soCredits = Object.assign({}, DEFAULT_CREDITS);
         soCredits.custom_plan = soReadGlobalCustomPlanFromDom();
         soMarkTabDirty('credits');
-        soRenderLicenseExtensionPlansPreview();
+        soRefreshLicenseExtensionUi();
     };
 
     window.soSaveGlobalCustomPlan = async function() {
@@ -8668,62 +8715,15 @@
         ).join('')}</div>`;
     }
 
-    function soRenderLicenseExtensionPlansPreview() {
-        const panel = document.getElementById('so-license-extension-plans-preview');
-        if (!panel) return;
-        const flags = soReadLicenseAddonFlags();
-        const globalCfg = soGetGlobalCustomPlanState();
-        const blocks = soLicenseCustomPlans.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-        const catalogIds = soGetMyPlansCatalogIdSet();
-        const hideGlobal = flags.hide_custom_plan;
-        const disableGlobal = flags.disable_custom_plan;
-        const hideMyPlans = flags.hide_license_custom_plans;
-        const disableMyPlans = flags.disable_license_custom_plans;
-        const showGlobal = globalCfg.enabled !== false && !hideGlobal;
-        const visibleBlocks = blocks.filter(b => b.enabled !== false);
-        const showMyPlans = !hideMyPlans && visibleBlocks.length > 0;
-        panel.hidden = false;
-        let html = `<div class="so-admin-subhead" style="margin-top:10px;">Extension purchase preview (this license)</div>
-            <p class="so-admin-muted so-admin-tip">Mirrors plan detail ℹ️ in the Meesho extension. <strong>CUSTOM PLAN</strong> = global add-on composer · <strong>MY PLANS</strong> = pack cards per block.</p>
-            <div class="so-license-extension-plans-grid">`;
-        if (hideGlobal) {
-            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 CUSTOM PLAN</strong> <span class="so-badge so-badge--off">Hidden</span><p class="so-admin-muted">Hidden for this license key.</p></div>`;
-        } else if (showGlobal) {
-            html += `<div class="so-license-extension-plan-card${disableGlobal ? ' so-license-extension-plan-card--disabled' : ''}">
-                <strong>🛠 CUSTOM PLAN</strong> <span class="so-badge">Global</span>
-                ${disableGlobal ? '<span class="so-badge so-badge--warn">Disabled</span>' : '<span class="so-badge so-badge--on">Visible</span>'}
-                <p class="so-admin-muted">${soEsc(globalCfg.description)}</p>
-                <p class="so-admin-muted">Uses ⚡ plan add-ons selected above — no pack grid.</p>
-                <span class="so-ext-addon-chip">${soEsc(globalCfg.label)}</span>
-            </div>`;
-        } else {
-            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 CUSTOM PLAN</strong> <span class="so-badge so-badge--off">Off globally</span></div>`;
-        }
-        if (hideMyPlans) {
-            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 MY PLANS</strong> <span class="so-badge so-badge--off">Hidden</span><p class="so-admin-muted">All license MY PLANS blocks hidden for this key.</p></div>`;
-        } else if (showMyPlans) {
-            visibleBlocks.forEach((plan) => {
-                const fromCatalog = catalogIds.has(plan.id);
-                const blockDisabled = disableMyPlans || plan.disabled;
-                html += `<div class="so-license-extension-plan-card${blockDisabled ? ' so-license-extension-plan-card--disabled' : ''}">
-                    <strong>🛠 ${soEsc(plan.whatsapp_title || plan.id)}</strong>
-                    <code class="so-plan-id-tag">${soEsc(plan.id)}</code>
-                    ${fromCatalog ? '<span class="so-badge so-badge--on">Catalog</span>' : '<span class="so-badge">Manual</span>'}
-                    ${blockDisabled ? '<span class="so-badge so-badge--warn">Disabled</span>' : '<span class="so-badge so-badge--on">Visible</span>'}
-                    ${plan.description ? `<p class="so-admin-muted">${soEsc(plan.description)}</p>` : ''}
-                    ${soFormatCustomPlanPackChipsHtml(plan.options)}
-                    <span class="so-ext-addon-chip" style="margin-top:6px;">${soEsc(plan.label || 'Request Custom Plan via WhatsApp')}</span>
-                </div>`;
-            });
-        } else {
-            html += `<div class="so-license-extension-plan-card so-license-extension-plan-card--muted"><strong>🛠 MY PLANS</strong><p class="so-admin-muted">No blocks attached — check catalog templates or add a block below.</p></div>`;
-        }
-        html += '</div>';
-        panel.innerHTML = html;
-    }
-
     window.soRefreshLicenseExtensionUi = function() {
-        soRenderLicenseExtensionPlansPreview();
+        const planId = document.getElementById('so-license-plan')?.value;
+        const plan = soPlans.find(p => p.id === planId) || soGetAllPlansForSelect().find(p => p.id === planId);
+        const selectedIds = soReadSelectedLicenseAddonIds();
+        const lic = soEditingLicenseKey ? soLicenses.find(l => l.key === soEditingLicenseKey) : null;
+        const breakdown = soResolveLicenseCreditBreakdown(plan, selectedIds, lic);
+        const used = Math.max(0, parseInt(document.getElementById('so-license-credits-used')?.value, 10) || 0);
+        const pools = soResolveLicenseConsumedPools(lic, breakdown, used);
+        soRenderLicenseBreakdownCards(pools, !!soEditingLicenseKey);
     };
 
     function soLoadMyPlansCatalogFromCreditsRaw(rawCredits) {
@@ -9123,14 +9123,14 @@
         soExpandedLicenseCustomPlanIds = new Set(soLicenseCustomPlans.map(p => p.id));
         soRenderLicenseMyPlansPicks(soInferLicenseMyPlansPickIds(lic || {}));
         soRenderLicenseCustomPlansEditor();
-        soRenderLicenseExtensionPlansPreview();
+        soRefreshLicenseExtensionUi();
     }
 
     function soRenderLicenseCustomPlansEditor() {
         const container = document.getElementById('so-license-custom-plans-editor');
         const plans = soLicenseCustomPlans.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
         soUpdateLicenseCustomPlansCountLabel();
-        soRenderLicenseExtensionPlansPreview();
+        soRefreshLicenseExtensionUi();
         if (!container) return;
         const catalogIds = soGetMyPlansCatalogIdSet();
         if (!plans.length) {
@@ -9363,7 +9363,7 @@
         soExpandedLicenseCustomPlanIds.add(entry.id);
         soRenderLicenseCustomPlansEditor();
         soRenderLicenseMyPlansPicks(soReadSelectedLicenseMyPlansIds());
-        soRenderLicenseExtensionPlansPreview();
+        soRefreshLicenseExtensionUi();
         soCloseLicenseCustomPlanModal();
         const saveHint = soEditingLicenseKey
             ? ' — tap Update license (or Save to Firebase) to write Firebase.'
@@ -9676,10 +9676,10 @@
         soRenderLicenseAddonPicks(null, []);
         soApplyLicenseAddonFlagsToForm({});
         soClearLicenseCustomPlan();
-        const previewPanel = document.getElementById('so-license-extension-plans-preview');
-        if (previewPanel) {
-            previewPanel.hidden = true;
-            previewPanel.innerHTML = '';
+        const breakdownPanel = document.getElementById('so-license-consumed-panel');
+        if (breakdownPanel) {
+            breakdownPanel.hidden = true;
+            breakdownPanel.innerHTML = '';
         }
         soUpdateLicensePlanHint();
         soUpdateLicenseCreditsBreakdown();

@@ -12008,34 +12008,15 @@ body:has(.so-save-review-overlay[style*="flex"]) .bottom-nav {
     flex: 1;
     min-width: 0;
 }
-.so-license-extension-plans-preview {
-    margin-top: 10px;
-}
-.so-license-extension-plans-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 8px;
-    margin-top: 8px;
-}
-.so-license-extension-plan-card {
-    padding: 10px;
-    border-radius: 10px;
-    background: #141414;
-    border: 1px solid #2a2a2a;
-    font-size: 11px;
-    line-height: 1.45;
-}
-.so-license-extension-plan-card strong {
-    color: #fbbf24;
-    display: block;
-    margin-bottom: 4px;
-}
-.so-license-extension-plan-card--disabled {
+.so-license-consumed-card--disabled {
     opacity: 0.55;
 }
-.so-license-extension-plan-card--muted {
+.so-license-consumed-card--muted {
     opacity: 0.75;
     border-style: dashed;
+}
+.so-license-consumed-grid--purchase .so-license-consumed-card {
+    min-height: 52px;
 }
 .so-license-addon-picks {
     display: flex;
