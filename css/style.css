@@ -12018,6 +12018,13 @@ body:has(.so-save-review-overlay[style*="flex"]) .bottom-nav {
 .so-license-consumed-grid--purchase .so-license-consumed-card {
     min-height: 52px;
 }
+.so-license-my-plans-pack-group {
+    margin-bottom: 10px;
+}
+.so-license-my-plans-pack-group-title {
+    font-size: 11px;
+    margin-bottom: 4px;
+}
 .so-license-addon-picks {
     display: flex;
     flex-direction: column;
