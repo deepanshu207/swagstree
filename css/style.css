@@ -11363,6 +11363,120 @@ body:has(.so-save-review-overlay[style*="flex"]) .bottom-nav {
     cursor: default;
     background: rgba(255, 255, 255, 0.04);
 }
+.so-readonly-input--highlight {
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.08);
+}
+.so-license-consumed-card--myplans {
+    border-color: rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.06);
+}
+.so-license-consumed-card--myplans strong {
+    color: #fbbf24;
+}
+.so-license-quick-panel {
+    display: grid;
+    gap: 12px;
+    max-width: 720px;
+}
+.so-license-quick-select {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+}
+.so-license-key-copy {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    cursor: text;
+    user-select: all;
+}
+.so-license-key-copy-inline {
+    cursor: pointer;
+    user-select: all;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+}
+.so-license-key-copy-inline:hover {
+    background: rgba(255, 215, 0, 0.14);
+}
+.so-license-quick-details {
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+.so-license-quick-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.so-license-quick-detail-card {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.so-license-quick-detail-card.so-quick-exp--bad {
+    border-color: rgba(255, 99, 99, 0.45);
+    background: rgba(255, 99, 99, 0.08);
+}
+.so-license-quick-detail-card.so-quick-exp--warn {
+    border-color: rgba(255, 193, 7, 0.45);
+    background: rgba(255, 193, 7, 0.08);
+}
+.so-license-quick-detail-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.65;
+    margin-bottom: 4px;
+}
+.so-license-quick-detail-value {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+.so-license-quick-detail-sub {
+    font-size: 12px;
+    opacity: 0.75;
+    margin-top: 4px;
+}
+.so-license-quick-detail-meta {
+    font-size: 13px;
+    line-height: 1.55;
+    opacity: 0.9;
+}
+.so-license-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.so-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    font-size: 13px;
+}
+.so-pagination-btns {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.so-pagination-page {
+    min-width: 88px;
+    text-align: center;
+    opacity: 0.85;
+}
+.so-pagination-meta {
+    opacity: 0.75;
+}
 .so-license-credits-breakdown {
     margin: 8px 0 12px;
     padding: 10px 12px;
@@ -11895,6 +12009,33 @@ body:has(.so-save-review-overlay[style*="flex"]) .bottom-nav {
     border-radius: 10px;
     background: #141414;
     border: 1px solid #2a2a2a;
+}
+.so-license-my-plan-pick--block {
+    align-items: flex-start;
+}
+.so-license-my-plan-pick-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+.so-license-consumed-card--disabled {
+    opacity: 0.55;
+}
+.so-license-consumed-card--muted {
+    opacity: 0.75;
+    border-style: dashed;
+}
+.so-license-consumed-grid--purchase .so-license-consumed-card {
+    min-height: 52px;
+}
+.so-license-my-plans-pack-group {
+    margin-bottom: 10px;
+}
+.so-license-my-plans-pack-group-title {
+    font-size: 11px;
+    margin-bottom: 4px;
 }
 .so-license-addon-picks {
     display: flex;

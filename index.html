@@ -2573,6 +2573,42 @@
                         </div>
                     </div>
 
+                    <div class="so-section-accordion" data-so-section="credits-global-custom-plan">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-global-custom-plan')">
+                            <span><i class="fa fa-wrench"></i> Global CUSTOM PLAN (extension)</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Site-wide <code>credits.custom_plan</code> — shown in every plan detail as <strong>🛠 CUSTOM PLAN</strong>. Customers select ⚡ plan add-ons, then WhatsApp. For pack-card grids per license, use <strong>MY PLANS</strong> below.</p>
+                            <div id="so-global-custom-plan-editor"></div>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="soSaveGlobalCustomPlan()">Save global CUSTOM PLAN</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="so-section-accordion" data-so-section="credits-my-plans-catalog">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-my-plans-catalog')">
+                            <span><i class="fa fa-list-check"></i> MY PLANS catalog (templates)</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Reusable MY PLANS templates at <code>credits.license_custom_plans_catalog[]</code>. On each license, check templates to attach — like credit add-ons. Per-license edits stay on the license doc only.</p>
+                            <div class="so-plans-toolbar">
+                                <span id="so-my-plans-catalog-count" class="so-plans-count">0 templates</span>
+                                <div class="so-plans-toolbar-actions">
+                                    <button type="button" class="so-btn-sm" onclick="soExpandAllMyPlansCatalog()">Expand all</button>
+                                    <button type="button" class="so-btn-sm" onclick="soCollapseAllMyPlansCatalog()">Collapse all</button>
+                                </div>
+                            </div>
+                            <div id="so-my-plans-catalog-editor" class="so-license-custom-plans-editor"></div>
+                            <button type="button" class="so-btn-sm so-btn-touch" style="margin-top:8px;" onclick="soOpenMyPlansCatalogModal(-1)">+ Add catalog template</button>
+                            <div class="so-section-save-bar">
+                                <button type="button" class="btn-gold so-btn-save so-btn-save--section" onclick="soSaveMyPlansCatalog()">Save MY PLANS catalog</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="so-section-accordion" data-so-section="credits-packs">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('credits-packs')">
                             <span><i class="fa fa-box"></i> Credit packs</span>
@@ -2732,6 +2768,46 @@
 
                 <!-- Tab 4: Paid Licenses -->
                 <div id="so-tab-licenses" class="so-admin-tab-panel" style="display:none;">
+                    <!-- Quick license lookup (separate from create/edit form) -->
+                    <div class="so-section-accordion so-section-accordion--open" data-so-section="license-quick">
+                        <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('license-quick')">
+                            <span><i class="fa fa-bolt"></i> Quick license lookup</span>
+                            <i class="fa fa-chevron-down so-section-chevron"></i>
+                        </button>
+                        <div class="so-section-accordion-body">
+                            <p class="so-admin-muted so-admin-tip">Paste or type a key, email, or phone — pick from the list, then copy the key or check created / expiry dates without opening the full editor.</p>
+                            <div class="so-license-quick-panel">
+                                <label class="so-field-full"><span class="admin-settings-field-label">Find license</span>
+                                    <input id="so-license-quick-search" type="search" placeholder="MEESHO-XXXX-XXXX-XXXX, email, phone, customer…" oninput="soOnLicenseQuickSearchInput()" autocomplete="off"></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">Filter</span>
+                                    <select id="so-license-quick-filter" class="so-tab-select" onchange="soOnLicenseQuickFilterChange()">
+                                        <option value="all">All licenses</option>
+                                        <option value="active">Active</option>
+                                        <option value="unused">Unused</option>
+                                        <option value="not_shared">Not shared yet</option>
+                                        <option value="expired">Expired</option>
+                                        <option value="lifetime">Lifetime</option>
+                                        <option value="credits_low">Credits low</option>
+                                        <option value="revoked">Revoked</option>
+                                    </select></label>
+                                <label class="so-field-full"><span class="admin-settings-field-label">Select license (paginated)</span>
+                                    <select id="so-license-quick-select" class="so-tab-select so-license-quick-select" onchange="soOnLicenseQuickSelectChange()"></select></label>
+                                <div id="so-license-quick-pagination"></div>
+                                <label class="so-field-full"><span class="admin-settings-field-label">License key (read-only — tap to select, then copy)</span>
+                                    <div class="so-input-with-btn">
+                                        <input id="so-license-quick-key-display" type="text" readonly class="so-readonly-input so-license-key-copy" onclick="this.select()" placeholder="Select a license above">
+                                        <button type="button" class="so-btn-sm so-btn-touch" onclick="soCopyLicenseKeyQuick()" title="Copy license key">Copy</button>
+                                    </div></label>
+                                <div id="so-license-quick-details" class="so-license-quick-details so-admin-muted">Select or search for a license to view validity.</div>
+                                <div class="so-license-quick-actions">
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soEditLicenseQuickSelection()" id="so-license-quick-edit-btn" disabled>Edit license</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soScrollToLicenseInList()" id="so-license-quick-scroll-btn" disabled>Open in list below</button>
+                                    <button type="button" class="so-btn-sm so-btn-touch" onclick="soRefreshLicenseQuickLookup()"><i class="fa fa-rotate"></i> Refresh</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="so-section-accordion" data-so-section="license-create">
                         <button type="button" class="so-section-accordion-head" onclick="toggleSoSectionAccordion('license-create')">
                             <span><i class="fa fa-file-circle-plus"></i> <span id="so-license-form-title">Create license</span></span>
@@ -2763,8 +2839,12 @@
                                     <input id="so-license-included-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
                                 <label><span class="admin-settings-field-label">Add-on credits (used after subscription pool)</span>
                                     <input id="so-license-addon-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input"></label>
-                                <label><span class="admin-settings-field-label">Custom credits (this license only — shown in extension)</span>
-                                    <input id="so-license-custom-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseCustomCreditsChange()" title="Per-license bonus pool — consumed after subscription and add-on credits"></label>
+                                <label><span class="admin-settings-field-label">MY PLANS grant (from pack checkboxes below)</span>
+                                    <input id="so-license-my-plans-grant-credits" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input so-readonly-input--highlight" title="Sum of checked MY PLANS packs — saved as my_plans_granted_credits"></label>
+                                <label><span class="admin-settings-field-label">Custom credits (manual bonus only)</span>
+                                    <input id="so-license-custom-credits" type="number" min="0" step="1" value="0" oninput="soOnLicenseCustomCreditsChange()" title="Manual VIP/support bonus — added to MY PLANS grant for the custom pool"></label>
+                                <label><span class="admin-settings-field-label">Custom pool total (MY PLANS + manual)</span>
+                                    <input id="so-license-custom-pool-total" type="number" min="0" step="1" value="0" readonly tabindex="-1" class="so-readonly-input" title="Consumed after subscription and add-on in extension"></label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Custom credits label (extension display)</span>
                                     <input id="so-license-custom-credits-label" type="text" placeholder="e.g. VIP support bonus" oninput="soUpdateLicenseCreditsBreakdown()"></label>
                                 <label><span class="admin-settings-field-label">Total credits (plan grant)</span>
@@ -2797,17 +2877,25 @@
                                 <div id="so-license-addon-picks" class="so-license-addon-picks"></div>
                                 <p id="so-license-credits-summary" class="so-admin-muted so-admin-tip"></p>
                             </div>
+                            <div id="so-license-my-plans-section" class="so-license-addon-section" style="display:none;">
+                                <div class="so-admin-subhead">MY PLANS credit packs (admin grant)</div>
+                                <p class="so-admin-muted so-admin-tip">Check packs from <strong>Credits → MY PLANS catalog</strong> — same as credit add-ons above. Grants credits to the <strong>custom pool</strong> and attaches packs to this license on <strong>Create / Update license</strong> (works on existing keys).</p>
+                                <div id="so-license-my-plans-picks" class="so-license-addon-picks"></div>
+                                <p id="so-license-my-plans-summary" class="so-admin-muted so-admin-tip"></p>
+                            </div>
                             <div class="so-admin-subhead" style="margin-top:10px;">Extension purchase UI (this license)</div>
-                            <p class="so-admin-muted so-admin-tip">Hide or disable plan add-ons / custom plan block in the extension for customers using this license key.</p>
+                            <p class="so-admin-muted so-admin-tip">Hide or disable extension purchase sections for customers using this license key.</p>
                             <div class="so-checkbox-group">
-                                <label class="so-plan-check"><input id="so-license-hide-plan-addons" type="checkbox"> Hide plan add-ons in extension</label>
-                                <label class="so-plan-check"><input id="so-license-disable-plan-addons" type="checkbox"> Disable plan add-ons (visible but not selectable)</label>
-                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox"> Hide custom plan block</label>
-                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox"> Disable custom plan block</label>
+                                <label class="so-plan-check"><input id="so-license-hide-plan-addons" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Hide plan add-ons in extension</label>
+                                <label class="so-plan-check"><input id="so-license-disable-plan-addons" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Disable plan add-ons (visible but not selectable)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-custom-plan" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Hide global custom plan block (🛠 CUSTOM PLAN)</label>
+                                <label class="so-plan-check"><input id="so-license-disable-custom-plan" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Disable global custom plan (visible but inactive)</label>
+                                <label class="so-plan-check"><input id="so-license-hide-license-custom-plans" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Hide MY PLANS (license custom plans)</label>
+                                <label class="so-plan-check"><input id="so-license-disable-license-custom-plans" type="checkbox" onchange="soRefreshLicenseExtensionUi()"> Disable MY PLANS (visible but inactive)</label>
                             </div>
                             <details class="so-details-block" open>
                                 <summary>License custom plans (this key only)</summary>
-                                <p class="so-admin-muted so-admin-tip" style="margin-top:8px;">Each <strong>MY PLANS block</strong> can hold many credit packs (like ⚡ PLAN ADD-ONS). Use <strong>+ Add credit pack</strong> on a block to add more chips — or <strong>+ Add MY PLANS block</strong> for a separate heading (e.g. VIP packs).</p>
+                                <p class="so-admin-muted so-admin-tip" style="margin-top:8px;">Catalog templates (checked above) are copied here on save. <strong>Manual</strong> blocks are license-only — they stay even when catalog checkboxes change. Each block can hold many credit packs (like ⚡ PLAN ADD-ONS).</p>
                                 <div class="so-plans-toolbar" style="margin-top:8px;">
                                     <span id="so-license-custom-plans-count" class="so-plans-count">0 custom plans</span>
                                     <div class="so-plans-toolbar-actions">
@@ -2871,8 +2959,9 @@
                                     <option value="revoked">Revoked</option>
                                 </select>
                             </label>
-                            <input id="so-license-search" type="search" placeholder="Search key, phone, plan, device…" oninput="filterSoLicenses()">
+                            <input id="so-license-search" type="search" placeholder="Search key, phone, plan, device…" oninput="soOnLicenseListSearchInput()">
                             <div id="so-licenses-list" class="so-admin-list so-admin-list--tall"></div>
+                            <div id="so-license-list-pagination"></div>
                         </div>
                     </div>
                     <div class="so-sticky-save so-sticky-save--muted">
@@ -3041,6 +3130,8 @@
                                 <label><span class="admin-settings-field-label">Plan id (slug)</span>
                                     <input id="so-lic-cplan-modal-id" type="text" placeholder="e.g. vip_yearly"></label>
                                 <label class="so-plan-check" style="align-self:end;"><input id="so-lic-cplan-modal-active" type="checkbox" checked> Show in extension</label>
+                                <label class="so-plan-check" style="align-self:end;"><input id="so-lic-cplan-modal-disabled" type="checkbox"> Disable block (visible but inactive)</label>
+                                <label id="so-lic-cplan-modal-default-selected-wrap" class="so-plan-check" style="display:none;align-self:end;"><input id="so-lic-cplan-modal-default-selected" type="checkbox"> Default attach on new licenses</label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">WhatsApp message title (🛠 MY PLANS heading)</span>
                                     <input id="so-lic-cplan-modal-whatsapp-title" type="text" placeholder="My Plans"></label>
                                 <label style="grid-column:1/-1;"><span class="admin-settings-field-label">Description (above credit pack cards)</span>
@@ -4900,7 +4991,7 @@
     <script src="js/cloudinary-admin.js?v=9.92"></script>
     <script src="js/imagekit-admin.js?v=1.2"></script>
     <script src="js/shipping-optimizer-firebase.js?v=1.4"></script>
-    <script src="js/shipping-optimizer-admin.js?v=5.26"></script>
+    <script src="js/shipping-optimizer-admin.js?v=5.35"></script>
     <script src="js/bind-globals.js?v=9.90"></script>
     <!-- Floating WhatsApp Button -->
     <a href="https://wa.me/918800467686" class="whatsapp-float whatsapp-float-pending" target="_blank" aria-label="Chat with us on WhatsApp"

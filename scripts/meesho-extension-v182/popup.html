@@ -291,6 +291,23 @@
       pointer-events: none;
       cursor: not-allowed;
     }
+    .plan-detail-section--disabled .plan-lic-custom-option-btn,
+    .plan-lic-custom-option-btn[disabled],
+    .plan-lic-custom-option-btn.plan-addon-card--disabled {
+      opacity: 0.45;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+    .plan-detail-custom-plan-btn[disabled],
+    .plan-detail-custom-plan-btn.plan-detail-custom-plan-btn--disabled,
+    .plan-detail-section--disabled .plan-detail-custom-plan-btn {
+      opacity: 0.55;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+    .plan-detail-section--disabled {
+      opacity: 0.92;
+    }
     #plan-purchase-whatsapp-btn:disabled {
       opacity: 0.45;
       cursor: not-allowed;

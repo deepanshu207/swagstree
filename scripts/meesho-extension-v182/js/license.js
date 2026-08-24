@@ -75,6 +75,12 @@ const LicenseManager = {
       hideCustomPlan: info.hideCustomPlan === true || info.hide_custom_plan === true,
       disableCustomPlan:
         info.disableCustomPlan === true || info.disable_custom_plan === true,
+      hideLicenseCustomPlans:
+        info.hideLicenseCustomPlans === true ||
+        info.hide_license_custom_plans === true,
+      disableLicenseCustomPlans:
+        info.disableLicenseCustomPlans === true ||
+        info.disable_license_custom_plans === true,
     };
   },
 

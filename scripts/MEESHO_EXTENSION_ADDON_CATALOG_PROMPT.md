@@ -1,4 +1,4 @@
-# Meesho Extension — Admin sync prompt (v1.8.48)
+# Meesho Extension — Admin sync prompt (v1.8.49)
 
 Apply these changes to `meesho-shipping-optimizer-extension` by merging from `swagstree/scripts/meesho-extension-v182/`.
 
@@ -16,12 +16,12 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 
 | File | Changes |
 |------|---------|
-| `js/firebaseLicense.js` | Merge MY PLANS blocks by title; multi-pack grid (v1.8.48) |
+| `js/firebaseLicense.js` | MY PLANS hide/disable flags + per-block `disabled` (v1.8.49) |
 | `js/license.js` | `licenseCustomPlan`, customer address/location in `normalizeLicenseInfo` |
 | `popup.js` | Pass `licenseContext` to plan detail; wire per-license custom plan WhatsApp |
 | `firestore.rules` | Allow extension to patch `customer_*`, `custom_credits` on activation |
-| `config.js` | `VERSION: "1.8.48"` |
-| `manifest.json` | `"version": "1.8.48"` |
+| `config.js` | `VERSION: "1.8.49"` |
+| `manifest.json` | `"version": "1.8.49"` |
 
 ## Firebase — plan fields (`shipping_optimizer_config/app` → `plans[]`)
 
@@ -53,8 +53,10 @@ Apply these changes to `meesho-shipping-optimizer-extension` by merging from `sw
 | `bonus_credits` | Legacy alias — read as fallback for `custom_credits` |
 | `hide_plan_addons` | Hide plan add-ons in extension for this license |
 | `disable_plan_addons` | Show plan add-ons disabled |
-| `hide_custom_plan` | Hide custom plan block |
-| `disable_custom_plan` | Disable custom plan button |
+| `hide_custom_plan` | Hide global 🛠 CUSTOM PLAN block |
+| `disable_custom_plan` | Disable global custom plan (visible but inactive) |
+| `hide_license_custom_plans` | Hide all 🛠 MY PLANS blocks for this license |
+| `disable_license_custom_plans` | Show MY PLANS grayed / not tappable for this license |
 | `billing_mode` | `subscription` (default) · `hybrid` (auto when add-on/custom credits) · `credits` |
 | `customer_name` / `customer_phone` / `customer_email` | Customer mapping (extension may fill email/name/location on activation) |
 | `customer_address` | Optional street address |
@@ -79,6 +81,7 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
   {
     "id": "license1",
     "enabled": true,
+    "disabled": false,
     "whatsapp_title": "My Plans",
     "description": "Hello",
     "label": "Request Custom Plan via WhatsApp",
@@ -118,6 +121,8 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
 | Field | Purpose |
 |-------|---------|
 | `id` | Unique slug on this license |
+| `enabled` | `false` = hide this MY PLANS block |
+| `disabled` | `true` = show block grayed / chips not selectable |
 | `label` | Section WhatsApp CTA button text |
 | `whatsapp_title` | Section heading (`🛠 MY PLANS`) + WhatsApp message title |
 | `description` | Text above the pack card grid |
@@ -129,7 +134,11 @@ Admin → Super → Licenses → **License custom plans (this key only)** — sa
 - Legacy single `license_custom_plan` object is still read — migrated to array on next license save.
 - Extension plan detail shows **each** enabled entry as 🛠 MY PLANS with pack-style option grid + WhatsApp CTA.
 - Blocks with the same `whatsapp_title` (e.g. `My Plans`) **merge into one grid** in the extension — add more packs via **+ Add credit pack** on the block, not a duplicate block with the same id.
-- `hide_custom_plan` on the license hides all license-mapped custom plans (global block still follows plan/config rules).
+- **Hide/disable (v1.8.50):** Global and MY PLANS flags are **independent**:
+  - `hide_custom_plan` / `disable_custom_plan` → 🛠 CUSTOM PLAN (global) only
+  - `hide_license_custom_plans` / `disable_license_custom_plans` → all MY PLANS blocks
+  - Per-block `enabled: false` hides one block; `disabled: true` grays one block (v1.8.51 fixes block `disabled` being dropped during normalize)
+- Disabled sections block taps (WhatsApp CTA + option chips) via `pointer-events: none` and click guards; re-enabling after admin unchecks reads fresh Firebase values (no stale cache OR).
 - Active license context loads fresh `license_custom_plans[]` from Firebase when opening plan detail.
 
 ## Per-license custom plans (v1.8.45 — superseded)
@@ -275,3 +284,75 @@ After admin save: close/reopen extension popup (config cache ~5 min or bust on `
 Extension resolves: per-user `max_devices` if set, else `google_trial.max_devices`. `0` skips device cap checks.
 
 Admin **Manage Google user** modal sections each support **Save → Firebase** with preview. Credits and Devices also offer **Save as global default** (updates `google_trial` config only).
+
+## Meesho extension merge prompt (v1.8.51 — per-block MY PLANS disable fix)
+
+Copy `scripts/meesho-extension-v182/` into your Meesho Shipping Optimizer extension repo:
+
+```
+v1.8.51 — Fix per-block "Disable block" on MY PLANS not graying / blocking taps
+
+Merge files:
+  js/firebaseLicense.js   — normalizeLicenseCustomPlanConfig preserves disabled (not hide)
+  js/shipping-optimizer-admin.js (swagstree admin) — writes disabled: false when re-enabled
+
+Root cause: disabled was passed through normalizeCustomPlanConfig which treated it as
+hide and dropped the disabled flag, so block-level disable never reached the UI guards.
+
+Reload extension at chrome://extensions after deploy.
+```
+
+## Meesho extension merge prompt (v1.8.50 — disable fix)
+
+Copy `scripts/meesho-extension-v182/` into your Meesho Shipping Optimizer extension repo:
+
+```
+v1.8.50 — Fix disable not blocking taps; split global vs MY PLANS flags
+
+Merge files:
+  js/firebaseLicense.js   — isCustomPlanPurchaseAllowed(); decoupled hide/disable evaluators
+  popup.js                — click guard; fresh Firebase hide/disable (no stale cache OR)
+  popup.html              — pointer-events CSS for disabled custom plan sections
+  config.js, manifest.json → v1.8.50
+
+Behavior:
+  disable_custom_plan          → grays global 🛠 CUSTOM PLAN only
+  disable_license_custom_plans → grays all MY PLANS blocks
+  license_custom_plans[].disabled → grays one block
+  Disabled CTAs/chips cannot open WhatsApp (touch + click guarded)
+
+Reload extension at chrome://extensions after deploy.
+See scripts/MEESHO_EXTENSION_ADDON_CATALOG_PROMPT.md
+```
+
+## Meesho extension merge prompt (v1.8.49 — MY PLANS hide/disable)
+
+Copy `scripts/meesho-extension-v182/` into your Meesho Shipping Optimizer extension repo:
+
+```
+v1.8.49 — MY PLANS hide/disable (license + per-block)
+
+Merge files:
+  js/firebaseLicense.js   — licenseMyPlansHidden(), licenseMyPlansDisabled(), per-block disabled
+  js/license.js           — hideLicenseCustomPlans, disableLicenseCustomPlans in normalizeLicenseInfo
+  popup.js                — pass flags in licenseContext (fresh Firebase fetch)
+
+Admin (swagstree): shipping-optimizer-admin.js?v=5.29
+  License form → Extension purchase UI:
+    - Hide global custom plan block (🛠 CUSTOM PLAN)
+    - Disable global custom plan
+    - Hide MY PLANS (license custom plans)
+    - Disable MY PLANS (visible but inactive)
+  MY PLANS block modal:
+    - Show in extension (enabled)
+    - Disable block (visible but inactive)
+
+Firebase license fields:
+  hide_license_custom_plans / disable_license_custom_plans  → all MY PLANS blocks
+  hide_custom_plan / disable_custom_plan                    → global CUSTOM PLAN (+ legacy MY PLANS hide)
+  license_custom_plans[].enabled: false                     → hide one block
+  license_custom_plans[].disabled: true                    → gray one block
+
+Reload extension at chrome://extensions after deploy.
+See scripts/MEESHO_EXTENSION_ADDON_CATALOG_PROMPT.md
+```
